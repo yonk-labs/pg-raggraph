@@ -237,16 +237,19 @@ erDiagram
 - ✅ **Works on any managed PostgreSQL** (RDS, Supabase, Neon, Cloud SQL)
 - ✅ **Local embeddings by default** — no API keys to start
 - ✅ **Single SQL query hybrid retrieval** — vector + BM25 + graph in one round-trip
-- ✅ **63 passing tests** — unit + integration + real-LLM E2E
+- ✅ **115 passing tests** — unit + integration + real-LLM E2E + server
 - ✅ **Throttle profiles** — `conservative`/`balanced`/`aggressive`/`max`
+- ✅ **`rag.ask()` + `/ask` endpoint** — grounded LLM answers with source citations
+- ✅ **MCP server** — `pgrg mcp-serve` for Claude Desktop, Cursor, Zed
+- ✅ **FastAPI server + web UI** — `pgrg serve` or `pgrg demo`
+- ✅ **Schema migrations** — per-filename tracking, applied on every connect
+- ✅ **Incremental re-ingest** — changed files atomically replace stale docs
 
 ## What It Doesn't Do (yet)
 
-- ❌ **No answer generation** — returns chunks, not synthesized answers (bring your own LLM call)
-- ❌ **No incremental updates** — changed files get new entities, old ones stick around
-- ❌ **No MCP server** — planned, not built
 - ❌ **No LangChain/LlamaIndex adapters** — planned, not built
-- ❌ **No production deployment story** — Docker compose is dev-only
+- ❌ **No community detection** — Leiden clustering optional extra, not wired in by default
+- ❌ **No streaming answers** — LLM answer generation is single-shot, not streamed
 
 **See [ASSESSMENT.md](ASSESSMENT.md) for the full no-BS evaluation.**
 
