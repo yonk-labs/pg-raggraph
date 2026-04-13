@@ -75,20 +75,34 @@ docker compose down              # Stop database
 ```
 
 ### Database Setup
-Tests and local development use a Docker PostgreSQL instance with pgvector and pg_trgm pre-installed. Connection string defaults to `postgresql://postgres:postgres@localhost:5432/pg_raggraph`.
+Tests and local development use a Docker PostgreSQL instance with pgvector and pg_trgm pre-installed. Connection string defaults to `postgresql://postgres:postgres@localhost:5434/pg_raggraph`.
 
 ### Project Layout
 ```
-src/pg_raggraph/        # Main package
-  core/                 # Extraction, chunking, embedding interfaces
-  graph/                # Adjacency table graph store, recursive CTE traversal
-  vector/               # pgvector store, similarity search
-  retrieval/            # Hybrid retrieval combining graph + vector + BM25
-  community/            # Leiden clustering, community summaries
-  knowledge/            # Compiled knowledge layer, provenance tracking
+src/pg_raggraph/
+  __init__.py          # GraphRAG class, public API (connect, ingest, query, ask, status, delete, CRUD)
+  config.py            # PGRGConfig (pydantic-settings), all PGRG_ env vars
+  db.py                # Database class, connection pool, schema bootstrap, migration runner
+  models.py            # Pydantic DTOs: Document, Chunk, Entity, Relationship, QueryResult
+  chunking.py          # Markdown/code/text-aware chunker + content_hash()
+  embedding.py         # EmbeddingProvider protocol + FastEmbedProvider
+  extraction.py        # LLMProvider protocol + HttpxLLMProvider + extraction pipeline
+  resolution.py        # Entity resolution: pg_trgm fuzzy + vector cosine scoring
+  retrieval.py         # Hybrid retrieval: naive / naive_boost / local / global / hybrid / smart
+  answer.py            # generate_answer(): LLM grounding + fallback summary
+  cli.py               # Click CLI: init, ingest, query, ask, status, delete, serve, demo, devmem, mcp-serve
+  server.py            # FastAPI app: /query, /ask, /ingest, /graph, /status, /health
+  mcp_server.py        # MCP server (stdio): pgrg_query, pgrg_ask, pgrg_ingest, pgrg_status, pgrg_delete_document
+  sql/
+    schema.sql         # DDL for all tables + indexes
+    migrations/        # NNN_*.sql migration files
+  static/
+    index.html         # Single-file web UI (htmx + vis-network)
 tests/
-  unit/                 # No database required
-  integration/          # Requires running PostgreSQL
+  unit/                # No database required
+  integration/         # Requires running PostgreSQL (port 5434)
+  test_e2e.py          # Cumulative E2E: schema → ingest → query
+  test_user_journey.py # End-to-end user journey
 ```
 
 ## Conventions
