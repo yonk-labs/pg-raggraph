@@ -8,7 +8,7 @@
     <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e4e4e7; height: 100vh; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e4e4e7; height: 100vh; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto auto; }
         #chat { padding: 1rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem; }
         #graph { border-left: 1px solid #27272a; }
         #input-bar { grid-column: 1 / -1; padding: 1rem; border-top: 1px solid #27272a; display: flex; gap: 0.5rem; background: #18181b; }
@@ -24,6 +24,11 @@
         .msg .entities span { background: #3f3f46; padding: 0.15rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; }
         h1 { font-size: 1.2rem; padding: 1rem; color: #6366f1; grid-column: 1 / -1; text-align: center; border-bottom: 1px solid #27272a; }
         .stats { font-size: 0.8rem; color: #71717a; padding: 0.5rem 1rem; text-align: center; }
+        #upload-bar { grid-column: 1 / -1; padding: 0.5rem 1rem; background: #18181b; border-top: 1px solid #27272a; display: flex; gap: 0.5rem; align-items: center; font-size: 0.85rem; }
+        #upload-bar input[type=file] { flex: 1; color: #a1a1aa; }
+        #upload-bar button { padding: 0.4rem 1rem; border-radius: 0.375rem; border: none; background: #3f3f46; color: #e4e4e7; cursor: pointer; font-size: 0.8rem; }
+        #upload-bar button:hover { background: #52525b; }
+        #upload-status { color: #71717a; }
     </style>
 </head>
 <body>
@@ -32,6 +37,12 @@
         <div class="stats" id="stats">Loading...</div>
     </div>
     <div id="graph"></div>
+    <div id="upload-bar">
+        <span style="color:#71717a;">Upload:</span>
+        <input type="file" id="upload-files" multiple accept=".md,.txt,.py,.js,.ts,.go,.rs,.java,.sql,.yaml,.yml,.toml,.json">
+        <button onclick="uploadFiles()">Ingest</button>
+        <span id="upload-status"></span>
+    </div>
     <div id="input-bar">
         <input type="text" id="question" placeholder="Ask a question about your knowledge graph..." autofocus>
         <button onclick="askQuestion()">Ask</button>
@@ -127,6 +138,25 @@
             const d = document.createElement('div');
             d.textContent = text;
             return d.innerHTML;
+        }
+
+        async function uploadFiles() {
+            const input = document.getElementById('upload-files');
+            const status = document.getElementById('upload-status');
+            if (!input.files.length) { status.textContent = 'No files selected.'; return; }
+            status.textContent = `Uploading ${input.files.length} file(s)...`;
+            const form = new FormData();
+            for (const f of input.files) form.append('files', f);
+            try {
+                const resp = await fetch('/ingest', { method: 'POST', body: form });
+                const data = await resp.json();
+                status.textContent = `✓ ${data.documents} docs | ${data.entities} entities`;
+                input.value = '';
+                loadStatus();
+                loadGraph();
+            } catch (e) {
+                status.textContent = `Error: ${e.message}`;
+            }
         }
 
         document.getElementById('question').addEventListener('keydown', e => {
