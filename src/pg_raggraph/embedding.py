@@ -1,0 +1,94 @@
+"""Embedding providers for pg-raggraph."""
+
+from __future__ import annotations
+
+from typing import Protocol, runtime_checkable
+
+from pg_raggraph.config import PGRGConfig
+
+
+@runtime_checkable
+class EmbeddingProvider(Protocol):
+    """Protocol for embedding providers."""
+
+    async def embed(self, texts: list[str]) -> list[list[float]]: ...
+
+    @property
+    def dimension(self) -> int: ...
+
+
+class FastEmbedProvider:
+    """Local embedding using fastembed (ONNX-based, no PyTorch)."""
+
+    def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5"):
+        from fastembed import TextEmbedding
+
+        self._model = TextEmbedding(model_name=model_name)
+        # Infer dimension from a test embedding
+        test = list(self._model.embed(["test"]))[0]
+        self._dim = len(test)
+
+    @property
+    def dimension(self) -> int:
+        return self._dim
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        # fastembed is sync, run in thread for async compatibility
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, self._embed_sync, texts)
+        return result
+
+    def _embed_sync(self, texts: list[str]) -> list[list[float]]:
+        embeddings = list(self._model.embed(texts))
+        return [e.tolist() for e in embeddings]
+
+
+class HttpxEmbeddingProvider:
+    """OpenAI-compatible embedding provider via httpx."""
+
+    def __init__(self, base_url: str, model: str, api_key: str = "", dimension: int = 384):
+        self._base_url = base_url.rstrip("/")
+        self._model = model
+        self._api_key = api_key
+        self._dim = dimension
+
+    @property
+    def dimension(self) -> int:
+        return self._dim
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        import httpx
+
+        headers = {"Content-Type": "application/json"}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(
+                f"{self._base_url}/embeddings",
+                headers=headers,
+                json={"model": self._model, "input": texts},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return [item["embedding"] for item in data["data"]]
+
+
+def get_embedding_provider(config: PGRGConfig) -> EmbeddingProvider:
+    """Factory to create the right embedding provider from config."""
+    if config.embedding_provider == "local":
+        return FastEmbedProvider(model_name=config.embedding_model)
+    elif config.embedding_provider in ("openai", "ollama"):
+        base_url = config.llm_base_url
+        if config.embedding_provider == "openai":
+            base_url = "https://api.openai.com/v1"
+        return HttpxEmbeddingProvider(
+            base_url=base_url,
+            model=config.embedding_model,
+            api_key=config.llm_api_key,
+            dimension=config.embedding_dim,
+        )
+    else:
+        raise ValueError(f"Unknown embedding provider: {config.embedding_provider}")

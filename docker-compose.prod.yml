@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PGRG_DB:-pg_raggraph}
+      POSTGRES_USER: ${PGRG_USER:-postgres}
+      POSTGRES_PASSWORD: ${PGRG_PASSWORD:?set PGRG_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGRG_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Not published to host by default — only the pgrg service talks to it
+    # over the compose network. Uncomment to expose for remote clients.
+    # ports:
+    #   - "5432:5432"
+
+  pgrg:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGRG_DSN: postgresql://${PGRG_USER:-postgres}:${PGRG_PASSWORD}@postgres:5432/${PGRG_DB:-pg_raggraph}
+      PGRG_LLM_BASE_URL: ${PGRG_LLM_BASE_URL:-}
+      PGRG_LLM_API_KEY: ${PGRG_LLM_API_KEY:-}
+      PGRG_LLM_MODEL: ${PGRG_LLM_MODEL:-gpt-4o-mini}
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:

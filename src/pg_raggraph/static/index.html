@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>pg-raggraph</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e4e4e7; height: 100vh; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto; }
+        #chat { padding: 1rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem; }
+        #graph { border-left: 1px solid #27272a; }
+        #input-bar { grid-column: 1 / -1; padding: 1rem; border-top: 1px solid #27272a; display: flex; gap: 0.5rem; background: #18181b; }
+        #input-bar input { flex: 1; padding: 0.75rem 1rem; border-radius: 0.5rem; border: 1px solid #3f3f46; background: #27272a; color: #e4e4e7; font-size: 1rem; outline: none; }
+        #input-bar input:focus { border-color: #6366f1; }
+        #input-bar button { padding: 0.75rem 1.5rem; border-radius: 0.5rem; border: none; background: #6366f1; color: white; font-weight: 600; cursor: pointer; }
+        #input-bar button:hover { background: #4f46e5; }
+        .msg { padding: 0.75rem 1rem; border-radius: 0.75rem; max-width: 90%; line-height: 1.5; }
+        .msg.user { background: #6366f1; align-self: flex-end; }
+        .msg.assistant { background: #27272a; align-self: flex-start; }
+        .msg .sources { margin-top: 0.5rem; font-size: 0.8rem; color: #a1a1aa; }
+        .msg .entities { margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.25rem; }
+        .msg .entities span { background: #3f3f46; padding: 0.15rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; }
+        h1 { font-size: 1.2rem; padding: 1rem; color: #6366f1; grid-column: 1 / -1; text-align: center; border-bottom: 1px solid #27272a; }
+        .stats { font-size: 0.8rem; color: #71717a; padding: 0.5rem 1rem; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>pg-raggraph <span style="font-weight:300; font-size:0.9rem;">— PostgreSQL-native GraphRAG</span></h1>
+    <div id="chat">
+        <div class="stats" id="stats">Loading...</div>
+    </div>
+    <div id="graph"></div>
+    <div id="input-bar">
+        <input type="text" id="question" placeholder="Ask a question about your knowledge graph..." autofocus>
+        <button onclick="askQuestion()">Ask</button>
+    </div>
+
+    <script>
+        let network = null;
+
+        async function loadStatus() {
+            const resp = await fetch('/status');
+            const data = await resp.json();
+            document.getElementById('stats').innerHTML =
+                `📊 ${data.documents} docs | ${data.entities} entities | ${data.relationships} relationships`;
+        }
+
+        async function loadGraph() {
+            const resp = await fetch('/graph');
+            const data = await resp.json();
+            if (!data.nodes.length) return;
+
+            const container = document.getElementById('graph');
+            const nodes = new vis.DataSet(data.nodes.map(n => ({
+                id: n.id, label: n.label, group: n.group,
+                font: { color: '#e4e4e7' }
+            })));
+            const edges = new vis.DataSet(data.edges.map((e, i) => ({
+                id: i, from: e.from, to: e.to, label: e.label,
+                arrows: 'to', font: { color: '#71717a', size: 10 }
+            })));
+
+            // vis-network uses node labels for from/to matching
+            const nodeMap = {};
+            data.nodes.forEach(n => nodeMap[n.label] = n.id);
+            const mappedEdges = new vis.DataSet(data.edges.map((e, i) => ({
+                id: i, from: nodeMap[e.from], to: nodeMap[e.to],
+                label: e.label, arrows: 'to',
+                font: { color: '#71717a', size: 10 }, color: { color: '#4f46e5' }
+            })));
+
+            const options = {
+                nodes: { shape: 'dot', size: 16, borderWidth: 2,
+                    color: { border: '#6366f1', background: '#312e81' } },
+                edges: { width: 1, color: { color: '#4f46e5' }, smooth: { type: 'continuous' } },
+                physics: { stabilization: { iterations: 100 } },
+                layout: { improvedLayout: true }
+            };
+            network = new vis.Network(container, { nodes, edges: mappedEdges }, options);
+        }
+
+        async function askQuestion() {
+            const input = document.getElementById('question');
+            const q = input.value.trim();
+            if (!q) return;
+            input.value = '';
+
+            const chat = document.getElementById('chat');
+            chat.innerHTML += `<div class="msg user">${escapeHtml(q)}</div>`;
+
+            const formData = new FormData();
+            formData.append('question', q);
+            formData.append('mode', 'hybrid');
+
+            const resp = await fetch('/query', { method: 'POST', body: formData });
+            const data = await resp.json();
+
+            let html = '';
+            if (data.chunks && data.chunks.length > 0) {
+                html += data.chunks.map(c =>
+                    `<p>${escapeHtml(c.content.substring(0, 300))}${c.content.length > 300 ? '...' : ''}</p>`
+                ).join('');
+                html += `<div class="sources">📎 ${data.chunks.length} chunks (${Math.round(data.latency_ms)}ms)</div>`;
+            } else {
+                html += '<p>No relevant information found.</p>';
+            }
+            if (data.entities && data.entities.length > 0) {
+                html += `<div class="entities">${data.entities.map(e =>
+                    `<span>${escapeHtml(e.name)}</span>`).join('')}</div>`;
+            }
+            chat.innerHTML += `<div class="msg assistant">${html}</div>`;
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            const d = document.createElement('div');
+            d.textContent = text;
+            return d.innerHTML;
+        }
+
+        document.getElementById('question').addEventListener('keydown', e => {
+            if (e.key === 'Enter') askQuestion();
+        });
+
+        loadStatus();
+        loadGraph();
+    </script>
+</body>
+</html>
