@@ -139,9 +139,7 @@ class Database:
         except (FileNotFoundError, AttributeError):
             return
 
-        result = await conn.execute(
-            "SELECT value FROM pgrg_meta WHERE key = 'schema_version'"
-        )
+        result = await conn.execute("SELECT value FROM pgrg_meta WHERE key = 'schema_version'")
         row = await result.fetchone()
         current = int(row[0]) if row else SCHEMA_VERSION
 

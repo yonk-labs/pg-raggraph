@@ -7,7 +7,7 @@ import logging
 import os
 import re
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.models import QueryResult
@@ -188,7 +188,14 @@ class GraphRAG:
         if llm is None:
             _progress("Extraction disabled — ingesting as pure vector RAG.")
 
-        stats = {"ingested": 0, "skipped": 0, "entities": 0, "rels": 0}
+        stats = {
+            "ingested": 0,
+            "skipped": 0,
+            "failed": 0,
+            "degraded": 0,
+            "entities": 0,
+            "rels": 0,
+        }
 
         async def _process_file(idx: int, file_path: str):
             # Retry on transient serialization / deadlock errors from
@@ -211,22 +218,33 @@ class GraphRAG:
                             stats["ingested"] += 1
                             stats["entities"] += r["entities"]
                             stats["rels"] += r["rels"]
+                            if r.get("degraded"):
+                                stats["degraded"] += 1
+                            deg_note = (
+                                " (extraction failed, vector-only)" if r.get("degraded") else ""
+                            )
                             _progress(
                                 f"[{idx}/{len(file_paths)}] "
                                 f"{os.path.basename(file_path)}: "
-                                f"{r['entities']} entities, {r['rels']} rels"
+                                f"{r['entities']} entities, {r['rels']} rels{deg_note}"
                             )
                         else:
                             stats["skipped"] += 1
                         return
                     except Exception as e:
-                        # Postgres deadlock = SQLSTATE 40P01, serialization = 40001
+                        # Postgres deadlock = SQLSTATE 40P01, serialization = 40001.
+                        # Prefer the structured sqlstate attribute (psycopg3) over
+                        # string matching, which breaks on non-English PG builds.
+                        sqlstate = getattr(e, "sqlstate", None)
                         msg = str(e)
-                        transient = (
-                            "40P01" in msg
-                            or "40001" in msg
-                            or "deadlock detected" in msg
-                            or "could not serialize" in msg
+                        transient = sqlstate in ("40P01", "40001") or (
+                            sqlstate is None
+                            and (
+                                "40P01" in msg
+                                or "40001" in msg
+                                or "deadlock detected" in msg
+                                or "could not serialize" in msg
+                            )
                         )
                         if transient and attempt < 3:
                             backoff = 0.2 * (2 ** (attempt - 1))
@@ -237,12 +255,20 @@ class GraphRAG:
                             await asyncio.sleep(backoff)
                             continue
                         logger.warning(f"Failed {file_path}: {e}")
+                        stats["failed"] += 1
                         return
 
         await asyncio.gather(*[_process_file(i + 1, fp) for i, fp in enumerate(file_paths)])
 
+        notes = []
+        if stats["failed"]:
+            notes.append(f"{stats['failed']} failed")
+        if stats["degraded"]:
+            notes.append(f"{stats['degraded']} degraded (vector-only, extraction error)")
+        suffix = f", {', '.join(notes)}" if notes else ""
         _progress(
-            f"Done: {stats['ingested']} ingested, {stats['skipped']} skipped. "
+            f"Done: {stats['ingested']} ingested, {stats['skipped']} skipped"
+            f"{suffix}. "
             f"{stats['entities']} entities, {stats['rels']} relationships."
         )
 
@@ -291,6 +317,7 @@ class GraphRAG:
 
         # Extract entities/relationships via LLM (cache reads OK outside txn).
         # If llm is None, skip extraction entirely — pure vector RAG mode.
+        extraction_degraded = False
         if llm is None:
             from pg_raggraph.models import ExtractionResult
 
@@ -301,10 +328,11 @@ class GraphRAG:
                     chunks, llm, self.db, self.config
                 )
             except Exception as e:
-                logger.warning(f"Extraction failed for {file_path}: {e}")
+                logger.warning(f"Extraction failed for {file_path}, ingesting as pure vector: {e}")
                 from pg_raggraph.models import ExtractionResult
 
                 extraction_results = [ExtractionResult() for _ in chunks]
+                extraction_degraded = True
 
         # Dedupe entities by name, build per-chunk entity/rel lists
         unique_entities = {}
@@ -362,9 +390,7 @@ class GraphRAG:
                 (ns, file_path, c_hash),
             )
             if stale:
-                await tx.execute(
-                    "DELETE FROM documents WHERE id = %s", (stale["id"],)
-                )
+                await tx.execute("DELETE FROM documents WHERE id = %s", (stale["id"],))
                 logger.info(f"Replaced stale version of {file_path}")
 
             # Insert document
@@ -451,7 +477,11 @@ class GraphRAG:
                     )
                     rel_count += 1
 
-        return {"entities": len(unique_entities), "rels": rel_count}
+        return {
+            "entities": len(unique_entities),
+            "rels": rel_count,
+            "degraded": extraction_degraded,
+        }
 
     async def query(
         self, question: str, mode: str = "smart", namespace: str | None = None
@@ -531,9 +561,7 @@ class GraphRAG:
         await self.db.execute("DELETE FROM entities WHERE namespace = %s", (namespace,))
         await self.db.execute("DELETE FROM relationships WHERE namespace = %s", (namespace,))
 
-    async def delete_document(
-        self, source_path: str, namespace: str | None = None
-    ) -> int:
+    async def delete_document(self, source_path: str, namespace: str | None = None) -> int:
         """Delete a document and all its chunks by source path.
 
         Entities and relationships are left in place — they may be referenced
@@ -545,8 +573,7 @@ class GraphRAG:
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
         result = await self.db.fetch_one(
-            "DELETE FROM documents WHERE namespace = %s AND source_path = %s "
-            "RETURNING id",
+            "DELETE FROM documents WHERE namespace = %s AND source_path = %s RETURNING id",
             (ns, source_path),
         )
         return 1 if result else 0
@@ -589,9 +616,7 @@ class GraphRAG:
                 raise ValueError(f"entities not found: {sorted(missing)}")
             namespaces = {r["namespace"] for r in rows}
             if len(namespaces) > 1:
-                raise ValueError(
-                    f"cross-namespace merge refused: {sorted(namespaces)}"
-                )
+                raise ValueError(f"cross-namespace merge refused: {sorted(namespaces)}")
 
             # Repoint relationships. After rewriting src_id and dst_id, any
             # edge whose src and dst both collapse to keep_id becomes a
@@ -607,8 +632,7 @@ class GraphRAG:
             )
             # Drop self-loops created by the merge.
             await tx.execute(
-                "DELETE FROM relationships WHERE src_id = dst_id AND "
-                "(src_id = %s OR dst_id = %s)",
+                "DELETE FROM relationships WHERE src_id = dst_id AND (src_id = %s OR dst_id = %s)",
                 (keep_id, keep_id),
             )
             # Collapse duplicate edges (keep the lowest id per group).
@@ -635,9 +659,7 @@ class GraphRAG:
             )
 
             # Delete merged entities.
-            await tx.execute(
-                "DELETE FROM entities WHERE id = ANY(%s)", (merge_ids,)
-            )
+            await tx.execute("DELETE FROM entities WHERE id = ANY(%s)", (merge_ids,))
 
         return {"kept": keep_id, "merged_count": len(merge_ids)}
 

@@ -12,10 +12,21 @@ from __future__ import annotations
 
 import logging
 import os
+import traceback
 
 from pg_raggraph import GraphRAG
 
 logger = logging.getLogger("pg_raggraph.mcp")
+
+
+def _tool_error(tool_name: str, exc: Exception) -> dict:
+    """Log full traceback locally; return sanitized error dict to the client.
+
+    psycopg error messages often include the DSN, connection params, and SQL
+    fragments. Never let them propagate to an MCP client (an untrusted agent).
+    """
+    logger.error("MCP tool %s failed:\n%s", tool_name, traceback.format_exc())
+    return {"error": f"{tool_name} failed — check server logs for details."}
 
 
 def _resolve_allowed_roots() -> list[str]:
@@ -55,54 +66,53 @@ def build_server(rag: GraphRAG):
         from mcp.server.fastmcp import FastMCP
     except ImportError as e:
         raise ImportError(
-            "MCP server requires the 'mcp' package. "
-            "Install with: pip install pg-raggraph[mcp]"
+            "MCP server requires the 'mcp' package. Install with: pip install pg-raggraph[mcp]"
         ) from e
 
     server = FastMCP("pg-raggraph")
 
     @server.tool()
-    async def pgrg_query(
-        question: str, mode: str = "smart", namespace: str | None = None
-    ) -> dict:
+    async def pgrg_query(question: str, mode: str = "smart", namespace: str | None = None) -> dict:
         """Query the knowledge base — returns chunks with sources and scores.
 
         mode: smart (default) | naive | naive_boost | local | global | hybrid
         """
-        result = await rag.query(question, mode=mode, namespace=namespace)
-        return {
-            "query_mode": result.query_mode,
-            "confidence": result.confidence,
-            "top_score": result.top_score,
-            "latency_ms": result.latency_ms,
-            "chunks": [
-                {
-                    "content": c.content,
-                    "score": c.score,
-                    "source": c.document_source,
-                }
-                for c in result.chunks
-            ],
-            "entities": [e.name for e in result.entities[:20]],
-        }
+        try:
+            result = await rag.query(question, mode=mode, namespace=namespace)
+            return {
+                "query_mode": result.query_mode,
+                "confidence": result.confidence,
+                "top_score": result.top_score,
+                "latency_ms": result.latency_ms,
+                "chunks": [
+                    {
+                        "content": c.content,
+                        "score": c.score,
+                        "source": c.document_source,
+                    }
+                    for c in result.chunks
+                ],
+                "entities": [e.name for e in result.entities[:20]],
+            }
+        except Exception as exc:
+            return _tool_error("pgrg_query", exc)
 
     @server.tool()
-    async def pgrg_ask(
-        question: str, mode: str = "smart", namespace: str | None = None
-    ) -> dict:
+    async def pgrg_ask(question: str, mode: str = "smart", namespace: str | None = None) -> dict:
         """Query + grounded LLM answer with citations.
 
         Falls back to a top-chunk summary if no LLM is configured.
         """
-        result = await rag.ask(question, mode=mode, namespace=namespace)
-        return {
-            "answer": result.answer,
-            "confidence": result.confidence,
-            "sources": [
-                c.document_source for c in result.chunks[:5] if c.document_source
-            ],
-            "latency_ms": result.latency_ms,
-        }
+        try:
+            result = await rag.ask(question, mode=mode, namespace=namespace)
+            return {
+                "answer": result.answer,
+                "confidence": result.confidence,
+                "sources": [c.document_source for c in result.chunks[:5] if c.document_source],
+                "latency_ms": result.latency_ms,
+            }
+        except Exception as exc:
+            return _tool_error("pgrg_ask", exc)
 
     allowed_roots = _resolve_allowed_roots()
 
@@ -116,26 +126,45 @@ def build_server(rag: GraphRAG):
         arbitrary filesystem paths (/etc, ~/.ssh, etc.) and query them back.
         """
         if not allowed_roots:
-            raise PermissionError(
-                "MCP ingest is disabled. Set PGRG_MCP_INGEST_ROOTS "
+            return {
+                "error": "MCP ingest is disabled. Set PGRG_MCP_INGEST_ROOTS "
                 "(colon-separated absolute paths) to enable it."
-            )
-        safe_paths = [_check_path_allowed(p, allowed_roots) for p in paths]
-        await rag.ingest(safe_paths, namespace=namespace)
-        return await rag.status(namespace=namespace)
+            }
+        try:
+            safe_paths = [_check_path_allowed(p, allowed_roots) for p in paths]
+            await rag.ingest(safe_paths, namespace=namespace)
+            return await rag.status(namespace=namespace)
+        except PermissionError as exc:
+            return {"error": str(exc)}
+        except Exception as exc:
+            return _tool_error("pgrg_ingest", exc)
 
     @server.tool()
     async def pgrg_status(namespace: str | None = None) -> dict:
         """Return counts of documents, chunks, entities, and relationships."""
-        return await rag.status(namespace=namespace)
+        try:
+            return await rag.status(namespace=namespace)
+        except Exception as exc:
+            return _tool_error("pgrg_status", exc)
 
     @server.tool()
     async def pgrg_delete_document(
-        source_path: str, namespace: str | None = None
+        source_path: str, namespace: str | None = None, confirm: bool = False
     ) -> dict:
-        """Delete a document by source path."""
-        count = await rag.delete_document(source_path, namespace=namespace)
-        return {"deleted": count}
+        """Delete a document by source path.
+
+        Requires confirm=True as a guard against accidental deletion by agents.
+        """
+        if not confirm:
+            return {
+                "error": "Deletion refused. Pass confirm=True to acknowledge this "
+                "is intentional and not an agent hallucination."
+            }
+        try:
+            count = await rag.delete_document(source_path, namespace=namespace)
+            return {"deleted": count}
+        except Exception as exc:
+            return _tool_error("pgrg_delete_document", exc)
 
     return server
 

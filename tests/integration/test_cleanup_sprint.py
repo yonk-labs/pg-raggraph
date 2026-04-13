@@ -278,10 +278,18 @@ async def test_merge_entities_drops_self_loops_and_duplicates():
             "(%s, %s, %s, 'REL'), (%s, %s, %s, 'REL'), "
             "(%s, %s, %s, 'REL'), (%s, %s, %s, 'REL')",
             (
-                "merge_selfloop", a, b,
-                "merge_selfloop", b, a,
-                "merge_selfloop", a, c,
-                "merge_selfloop", a, c,
+                "merge_selfloop",
+                a,
+                b,
+                "merge_selfloop",
+                b,
+                a,
+                "merge_selfloop",
+                a,
+                c,
+                "merge_selfloop",
+                a,
+                c,
             ),
         )
 
@@ -378,9 +386,7 @@ async def test_apply_migrations_runs_pending_files(monkeypatch):
         rag = await _rag("crud_migration_probe")
         try:
             # Roll schema_version back to 1 to force the migration to apply
-            await rag.db.execute(
-                "UPDATE pgrg_meta SET value = '1' WHERE key = 'schema_version'"
-            )
+            await rag.db.execute("UPDATE pgrg_meta SET value = '1' WHERE key = 'schema_version'")
             # Drop the marker table if a previous test left it behind
             await rag.db.execute(f"DROP TABLE IF EXISTS {marker_table}")
         finally:
@@ -400,9 +406,7 @@ async def test_apply_migrations_runs_pending_files(monkeypatch):
         finally:
             # Clean up: drop the marker table and reset schema_version
             await rag2.db.execute(f"DROP TABLE IF EXISTS {marker_table}")
-            await rag2.db.execute(
-                "UPDATE pgrg_meta SET value = '1' WHERE key = 'schema_version'"
-            )
+            await rag2.db.execute("UPDATE pgrg_meta SET value = '1' WHERE key = 'schema_version'")
             await rag2.close()
     finally:
         # Always remove the dummy migration file even if the test failed

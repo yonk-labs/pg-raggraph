@@ -16,53 +16,55 @@ from pg_raggraph.models import ExtractionResult
 # Common false-positive entity names — words that look like names but aren't.
 # The LLM frequently picks these up from vocabulary files, stop word lists,
 # and generic prose. Filter them out before storing.
-_ENTITY_BLOCKLIST = frozenset({
-    # Generic words that often get tagged as entities
-    "user",
-    "users",
-    "default",
-    "example",
-    "foo",
-    "bar",
-    "baz",
-    "test",
-    "data",
-    "value",
-    "item",
-    "thing",
-    "object",
-    "string",
-    "none",
-    "null",
-    "true",
-    "false",
-    "yes",
-    "no",
-    "n/a",
-    "tbd",
-    "todo",
-    # Common single-char / short "names" from tokenizers
-    "a",
-    "b",
-    "c",
-    "d",
-    "e",
-    "x",
-    "y",
-    "z",
-    # Typical vocab file tokens
-    "the",
-    "and",
-    "or",
-    "if",
-    "of",
-    "to",
-    "in",
-    "on",
-    "at",
-    "by",
-    "for",
-})
+_ENTITY_BLOCKLIST = frozenset(
+    {
+        # Generic words that often get tagged as entities
+        "user",
+        "users",
+        "default",
+        "example",
+        "foo",
+        "bar",
+        "baz",
+        "test",
+        "data",
+        "value",
+        "item",
+        "thing",
+        "object",
+        "string",
+        "none",
+        "null",
+        "true",
+        "false",
+        "yes",
+        "no",
+        "n/a",
+        "tbd",
+        "todo",
+        # Common single-char / short "names" from tokenizers
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "x",
+        "y",
+        "z",
+        # Typical vocab file tokens
+        "the",
+        "and",
+        "or",
+        "if",
+        "of",
+        "to",
+        "in",
+        "on",
+        "at",
+        "by",
+        "for",
+    }
+)
 
 
 def _is_valid_entity(name: str, description: str = "") -> bool:
@@ -95,11 +97,10 @@ def filter_extraction(result: ExtractionResult) -> ExtractionResult:
     valid_names = {e.name for e in valid_entities}
     # Drop relationships that reference filtered-out entities
     valid_rels = [
-        r
-        for r in result.relationships
-        if r.source in valid_names and r.target in valid_names
+        r for r in result.relationships if r.source in valid_names and r.target in valid_names
     ]
     return ExtractionResult(entities=valid_entities, relationships=valid_rels)
+
 
 logger = logging.getLogger("pg_raggraph.extraction")
 
@@ -178,6 +179,8 @@ class LLMProvider(Protocol):
     """Protocol for LLM providers (OpenAI-compatible API)."""
 
     async def complete(self, messages: list[dict]) -> str: ...
+
+    async def complete_text(self, messages: list[dict], temperature: float = 0.2) -> str: ...
 
 
 class HttpxLLMProvider:

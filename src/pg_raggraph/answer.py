@@ -39,16 +39,13 @@ def _format_context(result: QueryResult, max_chunks: int = 8) -> str:
         lines.append("")
 
     if result.entities:
-        entity_list = ", ".join(
-            f"{e.name} ({e.entity_type})" for e in result.entities[:20]
-        )
+        entity_list = ", ".join(f"{e.name} ({e.entity_type})" for e in result.entities[:20])
         lines.append(f"Related entities: {entity_list}")
         lines.append("")
 
     if result.relationships:
         rel_lines = [
-            f"  - {r.source} --[{r.rel_type}]--> {r.target}"
-            for r in result.relationships[:10]
+            f"  - {r.source} --[{r.rel_type}]--> {r.target}" for r in result.relationships[:10]
         ]
         lines.append("Related relationships:")
         lines.extend(rel_lines)
