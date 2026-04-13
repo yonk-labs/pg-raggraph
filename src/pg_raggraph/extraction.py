@@ -184,51 +184,57 @@ class LLMProvider(Protocol):
 
 
 class HttpxLLMProvider:
-    """OpenAI-compatible LLM provider via httpx."""
+    """OpenAI-compatible LLM provider via httpx.
+
+    Reuses a single AsyncClient across calls so TCP connections are pooled
+    instead of opened and closed for every LLM request. Call `aclose()` when
+    done (GraphRAG.close() handles this automatically).
+    """
 
     def __init__(self, base_url: str, model: str, api_key: str = ""):
         self._base_url = base_url.rstrip("/")
         self._model = model
-        self._api_key = api_key
+        self._headers: dict[str, str] = {"Content-Type": "application/json"}
+        if api_key:
+            self._headers["Authorization"] = f"Bearer {api_key}"
+        # Pool up to 20 connections — enough for aggressive parallel ingestion
+        # without overwhelming a local Ollama or a rate-limited API.
+        self._client = httpx.AsyncClient(
+            timeout=120,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+        )
+
+    async def aclose(self) -> None:
+        """Release the underlying connection pool."""
+        await self._client.aclose()
 
     async def complete(self, messages: list[dict]) -> str:
-        headers = {"Content-Type": "application/json"}
-        if self._api_key:
-            headers["Authorization"] = f"Bearer {self._api_key}"
-
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(
-                f"{self._base_url}/chat/completions",
-                headers=headers,
-                json={
-                    "model": self._model,
-                    "messages": messages,
-                    "response_format": {"type": "json_object"},
-                    "temperature": 0.0,
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
+        resp = await self._client.post(
+            f"{self._base_url}/chat/completions",
+            headers=self._headers,
+            json={
+                "model": self._model,
+                "messages": messages,
+                "response_format": {"type": "json_object"},
+                "temperature": 0.0,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
 
     async def complete_text(self, messages: list[dict], temperature: float = 0.2) -> str:
         """Complete a chat request for natural-language output (no JSON mode)."""
-        headers = {"Content-Type": "application/json"}
-        if self._api_key:
-            headers["Authorization"] = f"Bearer {self._api_key}"
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(
-                f"{self._base_url}/chat/completions",
-                headers=headers,
-                json={
-                    "model": self._model,
-                    "messages": messages,
-                    "temperature": temperature,
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
+        resp = await self._client.post(
+            f"{self._base_url}/chat/completions",
+            headers=self._headers,
+            json={
+                "model": self._model,
+                "messages": messages,
+                "temperature": temperature,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
 
 
 def get_llm_provider(config: PGRGConfig) -> LLMProvider:

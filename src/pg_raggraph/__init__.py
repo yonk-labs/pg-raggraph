@@ -44,6 +44,7 @@ class GraphRAG:
         self.config = PGRGConfig(**kwargs)
         self._db = None
         self._embedder = None
+        self._llm = None  # Shared LLM provider; closed with the instance
 
     async def connect(self):
         from pg_raggraph.db import Database
@@ -61,6 +62,9 @@ class GraphRAG:
         if self._db:
             await self._db.close()
             self._db = None
+        if self._llm is not None and hasattr(self._llm, "aclose"):
+            await self._llm.aclose()
+            self._llm = None
         self._embedder = None
 
     async def __aenter__(self):
@@ -178,13 +182,16 @@ class GraphRAG:
         # Process documents in parallel batches
         doc_sem = asyncio.Semaphore(self.config.doc_concurrency)
         # LLM is optional — without it, ingest stores chunks+embeddings only
-        # (pure vector RAG mode).
+        # (pure vector RAG mode). Reuse the shared provider if already created
+        # so the connection pool is shared across ingest() calls.
         llm = None
         if not self.config.skip_extraction and self.config.llm_base_url:
-            try:
-                llm = get_llm_provider(self.config)
-            except Exception as e:
-                logger.warning(f"LLM provider unavailable, skipping extraction: {e}")
+            if self._llm is None:
+                try:
+                    self._llm = get_llm_provider(self.config)
+                except Exception as e:
+                    logger.warning(f"LLM provider unavailable, skipping extraction: {e}")
+            llm = self._llm
         if llm is None:
             _progress("Extraction disabled — ingesting as pure vector RAG.")
 
@@ -522,14 +529,17 @@ class GraphRAG:
         from pg_raggraph.answer import generate_answer
 
         result = await self.query(question, mode=mode, namespace=namespace)
+        # Reuse the shared LLM client (same pool as ingestion).
         llm = None
         if self.config.llm_base_url:
-            try:
-                from pg_raggraph.extraction import get_llm_provider
+            if self._llm is None:
+                try:
+                    from pg_raggraph.extraction import get_llm_provider
 
-                llm = get_llm_provider(self.config)
-            except Exception as e:
-                logger.warning(f"LLM provider unavailable: {e}")
+                    self._llm = get_llm_provider(self.config)
+                except Exception as e:
+                    logger.warning(f"LLM provider unavailable: {e}")
+            llm = self._llm
         result.answer = await generate_answer(question, result, llm, self.config)
         return result
 
