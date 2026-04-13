@@ -302,7 +302,6 @@ class GraphRAG:
                 )
             except Exception as e:
                 logger.warning(f"Extraction failed for {file_path}: {e}")
-                extraction_results = []
                 from pg_raggraph.models import ExtractionResult
 
                 extraction_results = [ExtractionResult() for _ in chunks]
@@ -512,7 +511,15 @@ class GraphRAG:
             "embedding_dim": int(await self.db.get_meta("embedding_dim") or 0),
             "namespace": ns,
             "documents": await self.db.count("documents", ns),
-            "chunks": await self.db.count("chunks"),
+            # Chunks table has no namespace column — scope via documents join.
+            "chunks": (
+                await self.db.fetch_one(
+                    "SELECT count(*) AS cnt FROM chunks c "
+                    "JOIN documents d ON d.id = c.document_id "
+                    "WHERE d.namespace = %s",
+                    (ns,),
+                )
+            )["cnt"],
             "entities": await self.db.count("entities", ns),
             "relationships": await self.db.count("relationships", ns),
         }

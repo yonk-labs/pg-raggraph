@@ -356,6 +356,66 @@ async def test_apply_migrations_runs_on_every_connect():
     assert version == "1"
 
 
+@pytest.mark.asyncio
+async def test_apply_migrations_runs_pending_files(monkeypatch):
+    """Drop a real migration file into the migrations dir, reset the
+    recorded schema_version, reconnect, and verify the runner applied it
+    and bumped schema_version. This is the regression test for AAT SCOUT-010
+    — that the framework actually runs migrations on existing installs.
+    """
+    import shutil
+    from importlib.resources import files as pkg_files
+
+    mig_dir = pkg_files("pg_raggraph.sql").joinpath("migrations")
+    test_mig_path = str(mig_dir.joinpath("999_aat_runner_probe.sql"))
+    marker_table = "pgrg_aat_runner_probe"
+
+    try:
+        # Write a dummy migration that creates a marker table
+        with open(test_mig_path, "w") as f:
+            f.write(f"CREATE TABLE IF NOT EXISTS {marker_table} (id int);\n")
+
+        rag = await _rag("crud_migration_probe")
+        try:
+            # Roll schema_version back to 1 to force the migration to apply
+            await rag.db.execute(
+                "UPDATE pgrg_meta SET value = '1' WHERE key = 'schema_version'"
+            )
+            # Drop the marker table if a previous test left it behind
+            await rag.db.execute(f"DROP TABLE IF EXISTS {marker_table}")
+        finally:
+            await rag.close()
+
+        # Reconnect — should apply the migration
+        rag2 = await _rag("crud_migration_probe")
+        try:
+            version = await rag2.db.get_meta("schema_version")
+            assert version == "999", f"expected schema_version=999, got {version}"
+
+            row = await rag2.db.fetch_one(
+                "SELECT EXISTS (SELECT FROM pg_tables WHERE tablename = %s) AS e",
+                (marker_table,),
+            )
+            assert row["e"] is True, "migration did not create marker table"
+        finally:
+            # Clean up: drop the marker table and reset schema_version
+            await rag2.db.execute(f"DROP TABLE IF EXISTS {marker_table}")
+            await rag2.db.execute(
+                "UPDATE pgrg_meta SET value = '1' WHERE key = 'schema_version'"
+            )
+            await rag2.close()
+    finally:
+        # Always remove the dummy migration file even if the test failed
+        try:
+            os.remove(test_mig_path)
+        except FileNotFoundError:
+            pass
+        # Clear any bytecode cache for the migrations package
+        cache_dir = os.path.join(os.path.dirname(test_mig_path), "__pycache__")
+        if os.path.isdir(cache_dir):
+            shutil.rmtree(cache_dir, ignore_errors=True)
+
+
 # ---------------------------------------------------------------------------
 # MCP path sandbox (Fix #2)
 # ---------------------------------------------------------------------------
