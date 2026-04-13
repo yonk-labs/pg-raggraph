@@ -43,6 +43,11 @@ async def db(config):
         "debug%",
         "cli_test",
         "empty_ns",
+        "crud_%",
+        "aat_%",
+        "incremental_%",
+        "merge_%",
+        "ask_%",
     )
     try:
         for ns_pattern in test_namespaces:
