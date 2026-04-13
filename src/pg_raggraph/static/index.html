@@ -90,27 +90,36 @@
             const chat = document.getElementById('chat');
             chat.innerHTML += `<div class="msg user">${escapeHtml(q)}</div>`;
 
+            // Show typing indicator
+            const typingId = 'typing-' + Date.now();
+            chat.innerHTML += `<div class="msg assistant" id="${typingId}">Thinking...</div>`;
+            chat.scrollTop = chat.scrollHeight;
+
             const formData = new FormData();
             formData.append('question', q);
-            formData.append('mode', 'hybrid');
+            formData.append('mode', 'smart');
 
-            const resp = await fetch('/query', { method: 'POST', body: formData });
+            const resp = await fetch('/ask', { method: 'POST', body: formData });
             const data = await resp.json();
 
             let html = '';
-            if (data.chunks && data.chunks.length > 0) {
-                html += data.chunks.map(c =>
-                    `<p>${escapeHtml(c.content.substring(0, 300))}${c.content.length > 300 ? '...' : ''}</p>`
-                ).join('');
-                html += `<div class="sources">📎 ${data.chunks.length} chunks (${Math.round(data.latency_ms)}ms)</div>`;
+            if (data.answer) {
+                html += `<p style="white-space:pre-wrap;">${escapeHtml(data.answer)}</p>`;
             } else {
                 html += '<p>No relevant information found.</p>';
             }
+            if (data.chunks && data.chunks.length > 0) {
+                const sources = [...new Set(data.chunks.map(c => c.source).filter(Boolean))];
+                if (sources.length) {
+                    html += `<div class="sources">📎 ${sources.map(s => escapeHtml(s.split('/').pop())).join(', ')} · ${Math.round(data.latency_ms)}ms · ${data.query_mode}</div>`;
+                }
+            }
             if (data.entities && data.entities.length > 0) {
                 html += `<div class="entities">${data.entities.map(e =>
-                    `<span>${escapeHtml(e.name)}</span>`).join('')}</div>`;
+                    `<span>${escapeHtml(e)}</span>`).join('')}</div>`;
             }
-            chat.innerHTML += `<div class="msg assistant">${html}</div>`;
+
+            document.getElementById(typingId).innerHTML = html;
             chat.scrollTop = chat.scrollHeight;
         }
 

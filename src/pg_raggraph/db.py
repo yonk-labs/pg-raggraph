@@ -117,6 +117,17 @@ class Database:
                 await conn.commit()
                 logger.info(f"Schema v{SCHEMA_VERSION} created.")
 
+            # Ensure the migration-tracking table exists on pre-0.3 installs
+            # that were bootstrapped before the table was added to schema.sql.
+            await conn.execute(
+                "CREATE TABLE IF NOT EXISTS pgrg_applied_migrations ("
+                "    filename TEXT PRIMARY KEY,"
+                "    version  INTEGER NOT NULL,"
+                "    applied_at TIMESTAMPTZ DEFAULT now()"
+                ")"
+            )
+            await conn.commit()
+
             # Always check for pending migrations, even when the base schema
             # is already current. New NNN_*.sql files ship in later releases.
             await self._apply_migrations(conn)
@@ -126,10 +137,11 @@ class Database:
     async def _apply_migrations(self, conn) -> None:
         """Apply numbered migration files from sql/migrations/.
 
-        File naming: NNN_description.sql (e.g., 002_add_tags.sql). They are
-        applied in numeric order. Each file runs in a single transaction and
-        updates pgrg_meta.schema_version to NNN on success. Never edit a
-        released migration — add a new one.
+        File naming: NNN_description.sql (e.g., 002_add_tags.sql). Applied in
+        numeric order. Each file runs in its own transaction and is recorded in
+        pgrg_applied_migrations by filename — not just version number — so two
+        files with the same prefix both apply correctly and neither is silently
+        skipped. Never edit a released migration file; add a new numbered one.
         """
         import re
 
@@ -139,19 +151,20 @@ class Database:
         except (FileNotFoundError, AttributeError):
             return
 
-        result = await conn.execute("SELECT value FROM pgrg_meta WHERE key = 'schema_version'")
-        row = await result.fetchone()
-        current = int(row[0]) if row else SCHEMA_VERSION
+        # Which filenames have already been applied?
+        applied_result = await conn.execute("SELECT filename FROM pgrg_applied_migrations")
+        applied_files = {row[0] async for row in applied_result}
 
         pat = re.compile(r"^(\d+)_")
         pending = []
         for name in entries:
+            if name in applied_files:
+                continue
             m = pat.match(name)
             if not m:
                 continue
             version = int(m.group(1))
-            if version > current:
-                pending.append((version, name))
+            pending.append((version, name))
         pending.sort()
 
         for version, name in pending:
@@ -160,8 +173,14 @@ class Database:
             try:
                 await conn.execute(sql_text)
                 await conn.execute(
-                    "UPDATE pgrg_meta SET value = %s, updated_at = now() "
-                    "WHERE key = 'schema_version'",
+                    "INSERT INTO pgrg_applied_migrations (filename, version) VALUES (%s, %s) "
+                    "ON CONFLICT (filename) DO NOTHING",
+                    (name, version),
+                )
+                # Update the high-water mark for backwards compatibility.
+                await conn.execute(
+                    "UPDATE pgrg_meta SET value = GREATEST(value::int, %s)::text, "
+                    "updated_at = now() WHERE key = 'schema_version'",
                     (str(version),),
                 )
                 await conn.commit()

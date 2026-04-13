@@ -8,6 +8,15 @@ CREATE TABLE IF NOT EXISTS pgrg_meta (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Track which migration files have been applied (prevents double-apply and
+-- handles the case where two files share the same version number prefix).
+-- Created here so existing installs get it via the bootstrap check in db.py.
+CREATE TABLE IF NOT EXISTS pgrg_applied_migrations (
+    filename TEXT PRIMARY KEY,
+    version  INTEGER NOT NULL,
+    applied_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Documents: source tracking + lifecycle
 CREATE TABLE IF NOT EXISTS documents (
     id BIGSERIAL PRIMARY KEY,

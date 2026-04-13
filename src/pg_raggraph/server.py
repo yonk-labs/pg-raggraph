@@ -30,10 +30,12 @@ def create_app(**kwargs) -> FastAPI:
         yield
         await rag.close()
 
+    from pg_raggraph import __version__
+
     app = FastAPI(
         title="pg-raggraph",
         description="PostgreSQL-native GraphRAG API",
-        version="0.1.0",
+        version=__version__,
         lifespan=lifespan,
     )
 
@@ -66,6 +68,30 @@ def create_app(**kwargs) -> FastAPI:
     ):
         result = await rag.query(question, mode=mode, namespace=namespace)
         return result.model_dump()
+
+    @app.post("/ask")
+    async def ask(
+        question: str = Form(...),
+        mode: str = Form("smart"),
+        namespace: str = Form(None),
+    ):
+        """Query + grounded LLM answer. Falls back to top-chunk summary without LLM."""
+        result = await rag.ask(question, mode=mode, namespace=namespace)
+        return {
+            "answer": result.answer,
+            "confidence": result.confidence,
+            "latency_ms": result.latency_ms,
+            "query_mode": result.query_mode,
+            "chunks": [
+                {
+                    "content": c.content[:500],
+                    "score": c.score,
+                    "source": c.document_source,
+                }
+                for c in result.chunks[:5]
+            ],
+            "entities": [e.name for e in result.entities[:10]],
+        }
 
     @app.get("/graph")
     async def graph(namespace: str | None = None):
