@@ -1,0 +1,42 @@
+[project]
+name = "age-bakeoff"
+version = "0.1.0"
+description = "Head-to-head benchmark: Apache AGE vs pg-raggraph"
+requires-python = ">=3.12"
+dependencies = [
+    "pg-raggraph",
+    "openai>=1.50",
+    "psycopg[binary]>=3.2",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "click>=8.1",
+    "pyyaml>=6.0",
+    "fastembed>=0.3",
+    "numpy>=1.26",
+    "tiktoken>=0.7",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "pytest-mock>=3.12",
+]
+
+[project.scripts]
+age-bakeoff = "age_bakeoff.cli:cli"
+
+[tool.uv.sources]
+pg-raggraph = { path = "../..", editable = true }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
