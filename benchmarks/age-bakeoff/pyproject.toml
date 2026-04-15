@@ -27,6 +27,8 @@ dev = [
 [project.scripts]
 age-bakeoff = "age_bakeoff.cli:cli"
 
+# Relative path from this pyproject.toml resolves to the pg-raggraph repo root.
+# Run `uv sync --extra dev` from this directory (benchmarks/age-bakeoff/).
 [tool.uv.sources]
 pg-raggraph = { path = "../..", editable = true }
 
