@@ -33,6 +33,7 @@ class BakeoffConfig(BaseSettings):
     @field_validator("openai_api_key")
     @classmethod
     def _require_key(cls, v: str) -> str:
-        if not v:
+        stripped = v.strip()
+        if not stripped:
             raise ValueError("OPENAI_API_KEY is required")
-        return v
+        return stripped

@@ -28,3 +28,15 @@ def test_openai_key_required(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(ValueError, match="OPENAI_API_KEY"):
         BakeoffConfig()
+
+
+def test_openai_key_whitespace_rejected(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "   ")
+    with pytest.raises(ValueError, match="OPENAI_API_KEY"):
+        BakeoffConfig()
+
+
+def test_openai_key_stripped(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "  sk-test  ")
+    cfg = BakeoffConfig()
+    assert cfg.openai_api_key == "sk-test"
