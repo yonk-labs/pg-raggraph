@@ -118,7 +118,12 @@ def _split_plain(text: str) -> list[str]:
     result: list[str] = []
     buffer = ""
     for para in paragraphs:
-        if len(buffer) + len(para) + 2 > _MAX_CHARS and buffer:
+        if len(para) > _MAX_CHARS:
+            if buffer:
+                result.append(buffer.strip())
+                buffer = ""
+            result.extend(_hard_split(para))
+        elif len(buffer) + len(para) + 2 > _MAX_CHARS and buffer:
             result.append(buffer.strip())
             buffer = para
         else:
