@@ -1,0 +1,40 @@
+services:
+  pgrg:
+    image: pgvector/pgvector:pg16
+    container_name: age-bakeoff-pgrg
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: age_bakeoff_pgrg
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgrg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "age_bakeoff_pgrg"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  age:
+    build:
+      context: ./docker/age
+      dockerfile: Dockerfile
+    container_name: age-bakeoff-age
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: age_bakeoff_age
+    ports:
+      - "5435:5432"
+    volumes:
+      - age_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "age_bakeoff_age"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+volumes:
+  pgrg_data:
+  age_data:
