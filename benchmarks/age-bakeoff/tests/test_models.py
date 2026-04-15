@@ -47,7 +47,7 @@ def test_extracted_relationship_round_trip():
     assert ExtractedRelationship.model_validate(r.model_dump()) == r
 
 
-def test_extraction_output_matches_contract():
+def test_extraction_output_round_trip():
     out = ExtractionOutput(
         corpus="acme",
         chunks=[],
@@ -55,9 +55,10 @@ def test_extraction_output_matches_contract():
         relationships=[],
     )
     assert out.corpus == "acme"
+    assert ExtractionOutput.model_validate(out.model_dump()) == out
 
 
-def test_question_requires_bridging_class_enum():
+def test_question_round_trip():
     q = Question(
         id="acme-q-001",
         question="Who works on Ingest?",
