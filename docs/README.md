@@ -14,6 +14,7 @@
 ## Engineering Deep-Dive
 
 - **[FINDINGS.md](FINDINGS.md)** — 6 engineering findings with evidence from real benchmarks
+- **[why-not-apache-age.md](why-not-apache-age.md)** — Why pg-raggraph uses adjacency tables + recursive CTEs instead of Apache AGE
 - **[blog-what-we-learned.md](blog-what-we-learned.md)** — Narrative blog of the project journey
 - **[smart-mode-plan.md](smart-mode-plan.md)** — Original implementation plan for smart mode
 
@@ -50,6 +51,6 @@
 | Build a developer knowledge base | [devmem-guide.md](devmem-guide.md) |
 | Read the no-BS assessment | [ASSESSMENT.md](../ASSESSMENT.md) |
 | Compare against LightRAG / Neo4j / Zep | [competition-comparison.md](../research/competition-comparison.md) |
-| Understand why we rejected Apache AGE | [apache-age-evaluation.md](../research/apache-age-evaluation.md) |
+| Understand why we rejected Apache AGE | [why-not-apache-age.md](why-not-apache-age.md) (short) · [apache-age-evaluation.md](../research/apache-age-evaluation.md) (deep) |
 | Read the story of what we learned | [blog-what-we-learned.md](blog-what-we-learned.md) |
 | See the schema ERD and architecture diagrams | [README](../README.md#architecture) |
