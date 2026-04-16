@@ -1,0 +1,2634 @@
+{
+  "documents": [
+    {
+      "author_id": "p-bob",
+      "content": "Bob Martinez led the weekly Search Redesign sync. Key updates: the Auth Service integration is on track. Maya Singh raised a concern about latency in the Notification Service dependency. We agreed to run load tests next week. Maya Singh will handle the monitoring dashboard setup. Next sync is scheduled for 2025-07-23.",
+      "doc_type": "meeting_note",
+      "id": "doc-0000",
+      "project_id": "proj-search",
+      "title": "Weekly sync: Search Redesign status update"
+    },
+    {
+      "author_id": "p-olivia",
+      "content": "Olivia Reeves led the weekly Analytics Dashboard sync. Key updates: the Analytics Ingestion integration is on track. Carol Washington raised a concern about latency in the Search API dependency. We agreed to run load tests next week. Elena Petrov will handle the monitoring dashboard setup. Next sync is scheduled for 2025-12-19.",
+      "doc_type": "meeting_note",
+      "id": "doc-0001",
+      "project_id": "proj-dashboard",
+      "title": "Weekly sync: Analytics Dashboard status update"
+    },
+    {
+      "author_id": "p-grace",
+      "content": "Grace Liu led the weekly Billing Migration sync. Key updates: the Auth Service integration is on track. Iris Nakamura raised a concern about latency in the Payment Service dependency. We agreed to run load tests next week. Maya Singh will handle the monitoring dashboard setup. Next sync is scheduled for 2025-08-27.",
+      "doc_type": "meeting_note",
+      "id": "doc-0002",
+      "project_id": "proj-billing",
+      "title": "Weekly sync: Billing Migration status update"
+    },
+    {
+      "author_id": "p-leo",
+      "content": "Leo Fernandez led the weekly Infrastructure Modernization sync. Key updates: the Notification Service integration is on track. James O'Brien raised a concern about latency in the Search API dependency. We agreed to run load tests next week. Nate Cooper will handle the monitoring dashboard setup. Next sync is scheduled for 2026-01-24.",
+      "doc_type": "meeting_note",
+      "id": "doc-0003",
+      "project_id": "proj-infra",
+      "title": "Weekly sync: Infrastructure Modernization status update"
+    },
+    {
+      "author_id": "p-iris",
+      "content": "Iris Nakamura led the weekly Analytics Dashboard sync. Key updates: the Analytics Ingestion integration is on track. Frank Okafor raised a concern about latency in the Auth Service dependency. We agreed to run load tests next week. Grace Liu will handle the monitoring dashboard setup. Next sync is scheduled for 2025-05-23.",
+      "doc_type": "meeting_note",
+      "id": "doc-0004",
+      "project_id": "proj-dashboard",
+      "title": "Weekly sync: Analytics Dashboard status update"
+    },
+    {
+      "author_id": "p-olivia",
+      "content": "Olivia Reeves led the weekly ML Pipeline sync. Key updates: the Analytics Ingestion integration is on track. David Kim raised a concern about latency in the Notification Service dependency. We agreed to run load tests next week. David Kim will handle the monitoring dashboard setup. Next sync is scheduled for 2026-01-26.",
+      "doc_type": "meeting_note",
+      "id": "doc-0005",
+      "project_id": "proj-ml-pipeline",
+      "title": "Weekly sync: ML Pipeline status update"
+    },
+    {
+      "author_id": "p-david",
+      "content": "David Kim led the weekly ML Pipeline sync. Key updates: the Analytics Ingestion integration is on track. Hassan Ali raised a concern about latency in the Auth Service dependency. We agreed to run load tests next week. Iris Nakamura will handle the monitoring dashboard setup. Next sync is scheduled for 2026-06-04.",
+      "doc_type": "meeting_note",
+      "id": "doc-0006",
+      "project_id": "proj-ml-pipeline",
+      "title": "Weekly sync: ML Pipeline status update"
+    },
+    {
+      "author_id": "p-elena",
+      "content": "Elena Petrov led the weekly ML Pipeline sync. Key updates: the Analytics Ingestion integration is on track. Leo Fernandez raised a concern about latency in the Payment Service dependency. We agreed to run load tests next week. Leo Fernandez will handle the monitoring dashboard setup. Next sync is scheduled for 2025-09-04.",
+      "doc_type": "meeting_note",
+      "id": "doc-0007",
+      "project_id": "proj-ml-pipeline",
+      "title": "Weekly sync: ML Pipeline status update"
+    },
+    {
+      "author_id": "p-maya",
+      "content": "Maya Singh led the weekly Search Redesign sync. Key updates: the Auth Service integration is on track. Frank Okafor raised a concern about latency in the Payment Service dependency. We agreed to run load tests next week. Carol Washington will handle the monitoring dashboard setup. Next sync is scheduled for 2026-01-18.",
+      "doc_type": "meeting_note",
+      "id": "doc-0008",
+      "project_id": "proj-search",
+      "title": "Weekly sync: Search Redesign status update"
+    },
+    {
+      "author_id": "p-david",
+      "content": "David Kim led the weekly Data Lake Consolidation sync. Key updates: the Payment Service integration is on track. Olivia Reeves raised a concern about latency in the Search API dependency. We agreed to run load tests next week. Olivia Reeves will handle the monitoring dashboard setup. Next sync is scheduled for 2026-06-11.",
+      "doc_type": "meeting_note",
+      "id": "doc-0009",
+      "project_id": "proj-data-lake",
+      "title": "Weekly sync: Data Lake Consolidation status update"
+    },
+    {
+      "author_id": "p-olivia",
+      "content": "Olivia Reeves led the weekly ML Pipeline sync. Key updates: the Analytics Ingestion integration is on track. Frank Okafor raised a concern about latency in the Payment Service dependency. We agreed to run load tests next week. David Kim will handle the monitoring dashboard setup. Next sync is scheduled for 2026-04-24.",
+      "doc_type": "meeting_note",
+      "id": "doc-0010",
+      "project_id": "proj-ml-pipeline",
+      "title": "Weekly sync: ML Pipeline status update"
+    },
+    {
+      "author_id": "p-bob",
+      "content": "Bob Martinez led the weekly Search Redesign sync. Key updates: the Auth Service integration is on track. Alice Chen raised a concern about latency in the Analytics Ingestion dependency. We agreed to run load tests next week. Alice Chen will handle the monitoring dashboard setup. Next sync is scheduled for 2025-02-21.",
+      "doc_type": "meeting_note",
+      "id": "doc-0011",
+      "project_id": "proj-search",
+      "title": "Weekly sync: Search Redesign status update"
+    },
+    {
+      "author_id": "p-hassan",
+      "content": "Hassan Ali led the weekly Search Redesign sync. Key updates: the Auth Service integration is on track. Grace Liu raised a concern about latency in the Search API dependency. We agreed to run load tests next week. Alice Chen will handle the monitoring dashboard setup. Next sync is scheduled for 2025-06-08.",
+      "doc_type": "meeting_note",
+      "id": "doc-0012",
+      "project_id": "proj-search",
+      "title": "Weekly sync: Search Redesign status update"
+    },
+    {
+      "author_id": "p-elena",
+      "content": "Elena Petrov led the weekly ML Pipeline sync. Key updates: the Analytics Ingestion integration is on track. Alice Chen raised a concern about latency in the Auth Service dependency. We agreed to run load tests next week. Alice Chen will handle the monitoring dashboard setup. Next sync is scheduled for 2025-03-12.",
+      "doc_type": "meeting_note",
+      "id": "doc-0013",
+      "project_id": "proj-ml-pipeline",
+      "title": "Weekly sync: ML Pipeline status update"
+    },
+    {
+      "author_id": "p-olivia",
+      "content": "Olivia Reeves led the weekly Analytics Dashboard sync. Key updates: the Analytics Ingestion integration is on track. Frank Okafor raised a concern about latency in the Auth Service dependency. We agreed to run load tests next week. David Kim will handle the monitoring dashboard setup. Next sync is scheduled for 2026-02-10.",
+      "doc_type": "meeting_note",
+      "id": "doc-0014",
+      "project_id": "proj-dashboard",
+      "title": "Weekly sync: Analytics Dashboard status update"
+    },
+    {
+      "author_id": "p-olivia",
+      "content": "Olivia Reeves led the weekly ML Pipeline sync. Key updates: the Analytics Ingestion integration is on track. Frank Okafor raised a concern about latency in the Search API dependency. We agreed to run load tests next week. Bob Martinez will handle the monitoring dashboard setup. Next sync is scheduled for 2025-06-11.",
+      "doc_type": "meeting_note",
+      "id": "doc-0015",
+      "project_id": "proj-ml-pipeline",
+      "title": "Weekly sync: ML Pipeline status update"
+    },
+    {
+      "author_id": "p-iris",
+      "content": "The Product team met to discuss Q2 priorities. Iris Nakamura proposed focusing on Analytics Dashboard stabilization before adding new features. Grace Liu suggested we also invest in Python adoption. The team voted to prioritize reliability. Carol Washington will draft the updated roadmap by end of week.",
+      "doc_type": "meeting_note",
+      "id": "doc-0016",
+      "project_id": "proj-dashboard",
+      "title": "Product planning: Q2 priorities"
+    },
+    {
+      "author_id": "p-maya",
+      "content": "The Engineering team met to discuss Q2 priorities. Maya Singh proposed focusing on Billing Migration stabilization before adding new features. Bob Martinez suggested we also invest in Kafka adoption. The team voted to prioritize reliability. Bob Martinez will draft the updated roadmap by end of week.",
+      "doc_type": "meeting_note",
+      "id": "doc-0017",
+      "project_id": "proj-billing",
+      "title": "Engineering planning: Q2 priorities"
+    },
+    {
+      "author_id": "p-kate",
+      "content": "The Platform team met to discuss Q2 priorities. Kate Johansson proposed focusing on Search Redesign stabilization before adding new features. James O'Brien suggested we also invest in Kafka adoption. The team voted to prioritize reliability. Leo Fernandez will draft the updated roadmap by end of week.",
+      "doc_type": "meeting_note",
+      "id": "doc-0018",
+      "project_id": "proj-search",
+      "title": "Platform planning: Q2 priorities"
+    },
+    {
+      "author_id": "p-hassan",
+      "content": "The Product team met to discuss Q2 priorities. Hassan Ali proposed focusing on Search Redesign stabilization before adding new features. Kate Johansson suggested we also invest in Python adoption. The team voted to prioritize reliability. Iris Nakamura will draft the updated roadmap by end of week.",
+      "doc_type": "meeting_note",
+      "id": "doc-0019",
+      "project_id": "proj-search",
+      "title": "Product planning: Q2 priorities"
+    },
+    {
+      "author_id": "p-leo",
+      "content": "The Platform team met to discuss Q2 priorities. Leo Fernandez proposed focusing on Search Redesign stabilization before adding new features. Elena Petrov suggested we also invest in Redis adoption. The team voted to prioritize reliability. Nate Cooper will draft the updated roadmap by end of week.",
+      "doc_type": "meeting_note",
+      "id": "doc-0020",
+      "project_id": "proj-search",
+      "title": "Platform planning: Q2 priorities"
+    },
+    {
+      "author_id": "p-james",
+      "content": "The Platform team met to discuss Q2 priorities. James O'Brien proposed focusing on Auth Overhaul stabilization before adding new features. Frank Okafor suggested we also invest in Apache Spark adoption. The team voted to prioritize reliability. Nate Cooper will draft the updated roadmap by end of week.",
+      "doc_type": "meeting_note",
+      "id": "doc-0021",
+      "project_id": "proj-auth",
+      "title": "Platform planning: Q2 priorities"
+    },
+    {
+      "author_id": "p-kate",
+      "content": "The Platform team met to discuss Q2 priorities. Kate Johansson proposed focusing on Auth Overhaul stabilization before adding new features. Leo Fernandez suggested we also invest in Elasticsearch adoption. The team voted to prioritize reliability. Maya Singh will draft the updated roadmap by end of week.",
+      "doc_type": "meeting_note",
+      "id": "doc-0022",
+      "project_id": "proj-auth",
+      "title": "Platform planning: Q2 priorities"
+    },
+    {
+      "author_id": "p-grace",
+      "content": "The Product team met to discuss Q2 priorities. Grace Liu proposed focusing on Search Redesign stabilization before adding new features. Hassan Ali suggested we also invest in Apache Spark adoption. The team voted to prioritize reliability. Maya Singh will draft the updated roadmap by end of week.",
+      "doc_type": "meeting_note",
+      "id": "doc-0023",
+      "project_id": "proj-search",
+      "title": "Product planning: Q2 priorities"
+    },
+    {
+      "author_id": "p-alice",
+      "content": "The Engineering team met to discuss Q2 priorities. Alice Chen proposed focusing on Mobile App v2 stabilization before adding new features. Bob Martinez suggested we also invest in GraphQL adoption. The team voted to prioritize reliability. Carol Washington will draft the updated roadmap by end of week.",
+      "doc_type": "meeting_note",
+      "id": "doc-0024",
+      "project_id": "proj-mobile",
+      "title": "Engineering planning: Q2 priorities"
+    },
+    {
+      "author_id": "p-leo",
+      "content": "The Platform team met to discuss Q2 priorities. Leo Fernandez proposed focusing on Infrastructure Modernization stabilization before adding new features. Kate Johansson suggested we also invest in Kafka adoption. The team voted to prioritize reliability. Kate Johansson will draft the updated roadmap by end of week.",
+      "doc_type": "meeting_note",
+      "id": "doc-0025",
+      "project_id": "proj-infra",
+      "title": "Platform planning: Q2 priorities"
+    },
+    {
+      "author_id": "p-maya",
+      "content": "The Engineering team met to discuss Q2 priorities. Maya Singh proposed focusing on Mobile App v2 stabilization before adding new features. Bob Martinez suggested we also invest in PostgreSQL adoption. The team voted to prioritize reliability. Carol Washington will draft the updated roadmap by end of week.",
+      "doc_type": "meeting_note",
+      "id": "doc-0026",
+      "project_id": "proj-mobile",
+      "title": "Engineering planning: Q2 priorities"
+    },
+    {
+      "author_id": "p-olivia",
+      "content": "The Data team met to discuss Q2 priorities. Olivia Reeves proposed focusing on ML Pipeline stabilization before adding new features. Frank Okafor suggested we also invest in Apache Spark adoption. The team voted to prioritize reliability. Elena Petrov will draft the updated roadmap by end of week.",
+      "doc_type": "meeting_note",
+      "id": "doc-0027",
+      "project_id": "proj-ml-pipeline",
+      "title": "Data planning: Q2 priorities"
+    },
+    {
+      "author_id": "p-kate",
+      "content": "The Platform team met to discuss Q2 priorities. Kate Johansson proposed focusing on Search Redesign stabilization before adding new features. Leo Fernandez suggested we also invest in GraphQL adoption. The team voted to prioritize reliability. Grace Liu will draft the updated roadmap by end of week.",
+      "doc_type": "meeting_note",
+      "id": "doc-0028",
+      "project_id": "proj-search",
+      "title": "Platform planning: Q2 priorities"
+    },
+    {
+      "author_id": "p-alice",
+      "content": "The Engineering team met to discuss Q2 priorities. Alice Chen proposed focusing on Auth Overhaul stabilization before adding new features. Maya Singh suggested we also invest in Redis adoption. The team voted to prioritize reliability. Bob Martinez will draft the updated roadmap by end of week.",
+      "doc_type": "meeting_note",
+      "id": "doc-0029",
+      "project_id": "proj-auth",
+      "title": "Engineering planning: Q2 priorities"
+    },
+    {
+      "author_id": "p-iris",
+      "content": "The Product team met to discuss Q2 priorities. Iris Nakamura proposed focusing on Mobile App v2 stabilization before adding new features. Grace Liu suggested we also invest in GraphQL adoption. The team voted to prioritize reliability. Hassan Ali will draft the updated roadmap by end of week.",
+      "doc_type": "meeting_note",
+      "id": "doc-0030",
+      "project_id": "proj-mobile",
+      "title": "Product planning: Q2 priorities"
+    },
+    {
+      "author_id": "p-grace",
+      "content": "The Product team met to discuss Q2 priorities. Grace Liu proposed focusing on Mobile App v2 stabilization before adding new features. Iris Nakamura suggested we also invest in Terraform adoption. The team voted to prioritize reliability. James O'Brien will draft the updated roadmap by end of week.",
+      "doc_type": "meeting_note",
+      "id": "doc-0031",
+      "project_id": "proj-mobile",
+      "title": "Product planning: Q2 priorities"
+    },
+    {
+      "author_id": "p-olivia",
+      "content": "Olivia Reeves organized a cross-team sync between Data and Product to discuss shared dependencies. The Payment Service is used by both ML Pipeline and Auth Overhaul. Elena Petrov from Product proposed a shared API contract. Elena Petrov will own the contract definition. Follow-up scheduled for 2026-06-14.",
+      "doc_type": "meeting_note",
+      "id": "doc-0032",
+      "project_id": "proj-ml-pipeline",
+      "title": "Cross-team sync: ML Pipeline and Auth Overhaul alignment"
+    },
+    {
+      "author_id": "p-hassan",
+      "content": "Hassan Ali organized a cross-team sync between Product and Data to discuss shared dependencies. The Notification Service is used by both Search Redesign and Infrastructure Modernization. Olivia Reeves from Data proposed a shared API contract. Iris Nakamura will own the contract definition. Follow-up scheduled for 2026-04-30.",
+      "doc_type": "meeting_note",
+      "id": "doc-0033",
+      "project_id": "proj-search",
+      "title": "Cross-team sync: Search Redesign and Infrastructure Modernization alignment"
+    },
+    {
+      "author_id": "p-iris",
+      "content": "Iris Nakamura organized a cross-team sync between Product and Engineering to discuss shared dependencies. The Analytics Ingestion is used by both Mobile App v2 and Search Redesign. Elena Petrov from Engineering proposed a shared API contract. Grace Liu will own the contract definition. Follow-up scheduled for 2025-04-13.",
+      "doc_type": "meeting_note",
+      "id": "doc-0034",
+      "project_id": "proj-mobile",
+      "title": "Cross-team sync: Mobile App v2 and Search Redesign alignment"
+    },
+    {
+      "author_id": "p-elena",
+      "content": "Elena Petrov organized a cross-team sync between Data and Platform to discuss shared dependencies. The Search API is used by both ML Pipeline and Data Lake Consolidation. Olivia Reeves from Platform proposed a shared API contract. David Kim will own the contract definition. Follow-up scheduled for 2025-10-19.",
+      "doc_type": "meeting_note",
+      "id": "doc-0035",
+      "project_id": "proj-ml-pipeline",
+      "title": "Cross-team sync: ML Pipeline and Data Lake Consolidation alignment"
+    },
+    {
+      "author_id": "p-elena",
+      "content": "Elena Petrov organized a cross-team sync between Data and Engineering to discuss shared dependencies. The Search API is used by both Data Lake Consolidation and Search Redesign. Frank Okafor from Engineering proposed a shared API contract. David Kim will own the contract definition. Follow-up scheduled for 2025-09-12.",
+      "doc_type": "meeting_note",
+      "id": "doc-0036",
+      "project_id": "proj-data-lake",
+      "title": "Cross-team sync: Data Lake Consolidation and Search Redesign alignment"
+    },
+    {
+      "author_id": "p-kate",
+      "content": "Kate Johansson organized a cross-team sync between Platform and Engineering to discuss shared dependencies. The Analytics Ingestion is used by both Infrastructure Modernization and Data Lake Consolidation. Elena Petrov from Engineering proposed a shared API contract. Grace Liu will own the contract definition. Follow-up scheduled for 2025-03-25.",
+      "doc_type": "meeting_note",
+      "id": "doc-0037",
+      "project_id": "proj-infra",
+      "title": "Cross-team sync: Infrastructure Modernization and Data Lake Consolidation alignment"
+    },
+    {
+      "author_id": "p-hassan",
+      "content": "Hassan Ali organized a cross-team sync between Product and Platform to discuss shared dependencies. The Analytics Ingestion is used by both Analytics Dashboard and Data Lake Consolidation. Iris Nakamura from Platform proposed a shared API contract. Iris Nakamura will own the contract definition. Follow-up scheduled for 2025-09-28.",
+      "doc_type": "meeting_note",
+      "id": "doc-0038",
+      "project_id": "proj-dashboard",
+      "title": "Cross-team sync: Analytics Dashboard and Data Lake Consolidation alignment"
+    },
+    {
+      "author_id": "p-james",
+      "content": "James O'Brien organized a cross-team sync between Platform and Data to discuss shared dependencies. The Analytics Ingestion is used by both Infrastructure Modernization and Analytics Dashboard. Leo Fernandez from Data proposed a shared API contract. Bob Martinez will own the contract definition. Follow-up scheduled for 2026-02-17.",
+      "doc_type": "meeting_note",
+      "id": "doc-0039",
+      "project_id": "proj-infra",
+      "title": "Cross-team sync: Infrastructure Modernization and Analytics Dashboard alignment"
+    },
+    {
+      "author_id": "p-elena",
+      "content": "Elena Petrov organized a cross-team sync between Data and Platform to discuss shared dependencies. The Auth Service is used by both Data Lake Consolidation and Billing Migration. Maya Singh from Platform proposed a shared API contract. David Kim will own the contract definition. Follow-up scheduled for 2026-04-27.",
+      "doc_type": "meeting_note",
+      "id": "doc-0040",
+      "project_id": "proj-data-lake",
+      "title": "Cross-team sync: Data Lake Consolidation and Billing Migration alignment"
+    },
+    {
+      "author_id": "p-elena",
+      "content": "Elena Petrov organized a cross-team sync between Data and Product to discuss shared dependencies. The Payment Service is used by both Data Lake Consolidation and Analytics Dashboard. Bob Martinez from Product proposed a shared API contract. Frank Okafor will own the contract definition. Follow-up scheduled for 2025-02-07.",
+      "doc_type": "meeting_note",
+      "id": "doc-0041",
+      "project_id": "proj-data-lake",
+      "title": "Cross-team sync: Data Lake Consolidation and Analytics Dashboard alignment"
+    },
+    {
+      "author_id": "p-kate",
+      "content": "Kate Johansson organized a cross-team sync between Platform and Engineering to discuss shared dependencies. The Search API is used by both Search Redesign and Mobile App v2. Grace Liu from Engineering proposed a shared API contract. Alice Chen will own the contract definition. Follow-up scheduled for 2025-02-22.",
+      "doc_type": "meeting_note",
+      "id": "doc-0042",
+      "project_id": "proj-search",
+      "title": "Cross-team sync: Search Redesign and Mobile App v2 alignment"
+    },
+    {
+      "author_id": "p-elena",
+      "content": "Elena Petrov organized a cross-team sync between Data and Platform to discuss shared dependencies. The Search API is used by both ML Pipeline and Analytics Dashboard. David Kim from Platform proposed a shared API contract. Maya Singh will own the contract definition. Follow-up scheduled for 2026-04-18.",
+      "doc_type": "meeting_note",
+      "id": "doc-0043",
+      "project_id": "proj-ml-pipeline",
+      "title": "Cross-team sync: ML Pipeline and Analytics Dashboard alignment"
+    },
+    {
+      "author_id": "p-carol",
+      "content": "Carol Washington organized a cross-team sync between Engineering and Platform to discuss shared dependencies. The Search API is used by both Auth Overhaul and Search Redesign. Kate Johansson from Platform proposed a shared API contract. Maya Singh will own the contract definition. Follow-up scheduled for 2025-12-15.",
+      "doc_type": "meeting_note",
+      "id": "doc-0044",
+      "project_id": "proj-auth",
+      "title": "Cross-team sync: Auth Overhaul and Search Redesign alignment"
+    },
+    {
+      "author_id": "p-david",
+      "content": "David Kim organized a cross-team sync between Data and Platform to discuss shared dependencies. The Search API is used by both ML Pipeline and Analytics Dashboard. Olivia Reeves from Platform proposed a shared API contract. Elena Petrov will own the contract definition. Follow-up scheduled for 2025-09-02.",
+      "doc_type": "meeting_note",
+      "id": "doc-0045",
+      "project_id": "proj-ml-pipeline",
+      "title": "Cross-team sync: ML Pipeline and Analytics Dashboard alignment"
+    },
+    {
+      "author_id": "p-olivia",
+      "content": "Olivia Reeves organized a cross-team sync between Data and Engineering to discuss shared dependencies. The Auth Service is used by both Analytics Dashboard and Search Redesign. Elena Petrov from Engineering proposed a shared API contract. Frank Okafor will own the contract definition. Follow-up scheduled for 2026-03-27.",
+      "doc_type": "meeting_note",
+      "id": "doc-0046",
+      "project_id": "proj-dashboard",
+      "title": "Cross-team sync: Analytics Dashboard and Search Redesign alignment"
+    },
+    {
+      "author_id": "p-david",
+      "content": "David Kim organized a cross-team sync between Data and Product to discuss shared dependencies. The Payment Service is used by both Data Lake Consolidation and Infrastructure Modernization. Bob Martinez from Product proposed a shared API contract. Frank Okafor will own the contract definition. Follow-up scheduled for 2026-05-15.",
+      "doc_type": "meeting_note",
+      "id": "doc-0047",
+      "project_id": "proj-data-lake",
+      "title": "Cross-team sync: Data Lake Consolidation and Infrastructure Modernization alignment"
+    },
+    {
+      "author_id": "p-frank",
+      "content": "Discussed David Kim's progress on ML Pipeline. They are making good headway on the TypeScript migration. Blocker: waiting on Bob Martinez to finish the Auth Service API changes. David Kim mentioned interest in learning Apache Spark. Will connect them with Olivia Reeves who has expertise there.",
+      "doc_type": "meeting_note",
+      "id": "doc-0048",
+      "project_id": "proj-ml-pipeline",
+      "title": "1:1 notes: Frank Okafor and David Kim"
+    },
+    {
+      "author_id": "p-hassan",
+      "content": "Discussed Iris Nakamura's progress on Mobile App v2. They are making good headway on the GraphQL migration. Blocker: waiting on Carol Washington to finish the Auth Service API changes. Iris Nakamura mentioned interest in learning Kafka. Will connect them with Grace Liu who has expertise there.",
+      "doc_type": "meeting_note",
+      "id": "doc-0049",
+      "project_id": "proj-mobile",
+      "title": "1:1 notes: Hassan Ali and Iris Nakamura"
+    },
+    {
+      "author_id": "p-leo",
+      "content": "Discussed Nate Cooper's progress on ML Pipeline. They are making good headway on the Apache Spark migration. Blocker: waiting on Hassan Ali to finish the Notification Service API changes. Nate Cooper mentioned interest in learning Python. Will connect them with Kate Johansson who has expertise there.",
+      "doc_type": "meeting_note",
+      "id": "doc-0050",
+      "project_id": "proj-ml-pipeline",
+      "title": "1:1 notes: Leo Fernandez and Nate Cooper"
+    },
+    {
+      "author_id": "p-leo",
+      "content": "Discussed James O'Brien's progress on Auth Overhaul. They are making good headway on the Terraform migration. Blocker: waiting on Olivia Reeves to finish the Payment Service API changes. James O'Brien mentioned interest in learning TypeScript. Will connect them with Nate Cooper who has expertise there.",
+      "doc_type": "meeting_note",
+      "id": "doc-0051",
+      "project_id": "proj-auth",
+      "title": "1:1 notes: Leo Fernandez and James O'Brien"
+    },
+    {
+      "author_id": "p-leo",
+      "content": "Discussed Nate Cooper's progress on ML Pipeline. They are making good headway on the TypeScript migration. Blocker: waiting on Frank Okafor to finish the Payment Service API changes. Nate Cooper mentioned interest in learning Redis. Will connect them with Kate Johansson who has expertise there.",
+      "doc_type": "meeting_note",
+      "id": "doc-0052",
+      "project_id": "proj-ml-pipeline",
+      "title": "1:1 notes: Leo Fernandez and Nate Cooper"
+    },
+    {
+      "author_id": "p-carol",
+      "content": "Discussed Maya Singh's progress on Mobile App v2. They are making good headway on the Kubernetes migration. Blocker: waiting on Alice Chen to finish the Auth Service API changes. Maya Singh mentioned interest in learning Elasticsearch. Will connect them with Hassan Ali who has expertise there.",
+      "doc_type": "meeting_note",
+      "id": "doc-0053",
+      "project_id": "proj-mobile",
+      "title": "1:1 notes: Carol Washington and Maya Singh"
+    },
+    {
+      "author_id": "p-frank",
+      "content": "Discussed Olivia Reeves's progress on Analytics Dashboard. They are making good headway on the TypeScript migration. Blocker: waiting on David Kim to finish the Notification Service API changes. Olivia Reeves mentioned interest in learning GraphQL. Will connect them with Elena Petrov who has expertise there.",
+      "doc_type": "meeting_note",
+      "id": "doc-0054",
+      "project_id": "proj-dashboard",
+      "title": "1:1 notes: Frank Okafor and Olivia Reeves"
+    },
+    {
+      "author_id": "p-frank",
+      "content": "Discussed Elena Petrov's progress on Data Lake Consolidation. They are making good headway on the Apache Spark migration. Blocker: waiting on David Kim to finish the Auth Service API changes. Elena Petrov mentioned interest in learning Python. Will connect them with Bob Martinez who has expertise there.",
+      "doc_type": "meeting_note",
+      "id": "doc-0055",
+      "project_id": "proj-data-lake",
+      "title": "1:1 notes: Frank Okafor and Elena Petrov"
+    },
+    {
+      "author_id": "p-frank",
+      "content": "Discussed Olivia Reeves's progress on ML Pipeline. They are making good headway on the Kafka migration. Blocker: waiting on Maya Singh to finish the Auth Service API changes. Olivia Reeves mentioned interest in learning PostgreSQL. Will connect them with David Kim who has expertise there.",
+      "doc_type": "meeting_note",
+      "id": "doc-0056",
+      "project_id": "proj-ml-pipeline",
+      "title": "1:1 notes: Frank Okafor and Olivia Reeves"
+    },
+    {
+      "author_id": "p-leo",
+      "content": "Discussed James O'Brien's progress on Infrastructure Modernization. They are making good headway on the Redis migration. Blocker: waiting on David Kim to finish the Payment Service API changes. James O'Brien mentioned interest in learning Elasticsearch. Will connect them with Kate Johansson who has expertise there.",
+      "doc_type": "meeting_note",
+      "id": "doc-0057",
+      "project_id": "proj-infra",
+      "title": "1:1 notes: Leo Fernandez and James O'Brien"
+    },
+    {
+      "author_id": "p-frank",
+      "content": "Discussed Elena Petrov's progress on ML Pipeline. They are making good headway on the Redis migration. Blocker: waiting on David Kim to finish the Analytics Ingestion API changes. Elena Petrov mentioned interest in learning Terraform. Will connect them with James O'Brien who has expertise there.",
+      "doc_type": "meeting_note",
+      "id": "doc-0058",
+      "project_id": "proj-ml-pipeline",
+      "title": "1:1 notes: Frank Okafor and Elena Petrov"
+    },
+    {
+      "author_id": "p-carol",
+      "content": "Discussed Bob Martinez's progress on Search Redesign. They are making good headway on the Kubernetes migration. Blocker: waiting on Maya Singh to finish the Analytics Ingestion API changes. Bob Martinez mentioned interest in learning Apache Spark. Will connect them with Maya Singh who has expertise there.",
+      "doc_type": "meeting_note",
+      "id": "doc-0059",
+      "project_id": "proj-search",
+      "title": "1:1 notes: Carol Washington and Bob Martinez"
+    },
+    {
+      "author_id": "p-leo",
+      "content": "Discussed Kate Johansson's progress on Search Redesign. They are making good headway on the Redis migration. Blocker: waiting on James O'Brien to finish the Auth Service API changes. Kate Johansson mentioned interest in learning TypeScript. Will connect them with James O'Brien who has expertise there.",
+      "doc_type": "meeting_note",
+      "id": "doc-0060",
+      "project_id": "proj-search",
+      "title": "1:1 notes: Leo Fernandez and Kate Johansson"
+    },
+    {
+      "author_id": "p-frank",
+      "content": "Discussed Elena Petrov's progress on Data Lake Consolidation. They are making good headway on the GraphQL migration. Blocker: waiting on David Kim to finish the Auth Service API changes. Elena Petrov mentioned interest in learning TypeScript. Will connect them with David Kim who has expertise there.",
+      "doc_type": "meeting_note",
+      "id": "doc-0061",
+      "project_id": "proj-data-lake",
+      "title": "1:1 notes: Frank Okafor and Elena Petrov"
+    },
+    {
+      "author_id": "p-hassan",
+      "content": "Discussed Iris Nakamura's progress on Analytics Dashboard. They are making good headway on the PostgreSQL migration. Blocker: waiting on Frank Okafor to finish the Payment Service API changes. Iris Nakamura mentioned interest in learning Redis. Will connect them with Grace Liu who has expertise there.",
+      "doc_type": "meeting_note",
+      "id": "doc-0062",
+      "project_id": "proj-dashboard",
+      "title": "1:1 notes: Hassan Ali and Iris Nakamura"
+    },
+    {
+      "author_id": "p-hassan",
+      "content": "Discussed Grace Liu's progress on Billing Migration. They are making good headway on the Elasticsearch migration. Blocker: waiting on Iris Nakamura to finish the Search API API changes. Grace Liu mentioned interest in learning Apache Spark. Will connect them with Iris Nakamura who has expertise there.",
+      "doc_type": "meeting_note",
+      "id": "doc-0063",
+      "project_id": "proj-billing",
+      "title": "1:1 notes: Hassan Ali and Grace Liu"
+    },
+    {
+      "author_id": "p-kate",
+      "content": "Sprint retro for Search Redesign. What went well: Nate Cooper shipped the Auth Service caching layer ahead of schedule. What could improve: deployments to staging are still manual. Kate Johansson will set up automated deploys. Nate Cooper flagged that test coverage for the Kubernetes components is below 60%.",
+      "doc_type": "meeting_note",
+      "id": "doc-0064",
+      "project_id": "proj-search",
+      "title": "Sprint retro: Search Redesign"
+    },
+    {
+      "author_id": "p-nate",
+      "content": "Sprint retro for ML Pipeline. What went well: Kate Johansson shipped the Analytics Ingestion caching layer ahead of schedule. What could improve: deployments to staging are still manual. Nate Cooper will set up automated deploys. Kate Johansson flagged that test coverage for the Apache Spark components is below 60%.",
+      "doc_type": "meeting_note",
+      "id": "doc-0065",
+      "project_id": "proj-ml-pipeline",
+      "title": "Sprint retro: ML Pipeline"
+    },
+    {
+      "author_id": "p-kate",
+      "content": "Sprint retro for Search Redesign. What went well: Nate Cooper shipped the Auth Service caching layer ahead of schedule. What could improve: deployments to staging are still manual. Kate Johansson will set up automated deploys. James O'Brien flagged that test coverage for the TypeScript components is below 60%.",
+      "doc_type": "meeting_note",
+      "id": "doc-0066",
+      "project_id": "proj-search",
+      "title": "Sprint retro: Search Redesign"
+    },
+    {
+      "author_id": "p-nate",
+      "content": "Sprint retro for Infrastructure Modernization. What went well: Frank Okafor shipped the Analytics Ingestion caching layer ahead of schedule. What could improve: deployments to staging are still manual. Nate Cooper will set up automated deploys. James O'Brien flagged that test coverage for the TypeScript components is below 60%.",
+      "doc_type": "meeting_note",
+      "id": "doc-0067",
+      "project_id": "proj-infra",
+      "title": "Sprint retro: Infrastructure Modernization"
+    },
+    {
+      "author_id": "p-carol",
+      "content": "Sprint retro for Auth Overhaul. What went well: Maya Singh shipped the Auth Service caching layer ahead of schedule. What could improve: deployments to staging are still manual. Carol Washington will set up automated deploys. Maya Singh flagged that test coverage for the Terraform components is below 60%.",
+      "doc_type": "meeting_note",
+      "id": "doc-0068",
+      "project_id": "proj-auth",
+      "title": "Sprint retro: Auth Overhaul"
+    },
+    {
+      "author_id": "p-maya",
+      "content": "Sprint retro for Search Redesign. What went well: Bob Martinez shipped the Auth Service caching layer ahead of schedule. What could improve: deployments to staging are still manual. Maya Singh will set up automated deploys. Bob Martinez flagged that test coverage for the Python components is below 60%.",
+      "doc_type": "meeting_note",
+      "id": "doc-0069",
+      "project_id": "proj-search",
+      "title": "Sprint retro: Search Redesign"
+    },
+    {
+      "author_id": "p-frank",
+      "content": "Sprint retro for Data Lake Consolidation. What went well: Maya Singh shipped the Analytics Ingestion caching layer ahead of schedule. What could improve: deployments to staging are still manual. Frank Okafor will set up automated deploys. Elena Petrov flagged that test coverage for the TypeScript components is below 60%.",
+      "doc_type": "meeting_note",
+      "id": "doc-0070",
+      "project_id": "proj-data-lake",
+      "title": "Sprint retro: Data Lake Consolidation"
+    },
+    {
+      "author_id": "p-elena",
+      "content": "Sprint retro for Data Lake Consolidation. What went well: Frank Okafor shipped the Analytics Ingestion caching layer ahead of schedule. What could improve: deployments to staging are still manual. Elena Petrov will set up automated deploys. Frank Okafor flagged that test coverage for the TypeScript components is below 60%.",
+      "doc_type": "meeting_note",
+      "id": "doc-0071",
+      "project_id": "proj-data-lake",
+      "title": "Sprint retro: Data Lake Consolidation"
+    },
+    {
+      "author_id": "p-carol",
+      "content": "Sprint retro for Auth Overhaul. What went well: Bob Martinez shipped the Auth Service caching layer ahead of schedule. What could improve: deployments to staging are still manual. Carol Washington will set up automated deploys. Maya Singh flagged that test coverage for the GraphQL components is below 60%.",
+      "doc_type": "meeting_note",
+      "id": "doc-0072",
+      "project_id": "proj-auth",
+      "title": "Sprint retro: Auth Overhaul"
+    },
+    {
+      "author_id": "p-maya",
+      "content": "Sprint retro for Search Redesign. What went well: Alice Chen shipped the Auth Service caching layer ahead of schedule. What could improve: deployments to staging are still manual. Maya Singh will set up automated deploys. Iris Nakamura flagged that test coverage for the Python components is below 60%.",
+      "doc_type": "meeting_note",
+      "id": "doc-0073",
+      "project_id": "proj-search",
+      "title": "Sprint retro: Search Redesign"
+    },
+    {
+      "author_id": "p-kate",
+      "content": "Sprint retro for Infrastructure Modernization. What went well: Carol Washington shipped the Payment Service caching layer ahead of schedule. What could improve: deployments to staging are still manual. Kate Johansson will set up automated deploys. Alice Chen flagged that test coverage for the Elasticsearch components is below 60%.",
+      "doc_type": "meeting_note",
+      "id": "doc-0074",
+      "project_id": "proj-infra",
+      "title": "Sprint retro: Infrastructure Modernization"
+    },
+    {
+      "author_id": "p-iris",
+      "content": "Sprint retro for Analytics Dashboard. What went well: James O'Brien shipped the Analytics Ingestion caching layer ahead of schedule. What could improve: deployments to staging are still manual. Iris Nakamura will set up automated deploys. Hassan Ali flagged that test coverage for the Elasticsearch components is below 60%.",
+      "doc_type": "meeting_note",
+      "id": "doc-0075",
+      "project_id": "proj-dashboard",
+      "title": "Sprint retro: Analytics Dashboard"
+    },
+    {
+      "author_id": "p-david",
+      "content": "Sprint retro for ML Pipeline. What went well: Olivia Reeves shipped the Analytics Ingestion caching layer ahead of schedule. What could improve: deployments to staging are still manual. David Kim will set up automated deploys. Frank Okafor flagged that test coverage for the PostgreSQL components is below 60%.",
+      "doc_type": "meeting_note",
+      "id": "doc-0076",
+      "project_id": "proj-ml-pipeline",
+      "title": "Sprint retro: ML Pipeline"
+    },
+    {
+      "author_id": "p-kate",
+      "content": "Sprint retro for Search Redesign. What went well: James O'Brien shipped the Auth Service caching layer ahead of schedule. What could improve: deployments to staging are still manual. Kate Johansson will set up automated deploys. Olivia Reeves flagged that test coverage for the Kafka components is below 60%.",
+      "doc_type": "meeting_note",
+      "id": "doc-0077",
+      "project_id": "proj-search",
+      "title": "Sprint retro: Search Redesign"
+    },
+    {
+      "author_id": "p-carol",
+      "content": "Sprint retro for Billing Migration. What went well: Maya Singh shipped the Auth Service caching layer ahead of schedule. What could improve: deployments to staging are still manual. Carol Washington will set up automated deploys. Bob Martinez flagged that test coverage for the Apache Spark components is below 60%.",
+      "doc_type": "meeting_note",
+      "id": "doc-0078",
+      "project_id": "proj-billing",
+      "title": "Sprint retro: Billing Migration"
+    },
+    {
+      "author_id": "p-leo",
+      "content": "Sprint retro for Billing Migration. What went well: Kate Johansson shipped the Auth Service caching layer ahead of schedule. What could improve: deployments to staging are still manual. Leo Fernandez will set up automated deploys. Kate Johansson flagged that test coverage for the TypeScript components is below 60%.",
+      "doc_type": "meeting_note",
+      "id": "doc-0079",
+      "project_id": "proj-billing",
+      "title": "Sprint retro: Billing Migration"
+    },
+    {
+      "author_id": "p-leo",
+      "content": "The Auth Service is a core component of the Acme Labs platform, owned by the Platform team. It provides handles authentication and authorization.\n\nKey dependencies: Payment Service, Notification Service.\n\nTechnology stack: TypeScript, GraphQL.\n\nThe service handles approximately 50k requests per minute in production. Leo Fernandez designed the current architecture during the Q3 rewrite. Primary maintainers: Frank Okafor, Nate Cooper.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0080",
+      "project_id": "proj-auth",
+      "title": "Auth Service architecture overview"
+    },
+    {
+      "author_id": "p-kate",
+      "content": "The Notification Service is a core component of the Acme Labs platform, owned by the Platform team. It provides sends emails, push notifications, and webhooks.\n\nKey dependencies: Analytics Ingestion, Auth Service.\n\nTechnology stack: PostgreSQL, Kubernetes.\n\nThe service handles approximately 50k requests per minute in production. Kate Johansson designed the current architecture during the Q3 rewrite. Primary maintainers: James O'Brien, Alice Chen.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0081",
+      "project_id": "proj-mobile",
+      "title": "Notification Service architecture overview"
+    },
+    {
+      "author_id": "p-carol",
+      "content": "The Search API is a core component of the Acme Labs platform, owned by the Engineering team. It provides full-text and semantic search across the platform.\n\nKey dependencies: Analytics Ingestion, Notification Service.\n\nTechnology stack: Redis, Apache Spark.\n\nThe service handles approximately 50k requests per minute in production. Carol Washington designed the current architecture during the Q3 rewrite. Primary maintainers: Bob Martinez, Alice Chen.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0082",
+      "project_id": "proj-search",
+      "title": "Search API architecture overview"
+    },
+    {
+      "author_id": "p-david",
+      "content": "The Analytics Ingestion is a core component of the Acme Labs platform, owned by the Data team. It provides collects and processes analytics events.\n\nKey dependencies: Search API, Notification Service.\n\nTechnology stack: TypeScript, Apache Spark.\n\nThe service handles approximately 50k requests per minute in production. David Kim designed the current architecture during the Q3 rewrite. Primary maintainers: Frank Okafor, Frank Okafor.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0083",
+      "project_id": "proj-dashboard",
+      "title": "Analytics Ingestion architecture overview"
+    },
+    {
+      "author_id": "p-kate",
+      "content": "The Notification Service is a core component of the Acme Labs platform, owned by the Platform team. It provides sends emails, push notifications, and webhooks.\n\nKey dependencies: Payment Service, Analytics Ingestion.\n\nTechnology stack: Terraform, Kafka.\n\nThe service handles approximately 50k requests per minute in production. Kate Johansson designed the current architecture during the Q3 rewrite. Primary maintainers: Leo Fernandez, James O'Brien.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0084",
+      "project_id": "proj-mobile",
+      "title": "Notification Service architecture overview"
+    },
+    {
+      "author_id": "p-maya",
+      "content": "The Notification Service is a core component of the Acme Labs platform, owned by the Engineering team. It provides sends emails, push notifications, and webhooks.\n\nKey dependencies: Analytics Ingestion, Payment Service.\n\nTechnology stack: Python, Elasticsearch.\n\nThe service handles approximately 50k requests per minute in production. Maya Singh designed the current architecture during the Q3 rewrite. Primary maintainers: Alice Chen, David Kim.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0085",
+      "project_id": "proj-mobile",
+      "title": "Notification Service architecture overview"
+    },
+    {
+      "author_id": "p-alice",
+      "content": "The Payment Service is a core component of the Acme Labs platform, owned by the Engineering team. It provides processes payments and manages subscriptions.\n\nKey dependencies: Search API, Analytics Ingestion.\n\nTechnology stack: Kafka, Terraform.\n\nThe service handles approximately 50k requests per minute in production. Alice Chen designed the current architecture during the Q3 rewrite. Primary maintainers: Bob Martinez, Iris Nakamura.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0086",
+      "project_id": "proj-billing",
+      "title": "Payment Service architecture overview"
+    },
+    {
+      "author_id": "p-hassan",
+      "content": "The Auth Service is a core component of the Acme Labs platform, owned by the Product team. It provides handles authentication and authorization.\n\nKey dependencies: Payment Service, Notification Service.\n\nTechnology stack: Elasticsearch, GraphQL.\n\nThe service handles approximately 50k requests per minute in production. Hassan Ali designed the current architecture during the Q3 rewrite. Primary maintainers: Iris Nakamura, Grace Liu.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0087",
+      "project_id": "proj-mobile",
+      "title": "Auth Service architecture overview"
+    },
+    {
+      "author_id": "p-grace",
+      "content": "The Payment Service is a core component of the Acme Labs platform, owned by the Product team. It provides processes payments and manages subscriptions.\n\nKey dependencies: Notification Service, Auth Service.\n\nTechnology stack: Kafka, Python.\n\nThe service handles approximately 50k requests per minute in production. Grace Liu designed the current architecture during the Q3 rewrite. Primary maintainers: Leo Fernandez, Hassan Ali.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0088",
+      "project_id": "proj-billing",
+      "title": "Payment Service architecture overview"
+    },
+    {
+      "author_id": "p-carol",
+      "content": "The Payment Service is a core component of the Acme Labs platform, owned by the Engineering team. It provides processes payments and manages subscriptions.\n\nKey dependencies: Notification Service, Auth Service.\n\nTechnology stack: Terraform, Kafka.\n\nThe service handles approximately 50k requests per minute in production. Carol Washington designed the current architecture during the Q3 rewrite. Primary maintainers: Maya Singh, Maya Singh.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0089",
+      "project_id": "proj-billing",
+      "title": "Payment Service architecture overview"
+    },
+    {
+      "author_id": "p-alice",
+      "content": "This document describes the technical design for Billing Migration.\n\nGoals: improve Auth Service performance by 3x while maintaining backwards compatibility.\n\nApproach: introduce a caching layer using Python between the API gateway and Payment Service. Alice Chen will implement the cache invalidation strategy. Hassan Ali will update the client SDKs.\n\nRisks: cache staleness could cause data inconsistency. Mitigation: TTL-based expiry with event-driven invalidation from Analytics Ingestion.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0090",
+      "project_id": "proj-billing",
+      "title": "Billing Migration technical design"
+    },
+    {
+      "author_id": "p-david",
+      "content": "This document describes the technical design for Data Lake Consolidation.\n\nGoals: improve Auth Service performance by 3x while maintaining backwards compatibility.\n\nApproach: introduce a caching layer using TypeScript between the API gateway and Search API. David Kim will implement the cache invalidation strategy. Frank Okafor will update the client SDKs.\n\nRisks: cache staleness could cause data inconsistency. Mitigation: TTL-based expiry with event-driven invalidation from Notification Service.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0091",
+      "project_id": "proj-data-lake",
+      "title": "Data Lake Consolidation technical design"
+    },
+    {
+      "author_id": "p-david",
+      "content": "This document describes the technical design for Data Lake Consolidation.\n\nGoals: improve Search API performance by 3x while maintaining backwards compatibility.\n\nApproach: introduce a caching layer using TypeScript between the API gateway and Analytics Ingestion. David Kim will implement the cache invalidation strategy. Elena Petrov will update the client SDKs.\n\nRisks: cache staleness could cause data inconsistency. Mitigation: TTL-based expiry with event-driven invalidation from Auth Service.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0092",
+      "project_id": "proj-data-lake",
+      "title": "Data Lake Consolidation technical design"
+    },
+    {
+      "author_id": "p-elena",
+      "content": "This document describes the technical design for Data Lake Consolidation.\n\nGoals: improve Search API performance by 3x while maintaining backwards compatibility.\n\nApproach: introduce a caching layer using Elasticsearch between the API gateway and Analytics Ingestion. Elena Petrov will implement the cache invalidation strategy. Frank Okafor will update the client SDKs.\n\nRisks: cache staleness could cause data inconsistency. Mitigation: TTL-based expiry with event-driven invalidation from Auth Service.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0093",
+      "project_id": "proj-data-lake",
+      "title": "Data Lake Consolidation technical design"
+    },
+    {
+      "author_id": "p-carol",
+      "content": "This document describes the technical design for Auth Overhaul.\n\nGoals: improve Auth Service performance by 3x while maintaining backwards compatibility.\n\nApproach: introduce a caching layer using GraphQL between the API gateway and Notification Service. Carol Washington will implement the cache invalidation strategy. Bob Martinez will update the client SDKs.\n\nRisks: cache staleness could cause data inconsistency. Mitigation: TTL-based expiry with event-driven invalidation from Search API.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0094",
+      "project_id": "proj-auth",
+      "title": "Auth Overhaul technical design"
+    },
+    {
+      "author_id": "p-leo",
+      "content": "This document describes the technical design for Infrastructure Modernization.\n\nGoals: improve Search API performance by 3x while maintaining backwards compatibility.\n\nApproach: introduce a caching layer using Kafka between the API gateway and Notification Service. Leo Fernandez will implement the cache invalidation strategy. Nate Cooper will update the client SDKs.\n\nRisks: cache staleness could cause data inconsistency. Mitigation: TTL-based expiry with event-driven invalidation from Auth Service.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0095",
+      "project_id": "proj-infra",
+      "title": "Infrastructure Modernization technical design"
+    },
+    {
+      "author_id": "p-carol",
+      "content": "This document describes the technical design for Auth Overhaul.\n\nGoals: improve Auth Service performance by 3x while maintaining backwards compatibility.\n\nApproach: introduce a caching layer using Redis between the API gateway and Notification Service. Carol Washington will implement the cache invalidation strategy. Maya Singh will update the client SDKs.\n\nRisks: cache staleness could cause data inconsistency. Mitigation: TTL-based expiry with event-driven invalidation from Analytics Ingestion.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0096",
+      "project_id": "proj-auth",
+      "title": "Auth Overhaul technical design"
+    },
+    {
+      "author_id": "p-elena",
+      "content": "This document describes the technical design for ML Pipeline.\n\nGoals: improve Analytics Ingestion performance by 3x while maintaining backwards compatibility.\n\nApproach: introduce a caching layer using Terraform between the API gateway and Auth Service. Elena Petrov will implement the cache invalidation strategy. Olivia Reeves will update the client SDKs.\n\nRisks: cache staleness could cause data inconsistency. Mitigation: TTL-based expiry with event-driven invalidation from Notification Service.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0097",
+      "project_id": "proj-ml-pipeline",
+      "title": "ML Pipeline technical design"
+    },
+    {
+      "author_id": "p-iris",
+      "content": "This document describes the technical design for Mobile App v2.\n\nGoals: improve Auth Service performance by 3x while maintaining backwards compatibility.\n\nApproach: introduce a caching layer using Kubernetes between the API gateway and Search API. Iris Nakamura will implement the cache invalidation strategy. Hassan Ali will update the client SDKs.\n\nRisks: cache staleness could cause data inconsistency. Mitigation: TTL-based expiry with event-driven invalidation from Notification Service.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0098",
+      "project_id": "proj-mobile",
+      "title": "Mobile App v2 technical design"
+    },
+    {
+      "author_id": "p-leo",
+      "content": "This document describes the technical design for Infrastructure Modernization.\n\nGoals: improve Payment Service performance by 3x while maintaining backwards compatibility.\n\nApproach: introduce a caching layer using Python between the API gateway and Analytics Ingestion. Leo Fernandez will implement the cache invalidation strategy. Kate Johansson will update the client SDKs.\n\nRisks: cache staleness could cause data inconsistency. Mitigation: TTL-based expiry with event-driven invalidation from Notification Service.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0099",
+      "project_id": "proj-infra",
+      "title": "Infrastructure Modernization technical design"
+    },
+    {
+      "author_id": "p-elena",
+      "content": "The data ingestion pipeline for ML Pipeline processes events from Analytics Ingestion and Notification Service. Designed by Elena Petrov, maintained by Olivia Reeves.\n\nFlow: events land in the message queue, are transformed by the TypeScript workers, validated against the schema registry, and written to the Kafka data store.\n\nCurrent throughput: 10k events/sec. Scaling plan: partition by tenant ID. Hassan Ali is researching Python as an alternative processing engine.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0100",
+      "project_id": "proj-ml-pipeline",
+      "title": "Data pipeline: ML Pipeline ingestion flow"
+    },
+    {
+      "author_id": "p-kate",
+      "content": "The data ingestion pipeline for Search Redesign processes events from Auth Service and Analytics Ingestion. Designed by Kate Johansson, maintained by Leo Fernandez.\n\nFlow: events land in the message queue, are transformed by the Terraform workers, validated against the schema registry, and written to the Kubernetes data store.\n\nCurrent throughput: 10k events/sec. Scaling plan: partition by tenant ID. Nate Cooper is researching GraphQL as an alternative processing engine.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0101",
+      "project_id": "proj-search",
+      "title": "Data pipeline: Search Redesign ingestion flow"
+    },
+    {
+      "author_id": "p-hassan",
+      "content": "The data ingestion pipeline for Analytics Dashboard processes events from Analytics Ingestion and Auth Service. Designed by Hassan Ali, maintained by Iris Nakamura.\n\nFlow: events land in the message queue, are transformed by the Kubernetes workers, validated against the schema registry, and written to the Python data store.\n\nCurrent throughput: 10k events/sec. Scaling plan: partition by tenant ID. Grace Liu is researching TypeScript as an alternative processing engine.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0102",
+      "project_id": "proj-dashboard",
+      "title": "Data pipeline: Analytics Dashboard ingestion flow"
+    },
+    {
+      "author_id": "p-hassan",
+      "content": "The data ingestion pipeline for Search Redesign processes events from Auth Service and Payment Service. Designed by Hassan Ali, maintained by Grace Liu.\n\nFlow: events land in the message queue, are transformed by the Python workers, validated against the schema registry, and written to the PostgreSQL data store.\n\nCurrent throughput: 10k events/sec. Scaling plan: partition by tenant ID. Alice Chen is researching GraphQL as an alternative processing engine.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0103",
+      "project_id": "proj-search",
+      "title": "Data pipeline: Search Redesign ingestion flow"
+    },
+    {
+      "author_id": "p-iris",
+      "content": "The data ingestion pipeline for Mobile App v2 processes events from Auth Service and Analytics Ingestion. Designed by Iris Nakamura, maintained by Hassan Ali.\n\nFlow: events land in the message queue, are transformed by the Elasticsearch workers, validated against the schema registry, and written to the Python data store.\n\nCurrent throughput: 10k events/sec. Scaling plan: partition by tenant ID. Carol Washington is researching Kafka as an alternative processing engine.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0104",
+      "project_id": "proj-mobile",
+      "title": "Data pipeline: Mobile App v2 ingestion flow"
+    },
+    {
+      "author_id": "p-elena",
+      "content": "The data ingestion pipeline for ML Pipeline processes events from Analytics Ingestion and Payment Service. Designed by Elena Petrov, maintained by James O'Brien.\n\nFlow: events land in the message queue, are transformed by the TypeScript workers, validated against the schema registry, and written to the Kubernetes data store.\n\nCurrent throughput: 10k events/sec. Scaling plan: partition by tenant ID. Leo Fernandez is researching PostgreSQL as an alternative processing engine.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0105",
+      "project_id": "proj-ml-pipeline",
+      "title": "Data pipeline: ML Pipeline ingestion flow"
+    },
+    {
+      "author_id": "p-olivia",
+      "content": "The data ingestion pipeline for Analytics Dashboard processes events from Analytics Ingestion and Search API. Designed by Olivia Reeves, maintained by Frank Okafor.\n\nFlow: events land in the message queue, are transformed by the Python workers, validated against the schema registry, and written to the Kafka data store.\n\nCurrent throughput: 10k events/sec. Scaling plan: partition by tenant ID. Elena Petrov is researching Apache Spark as an alternative processing engine.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0106",
+      "project_id": "proj-dashboard",
+      "title": "Data pipeline: Analytics Dashboard ingestion flow"
+    },
+    {
+      "author_id": "p-kate",
+      "content": "The data ingestion pipeline for Search Redesign processes events from Auth Service and Notification Service. Designed by Kate Johansson, maintained by James O'Brien.\n\nFlow: events land in the message queue, are transformed by the GraphQL workers, validated against the schema registry, and written to the Kubernetes data store.\n\nCurrent throughput: 10k events/sec. Scaling plan: partition by tenant ID. Leo Fernandez is researching Terraform as an alternative processing engine.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0107",
+      "project_id": "proj-search",
+      "title": "Data pipeline: Search Redesign ingestion flow"
+    },
+    {
+      "author_id": "p-frank",
+      "content": "The data ingestion pipeline for Data Lake Consolidation processes events from Search API and Auth Service. Designed by Frank Okafor, maintained by Olivia Reeves.\n\nFlow: events land in the message queue, are transformed by the Kubernetes workers, validated against the schema registry, and written to the Elasticsearch data store.\n\nCurrent throughput: 10k events/sec. Scaling plan: partition by tenant ID. Grace Liu is researching Redis as an alternative processing engine.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0108",
+      "project_id": "proj-data-lake",
+      "title": "Data pipeline: Data Lake Consolidation ingestion flow"
+    },
+    {
+      "author_id": "p-grace",
+      "content": "The data ingestion pipeline for Billing Migration processes events from Auth Service and Search API. Designed by Grace Liu, maintained by Hassan Ali.\n\nFlow: events land in the message queue, are transformed by the Terraform workers, validated against the schema registry, and written to the Redis data store.\n\nCurrent throughput: 10k events/sec. Scaling plan: partition by tenant ID. Iris Nakamura is researching PostgreSQL as an alternative processing engine.",
+      "doc_type": "architecture_doc",
+      "id": "doc-0109",
+      "project_id": "proj-billing",
+      "title": "Data pipeline: Billing Migration ingestion flow"
+    },
+    {
+      "author_id": "p-james",
+      "content": "Severity: P1\nDuration: 47 minutes\nImpact: all Billing Migration users affected\n\nRoot cause: a misconfigured deployment of Auth Service caused a cascading failure in Analytics Ingestion. The Apache Spark connection pool was exhausted, which blocked all downstream requests.\n\nDetection: Kate Johansson noticed elevated error rates in the monitoring dashboard at 14:23 UTC. James O'Brien was paged and confirmed the issue.\n\nResolution: Olivia Reeves rolled back the deployment. James O'Brien applied a hotfix to the connection pool configuration.\n\nAction items: add connection pool health checks, implement circuit breaker between Auth Service and Analytics Ingestion.",
+      "doc_type": "incident_report",
+      "id": "doc-0110",
+      "project_id": "proj-billing",
+      "title": "Incident: Auth Service outage on 2025-05-17"
+    },
+    {
+      "author_id": "p-nate",
+      "content": "Severity: P1\nDuration: 47 minutes\nImpact: all Search Redesign users affected\n\nRoot cause: a misconfigured deployment of Auth Service caused a cascading failure in Search API. The TypeScript connection pool was exhausted, which blocked all downstream requests.\n\nDetection: Elena Petrov noticed elevated error rates in the monitoring dashboard at 14:23 UTC. Nate Cooper was paged and confirmed the issue.\n\nResolution: Leo Fernandez rolled back the deployment. Nate Cooper applied a hotfix to the connection pool configuration.\n\nAction items: add connection pool health checks, implement circuit breaker between Auth Service and Search API.",
+      "doc_type": "incident_report",
+      "id": "doc-0111",
+      "project_id": "proj-search",
+      "title": "Incident: Auth Service outage on 2025-07-13"
+    },
+    {
+      "author_id": "p-maya",
+      "content": "Severity: P1\nDuration: 47 minutes\nImpact: all Billing Migration users affected\n\nRoot cause: a misconfigured deployment of Auth Service caused a cascading failure in Search API. The Kubernetes connection pool was exhausted, which blocked all downstream requests.\n\nDetection: Carol Washington noticed elevated error rates in the monitoring dashboard at 14:23 UTC. Maya Singh was paged and confirmed the issue.\n\nResolution: Carol Washington rolled back the deployment. Maya Singh applied a hotfix to the connection pool configuration.\n\nAction items: add connection pool health checks, implement circuit breaker between Auth Service and Search API.",
+      "doc_type": "incident_report",
+      "id": "doc-0112",
+      "project_id": "proj-billing",
+      "title": "Incident: Auth Service outage on 2025-02-27"
+    },
+    {
+      "author_id": "p-iris",
+      "content": "Severity: P1\nDuration: 47 minutes\nImpact: all ML Pipeline users affected\n\nRoot cause: a misconfigured deployment of Analytics Ingestion caused a cascading failure in Payment Service. The Apache Spark connection pool was exhausted, which blocked all downstream requests.\n\nDetection: Nate Cooper noticed elevated error rates in the monitoring dashboard at 14:23 UTC. Iris Nakamura was paged and confirmed the issue.\n\nResolution: Hassan Ali rolled back the deployment. Iris Nakamura applied a hotfix to the connection pool configuration.\n\nAction items: add connection pool health checks, implement circuit breaker between Analytics Ingestion and Payment Service.",
+      "doc_type": "incident_report",
+      "id": "doc-0113",
+      "project_id": "proj-ml-pipeline",
+      "title": "Incident: Analytics Ingestion outage on 2025-02-18"
+    },
+    {
+      "author_id": "p-maya",
+      "content": "Severity: P1\nDuration: 47 minutes\nImpact: all Mobile App v2 users affected\n\nRoot cause: a misconfigured deployment of Notification Service caused a cascading failure in Analytics Ingestion. The Elasticsearch connection pool was exhausted, which blocked all downstream requests.\n\nDetection: Alice Chen noticed elevated error rates in the monitoring dashboard at 14:23 UTC. Maya Singh was paged and confirmed the issue.\n\nResolution: Kate Johansson rolled back the deployment. Maya Singh applied a hotfix to the connection pool configuration.\n\nAction items: add connection pool health checks, implement circuit breaker between Notification Service and Analytics Ingestion.",
+      "doc_type": "incident_report",
+      "id": "doc-0114",
+      "project_id": "proj-mobile",
+      "title": "Incident: Notification Service outage on 2026-03-03"
+    },
+    {
+      "author_id": "p-carol",
+      "content": "Severity: P1\nDuration: 47 minutes\nImpact: all Billing Migration users affected\n\nRoot cause: a misconfigured deployment of Payment Service caused a cascading failure in Notification Service. The Terraform connection pool was exhausted, which blocked all downstream requests.\n\nDetection: Bob Martinez noticed elevated error rates in the monitoring dashboard at 14:23 UTC. Carol Washington was paged and confirmed the issue.\n\nResolution: Elena Petrov rolled back the deployment. Carol Washington applied a hotfix to the connection pool configuration.\n\nAction items: add connection pool health checks, implement circuit breaker between Payment Service and Notification Service.",
+      "doc_type": "incident_report",
+      "id": "doc-0115",
+      "project_id": "proj-billing",
+      "title": "Incident: Payment Service outage on 2025-07-12"
+    },
+    {
+      "author_id": "p-leo",
+      "content": "Severity: P1\nDuration: 47 minutes\nImpact: all Mobile App v2 users affected\n\nRoot cause: a misconfigured deployment of Notification Service caused a cascading failure in Auth Service. The TypeScript connection pool was exhausted, which blocked all downstream requests.\n\nDetection: Bob Martinez noticed elevated error rates in the monitoring dashboard at 14:23 UTC. Leo Fernandez was paged and confirmed the issue.\n\nResolution: Hassan Ali rolled back the deployment. Leo Fernandez applied a hotfix to the connection pool configuration.\n\nAction items: add connection pool health checks, implement circuit breaker between Notification Service and Auth Service.",
+      "doc_type": "incident_report",
+      "id": "doc-0116",
+      "project_id": "proj-mobile",
+      "title": "Incident: Notification Service outage on 2026-04-23"
+    },
+    {
+      "author_id": "p-maya",
+      "content": "Severity: P1\nDuration: 47 minutes\nImpact: all Search Redesign users affected\n\nRoot cause: a misconfigured deployment of Search API caused a cascading failure in Auth Service. The PostgreSQL connection pool was exhausted, which blocked all downstream requests.\n\nDetection: Bob Martinez noticed elevated error rates in the monitoring dashboard at 14:23 UTC. Maya Singh was paged and confirmed the issue.\n\nResolution: Iris Nakamura rolled back the deployment. Maya Singh applied a hotfix to the connection pool configuration.\n\nAction items: add connection pool health checks, implement circuit breaker between Search API and Auth Service.",
+      "doc_type": "incident_report",
+      "id": "doc-0117",
+      "project_id": "proj-search",
+      "title": "Incident: Search API outage on 2025-10-30"
+    },
+    {
+      "author_id": "p-maya",
+      "content": "Severity: P1\nDuration: 47 minutes\nImpact: all Billing Migration users affected\n\nRoot cause: a misconfigured deployment of Payment Service caused a cascading failure in Analytics Ingestion. The TypeScript connection pool was exhausted, which blocked all downstream requests.\n\nDetection: Carol Washington noticed elevated error rates in the monitoring dashboard at 14:23 UTC. Maya Singh was paged and confirmed the issue.\n\nResolution: Bob Martinez rolled back the deployment. Maya Singh applied a hotfix to the connection pool configuration.\n\nAction items: add connection pool health checks, implement circuit breaker between Payment Service and Analytics Ingestion.",
+      "doc_type": "incident_report",
+      "id": "doc-0118",
+      "project_id": "proj-billing",
+      "title": "Incident: Payment Service outage on 2026-05-16"
+    },
+    {
+      "author_id": "p-frank",
+      "content": "Severity: P1\nDuration: 47 minutes\nImpact: all Analytics Dashboard users affected\n\nRoot cause: a misconfigured deployment of Analytics Ingestion caused a cascading failure in Auth Service. The Terraform connection pool was exhausted, which blocked all downstream requests.\n\nDetection: Olivia Reeves noticed elevated error rates in the monitoring dashboard at 14:23 UTC. Frank Okafor was paged and confirmed the issue.\n\nResolution: Olivia Reeves rolled back the deployment. Frank Okafor applied a hotfix to the connection pool configuration.\n\nAction items: add connection pool health checks, implement circuit breaker between Analytics Ingestion and Auth Service.",
+      "doc_type": "incident_report",
+      "id": "doc-0119",
+      "project_id": "proj-dashboard",
+      "title": "Incident: Analytics Ingestion outage on 2025-01-17"
+    },
+    {
+      "author_id": "p-david",
+      "content": "Severity: P2\nDuration: 2 hours\nImpact: Analytics Dashboard experienced 3x latency increase\n\nRoot cause: Alice Chen's query optimization for Analytics Dashboard introduced a full table scan on the Kubernetes index. The Analytics Ingestion CPU usage spiked to 95%.\n\nDetection: automated alerting triggered. David Kim investigated.\n\nResolution: reverted the query change. Olivia Reeves from Data helped design a proper index strategy.\n\nAction items: add query plan review to PR checklist for Analytics Ingestion changes.",
+      "doc_type": "incident_report",
+      "id": "doc-0120",
+      "project_id": "proj-dashboard",
+      "title": "Incident: Analytics Ingestion degraded performance"
+    },
+    {
+      "author_id": "p-nate",
+      "content": "Severity: P2\nDuration: 2 hours\nImpact: Mobile App v2 experienced 3x latency increase\n\nRoot cause: Leo Fernandez's query optimization for Mobile App v2 introduced a full table scan on the Apache Spark index. The Notification Service CPU usage spiked to 95%.\n\nDetection: automated alerting triggered. Nate Cooper investigated.\n\nResolution: reverted the query change. Bob Martinez from Platform helped design a proper index strategy.\n\nAction items: add query plan review to PR checklist for Notification Service changes.",
+      "doc_type": "incident_report",
+      "id": "doc-0121",
+      "project_id": "proj-mobile",
+      "title": "Incident: Notification Service degraded performance"
+    },
+    {
+      "author_id": "p-maya",
+      "content": "Severity: P2\nDuration: 2 hours\nImpact: Billing Migration experienced 3x latency increase\n\nRoot cause: Grace Liu's query optimization for Billing Migration introduced a full table scan on the GraphQL index. The Payment Service CPU usage spiked to 95%.\n\nDetection: automated alerting triggered. Maya Singh investigated.\n\nResolution: reverted the query change. Carol Washington from Engineering helped design a proper index strategy.\n\nAction items: add query plan review to PR checklist for Payment Service changes.",
+      "doc_type": "incident_report",
+      "id": "doc-0122",
+      "project_id": "proj-billing",
+      "title": "Incident: Payment Service degraded performance"
+    },
+    {
+      "author_id": "p-maya",
+      "content": "Severity: P2\nDuration: 2 hours\nImpact: Billing Migration experienced 3x latency increase\n\nRoot cause: Carol Washington's query optimization for Billing Migration introduced a full table scan on the Redis index. The Payment Service CPU usage spiked to 95%.\n\nDetection: automated alerting triggered. Maya Singh investigated.\n\nResolution: reverted the query change. James O'Brien from Engineering helped design a proper index strategy.\n\nAction items: add query plan review to PR checklist for Payment Service changes.",
+      "doc_type": "incident_report",
+      "id": "doc-0123",
+      "project_id": "proj-billing",
+      "title": "Incident: Payment Service degraded performance"
+    },
+    {
+      "author_id": "p-james",
+      "content": "Severity: P2\nDuration: 2 hours\nImpact: Mobile App v2 experienced 3x latency increase\n\nRoot cause: Leo Fernandez's query optimization for Mobile App v2 introduced a full table scan on the Terraform index. The Notification Service CPU usage spiked to 95%.\n\nDetection: automated alerting triggered. James O'Brien investigated.\n\nResolution: reverted the query change. Hassan Ali from Platform helped design a proper index strategy.\n\nAction items: add query plan review to PR checklist for Notification Service changes.",
+      "doc_type": "incident_report",
+      "id": "doc-0124",
+      "project_id": "proj-mobile",
+      "title": "Incident: Notification Service degraded performance"
+    },
+    {
+      "author_id": "p-kate",
+      "content": "Severity: P2\nDuration: 2 hours\nImpact: Mobile App v2 experienced 3x latency increase\n\nRoot cause: Leo Fernandez's query optimization for Mobile App v2 introduced a full table scan on the Redis index. The Auth Service CPU usage spiked to 95%.\n\nDetection: automated alerting triggered. Kate Johansson investigated.\n\nResolution: reverted the query change. James O'Brien from Platform helped design a proper index strategy.\n\nAction items: add query plan review to PR checklist for Auth Service changes.",
+      "doc_type": "incident_report",
+      "id": "doc-0125",
+      "project_id": "proj-mobile",
+      "title": "Incident: Auth Service degraded performance"
+    },
+    {
+      "author_id": "p-james",
+      "content": "Severity: P2\nDuration: 2 hours\nImpact: Mobile App v2 experienced 3x latency increase\n\nRoot cause: Leo Fernandez's query optimization for Mobile App v2 introduced a full table scan on the GraphQL index. The Notification Service CPU usage spiked to 95%.\n\nDetection: automated alerting triggered. James O'Brien investigated.\n\nResolution: reverted the query change. Alice Chen from Platform helped design a proper index strategy.\n\nAction items: add query plan review to PR checklist for Notification Service changes.",
+      "doc_type": "incident_report",
+      "id": "doc-0126",
+      "project_id": "proj-mobile",
+      "title": "Incident: Notification Service degraded performance"
+    },
+    {
+      "author_id": "p-maya",
+      "content": "Severity: P2\nDuration: 2 hours\nImpact: Search Redesign experienced 3x latency increase\n\nRoot cause: Bob Martinez's query optimization for Search Redesign introduced a full table scan on the Kubernetes index. The Search API CPU usage spiked to 95%.\n\nDetection: automated alerting triggered. Maya Singh investigated.\n\nResolution: reverted the query change. Alice Chen from Engineering helped design a proper index strategy.\n\nAction items: add query plan review to PR checklist for Search API changes.",
+      "doc_type": "incident_report",
+      "id": "doc-0127",
+      "project_id": "proj-search",
+      "title": "Incident: Search API degraded performance"
+    },
+    {
+      "author_id": "p-james",
+      "content": "Severity: P2\nDuration: 2 hours\nImpact: Mobile App v2 experienced 3x latency increase\n\nRoot cause: Nate Cooper's query optimization for Mobile App v2 introduced a full table scan on the Kafka index. The Auth Service CPU usage spiked to 95%.\n\nDetection: automated alerting triggered. James O'Brien investigated.\n\nResolution: reverted the query change. Carol Washington from Platform helped design a proper index strategy.\n\nAction items: add query plan review to PR checklist for Auth Service changes.",
+      "doc_type": "incident_report",
+      "id": "doc-0128",
+      "project_id": "proj-mobile",
+      "title": "Incident: Auth Service degraded performance"
+    },
+    {
+      "author_id": "p-olivia",
+      "content": "Severity: P2\nDuration: 2 hours\nImpact: ML Pipeline experienced 3x latency increase\n\nRoot cause: Frank Okafor's query optimization for ML Pipeline introduced a full table scan on the Kubernetes index. The Analytics Ingestion CPU usage spiked to 95%.\n\nDetection: automated alerting triggered. Olivia Reeves investigated.\n\nResolution: reverted the query change. Frank Okafor from Data helped design a proper index strategy.\n\nAction items: add query plan review to PR checklist for Analytics Ingestion changes.",
+      "doc_type": "incident_report",
+      "id": "doc-0129",
+      "project_id": "proj-ml-pipeline",
+      "title": "Incident: Analytics Ingestion degraded performance"
+    },
+    {
+      "author_id": "p-david",
+      "content": "Status: Approved\nDecision maker: David Kim\nDate: 2026-01-04\n\nContext: the current GraphQL stack for Data Lake Consolidation is reaching scaling limits. Olivia Reeves benchmarked alternatives and Apache Spark showed 4x throughput improvement.\n\nDecision: migrate Data Lake Consolidation to Apache Spark over Q2. Frank Okafor will lead the migration. The Data team will provide support.\n\nTradeoffs: higher operational complexity, team needs to learn Apache Spark. Mitigated by: Olivia Reeves already has experience, will run internal training sessions.",
+      "doc_type": "decision_record",
+      "id": "doc-0130",
+      "project_id": "proj-data-lake",
+      "title": "Decision: migrate Data Lake Consolidation to Apache Spark"
+    },
+    {
+      "author_id": "p-hassan",
+      "content": "Status: Approved\nDecision maker: Hassan Ali\nDate: 2026-06-07\n\nContext: the current Python stack for Search Redesign is reaching scaling limits. Grace Liu benchmarked alternatives and Redis showed 4x throughput improvement.\n\nDecision: migrate Search Redesign to Redis over Q2. Iris Nakamura will lead the migration. The Product team will provide support.\n\nTradeoffs: higher operational complexity, team needs to learn Redis. Mitigated by: Frank Okafor already has experience, will run internal training sessions.",
+      "doc_type": "decision_record",
+      "id": "doc-0131",
+      "project_id": "proj-search",
+      "title": "Decision: migrate Search Redesign to Redis"
+    },
+    {
+      "author_id": "p-olivia",
+      "content": "Status: Approved\nDecision maker: Olivia Reeves\nDate: 2025-11-16\n\nContext: the current Kafka stack for Analytics Dashboard is reaching scaling limits. Frank Okafor benchmarked alternatives and Redis showed 4x throughput improvement.\n\nDecision: migrate Analytics Dashboard to Redis over Q2. Frank Okafor will lead the migration. The Data team will provide support.\n\nTradeoffs: higher operational complexity, team needs to learn Redis. Mitigated by: David Kim already has experience, will run internal training sessions.",
+      "doc_type": "decision_record",
+      "id": "doc-0132",
+      "project_id": "proj-dashboard",
+      "title": "Decision: migrate Analytics Dashboard to Redis"
+    },
+    {
+      "author_id": "p-david",
+      "content": "Status: Approved\nDecision maker: David Kim\nDate: 2025-09-07\n\nContext: the current Redis stack for Data Lake Consolidation is reaching scaling limits. Frank Okafor benchmarked alternatives and TypeScript showed 4x throughput improvement.\n\nDecision: migrate Data Lake Consolidation to TypeScript over Q2. Kate Johansson will lead the migration. The Data team will provide support.\n\nTradeoffs: higher operational complexity, team needs to learn TypeScript. Mitigated by: Frank Okafor already has experience, will run internal training sessions.",
+      "doc_type": "decision_record",
+      "id": "doc-0133",
+      "project_id": "proj-data-lake",
+      "title": "Decision: migrate Data Lake Consolidation to TypeScript"
+    },
+    {
+      "author_id": "p-james",
+      "content": "Status: Approved\nDecision maker: James O'Brien\nDate: 2026-03-16\n\nContext: the current Kubernetes stack for Auth Overhaul is reaching scaling limits. Leo Fernandez benchmarked alternatives and Terraform showed 4x throughput improvement.\n\nDecision: migrate Auth Overhaul to Terraform over Q2. Leo Fernandez will lead the migration. The Platform team will provide support.\n\nTradeoffs: higher operational complexity, team needs to learn Terraform. Mitigated by: Kate Johansson already has experience, will run internal training sessions.",
+      "doc_type": "decision_record",
+      "id": "doc-0134",
+      "project_id": "proj-auth",
+      "title": "Decision: migrate Auth Overhaul to Terraform"
+    },
+    {
+      "author_id": "p-bob",
+      "content": "Status: Approved\nDecision maker: Bob Martinez\nDate: 2026-02-02\n\nContext: the current GraphQL stack for Billing Migration is reaching scaling limits. Elena Petrov benchmarked alternatives and Elasticsearch showed 4x throughput improvement.\n\nDecision: migrate Billing Migration to Elasticsearch over Q2. Maya Singh will lead the migration. The Engineering team will provide support.\n\nTradeoffs: higher operational complexity, team needs to learn Elasticsearch. Mitigated by: Carol Washington already has experience, will run internal training sessions.",
+      "doc_type": "decision_record",
+      "id": "doc-0135",
+      "project_id": "proj-billing",
+      "title": "Decision: migrate Billing Migration to Elasticsearch"
+    },
+    {
+      "author_id": "p-kate",
+      "content": "Status: Approved\nDecision maker: Kate Johansson\nDate: 2025-07-07\n\nContext: the current Python stack for Search Redesign is reaching scaling limits. Nate Cooper benchmarked alternatives and Kubernetes showed 4x throughput improvement.\n\nDecision: migrate Search Redesign to Kubernetes over Q2. Elena Petrov will lead the migration. The Platform team will provide support.\n\nTradeoffs: higher operational complexity, team needs to learn Kubernetes. Mitigated by: Maya Singh already has experience, will run internal training sessions.",
+      "doc_type": "decision_record",
+      "id": "doc-0136",
+      "project_id": "proj-search",
+      "title": "Decision: migrate Search Redesign to Kubernetes"
+    },
+    {
+      "author_id": "p-james",
+      "content": "Status: Approved\nDecision maker: James O'Brien\nDate: 2025-05-24\n\nContext: the current Elasticsearch stack for Auth Overhaul is reaching scaling limits. Nate Cooper benchmarked alternatives and Kafka showed 4x throughput improvement.\n\nDecision: migrate Auth Overhaul to Kafka over Q2. Kate Johansson will lead the migration. The Platform team will provide support.\n\nTradeoffs: higher operational complexity, team needs to learn Kafka. Mitigated by: Nate Cooper already has experience, will run internal training sessions.",
+      "doc_type": "decision_record",
+      "id": "doc-0137",
+      "project_id": "proj-auth",
+      "title": "Decision: migrate Auth Overhaul to Kafka"
+    },
+    {
+      "author_id": "p-iris",
+      "content": "Status: Approved\nDecision maker: Iris Nakamura\nDate: 2025-06-21\n\nContext: the current Elasticsearch stack for Mobile App v2 is reaching scaling limits. Kate Johansson benchmarked alternatives and Apache Spark showed 4x throughput improvement.\n\nDecision: migrate Mobile App v2 to Apache Spark over Q2. Hassan Ali will lead the migration. The Product team will provide support.\n\nTradeoffs: higher operational complexity, team needs to learn Apache Spark. Mitigated by: Leo Fernandez already has experience, will run internal training sessions.",
+      "doc_type": "decision_record",
+      "id": "doc-0138",
+      "project_id": "proj-mobile",
+      "title": "Decision: migrate Mobile App v2 to Apache Spark"
+    },
+    {
+      "author_id": "p-bob",
+      "content": "Status: Approved\nDecision maker: Bob Martinez\nDate: 2025-02-12\n\nContext: the current GraphQL stack for Billing Migration is reaching scaling limits. Maya Singh benchmarked alternatives and Python showed 4x throughput improvement.\n\nDecision: migrate Billing Migration to Python over Q2. Carol Washington will lead the migration. The Engineering team will provide support.\n\nTradeoffs: higher operational complexity, team needs to learn Python. Mitigated by: Carol Washington already has experience, will run internal training sessions.",
+      "doc_type": "decision_record",
+      "id": "doc-0139",
+      "project_id": "proj-billing",
+      "title": "Decision: migrate Billing Migration to Python"
+    },
+    {
+      "author_id": "p-olivia",
+      "content": "Status: Approved\nDecision maker: Olivia Reeves\nDate: 2025-06-19\n\nContext: Analytics Ingestion was originally built by Engineering but is now primarily used by Analytics Dashboard, which is owned by Data. Alice Chen has been the de facto maintainer despite being on Engineering.\n\nDecision: transfer Analytics Ingestion ownership to Data. Elena Petrov will be the new primary maintainer. Alice Chen will provide a 2-week knowledge transfer.\n\nTradeoffs: Data takes on additional operational load. Mitigated by: Alice Chen remains available for escalations.",
+      "doc_type": "decision_record",
+      "id": "doc-0140",
+      "project_id": "proj-dashboard",
+      "title": "Decision: Analytics Ingestion ownership transfer to Data"
+    },
+    {
+      "author_id": "p-leo",
+      "content": "Status: Approved\nDecision maker: Leo Fernandez\nDate: 2025-03-02\n\nContext: Payment Service was originally built by Product but is now primarily used by Billing Migration, which is owned by Platform. Kate Johansson has been the de facto maintainer despite being on Product.\n\nDecision: transfer Payment Service ownership to Platform. Elena Petrov will be the new primary maintainer. Kate Johansson will provide a 2-week knowledge transfer.\n\nTradeoffs: Platform takes on additional operational load. Mitigated by: Kate Johansson remains available for escalations.",
+      "doc_type": "decision_record",
+      "id": "doc-0141",
+      "project_id": "proj-billing",
+      "title": "Decision: Payment Service ownership transfer to Platform"
+    },
+    {
+      "author_id": "p-bob",
+      "content": "Status: Approved\nDecision maker: Bob Martinez\nDate: 2026-01-13\n\nContext: Payment Service was originally built by Product but is now primarily used by Billing Migration, which is owned by Engineering. Olivia Reeves has been the de facto maintainer despite being on Product.\n\nDecision: transfer Payment Service ownership to Engineering. Alice Chen will be the new primary maintainer. Olivia Reeves will provide a 2-week knowledge transfer.\n\nTradeoffs: Engineering takes on additional operational load. Mitigated by: Olivia Reeves remains available for escalations.",
+      "doc_type": "decision_record",
+      "id": "doc-0142",
+      "project_id": "proj-billing",
+      "title": "Decision: Payment Service ownership transfer to Engineering"
+    },
+    {
+      "author_id": "p-james",
+      "content": "Status: Approved\nDecision maker: James O'Brien\nDate: 2026-05-12\n\nContext: Notification Service was originally built by Data but is now primarily used by Mobile App v2, which is owned by Platform. Leo Fernandez has been the de facto maintainer despite being on Data.\n\nDecision: transfer Notification Service ownership to Platform. Iris Nakamura will be the new primary maintainer. Leo Fernandez will provide a 2-week knowledge transfer.\n\nTradeoffs: Platform takes on additional operational load. Mitigated by: Leo Fernandez remains available for escalations.",
+      "doc_type": "decision_record",
+      "id": "doc-0143",
+      "project_id": "proj-mobile",
+      "title": "Decision: Notification Service ownership transfer to Platform"
+    },
+    {
+      "author_id": "p-nate",
+      "content": "Status: Approved\nDecision maker: Nate Cooper\nDate: 2025-09-14\n\nContext: Auth Service was originally built by Data but is now primarily used by Billing Migration, which is owned by Platform. James O'Brien has been the de facto maintainer despite being on Data.\n\nDecision: transfer Auth Service ownership to Platform. Grace Liu will be the new primary maintainer. James O'Brien will provide a 2-week knowledge transfer.\n\nTradeoffs: Platform takes on additional operational load. Mitigated by: James O'Brien remains available for escalations.",
+      "doc_type": "decision_record",
+      "id": "doc-0144",
+      "project_id": "proj-billing",
+      "title": "Decision: Auth Service ownership transfer to Platform"
+    },
+    {
+      "author_id": "p-bob",
+      "content": "Status: Approved\nDecision maker: Bob Martinez\nDate: 2025-01-10\n\nContext: Search API was originally built by Product but is now primarily used by Search Redesign, which is owned by Engineering. Maya Singh has been the de facto maintainer despite being on Product.\n\nDecision: transfer Search API ownership to Engineering. James O'Brien will be the new primary maintainer. Maya Singh will provide a 2-week knowledge transfer.\n\nTradeoffs: Engineering takes on additional operational load. Mitigated by: Maya Singh remains available for escalations.",
+      "doc_type": "decision_record",
+      "id": "doc-0145",
+      "project_id": "proj-search",
+      "title": "Decision: Search API ownership transfer to Engineering"
+    },
+    {
+      "author_id": "p-hassan",
+      "content": "Status: Approved\nDecision maker: Hassan Ali\nDate: 2025-06-18\n\nContext: Search API was originally built by Platform but is now primarily used by Search Redesign, which is owned by Product. Grace Liu has been the de facto maintainer despite being on Platform.\n\nDecision: transfer Search API ownership to Product. Iris Nakamura will be the new primary maintainer. Grace Liu will provide a 2-week knowledge transfer.\n\nTradeoffs: Product takes on additional operational load. Mitigated by: Grace Liu remains available for escalations.",
+      "doc_type": "decision_record",
+      "id": "doc-0146",
+      "project_id": "proj-search",
+      "title": "Decision: Search API ownership transfer to Product"
+    },
+    {
+      "author_id": "p-maya",
+      "content": "Status: Approved\nDecision maker: Maya Singh\nDate: 2025-10-19\n\nContext: Search API was originally built by Data but is now primarily used by Search Redesign, which is owned by Engineering. Frank Okafor has been the de facto maintainer despite being on Data.\n\nDecision: transfer Search API ownership to Engineering. Nate Cooper will be the new primary maintainer. Frank Okafor will provide a 2-week knowledge transfer.\n\nTradeoffs: Engineering takes on additional operational load. Mitigated by: Frank Okafor remains available for escalations.",
+      "doc_type": "decision_record",
+      "id": "doc-0147",
+      "project_id": "proj-search",
+      "title": "Decision: Search API ownership transfer to Engineering"
+    },
+    {
+      "author_id": "p-bob",
+      "content": "Status: Approved\nDecision maker: Bob Martinez\nDate: 2026-03-07\n\nContext: Search API was originally built by Data but is now primarily used by Search Redesign, which is owned by Engineering. Alice Chen has been the de facto maintainer despite being on Data.\n\nDecision: transfer Search API ownership to Engineering. Alice Chen will be the new primary maintainer. Alice Chen will provide a 2-week knowledge transfer.\n\nTradeoffs: Engineering takes on additional operational load. Mitigated by: Alice Chen remains available for escalations.",
+      "doc_type": "decision_record",
+      "id": "doc-0148",
+      "project_id": "proj-search",
+      "title": "Decision: Search API ownership transfer to Engineering"
+    },
+    {
+      "author_id": "p-olivia",
+      "content": "Status: Approved\nDecision maker: Olivia Reeves\nDate: 2025-03-26\n\nContext: Analytics Ingestion was originally built by Platform but is now primarily used by Analytics Dashboard, which is owned by Data. Elena Petrov has been the de facto maintainer despite being on Platform.\n\nDecision: transfer Analytics Ingestion ownership to Data. David Kim will be the new primary maintainer. Elena Petrov will provide a 2-week knowledge transfer.\n\nTradeoffs: Data takes on additional operational load. Mitigated by: Elena Petrov remains available for escalations.",
+      "doc_type": "decision_record",
+      "id": "doc-0149",
+      "project_id": "proj-dashboard",
+      "title": "Decision: Analytics Ingestion ownership transfer to Data"
+    },
+    {
+      "author_id": "p-david",
+      "content": "Status: Approved\nDecision maker: David Kim\nDate: 2025-09-02\n\nContext: the billing migration for ML Pipeline needs a reliable data synchronization layer. Elena Petrov evaluated Redis and Python. Redis was selected based on its support for exactly-once delivery.\n\nDecision: use Redis for the billing data sync. Carol Washington will implement the producer side. Frank Okafor will handle the consumer and reconciliation logic.\n\nThe Data team approved this at the architecture review on 2025-09-02.",
+      "doc_type": "decision_record",
+      "id": "doc-0150",
+      "project_id": "proj-ml-pipeline",
+      "title": "Decision: adopt Redis for billing migration"
+    },
+    {
+      "author_id": "p-frank",
+      "content": "Status: Approved\nDecision maker: Frank Okafor\nDate: 2025-12-22\n\nContext: the billing migration for Analytics Dashboard needs a reliable data synchronization layer. Olivia Reeves evaluated PostgreSQL and Kafka. PostgreSQL was selected based on its support for exactly-once delivery.\n\nDecision: use PostgreSQL for the billing data sync. Olivia Reeves will implement the producer side. Carol Washington will handle the consumer and reconciliation logic.\n\nThe Data team approved this at the architecture review on 2025-12-22.",
+      "doc_type": "decision_record",
+      "id": "doc-0151",
+      "project_id": "proj-dashboard",
+      "title": "Decision: adopt PostgreSQL for billing migration"
+    },
+    {
+      "author_id": "p-elena",
+      "content": "Status: Approved\nDecision maker: Elena Petrov\nDate: 2026-05-24\n\nContext: the billing migration for ML Pipeline needs a reliable data synchronization layer. Hassan Ali evaluated Redis and Python. Redis was selected based on its support for exactly-once delivery.\n\nDecision: use Redis for the billing data sync. Bob Martinez will implement the producer side. Alice Chen will handle the consumer and reconciliation logic.\n\nThe Data team approved this at the architecture review on 2026-05-24.",
+      "doc_type": "decision_record",
+      "id": "doc-0152",
+      "project_id": "proj-ml-pipeline",
+      "title": "Decision: adopt Redis for billing migration"
+    },
+    {
+      "author_id": "p-grace",
+      "content": "Status: Approved\nDecision maker: Grace Liu\nDate: 2025-09-08\n\nContext: the billing migration for Mobile App v2 needs a reliable data synchronization layer. Hassan Ali evaluated PostgreSQL and Terraform. PostgreSQL was selected based on its support for exactly-once delivery.\n\nDecision: use PostgreSQL for the billing data sync. Hassan Ali will implement the producer side. Nate Cooper will handle the consumer and reconciliation logic.\n\nThe Product team approved this at the architecture review on 2025-09-08.",
+      "doc_type": "decision_record",
+      "id": "doc-0153",
+      "project_id": "proj-mobile",
+      "title": "Decision: adopt PostgreSQL for billing migration"
+    },
+    {
+      "author_id": "p-elena",
+      "content": "Status: Approved\nDecision maker: Elena Petrov\nDate: 2026-01-17\n\nContext: the billing migration for Data Lake Consolidation needs a reliable data synchronization layer. Alice Chen evaluated TypeScript and Python. TypeScript was selected based on its support for exactly-once delivery.\n\nDecision: use TypeScript for the billing data sync. Olivia Reeves will implement the producer side. James O'Brien will handle the consumer and reconciliation logic.\n\nThe Data team approved this at the architecture review on 2026-01-17.",
+      "doc_type": "decision_record",
+      "id": "doc-0154",
+      "project_id": "proj-data-lake",
+      "title": "Decision: adopt TypeScript for billing migration"
+    },
+    {
+      "author_id": "p-bob",
+      "content": "Status: Approved\nDecision maker: Bob Martinez\nDate: 2025-11-08\n\nContext: the billing migration for Billing Migration needs a reliable data synchronization layer. James O'Brien evaluated TypeScript and Kubernetes. TypeScript was selected based on its support for exactly-once delivery.\n\nDecision: use TypeScript for the billing data sync. Carol Washington will implement the producer side. Hassan Ali will handle the consumer and reconciliation logic.\n\nThe Engineering team approved this at the architecture review on 2025-11-08.",
+      "doc_type": "decision_record",
+      "id": "doc-0155",
+      "project_id": "proj-billing",
+      "title": "Decision: adopt TypeScript for billing migration"
+    },
+    {
+      "author_id": "p-elena",
+      "content": "Status: Approved\nDecision maker: Elena Petrov\nDate: 2026-01-21\n\nContext: the billing migration for Data Lake Consolidation needs a reliable data synchronization layer. Leo Fernandez evaluated PostgreSQL and TypeScript. PostgreSQL was selected based on its support for exactly-once delivery.\n\nDecision: use PostgreSQL for the billing data sync. Grace Liu will implement the producer side. Frank Okafor will handle the consumer and reconciliation logic.\n\nThe Data team approved this at the architecture review on 2026-01-21.",
+      "doc_type": "decision_record",
+      "id": "doc-0156",
+      "project_id": "proj-data-lake",
+      "title": "Decision: adopt PostgreSQL for billing migration"
+    },
+    {
+      "author_id": "p-hassan",
+      "content": "Status: Approved\nDecision maker: Hassan Ali\nDate: 2025-04-08\n\nContext: the billing migration for Search Redesign needs a reliable data synchronization layer. Grace Liu evaluated TypeScript and Elasticsearch. TypeScript was selected based on its support for exactly-once delivery.\n\nDecision: use TypeScript for the billing data sync. Carol Washington will implement the producer side. Bob Martinez will handle the consumer and reconciliation logic.\n\nThe Product team approved this at the architecture review on 2025-04-08.",
+      "doc_type": "decision_record",
+      "id": "doc-0157",
+      "project_id": "proj-search",
+      "title": "Decision: adopt TypeScript for billing migration"
+    },
+    {
+      "author_id": "p-james",
+      "content": "Status: Approved\nDecision maker: James O'Brien\nDate: 2025-10-06\n\nContext: the billing migration for Auth Overhaul needs a reliable data synchronization layer. Kate Johansson evaluated TypeScript and Terraform. TypeScript was selected based on its support for exactly-once delivery.\n\nDecision: use TypeScript for the billing data sync. Kate Johansson will implement the producer side. Leo Fernandez will handle the consumer and reconciliation logic.\n\nThe Platform team approved this at the architecture review on 2025-10-06.",
+      "doc_type": "decision_record",
+      "id": "doc-0158",
+      "project_id": "proj-auth",
+      "title": "Decision: adopt TypeScript for billing migration"
+    },
+    {
+      "author_id": "p-hassan",
+      "content": "Status: Approved\nDecision maker: Hassan Ali\nDate: 2025-04-03\n\nContext: the billing migration for Search Redesign needs a reliable data synchronization layer. Grace Liu evaluated Elasticsearch and Python. Elasticsearch was selected based on its support for exactly-once delivery.\n\nDecision: use Elasticsearch for the billing data sync. Iris Nakamura will implement the producer side. Grace Liu will handle the consumer and reconciliation logic.\n\nThe Product team approved this at the architecture review on 2025-04-03.",
+      "doc_type": "decision_record",
+      "id": "doc-0159",
+      "project_id": "proj-search",
+      "title": "Decision: adopt Elasticsearch for billing migration"
+    }
+  ],
+  "entities": [
+    {
+      "description": "Staff Engineer (alice@acmelabs.io)",
+      "entity_type": "Person",
+      "id": "p-alice",
+      "name": "Alice Chen",
+      "properties": {
+        "team_id": "team-eng"
+      }
+    },
+    {
+      "description": "Senior Engineer (bob@acmelabs.io)",
+      "entity_type": "Person",
+      "id": "p-bob",
+      "name": "Bob Martinez",
+      "properties": {
+        "team_id": "team-eng"
+      }
+    },
+    {
+      "description": "Engineering Manager (carol@acmelabs.io)",
+      "entity_type": "Person",
+      "id": "p-carol",
+      "name": "Carol Washington",
+      "properties": {
+        "team_id": "team-eng"
+      }
+    },
+    {
+      "description": "Data Engineer (david@acmelabs.io)",
+      "entity_type": "Person",
+      "id": "p-david",
+      "name": "David Kim",
+      "properties": {
+        "team_id": "team-data"
+      }
+    },
+    {
+      "description": "Senior Data Engineer (elena@acmelabs.io)",
+      "entity_type": "Person",
+      "id": "p-elena",
+      "name": "Elena Petrov",
+      "properties": {
+        "team_id": "team-data"
+      }
+    },
+    {
+      "description": "Data Team Lead (frank@acmelabs.io)",
+      "entity_type": "Person",
+      "id": "p-frank",
+      "name": "Frank Okafor",
+      "properties": {
+        "team_id": "team-data"
+      }
+    },
+    {
+      "description": "Product Manager (grace@acmelabs.io)",
+      "entity_type": "Person",
+      "id": "p-grace",
+      "name": "Grace Liu",
+      "properties": {
+        "team_id": "team-product"
+      }
+    },
+    {
+      "description": "Senior PM (hassan@acmelabs.io)",
+      "entity_type": "Person",
+      "id": "p-hassan",
+      "name": "Hassan Ali",
+      "properties": {
+        "team_id": "team-product"
+      }
+    },
+    {
+      "description": "UX Designer (iris@acmelabs.io)",
+      "entity_type": "Person",
+      "id": "p-iris",
+      "name": "Iris Nakamura",
+      "properties": {
+        "team_id": "team-product"
+      }
+    },
+    {
+      "description": "Platform Engineer (james@acmelabs.io)",
+      "entity_type": "Person",
+      "id": "p-james",
+      "name": "James O'Brien",
+      "properties": {
+        "team_id": "team-platform"
+      }
+    },
+    {
+      "description": "Senior Platform Engineer (kate@acmelabs.io)",
+      "entity_type": "Person",
+      "id": "p-kate",
+      "name": "Kate Johansson",
+      "properties": {
+        "team_id": "team-platform"
+      }
+    },
+    {
+      "description": "Platform Team Lead (leo@acmelabs.io)",
+      "entity_type": "Person",
+      "id": "p-leo",
+      "name": "Leo Fernandez",
+      "properties": {
+        "team_id": "team-platform"
+      }
+    },
+    {
+      "description": "Junior Engineer (maya@acmelabs.io)",
+      "entity_type": "Person",
+      "id": "p-maya",
+      "name": "Maya Singh",
+      "properties": {
+        "team_id": "team-eng"
+      }
+    },
+    {
+      "description": "DevOps Engineer (nate@acmelabs.io)",
+      "entity_type": "Person",
+      "id": "p-nate",
+      "name": "Nate Cooper",
+      "properties": {
+        "team_id": "team-platform"
+      }
+    },
+    {
+      "description": "Data Scientist (olivia@acmelabs.io)",
+      "entity_type": "Person",
+      "id": "p-olivia",
+      "name": "Olivia Reeves",
+      "properties": {
+        "team_id": "team-data"
+      }
+    },
+    {
+      "description": "Team in Engineering",
+      "entity_type": "Team",
+      "id": "team-eng",
+      "name": "Engineering",
+      "properties": {
+        "department": "Engineering"
+      }
+    },
+    {
+      "description": "Team in Engineering",
+      "entity_type": "Team",
+      "id": "team-data",
+      "name": "Data",
+      "properties": {
+        "department": "Engineering"
+      }
+    },
+    {
+      "description": "Team in Product",
+      "entity_type": "Team",
+      "id": "team-product",
+      "name": "Product",
+      "properties": {
+        "department": "Product"
+      }
+    },
+    {
+      "description": "Team in Engineering",
+      "entity_type": "Team",
+      "id": "team-platform",
+      "name": "Platform",
+      "properties": {
+        "department": "Engineering"
+      }
+    },
+    {
+      "description": "Migrate billing system to new payment processor",
+      "entity_type": "Project",
+      "id": "proj-billing",
+      "name": "Billing Migration",
+      "properties": {
+        "status": "active"
+      }
+    },
+    {
+      "description": "Rebuild the search infrastructure for better relevance",
+      "entity_type": "Project",
+      "id": "proj-search",
+      "name": "Search Redesign",
+      "properties": {
+        "status": "active"
+      }
+    },
+    {
+      "description": "Replace legacy auth with OAuth2/OIDC",
+      "entity_type": "Project",
+      "id": "proj-auth",
+      "name": "Auth Overhaul",
+      "properties": {
+        "status": "active"
+      }
+    },
+    {
+      "description": "Build real-time analytics dashboard for customers",
+      "entity_type": "Project",
+      "id": "proj-dashboard",
+      "name": "Analytics Dashboard",
+      "properties": {
+        "status": "active"
+      }
+    },
+    {
+      "description": "Production ML feature pipeline for recommendation engine",
+      "entity_type": "Project",
+      "id": "proj-ml-pipeline",
+      "name": "ML Pipeline",
+      "properties": {
+        "status": "active"
+      }
+    },
+    {
+      "description": "Major mobile app rewrite with offline support",
+      "entity_type": "Project",
+      "id": "proj-mobile",
+      "name": "Mobile App v2",
+      "properties": {
+        "status": "planning"
+      }
+    },
+    {
+      "description": "Migrate from VMs to Kubernetes",
+      "entity_type": "Project",
+      "id": "proj-infra",
+      "name": "Infrastructure Modernization",
+      "properties": {
+        "status": "active"
+      }
+    },
+    {
+      "description": "Unify data sources into single lakehouse",
+      "entity_type": "Project",
+      "id": "proj-data-lake",
+      "name": "Data Lake Consolidation",
+      "properties": {
+        "status": "active"
+      }
+    },
+    {
+      "description": "handles authentication and authorization",
+      "entity_type": "Service",
+      "id": "svc-auth",
+      "name": "Auth Service",
+      "properties": {
+        "tier": "critical"
+      }
+    },
+    {
+      "description": "processes payments and manages subscriptions",
+      "entity_type": "Service",
+      "id": "svc-payment",
+      "name": "Payment Service",
+      "properties": {
+        "tier": "critical"
+      }
+    },
+    {
+      "description": "full-text and semantic search across the platform",
+      "entity_type": "Service",
+      "id": "svc-search",
+      "name": "Search API",
+      "properties": {
+        "tier": "standard"
+      }
+    },
+    {
+      "description": "sends emails, push notifications, and webhooks",
+      "entity_type": "Service",
+      "id": "svc-notify",
+      "name": "Notification Service",
+      "properties": {
+        "tier": "standard"
+      }
+    },
+    {
+      "description": "collects and processes analytics events",
+      "entity_type": "Service",
+      "id": "svc-analytics",
+      "name": "Analytics Ingestion",
+      "properties": {
+        "tier": "internal"
+      }
+    },
+    {
+      "description": "database technology",
+      "entity_type": "Technology",
+      "id": "tech-postgres",
+      "name": "PostgreSQL",
+      "properties": {
+        "category": "database"
+      }
+    },
+    {
+      "description": "cache technology",
+      "entity_type": "Technology",
+      "id": "tech-redis",
+      "name": "Redis",
+      "properties": {
+        "category": "cache"
+      }
+    },
+    {
+      "description": "messaging technology",
+      "entity_type": "Technology",
+      "id": "tech-kafka",
+      "name": "Kafka",
+      "properties": {
+        "category": "messaging"
+      }
+    },
+    {
+      "description": "orchestration technology",
+      "entity_type": "Technology",
+      "id": "tech-k8s",
+      "name": "Kubernetes",
+      "properties": {
+        "category": "orchestration"
+      }
+    },
+    {
+      "description": "language technology",
+      "entity_type": "Technology",
+      "id": "tech-python",
+      "name": "Python",
+      "properties": {
+        "category": "language"
+      }
+    },
+    {
+      "description": "language technology",
+      "entity_type": "Technology",
+      "id": "tech-typescript",
+      "name": "TypeScript",
+      "properties": {
+        "category": "language"
+      }
+    },
+    {
+      "description": "processing technology",
+      "entity_type": "Technology",
+      "id": "tech-spark",
+      "name": "Apache Spark",
+      "properties": {
+        "category": "processing"
+      }
+    },
+    {
+      "description": "search technology",
+      "entity_type": "Technology",
+      "id": "tech-elasticsearch",
+      "name": "Elasticsearch",
+      "properties": {
+        "category": "search"
+      }
+    },
+    {
+      "description": "api technology",
+      "entity_type": "Technology",
+      "id": "tech-graphql",
+      "name": "GraphQL",
+      "properties": {
+        "category": "api"
+      }
+    },
+    {
+      "description": "infrastructure technology",
+      "entity_type": "Technology",
+      "id": "tech-terraform",
+      "name": "Terraform",
+      "properties": {
+        "category": "infrastructure"
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "description": "Alice Chen is a member of team-eng",
+      "dst_id": "team-eng",
+      "properties": {},
+      "rel_type": "MEMBER_OF",
+      "src_id": "p-alice",
+      "weight": 1.0
+    },
+    {
+      "description": "Bob Martinez is a member of team-eng",
+      "dst_id": "team-eng",
+      "properties": {},
+      "rel_type": "MEMBER_OF",
+      "src_id": "p-bob",
+      "weight": 1.0
+    },
+    {
+      "description": "Carol Washington is a member of team-eng",
+      "dst_id": "team-eng",
+      "properties": {},
+      "rel_type": "MEMBER_OF",
+      "src_id": "p-carol",
+      "weight": 1.0
+    },
+    {
+      "description": "David Kim is a member of team-data",
+      "dst_id": "team-data",
+      "properties": {},
+      "rel_type": "MEMBER_OF",
+      "src_id": "p-david",
+      "weight": 1.0
+    },
+    {
+      "description": "Elena Petrov is a member of team-data",
+      "dst_id": "team-data",
+      "properties": {},
+      "rel_type": "MEMBER_OF",
+      "src_id": "p-elena",
+      "weight": 1.0
+    },
+    {
+      "description": "Frank Okafor is a member of team-data",
+      "dst_id": "team-data",
+      "properties": {},
+      "rel_type": "MEMBER_OF",
+      "src_id": "p-frank",
+      "weight": 1.0
+    },
+    {
+      "description": "Grace Liu is a member of team-product",
+      "dst_id": "team-product",
+      "properties": {},
+      "rel_type": "MEMBER_OF",
+      "src_id": "p-grace",
+      "weight": 1.0
+    },
+    {
+      "description": "Hassan Ali is a member of team-product",
+      "dst_id": "team-product",
+      "properties": {},
+      "rel_type": "MEMBER_OF",
+      "src_id": "p-hassan",
+      "weight": 1.0
+    },
+    {
+      "description": "Iris Nakamura is a member of team-product",
+      "dst_id": "team-product",
+      "properties": {},
+      "rel_type": "MEMBER_OF",
+      "src_id": "p-iris",
+      "weight": 1.0
+    },
+    {
+      "description": "James O'Brien is a member of team-platform",
+      "dst_id": "team-platform",
+      "properties": {},
+      "rel_type": "MEMBER_OF",
+      "src_id": "p-james",
+      "weight": 1.0
+    },
+    {
+      "description": "Kate Johansson is a member of team-platform",
+      "dst_id": "team-platform",
+      "properties": {},
+      "rel_type": "MEMBER_OF",
+      "src_id": "p-kate",
+      "weight": 1.0
+    },
+    {
+      "description": "Leo Fernandez is a member of team-platform",
+      "dst_id": "team-platform",
+      "properties": {},
+      "rel_type": "MEMBER_OF",
+      "src_id": "p-leo",
+      "weight": 1.0
+    },
+    {
+      "description": "Maya Singh is a member of team-eng",
+      "dst_id": "team-eng",
+      "properties": {},
+      "rel_type": "MEMBER_OF",
+      "src_id": "p-maya",
+      "weight": 1.0
+    },
+    {
+      "description": "Nate Cooper is a member of team-platform",
+      "dst_id": "team-platform",
+      "properties": {},
+      "rel_type": "MEMBER_OF",
+      "src_id": "p-nate",
+      "weight": 1.0
+    },
+    {
+      "description": "Olivia Reeves is a member of team-data",
+      "dst_id": "team-data",
+      "properties": {},
+      "rel_type": "MEMBER_OF",
+      "src_id": "p-olivia",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: tech lead",
+      "dst_id": "proj-billing",
+      "properties": {
+        "role": "tech lead"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-alice",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: contributor",
+      "dst_id": "proj-auth",
+      "properties": {
+        "role": "contributor"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-alice",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: engineer",
+      "dst_id": "proj-billing",
+      "properties": {
+        "role": "engineer"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-bob",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: engineer",
+      "dst_id": "proj-search",
+      "properties": {
+        "role": "engineer"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-bob",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: manager",
+      "dst_id": "proj-billing",
+      "properties": {
+        "role": "manager"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-carol",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: manager",
+      "dst_id": "proj-auth",
+      "properties": {
+        "role": "manager"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-carol",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: engineer",
+      "dst_id": "proj-data-lake",
+      "properties": {
+        "role": "engineer"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-david",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: engineer",
+      "dst_id": "proj-ml-pipeline",
+      "properties": {
+        "role": "engineer"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-david",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: tech lead",
+      "dst_id": "proj-ml-pipeline",
+      "properties": {
+        "role": "tech lead"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-elena",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: contributor",
+      "dst_id": "proj-data-lake",
+      "properties": {
+        "role": "contributor"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-elena",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: lead",
+      "dst_id": "proj-data-lake",
+      "properties": {
+        "role": "lead"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-frank",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: contributor",
+      "dst_id": "proj-dashboard",
+      "properties": {
+        "role": "contributor"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-frank",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: pm",
+      "dst_id": "proj-billing",
+      "properties": {
+        "role": "pm"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-grace",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: pm",
+      "dst_id": "proj-mobile",
+      "properties": {
+        "role": "pm"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-grace",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: pm",
+      "dst_id": "proj-search",
+      "properties": {
+        "role": "pm"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-hassan",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: pm",
+      "dst_id": "proj-dashboard",
+      "properties": {
+        "role": "pm"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-hassan",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: designer",
+      "dst_id": "proj-mobile",
+      "properties": {
+        "role": "designer"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-iris",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: designer",
+      "dst_id": "proj-dashboard",
+      "properties": {
+        "role": "designer"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-iris",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: engineer",
+      "dst_id": "proj-infra",
+      "properties": {
+        "role": "engineer"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-james",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: engineer",
+      "dst_id": "proj-auth",
+      "properties": {
+        "role": "engineer"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-james",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: tech lead",
+      "dst_id": "proj-infra",
+      "properties": {
+        "role": "tech lead"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-kate",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: contributor",
+      "dst_id": "proj-search",
+      "properties": {
+        "role": "contributor"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-kate",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: lead",
+      "dst_id": "proj-infra",
+      "properties": {
+        "role": "lead"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-leo",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: contributor",
+      "dst_id": "proj-billing",
+      "properties": {
+        "role": "contributor"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-leo",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: engineer",
+      "dst_id": "proj-search",
+      "properties": {
+        "role": "engineer"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-maya",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: engineer",
+      "dst_id": "proj-mobile",
+      "properties": {
+        "role": "engineer"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-maya",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: engineer",
+      "dst_id": "proj-infra",
+      "properties": {
+        "role": "engineer"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-nate",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: contributor",
+      "dst_id": "proj-ml-pipeline",
+      "properties": {
+        "role": "contributor"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-nate",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: data scientist",
+      "dst_id": "proj-ml-pipeline",
+      "properties": {
+        "role": "data scientist"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-olivia",
+      "weight": 1.0
+    },
+    {
+      "description": "Role: contributor",
+      "dst_id": "proj-dashboard",
+      "properties": {
+        "role": "contributor"
+      },
+      "rel_type": "WORKS_ON",
+      "src_id": "p-olivia",
+      "weight": 1.0
+    },
+    {
+      "description": "",
+      "dst_id": "p-carol",
+      "properties": {},
+      "rel_type": "REPORTS_TO",
+      "src_id": "p-alice",
+      "weight": 1.0
+    },
+    {
+      "description": "",
+      "dst_id": "p-carol",
+      "properties": {},
+      "rel_type": "REPORTS_TO",
+      "src_id": "p-bob",
+      "weight": 1.0
+    },
+    {
+      "description": "",
+      "dst_id": "p-carol",
+      "properties": {},
+      "rel_type": "REPORTS_TO",
+      "src_id": "p-maya",
+      "weight": 1.0
+    },
+    {
+      "description": "",
+      "dst_id": "p-frank",
+      "properties": {},
+      "rel_type": "REPORTS_TO",
+      "src_id": "p-david",
+      "weight": 1.0
+    },
+    {
+      "description": "",
+      "dst_id": "p-frank",
+      "properties": {},
+      "rel_type": "REPORTS_TO",
+      "src_id": "p-elena",
+      "weight": 1.0
+    },
+    {
+      "description": "",
+      "dst_id": "p-frank",
+      "properties": {},
+      "rel_type": "REPORTS_TO",
+      "src_id": "p-olivia",
+      "weight": 1.0
+    },
+    {
+      "description": "",
+      "dst_id": "p-hassan",
+      "properties": {},
+      "rel_type": "REPORTS_TO",
+      "src_id": "p-iris",
+      "weight": 1.0
+    },
+    {
+      "description": "",
+      "dst_id": "p-hassan",
+      "properties": {},
+      "rel_type": "REPORTS_TO",
+      "src_id": "p-grace",
+      "weight": 1.0
+    },
+    {
+      "description": "",
+      "dst_id": "p-leo",
+      "properties": {},
+      "rel_type": "REPORTS_TO",
+      "src_id": "p-james",
+      "weight": 1.0
+    },
+    {
+      "description": "",
+      "dst_id": "p-leo",
+      "properties": {},
+      "rel_type": "REPORTS_TO",
+      "src_id": "p-kate",
+      "weight": 1.0
+    },
+    {
+      "description": "",
+      "dst_id": "p-leo",
+      "properties": {},
+      "rel_type": "REPORTS_TO",
+      "src_id": "p-nate",
+      "weight": 1.0
+    },
+    {
+      "description": "",
+      "dst_id": "svc-payment",
+      "properties": {},
+      "rel_type": "OWNS",
+      "src_id": "team-eng",
+      "weight": 1.0
+    },
+    {
+      "description": "",
+      "dst_id": "svc-search",
+      "properties": {},
+      "rel_type": "OWNS",
+      "src_id": "team-eng",
+      "weight": 1.0
+    },
+    {
+      "description": "",
+      "dst_id": "svc-auth",
+      "properties": {},
+      "rel_type": "OWNS",
+      "src_id": "team-platform",
+      "weight": 1.0
+    },
+    {
+      "description": "",
+      "dst_id": "svc-notify",
+      "properties": {},
+      "rel_type": "OWNS",
+      "src_id": "team-platform",
+      "weight": 1.0
+    },
+    {
+      "description": "",
+      "dst_id": "svc-analytics",
+      "properties": {},
+      "rel_type": "OWNS",
+      "src_id": "team-data",
+      "weight": 1.0
+    },
+    {
+      "description": "Dependency type: core",
+      "dst_id": "svc-payment",
+      "properties": {
+        "dependency_type": "core"
+      },
+      "rel_type": "DEPENDS_ON",
+      "src_id": "proj-billing",
+      "weight": 1.0
+    },
+    {
+      "description": "Dependency type: auth",
+      "dst_id": "svc-auth",
+      "properties": {
+        "dependency_type": "auth"
+      },
+      "rel_type": "DEPENDS_ON",
+      "src_id": "proj-billing",
+      "weight": 1.0
+    },
+    {
+      "description": "Dependency type: core",
+      "dst_id": "svc-search",
+      "properties": {
+        "dependency_type": "core"
+      },
+      "rel_type": "DEPENDS_ON",
+      "src_id": "proj-search",
+      "weight": 1.0
+    },
+    {
+      "description": "Dependency type: auth",
+      "dst_id": "svc-auth",
+      "properties": {
+        "dependency_type": "auth"
+      },
+      "rel_type": "DEPENDS_ON",
+      "src_id": "proj-search",
+      "weight": 1.0
+    },
+    {
+      "description": "Dependency type: data",
+      "dst_id": "svc-analytics",
+      "properties": {
+        "dependency_type": "data"
+      },
+      "rel_type": "DEPENDS_ON",
+      "src_id": "proj-dashboard",
+      "weight": 1.0
+    },
+    {
+      "description": "Dependency type: data",
+      "dst_id": "svc-analytics",
+      "properties": {
+        "dependency_type": "data"
+      },
+      "rel_type": "DEPENDS_ON",
+      "src_id": "proj-ml-pipeline",
+      "weight": 1.0
+    },
+    {
+      "description": "Dependency type: core",
+      "dst_id": "svc-auth",
+      "properties": {
+        "dependency_type": "core"
+      },
+      "rel_type": "DEPENDS_ON",
+      "src_id": "proj-auth",
+      "weight": 1.0
+    },
+    {
+      "description": "Dependency type: auth",
+      "dst_id": "svc-auth",
+      "properties": {
+        "dependency_type": "auth"
+      },
+      "rel_type": "DEPENDS_ON",
+      "src_id": "proj-mobile",
+      "weight": 1.0
+    },
+    {
+      "description": "Dependency type: notifications",
+      "dst_id": "svc-notify",
+      "properties": {
+        "dependency_type": "notifications"
+      },
+      "rel_type": "DEPENDS_ON",
+      "src_id": "proj-mobile",
+      "weight": 1.0
+    },
+    {
+      "description": "Dependency type: auth",
+      "dst_id": "svc-auth",
+      "properties": {
+        "dependency_type": "auth"
+      },
+      "rel_type": "DEPENDS_ON",
+      "src_id": "svc-payment",
+      "weight": 1.0
+    },
+    {
+      "description": "Dependency type: notifications",
+      "dst_id": "svc-notify",
+      "properties": {
+        "dependency_type": "notifications"
+      },
+      "rel_type": "DEPENDS_ON",
+      "src_id": "svc-payment",
+      "weight": 1.0
+    },
+    {
+      "description": "Dependency type: auth",
+      "dst_id": "svc-auth",
+      "properties": {
+        "dependency_type": "auth"
+      },
+      "rel_type": "DEPENDS_ON",
+      "src_id": "svc-search",
+      "weight": 1.0
+    },
+    {
+      "description": "Dependency type: auth",
+      "dst_id": "svc-auth",
+      "properties": {
+        "dependency_type": "auth"
+      },
+      "rel_type": "DEPENDS_ON",
+      "src_id": "svc-analytics",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-python",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-alice",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-postgres",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-alice",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: intermediate",
+      "dst_id": "tech-kafka",
+      "properties": {
+        "proficiency": "intermediate"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-alice",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-typescript",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-bob",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-graphql",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-bob",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: intermediate",
+      "dst_id": "tech-postgres",
+      "properties": {
+        "proficiency": "intermediate"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-bob",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: intermediate",
+      "dst_id": "tech-python",
+      "properties": {
+        "proficiency": "intermediate"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-carol",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-spark",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-david",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-python",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-david",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: intermediate",
+      "dst_id": "tech-kafka",
+      "properties": {
+        "proficiency": "intermediate"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-david",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-python",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-elena",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-spark",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-elena",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-postgres",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-elena",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-postgres",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-frank",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-kafka",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-frank",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: intermediate",
+      "dst_id": "tech-spark",
+      "properties": {
+        "proficiency": "intermediate"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-frank",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-k8s",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-james",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-terraform",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-james",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-k8s",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-kate",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: intermediate",
+      "dst_id": "tech-postgres",
+      "properties": {
+        "proficiency": "intermediate"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-kate",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-redis",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-kate",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-terraform",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-leo",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-k8s",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-leo",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: intermediate",
+      "dst_id": "tech-typescript",
+      "properties": {
+        "proficiency": "intermediate"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-maya",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: beginner",
+      "dst_id": "tech-elasticsearch",
+      "properties": {
+        "proficiency": "beginner"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-maya",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-terraform",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-nate",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: intermediate",
+      "dst_id": "tech-k8s",
+      "properties": {
+        "proficiency": "intermediate"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-nate",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: expert",
+      "dst_id": "tech-python",
+      "properties": {
+        "proficiency": "expert"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-olivia",
+      "weight": 1.0
+    },
+    {
+      "description": "Proficiency: intermediate",
+      "dst_id": "tech-spark",
+      "properties": {
+        "proficiency": "intermediate"
+      },
+      "rel_type": "KNOWS_ABOUT",
+      "src_id": "p-olivia",
+      "weight": 1.0
+    }
+  ]
+}
