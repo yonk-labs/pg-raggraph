@@ -1,0 +1,602 @@
+{
+  "age::acme-q-001": {
+    "engine": "age",
+    "question_id": "acme-q-001",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::acme-q-002": {
+    "engine": "age",
+    "question_id": "acme-q-002",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::acme-q-003": {
+    "engine": "age",
+    "question_id": "acme-q-003",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::acme-q-004": {
+    "engine": "age",
+    "question_id": "acme-q-004",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::acme-q-005": {
+    "engine": "age",
+    "question_id": "acme-q-005",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::acme-q-006": {
+    "engine": "age",
+    "question_id": "acme-q-006",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::acme-q-007": {
+    "engine": "age",
+    "question_id": "acme-q-007",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::acme-q-008": {
+    "engine": "age",
+    "question_id": "acme-q-008",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::acme-q-009": {
+    "engine": "age",
+    "question_id": "acme-q-009",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::acme-q-010": {
+    "engine": "age",
+    "question_id": "acme-q-010",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::acme-q-011": {
+    "engine": "age",
+    "question_id": "acme-q-011",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::acme-q-012": {
+    "engine": "age",
+    "question_id": "acme-q-012",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::acme-q-013": {
+    "engine": "age",
+    "question_id": "acme-q-013",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::acme-q-014": {
+    "engine": "age",
+    "question_id": "acme-q-014",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::acme-q-015": {
+    "engine": "age",
+    "question_id": "acme-q-015",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "hallucinated",
+      "partially_correct"
+    ]
+  },
+  "age::acme-q-016": {
+    "engine": "age",
+    "question_id": "acme-q-016",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::acme-q-017": {
+    "engine": "age",
+    "question_id": "acme-q-017",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::acme-q-018": {
+    "engine": "age",
+    "question_id": "acme-q-018",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::acme-q-019": {
+    "engine": "age",
+    "question_id": "acme-q-019",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::acme-q-020": {
+    "engine": "age",
+    "question_id": "acme-q-020",
+    "verdict": "fully_correct",
+    "votes": [
+      "hallucinated",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::acme-q-021": {
+    "engine": "age",
+    "question_id": "acme-q-021",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::acme-q-022": {
+    "engine": "age",
+    "question_id": "acme-q-022",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::acme-q-023": {
+    "engine": "age",
+    "question_id": "acme-q-023",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::acme-q-024": {
+    "engine": "age",
+    "question_id": "acme-q-024",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::acme-q-025": {
+    "engine": "age",
+    "question_id": "acme-q-025",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::acme-q-026": {
+    "engine": "age",
+    "question_id": "acme-q-026",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::acme-q-027": {
+    "engine": "age",
+    "question_id": "acme-q-027",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::acme-q-028": {
+    "engine": "age",
+    "question_id": "acme-q-028",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::acme-q-029": {
+    "engine": "age",
+    "question_id": "acme-q-029",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::acme-q-030": {
+    "engine": "age",
+    "question_id": "acme-q-030",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::acme-q-001": {
+    "engine": "pgrg",
+    "question_id": "acme-q-001",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "pgrg::acme-q-002": {
+    "engine": "pgrg",
+    "question_id": "acme-q-002",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "pgrg::acme-q-003": {
+    "engine": "pgrg",
+    "question_id": "acme-q-003",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::acme-q-004": {
+    "engine": "pgrg",
+    "question_id": "acme-q-004",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::acme-q-005": {
+    "engine": "pgrg",
+    "question_id": "acme-q-005",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::acme-q-006": {
+    "engine": "pgrg",
+    "question_id": "acme-q-006",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "pgrg::acme-q-007": {
+    "engine": "pgrg",
+    "question_id": "acme-q-007",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::acme-q-008": {
+    "engine": "pgrg",
+    "question_id": "acme-q-008",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::acme-q-009": {
+    "engine": "pgrg",
+    "question_id": "acme-q-009",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "pgrg::acme-q-010": {
+    "engine": "pgrg",
+    "question_id": "acme-q-010",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "pgrg::acme-q-011": {
+    "engine": "pgrg",
+    "question_id": "acme-q-011",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "pgrg::acme-q-012": {
+    "engine": "pgrg",
+    "question_id": "acme-q-012",
+    "verdict": "partially_correct",
+    "votes": [
+      "fully_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "pgrg::acme-q-013": {
+    "engine": "pgrg",
+    "question_id": "acme-q-013",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "pgrg::acme-q-014": {
+    "engine": "pgrg",
+    "question_id": "acme-q-014",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::acme-q-015": {
+    "engine": "pgrg",
+    "question_id": "acme-q-015",
+    "verdict": "hallucinated",
+    "votes": [
+      "hallucinated",
+      "hallucinated",
+      "partially_correct"
+    ]
+  },
+  "pgrg::acme-q-016": {
+    "engine": "pgrg",
+    "question_id": "acme-q-016",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::acme-q-017": {
+    "engine": "pgrg",
+    "question_id": "acme-q-017",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "pgrg::acme-q-018": {
+    "engine": "pgrg",
+    "question_id": "acme-q-018",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::acme-q-019": {
+    "engine": "pgrg",
+    "question_id": "acme-q-019",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "pgrg::acme-q-020": {
+    "engine": "pgrg",
+    "question_id": "acme-q-020",
+    "verdict": "hallucinated",
+    "votes": [
+      "hallucinated",
+      "hallucinated",
+      "hallucinated"
+    ]
+  },
+  "pgrg::acme-q-021": {
+    "engine": "pgrg",
+    "question_id": "acme-q-021",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "pgrg::acme-q-022": {
+    "engine": "pgrg",
+    "question_id": "acme-q-022",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "pgrg::acme-q-023": {
+    "engine": "pgrg",
+    "question_id": "acme-q-023",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "pgrg::acme-q-024": {
+    "engine": "pgrg",
+    "question_id": "acme-q-024",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "fully_correct",
+      "partially_correct"
+    ]
+  },
+  "pgrg::acme-q-025": {
+    "engine": "pgrg",
+    "question_id": "acme-q-025",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::acme-q-026": {
+    "engine": "pgrg",
+    "question_id": "acme-q-026",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::acme-q-027": {
+    "engine": "pgrg",
+    "question_id": "acme-q-027",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "pgrg::acme-q-028": {
+    "engine": "pgrg",
+    "question_id": "acme-q-028",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "pgrg::acme-q-029": {
+    "engine": "pgrg",
+    "question_id": "acme-q-029",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "pgrg::acme-q-030": {
+    "engine": "pgrg",
+    "question_id": "acme-q-030",
+    "verdict": "hallucinated",
+    "votes": [
+      "hallucinated",
+      "wrong",
+      "hallucinated"
+    ]
+  }
+}
