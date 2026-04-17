@@ -1,0 +1,191 @@
+corpus: pg-src
+questions:
+  # === FACTUAL (6) ===
+  - id: pgsrc-q-001
+    question: "What are the four main external interface routines of the PostgreSQL executor defined in execMain.c?"
+    gold_answer: "The four main interface routines are ExecutorStart(), ExecutorRun(), ExecutorFinish(), and ExecutorEnd()."
+    required_facts: ["ExecutorStart", "ExecutorRun", "ExecutorFinish", "ExecutorEnd", "execMain.c"]
+    question_class: factual
+
+  - id: pgsrc-q-002
+    question: "What two cost values does PostgreSQL compute for each path in the optimizer?"
+    gold_answer: "PostgreSQL computes startup_cost (cost before the first tuple is fetched) and total_cost (total estimated cost to fetch all tuples)."
+    required_facts: ["startup_cost", "total_cost"]
+    question_class: factual
+
+  - id: pgsrc-q-003
+    question: "What basic cost parameters does costsize.c define for the PostgreSQL optimizer?"
+    gold_answer: "costsize.c defines seq_page_cost, random_page_cost, cpu_tuple_cost, cpu_index_tuple_cost, cpu_operator_cost, parallel_tuple_cost, and parallel_setup_cost."
+    required_facts: ["seq_page_cost", "random_page_cost", "cpu_tuple_cost", "cpu_index_tuple_cost", "cpu_operator_cost"]
+    question_class: factual
+
+  - id: pgsrc-q-004
+    question: "What is the purpose of the ExecScan function in execScan.c?"
+    gold_answer: "ExecScan provides support for generalized relation scans. It is passed a node and a pointer to a function that returns a tuple from the relation, then handles checking the qualification and projecting the tuple appropriately."
+    required_facts: ["ExecScan", "generalized relation scans", "qualification", "projecting"]
+    question_class: factual
+
+  - id: pgsrc-q-005
+    question: "What is the STD_FUZZ_FACTOR used for in pathnode.c?"
+    gold_answer: "STD_FUZZ_FACTOR (defined as 1.01) is the normal fuzz factor for compare_path_costs_fuzzily. It provides a tradeoff between planner runtime and the accuracy of path cost comparisons."
+    required_facts: ["STD_FUZZ_FACTOR", "1.01", "compare_path_costs_fuzzily", "fuzz factor"]
+    question_class: factual
+
+  - id: pgsrc-q-006
+    question: "What file contains the routines to convert a selected Path into a Plan in PostgreSQL?"
+    gold_answer: "createplan.c contains the routines to create the desired plan for processing a query by converting the selected Path into a Plan."
+    required_facts: ["createplan.c", "Path", "Plan"]
+    question_class: factual
+
+  # === SINGLE HOP (10) ===
+  - id: pgsrc-q-007
+    question: "What function does ExecInitNode dispatch to when it encounters a T_SeqScan node?"
+    gold_answer: "ExecInitNode dispatches to ExecInitSeqScan when it encounters a T_SeqScan node tag in its switch statement."
+    required_facts: ["ExecInitNode", "T_SeqScan", "ExecInitSeqScan"]
+    question_class: single_hop
+
+  - id: pgsrc-q-008
+    question: "Which function does standard_ExecutorStart call to set up the plan?"
+    gold_answer: "standard_ExecutorStart calls InitPlan to initialize the plan, which in turn calls ExecCheckPermissions and ExecInitNode."
+    required_facts: ["standard_ExecutorStart", "InitPlan"]
+    question_class: single_hop
+
+  - id: pgsrc-q-009
+    question: "What function in pathnode.c determines which paths survive the path selection tournament for a relation?"
+    gold_answer: "The add_path function runs a tournament to decide which paths survive for a relation by comparing costs using compare_path_costs_fuzzily."
+    required_facts: ["add_path", "compare_path_costs_fuzzily"]
+    question_class: single_hop
+
+  - id: pgsrc-q-010
+    question: "What is the relationship between the planner() function and standard_planner() in planner.c?"
+    gold_answer: "planner() is the entry point that checks for a planner hook, and if none is installed, calls standard_planner(). standard_planner() in turn calls subquery_planner() to do the actual planning work."
+    required_facts: ["planner", "standard_planner", "subquery_planner"]
+    question_class: single_hop
+
+  - id: pgsrc-q-011
+    question: "What function does create_plan() call to recursively convert paths into plan nodes?"
+    gold_answer: "create_plan() calls create_plan_recurse() which recursively converts the best path tree into a plan tree."
+    required_facts: ["create_plan", "create_plan_recurse"]
+    question_class: single_hop
+
+  - id: pgsrc-q-012
+    question: "What does the SeqNext function do in nodeSeqscan.c?"
+    gold_answer: "SeqNext is a workhorse function for ExecSeqScan that fetches the next tuple from a sequential scan of a relation."
+    required_facts: ["SeqNext", "ExecSeqScan", "tuple"]
+    question_class: single_hop
+
+  - id: pgsrc-q-013
+    question: "What happens when ExecScanFetch detects an EvalPlanQual recheck is active?"
+    gold_answer: "When ExecScanFetch detects an active EvalPlanQual recheck (es_epq_active is not NULL), it returns a test tuple from the EPQ state instead of fetching the next tuple from the access method."
+    required_facts: ["ExecScanFetch", "EvalPlanQual", "es_epq_active", "test tuple"]
+    question_class: single_hop
+
+  - id: pgsrc-q-014
+    question: "Which executor hook types are defined in execMain.c?"
+    gold_answer: "execMain.c defines ExecutorStart_hook, ExecutorRun_hook, ExecutorFinish_hook, ExecutorEnd_hook, and ExecutorCheckPerms_hook for plugins to get control during execution."
+    required_facts: ["ExecutorStart_hook", "ExecutorRun_hook", "ExecutorFinish_hook", "ExecutorEnd_hook"]
+    question_class: single_hop
+
+  - id: pgsrc-q-015
+    question: "What function in pathnode.c selects the cheapest paths for a relation?"
+    gold_answer: "set_cheapest() examines the paths that survived the add_path() tournament and selects the cheapest startup path and cheapest total-cost path for the relation."
+    required_facts: ["set_cheapest", "add_path", "cheapest"]
+    question_class: single_hop
+
+  - id: pgsrc-q-016
+    question: "Where in the optimizer does allpaths.c call to create a sequential scan path?"
+    gold_answer: "allpaths.c calls create_seqscan_path() (from pathnode.c) and passes the result to add_path() to include it as a candidate path for the relation."
+    required_facts: ["allpaths.c", "create_seqscan_path", "add_path"]
+    question_class: single_hop
+
+  # === SEMANTIC (8) ===
+  - id: pgsrc-q-017
+    question: "How does PostgreSQL handle the case where a LIMIT is applied to a query? How does the optimizer estimate partial result costs?"
+    gold_answer: "When a LIMIT is present, the optimizer estimates partial result cost by interpolating between startup_cost and total_cost using the formula: actual_cost = startup_cost + (total_cost - startup_cost) * tuples_to_fetch / path->rows. The LIMIT is applied as a top-level plan node."
+    required_facts: ["LIMIT", "startup_cost", "total_cost", "interpolating", "tuples_to_fetch"]
+    question_class: semantic
+
+  - id: pgsrc-q-018
+    question: "What is the execution lifecycle of a PostgreSQL query plan from initialization to completion?"
+    gold_answer: "The lifecycle is: ExecutorStart() is called first, which calls InitPlan() that builds the plan state tree via ExecInitNode(). Then ExecutorRun() calls ExecutePlan() which repeatedly calls ExecProcNode() on the top node. After the final ExecutorRun(), ExecutorFinish() is called for post-processing, followed by ExecutorEnd() which calls ExecEndNode() to clean up all nodes."
+    required_facts: ["ExecutorStart", "InitPlan", "ExecInitNode", "ExecutorRun", "ExecutePlan", "ExecProcNode", "ExecutorFinish", "ExecutorEnd"]
+    question_class: semantic
+
+  - id: pgsrc-q-019
+    question: "Why does costsize.c separate seq_page_cost from random_page_cost, and when might they be equal?"
+    gold_answer: "seq_page_cost is separated from random_page_cost because the kernel typically does read-ahead optimization, and seek costs make sequential access considerably cheaper than random access. However, if the database is fully cached in RAM, it is reasonable to set them equal. Both can be overridden per-tablespace for mixed storage."
+    required_facts: ["seq_page_cost", "random_page_cost", "read-ahead", "cached in RAM"]
+    question_class: semantic
+
+  - id: pgsrc-q-020
+    question: "How does the ExecInitNode dispatch mechanism work in execProcnode.c?"
+    gold_answer: "ExecInitNode uses a switch statement on nodeTag(node) to dispatch to the appropriate initialization function for each plan node type. For example, T_SeqScan dispatches to ExecInitSeqScan, T_NestLoop to ExecInitNestLoop, T_HashJoin to ExecInitHashJoin, and so on. The result is a plan state tree mirroring the plan tree."
+    required_facts: ["ExecInitNode", "switch", "nodeTag", "plan state tree"]
+    question_class: semantic
+
+  - id: pgsrc-q-021
+    question: "What is the CP_EXACT_TLIST flag used for in createplan.c and how does it affect plan generation?"
+    gold_answer: "CP_EXACT_TLIST specifies that the generated plan node must return exactly the target list specified by the path's pathtarget. It overrides both CP_SMALL_TLIST and CP_LABEL_TLIST. Without it, the plan node may return only the Vars and PlaceHolderVars needed to evaluate the pathtarget."
+    required_facts: ["CP_EXACT_TLIST", "pathtarget", "CP_SMALL_TLIST"]
+    question_class: semantic
+
+  - id: pgsrc-q-022
+    question: "What role does effective_cache_size play in cost estimation?"
+    gold_answer: "effective_cache_size is a rough estimate of the number of disk pages in both Postgres buffer cache and OS-level disk cache. It cannot simply use NBuffers because that would ignore the effects of the kernel's disk cache. It is a user-settable parameter to tune cost estimation."
+    required_facts: ["effective_cache_size", "disk pages", "NBuffers", "kernel"]
+    question_class: semantic
+
+  - id: pgsrc-q-023
+    question: "How does PostgreSQL support parallel sequential scans in the executor?"
+    gold_answer: "The executor supports parallel sequential scans through functions ExecSeqScanEstimate (estimates DSM space needed), ExecSeqScanInitializeDSM (initializes shared memory for parallel scan), ExecSeqScanReInitializeDSM (reinitializes for fresh parallel scan), and ExecSeqScanInitializeWorker (attaches to DSM info in parallel worker). These are coordinated through execParallel.c."
+    required_facts: ["ExecSeqScanEstimate", "ExecSeqScanInitializeDSM", "parallel", "DSM"]
+    question_class: semantic
+
+  - id: pgsrc-q-024
+    question: "How does the EvalPlanQual mechanism work for rechecking modified tuples in PostgreSQL?"
+    gold_answer: "EvalPlanQual rechecks modified tuples during updates with concurrent modifications. When a scan fetches a tuple that has been modified by another transaction, EPQ re-evaluates the query plan against the new tuple version. ExecScanFetch checks if es_epq_active is set and returns the test tuple from EPQ state instead of fetching from the access method."
+    required_facts: ["EvalPlanQual", "modified tuples", "es_epq_active", "recheck"]
+    question_class: semantic
+
+  # === MULTI-HOP BRIDGING (6) ===
+  - id: pgsrc-q-025
+    question: "How does a sequential scan cost estimate flow from the optimizer through to execution? Trace the path from create_seqscan_path through cost_seqscan to ExecSeqScan."
+    gold_answer: "In the optimizer, allpaths.c calls create_seqscan_path() (in pathnode.c) which calls cost_seqscan() (in costsize.c) to compute startup_cost and total_cost. The path competes in add_path(). If it wins, create_plan_recurse() in createplan.c converts it to a SeqScan plan node. At execution, ExecInitNode dispatches T_SeqScan to ExecInitSeqScan (in nodeSeqscan.c), which creates a SeqScanState. ExecSeqScan then calls SeqNext repeatedly to fetch tuples."
+    required_facts: ["create_seqscan_path", "cost_seqscan", "add_path", "create_plan_recurse", "ExecInitSeqScan", "ExecSeqScan", "SeqNext"]
+    question_class: multi_hop_bridging
+    notes: "Requires: allpaths.c -> pathnode.c -> costsize.c -> createplan.c -> execProcnode.c -> nodeSeqscan.c. 4-hop traversal across optimizer and executor."
+
+  - id: pgsrc-q-026
+    question: "How does a Path survive the optimizer selection process to become an executable Plan? What is the chain of functions involved?"
+    gold_answer: "A path is created (e.g., create_seqscan_path in pathnode.c), then submitted to add_path() which uses compare_path_costs_fuzzily() with STD_FUZZ_FACTOR to decide if it survives. set_cheapest() then picks the winners. Finally, create_plan() calls create_plan_recurse() to convert the winning Path into a Plan node that the executor can run."
+    required_facts: ["create_seqscan_path", "add_path", "compare_path_costs_fuzzily", "set_cheapest", "create_plan", "create_plan_recurse"]
+    question_class: multi_hop_bridging
+    notes: "Requires: pathnode.c path creation -> add_path tournament -> set_cheapest selection -> createplan.c conversion. Cross-file traversal."
+
+  - id: pgsrc-q-027
+    question: "Trace the full query execution lifecycle from when planner() is called through to when ExecutorEnd() cleans up. What are the key function calls at each stage?"
+    gold_answer: "planner() calls standard_planner() which calls subquery_planner() for planning and then create_plan() to build the Plan tree. ExecutorStart() calls standard_ExecutorStart() which calls InitPlan(), which calls ExecCheckPermissions() and ExecInitNode(). ExecutorRun() calls ExecutePlan() which repeatedly invokes ExecProcNode(). ExecutorFinish() calls ExecPostprocessPlan(). ExecutorEnd() calls ExecEndPlan()."
+    required_facts: ["planner", "standard_planner", "subquery_planner", "create_plan", "ExecutorStart", "InitPlan", "ExecInitNode", "ExecutorRun", "ExecProcNode", "ExecutorEnd"]
+    question_class: multi_hop_bridging
+    notes: "Requires: planner.c -> createplan.c -> execMain.c -> execProcnode.c. Full pipeline traversal."
+
+  - id: pgsrc-q-028
+    question: "How does the executor's permission checking relate to the planning phase? When are permissions checked and what functions are involved?"
+    gold_answer: "After the planner produces a PlannedStmt, ExecutorStart() calls InitPlan(), which calls ExecCheckPermissions() with the range table and permission info. ExecCheckPermissions() iterates over RTEPermissionInfo entries and checks each relation's ACL via ExecCheckOneRelPerms(). For modifications, it additionally calls ExecCheckPermissionsModified(). ExecCheckXactReadOnly is also called to prevent modifications in read-only transactions."
+    required_facts: ["ExecCheckPermissions", "InitPlan", "ExecutorStart", "ExecCheckOneRelPerms", "RTEPermissionInfo"]
+    question_class: multi_hop_bridging
+    notes: "Requires: execMain.c ExecutorStart -> InitPlan -> ExecCheckPermissions -> ExecCheckOneRelPerms chain."
+
+  - id: pgsrc-q-029
+    question: "How does the optimizer's cost estimation for nested loop joins interact with the path node system? What files and functions are involved?"
+    gold_answer: "costsize.c provides initial_cost_nestloop() and final_cost_nestloop() for cost estimation. These costs are stored in NestPath objects created in joinpath.c. The paths compete via add_path() in pathnode.c using compare_path_costs_fuzzily(). Winners are converted by create_plan_recurse() in createplan.c into NestLoop plan nodes for the executor."
+    required_facts: ["initial_cost_nestloop", "final_cost_nestloop", "add_path", "create_plan_recurse", "costsize.c"]
+    question_class: multi_hop_bridging
+    notes: "Requires: costsize.c cost estimation -> joinpath.c path creation -> pathnode.c tournament -> createplan.c conversion."
+
+  - id: pgsrc-q-030
+    question: "How does parallelism flow from the optimizer's path creation to the executor's DSM initialization for a parallel sequential scan?"
+    gold_answer: "In the optimizer, allpaths.c calls create_seqscan_path() with a non-zero parallel_workers count and passes it to add_partial_path(). If the parallel path wins, createplan.c includes it under a Gather node. At execution time, ExecParallelEstimate() (in execParallel.c) estimates DSM space, ExecSeqScanEstimate provides per-node estimates, ExecParallelInitializeDSM sets up shared memory, and ExecSeqScanInitializeDSM/ExecSeqScanInitializeWorker connect workers to the shared scan state."
+    required_facts: ["create_seqscan_path", "parallel_workers", "add_partial_path", "Gather", "ExecParallelEstimate", "ExecSeqScanEstimate", "DSM"]
+    question_class: multi_hop_bridging
+    notes: "Requires: allpaths.c -> pathnode.c (parallel path) -> createplan.c (Gather) -> execParallel.c -> nodeSeqscan.c parallel init."

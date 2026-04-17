@@ -1,0 +1,221 @@
+corpus: acme
+questions:
+  # === FACTUAL (6) ===
+  - id: acme-q-001
+    question: "What is Alice Chen's role at Acme Labs?"
+    gold_answer: "Alice Chen is a Staff Engineer at Acme Labs."
+    required_facts: ["Alice Chen", "Staff Engineer"]
+    required_entities: ["p-alice"]
+    question_class: factual
+
+  - id: acme-q-002
+    question: "Which team does David Kim belong to?"
+    gold_answer: "David Kim is a member of the Data team."
+    required_facts: ["David Kim", "Data"]
+    required_entities: ["p-david", "team-data"]
+    question_class: factual
+
+  - id: acme-q-003
+    question: "What service does the Data team own?"
+    gold_answer: "The Data team owns the Analytics Ingestion service."
+    required_facts: ["Data", "Analytics Ingestion"]
+    required_entities: ["team-data", "svc-analytics"]
+    question_class: factual
+
+  - id: acme-q-004
+    question: "What is the purpose of the Billing Migration project?"
+    gold_answer: "The Billing Migration project aims to migrate the billing system to a new payment processor."
+    required_facts: ["Billing Migration", "billing system", "payment processor"]
+    required_entities: ["proj-billing"]
+    question_class: factual
+
+  - id: acme-q-005
+    question: "Who is the Engineering Manager at Acme Labs?"
+    gold_answer: "Carol Washington is the Engineering Manager."
+    required_facts: ["Carol Washington", "Engineering Manager"]
+    required_entities: ["p-carol"]
+    question_class: factual
+
+  - id: acme-q-006
+    question: "What technologies does Frank Okafor know about?"
+    gold_answer: "Frank Okafor knows about PostgreSQL, Kafka, and Apache Spark."
+    required_facts: ["Frank Okafor", "PostgreSQL", "Kafka", "Apache Spark"]
+    required_entities: ["p-frank", "tech-postgres", "tech-kafka", "tech-spark"]
+    question_class: factual
+
+  # === SINGLE HOP (10) ===
+  - id: acme-q-007
+    question: "Who reports to Carol Washington?"
+    gold_answer: "Alice Chen, Bob Martinez, and Maya Singh report to Carol Washington."
+    required_facts: ["Alice Chen", "Bob Martinez", "Maya Singh", "Carol Washington"]
+    required_entities: ["p-alice", "p-bob", "p-maya", "p-carol"]
+    question_class: single_hop
+
+  - id: acme-q-008
+    question: "Which projects does Alice Chen work on?"
+    gold_answer: "Alice Chen works on the Billing Migration and Auth Overhaul projects."
+    required_facts: ["Alice Chen", "Billing Migration", "Auth Overhaul"]
+    required_entities: ["p-alice", "proj-billing", "proj-auth"]
+    question_class: single_hop
+
+  - id: acme-q-009
+    question: "What services does the Billing Migration project depend on?"
+    gold_answer: "The Billing Migration project depends on the Payment Service and the Auth Service."
+    required_facts: ["Billing Migration", "Payment Service", "Auth Service"]
+    required_entities: ["proj-billing", "svc-payment", "svc-auth"]
+    question_class: single_hop
+
+  - id: acme-q-010
+    question: "Which team owns the Auth Service?"
+    gold_answer: "The Platform team owns the Auth Service."
+    required_facts: ["Platform", "Auth Service"]
+    required_entities: ["team-platform", "svc-auth"]
+    question_class: single_hop
+
+  - id: acme-q-011
+    question: "Who are the members of the Platform team?"
+    gold_answer: "The Platform team members are James O'Brien, Kate Johansson, Leo Fernandez, and Nate Cooper."
+    required_facts: ["James O'Brien", "Kate Johansson", "Leo Fernandez", "Nate Cooper", "Platform"]
+    required_entities: ["p-james", "p-kate", "p-leo", "p-nate", "team-platform"]
+    question_class: single_hop
+
+  - id: acme-q-012
+    question: "What services does the Payment Service depend on?"
+    gold_answer: "The Payment Service depends on the Auth Service and the Notification Service."
+    required_facts: ["Payment Service", "Auth Service", "Notification Service"]
+    required_entities: ["svc-payment", "svc-auth", "svc-notify"]
+    question_class: single_hop
+
+  - id: acme-q-013
+    question: "Which people work on the ML Pipeline project?"
+    gold_answer: "David Kim, Elena Petrov, Nate Cooper, and Olivia Reeves work on the ML Pipeline project."
+    required_facts: ["David Kim", "Elena Petrov", "Nate Cooper", "Olivia Reeves", "ML Pipeline"]
+    required_entities: ["p-david", "p-elena", "p-nate", "p-olivia", "proj-ml-pipeline"]
+    question_class: single_hop
+
+  - id: acme-q-014
+    question: "Who knows about Kubernetes at Acme Labs?"
+    gold_answer: "James O'Brien, Kate Johansson, Leo Fernandez, and Nate Cooper know about Kubernetes."
+    required_facts: ["James O'Brien", "Kate Johansson", "Leo Fernandez", "Nate Cooper", "Kubernetes"]
+    required_entities: ["p-james", "p-kate", "p-leo", "p-nate", "tech-k8s"]
+    question_class: single_hop
+
+  - id: acme-q-015
+    question: "What projects does the Search Redesign depend on in terms of services?"
+    gold_answer: "The Search Redesign project depends on the Search API and the Auth Service."
+    required_facts: ["Search Redesign", "Search API", "Auth Service"]
+    required_entities: ["proj-search", "svc-search", "svc-auth"]
+    question_class: single_hop
+
+  - id: acme-q-016
+    question: "Who does Leo Fernandez manage?"
+    gold_answer: "Leo Fernandez manages James O'Brien, Kate Johansson, and Nate Cooper."
+    required_facts: ["Leo Fernandez", "James O'Brien", "Kate Johansson", "Nate Cooper"]
+    required_entities: ["p-leo", "p-james", "p-kate", "p-nate"]
+    question_class: single_hop
+
+  # === SEMANTIC (8) ===
+  - id: acme-q-017
+    question: "What approach was described in the Billing Migration technical design for improving Auth Service performance?"
+    gold_answer: "The technical design proposed introducing a caching layer using Python between the API gateway and Payment Service, with Alice Chen implementing the cache invalidation strategy."
+    required_facts: ["Billing Migration", "caching layer", "Python", "Payment Service", "Alice Chen"]
+    required_entities: ["proj-billing", "p-alice", "svc-payment"]
+    question_class: semantic
+
+  - id: acme-q-018
+    question: "What was the root cause of the Auth Service outage on 2025-05-17?"
+    gold_answer: "A misconfigured deployment of Auth Service caused a cascading failure in Analytics Ingestion."
+    required_facts: ["Auth Service", "misconfigured deployment", "cascading failure", "Analytics Ingestion"]
+    required_entities: ["svc-auth", "svc-analytics"]
+    question_class: semantic
+
+  - id: acme-q-019
+    question: "What did Maya Singh propose for Q2 Engineering priorities?"
+    gold_answer: "Maya Singh proposed focusing on Billing Migration stabilization before adding new features."
+    required_facts: ["Maya Singh", "Billing Migration", "stabilization"]
+    required_entities: ["p-maya", "proj-billing"]
+    question_class: semantic
+
+  - id: acme-q-020
+    question: "What technology adoption did Bob Martinez suggest during Engineering Q2 planning?"
+    gold_answer: "Bob Martinez suggested investing in Kafka adoption."
+    required_facts: ["Bob Martinez", "Kafka"]
+    required_entities: ["p-bob", "tech-kafka"]
+    question_class: semantic
+
+  - id: acme-q-021
+    question: "What was the severity and duration of the Payment Service outage on 2025-07-12?"
+    gold_answer: "The Payment Service outage was Severity P1 lasting 47 minutes, caused by a misconfigured deployment that triggered a cascading failure in the Notification Service."
+    required_facts: ["Payment Service", "P1", "47 minutes", "Notification Service"]
+    required_entities: ["svc-payment", "svc-notify"]
+    question_class: semantic
+
+  - id: acme-q-022
+    question: "What is the approximate request volume handled by the Auth Service?"
+    gold_answer: "The Auth Service handles approximately 50k requests per minute."
+    required_facts: ["Auth Service", "50k requests"]
+    required_entities: ["svc-auth"]
+    question_class: semantic
+
+  - id: acme-q-023
+    question: "What technology stack is described for the Search API in its architecture documentation?"
+    gold_answer: "The Search API architecture documentation describes Redis and Apache Spark as its technology stack."
+    required_facts: ["Search API", "Redis", "Apache Spark"]
+    required_entities: ["svc-search"]
+    question_class: semantic
+
+  - id: acme-q-024
+    question: "What did the Product team decide about Q2 priorities for the Analytics Dashboard?"
+    gold_answer: "Iris Nakamura proposed focusing on Analytics Dashboard stabilization before adding new features. The team voted to prioritize reliability, and Carol Washington was tasked with drafting the updated roadmap."
+    required_facts: ["Iris Nakamura", "Analytics Dashboard", "stabilization", "reliability", "Carol Washington"]
+    required_entities: ["p-iris", "proj-dashboard", "p-carol"]
+    question_class: semantic
+
+  # === MULTI-HOP BRIDGING (6) ===
+  - id: acme-q-025
+    question: "Which engineers on the Data team work on projects that depend on the Analytics Ingestion service?"
+    gold_answer: "David Kim and Olivia Reeves work on the ML Pipeline, and Frank Okafor and Olivia Reeves work on the Analytics Dashboard. Both projects depend on Analytics Ingestion. Elena Petrov works on Data Lake Consolidation which does not depend on Analytics Ingestion."
+    required_facts: ["David Kim", "Olivia Reeves", "Frank Okafor", "ML Pipeline", "Analytics Dashboard", "Analytics Ingestion"]
+    required_entities: ["p-david", "p-olivia", "p-frank", "proj-ml-pipeline", "proj-dashboard", "svc-analytics"]
+    question_class: multi_hop_bridging
+    notes: "Requires: Person -> MEMBER_OF -> Data team, Person -> WORKS_ON -> Project, Project -> DEPENDS_ON -> Analytics Ingestion"
+
+  - id: acme-q-026
+    question: "Which people who know about PostgreSQL also work on projects that depend on the Auth Service?"
+    gold_answer: "Alice Chen knows PostgreSQL and works on Billing Migration and Auth Overhaul, both of which depend on Auth Service. Bob Martinez knows PostgreSQL and works on Billing Migration (depends on Auth Service) and Search Redesign (depends on Auth Service). Elena Petrov knows PostgreSQL and works on ML Pipeline (no Auth Service dependency). Kate Johansson knows PostgreSQL and works on Search Redesign (depends on Auth Service). Frank Okafor knows PostgreSQL and works on Data Lake Consolidation and Analytics Dashboard (neither depends on Auth Service directly)."
+    required_facts: ["Alice Chen", "Bob Martinez", "Kate Johansson", "PostgreSQL", "Auth Service", "Billing Migration", "Search Redesign"]
+    required_entities: ["p-alice", "p-bob", "p-kate", "tech-postgres", "svc-auth", "proj-billing", "proj-search"]
+    question_class: multi_hop_bridging
+    notes: "Requires: Person -> KNOWS_ABOUT -> PostgreSQL, Person -> WORKS_ON -> Project, Project -> DEPENDS_ON -> Auth Service"
+
+  - id: acme-q-027
+    question: "What services are indirectly affected when the Auth Service goes down, considering service-to-service dependencies?"
+    gold_answer: "The Auth Service is depended on by the Payment Service, Search API, and Analytics Ingestion directly. The Payment Service further depends on Notification Service but Auth Service failure cascades through Payment Service, Search API, and Analytics Ingestion. This means projects like Billing Migration, Search Redesign, Analytics Dashboard, ML Pipeline, Auth Overhaul, and Mobile App v2 are all affected."
+    required_facts: ["Auth Service", "Payment Service", "Search API", "Analytics Ingestion", "Billing Migration", "Search Redesign"]
+    required_entities: ["svc-auth", "svc-payment", "svc-search", "svc-analytics"]
+    question_class: multi_hop_bridging
+    notes: "Requires: Service -> DEPENDS_ON -> Auth Service (direct), then Project -> DEPENDS_ON -> those services (transitive)"
+
+  - id: acme-q-028
+    question: "Which managers have direct reports who work on the Infrastructure Modernization project, and what teams are those managers on?"
+    gold_answer: "Leo Fernandez manages James O'Brien, Kate Johansson, and Nate Cooper, all of whom work on Infrastructure Modernization. Leo Fernandez is on the Platform team. Additionally, Leo himself works on Infrastructure Modernization."
+    required_facts: ["Leo Fernandez", "James O'Brien", "Kate Johansson", "Nate Cooper", "Infrastructure Modernization", "Platform"]
+    required_entities: ["p-leo", "p-james", "p-kate", "p-nate", "proj-infra", "team-platform"]
+    question_class: multi_hop_bridging
+    notes: "Requires: Person -> WORKS_ON -> proj-infra, Person -> REPORTS_TO -> Manager, Manager -> MEMBER_OF -> Team"
+
+  - id: acme-q-029
+    question: "Considering that the Mobile App v2 depends on the Notification Service, which team owns that service, and which engineers on that team have Kubernetes expertise?"
+    gold_answer: "Mobile App v2 depends on the Notification Service, which is owned by the Platform team. Platform team members with Kubernetes expertise are James O'Brien, Kate Johansson, Leo Fernandez, and Nate Cooper."
+    required_facts: ["Mobile App v2", "Notification Service", "Platform", "James O'Brien", "Kate Johansson", "Leo Fernandez", "Nate Cooper", "Kubernetes"]
+    required_entities: ["proj-mobile", "svc-notify", "team-platform", "p-james", "p-kate", "p-leo", "p-nate", "tech-k8s"]
+    question_class: multi_hop_bridging
+    notes: "Requires: Project -> DEPENDS_ON -> Service, Team -> OWNS -> Service, Person -> MEMBER_OF -> Team, Person -> KNOWS_ABOUT -> Kubernetes"
+
+  - id: acme-q-030
+    question: "If the Billing Migration project has an incident involving the Payment Service, which people should be on the incident call based on their team ownership, project involvement, and technology expertise with Kafka?"
+    gold_answer: "The Payment Service is owned by the Engineering team. People on the Engineering team who work on Billing Migration include Alice Chen and Bob Martinez. Additionally, Carol Washington is on the Engineering team. People with Kafka expertise include Alice Chen, David Kim, and Frank Okafor. Alice Chen is on the Engineering team, works on Billing Migration, and knows Kafka, making her the strongest candidate. Bob Martinez works on Billing Migration. Carol Washington manages the Engineering team."
+    required_facts: ["Payment Service", "Engineering", "Alice Chen", "Bob Martinez", "Carol Washington", "Kafka", "Billing Migration"]
+    required_entities: ["svc-payment", "team-eng", "p-alice", "p-bob", "p-carol", "tech-kafka", "proj-billing"]
+    question_class: multi_hop_bridging
+    notes: "Requires: Team -> OWNS -> Payment Service, Person -> MEMBER_OF -> Engineering, Person -> WORKS_ON -> Billing Migration, Person -> KNOWS_ABOUT -> Kafka"

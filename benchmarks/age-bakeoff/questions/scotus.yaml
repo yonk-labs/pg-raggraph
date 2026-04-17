@@ -1,0 +1,221 @@
+corpus: scotus
+questions:
+  # === FACTUAL (6) ===
+  - id: scotus-q-001
+    question: "During which terms did Justice Ketanji Brown Jackson serve on the Supreme Court in this dataset?"
+    gold_answer: "Ketanji Brown Jackson served during the 2022-2023 terms."
+    required_facts: ["Ketanji Brown Jackson", "2022", "2023"]
+    required_entities: ["j-jackson"]
+    question_class: factual
+
+  - id: scotus-q-002
+    question: "What legal issue does the case Apple v. Pepper concern?"
+    gold_answer: "Apple v. Pepper concerns Antitrust."
+    required_facts: ["Apple v. Pepper", "Antitrust"]
+    required_entities: ["case-2018_apple-v-pepper", "iss-antitrust"]
+    question_class: factual
+
+  - id: scotus-q-003
+    question: "Who wrote the majority opinion in Bostock v. Clayton County?"
+    gold_answer: "Justice Neil Gorsuch wrote the opinion in Bostock v. Clayton County."
+    required_facts: ["Neil Gorsuch", "Bostock v. Clayton County"]
+    required_entities: ["j-gorsuch", "case-2019_bostock-v-clayton-county"]
+    question_class: factual
+
+  - id: scotus-q-004
+    question: "What legal issues does Bostock v. Clayton County concern?"
+    gold_answer: "Bostock v. Clayton County concerns Civil Rights, Due Process, and Labor Law."
+    required_facts: ["Bostock v. Clayton County", "Civil Rights", "Due Process", "Labor Law"]
+    required_entities: ["case-2019_bostock-v-clayton-county", "iss-civil-rights", "iss-due-process", "iss-labor"]
+    question_class: factual
+
+  - id: scotus-q-005
+    question: "During which terms did Justice Ruth Bader Ginsburg serve on the Court in this dataset?"
+    gold_answer: "Justice Ruth Bader Ginsburg served during the 2018-2019 terms."
+    required_facts: ["Ruth Bader Ginsburg", "2018", "2019"]
+    required_entities: ["j-ginsburg"]
+    question_class: factual
+
+  - id: scotus-q-006
+    question: "What was the holding in Apple v. Pepper?"
+    gold_answer: "The Court held that consumers may sue for antitrust damages against anyone who delivers goods to them, even where they seek damages based on prices set by third parties."
+    required_facts: ["Apple v. Pepper", "consumers", "antitrust", "sue"]
+    required_entities: ["case-2018_apple-v-pepper"]
+    question_class: factual
+
+  # === SINGLE HOP (10) ===
+  - id: scotus-q-007
+    question: "Which justices voted in the majority in Bostock v. Clayton County?"
+    gold_answer: "Neil Gorsuch, John G. Roberts Jr., Ruth Bader Ginsburg, Stephen G. Breyer, Sonia Sotomayor, and Elena Kagan voted in the majority."
+    required_facts: ["Neil Gorsuch", "Ruth Bader Ginsburg", "Stephen G. Breyer", "Sonia Sotomayor", "Elena Kagan"]
+    required_entities: ["j-gorsuch", "j-ginsburg", "j-breyer", "j-sotomayor", "j-kagan"]
+    question_class: single_hop
+
+  - id: scotus-q-008
+    question: "Which justices dissented in Apple v. Pepper?"
+    gold_answer: "Neil Gorsuch, John G. Roberts Jr., and Clarence Thomas dissented in Apple v. Pepper."
+    required_facts: ["Neil Gorsuch", "Clarence Thomas", "Apple v. Pepper"]
+    required_entities: ["j-gorsuch", "j-thomas", "case-2018_apple-v-pepper"]
+    question_class: single_hop
+
+  - id: scotus-q-009
+    question: "Which cases cite Rehaif v. United States?"
+    gold_answer: "Greer v. United States and United States v. Gary cite Rehaif v. United States."
+    required_facts: ["Greer v. United States", "United States v. Gary", "Rehaif v. United States"]
+    required_entities: ["case-2020_greer-v-united-states", "case-2020_united-states-v-gary"]
+    question_class: single_hop
+
+  - id: scotus-q-010
+    question: "Which case did Carson v. Makin cite?"
+    gold_answer: "Carson v. Makin cited Espinoza v. Montana Department of Revenue."
+    required_facts: ["Carson v. Makin", "Espinoza v. Montana Department of Revenue"]
+    required_entities: ["case-2021_carson-v-makin", "case-2019_espinoza-v-montana-department-of-revenue"]
+    question_class: single_hop
+
+  - id: scotus-q-011
+    question: "Which justices dissented in Rucho v. Common Cause?"
+    gold_answer: "Elena Kagan, Ruth Bader Ginsburg, Stephen G. Breyer, and Sonia Sotomayor dissented in Rucho v. Common Cause."
+    required_facts: ["Elena Kagan", "Ruth Bader Ginsburg", "Stephen G. Breyer", "Sonia Sotomayor", "Rucho v. Common Cause"]
+    required_entities: ["j-kagan", "j-ginsburg", "j-breyer", "j-sotomayor"]
+    question_class: single_hop
+
+  - id: scotus-q-012
+    question: "Who wrote opinions in the Flowers v. Mississippi case?"
+    gold_answer: "Justice Brett M. Kavanaugh wrote an opinion in Flowers v. Mississippi."
+    required_facts: ["Brett M. Kavanaugh", "Flowers v. Mississippi"]
+    required_entities: ["j-kavanaugh", "case-2018_flowers-v-mississippi"]
+    question_class: single_hop
+
+  - id: scotus-q-013
+    question: "Which case does Loper Bright Enterprises v. Raimondo cite?"
+    gold_answer: "Loper Bright Enterprises v. Raimondo cites Relentless, Inc. v. Department of Commerce."
+    required_facts: ["Loper Bright Enterprises v. Raimondo", "Relentless, Inc. v. Department of Commerce"]
+    required_entities: ["case-2023_loper-bright-enterprises-v-raimondo", "case-2023_relentless-inc-v-department-of-commerce"]
+    question_class: single_hop
+
+  - id: scotus-q-014
+    question: "Which justices dissented in Loper Bright Enterprises v. Raimondo?"
+    gold_answer: "Sonia Sotomayor and Elena Kagan dissented in Loper Bright Enterprises v. Raimondo."
+    required_facts: ["Sonia Sotomayor", "Elena Kagan", "Loper Bright Enterprises v. Raimondo"]
+    required_entities: ["j-sotomayor", "j-kagan"]
+    question_class: single_hop
+
+  - id: scotus-q-015
+    question: "What legal issues does Loper Bright Enterprises v. Raimondo concern?"
+    gold_answer: "Loper Bright Enterprises v. Raimondo concerns Administrative Law and Environmental Law."
+    required_facts: ["Loper Bright Enterprises v. Raimondo", "Administrative Law", "Environmental Law"]
+    required_entities: ["case-2023_loper-bright-enterprises-v-raimondo", "iss-admin-law", "iss-environmental"]
+    question_class: single_hop
+
+  - id: scotus-q-016
+    question: "Who wrote the opinion in Iancu v. Brunetti?"
+    gold_answer: "Justice Elena Kagan wrote the opinion in Iancu v. Brunetti."
+    required_facts: ["Elena Kagan", "Iancu v. Brunetti"]
+    required_entities: ["j-kagan", "case-2018_iancu-v-brunetti"]
+    question_class: single_hop
+
+  # === SEMANTIC (8) ===
+  - id: scotus-q-017
+    question: "What was the central question presented in Apple v. Pepper?"
+    gold_answer: "The central question was whether consumers may sue for antitrust damages against anyone who delivers goods to them, even where they seek damages based on prices set by third parties who would be the immediate victims of the alleged monopolist's conduct."
+    required_facts: ["Apple v. Pepper", "antitrust", "consumers", "monopolist"]
+    required_entities: ["case-2018_apple-v-pepper"]
+    question_class: semantic
+
+  - id: scotus-q-018
+    question: "What did the Court decide about partisan gerrymandering in Rucho v. Common Cause?"
+    gold_answer: "The Court held that partisan gerrymandering claims present political questions beyond the reach of the federal courts."
+    required_facts: ["Rucho v. Common Cause", "partisan gerrymandering", "political questions"]
+    required_entities: ["case-2018_rucho-v-common-cause"]
+    question_class: semantic
+
+  - id: scotus-q-019
+    question: "What was the significance of the Bostock v. Clayton County decision for employment discrimination?"
+    gold_answer: "The Court held that Title VII of the Civil Rights Act of 1964 protects employees against discrimination because of their sexual orientation or gender identity, finding that such discrimination is inherently 'because of sex.'"
+    required_facts: ["Bostock v. Clayton County", "Title VII", "discrimination", "sexual orientation"]
+    required_entities: ["case-2019_bostock-v-clayton-county"]
+    question_class: semantic
+
+  - id: scotus-q-020
+    question: "What did the Court hold in Flowers v. Mississippi regarding jury selection?"
+    gold_answer: "The Court held that the trial court in this case committed clear error in ruling that the prosecution was not motivated in substantial part by discriminatory intent when exercising peremptory challenges."
+    required_facts: ["Flowers v. Mississippi", "discriminatory intent", "peremptory challenges"]
+    required_entities: ["case-2018_flowers-v-mississippi"]
+    question_class: semantic
+
+  - id: scotus-q-021
+    question: "What question was presented in Helsinn Healthcare S.A. v. Teva Pharmaceuticals regarding patent law?"
+    gold_answer: "The question was whether an inventor's sale of an invention to a third party who is contractually obligated to keep the invention confidential qualifies as prior art under the Leahy-Smith America Invents Act."
+    required_facts: ["Helsinn Healthcare", "Teva Pharmaceuticals", "patent", "prior art"]
+    required_entities: ["case-2018_helsinn-healthcare-sa-v-teva-pharmaceuticals-usa-inc"]
+    question_class: semantic
+
+  - id: scotus-q-022
+    question: "What did Franchise Tax Board of California v. Hyatt establish about state sovereignty?"
+    gold_answer: "The Court held that a state cannot be sued in the courts of another state without its consent, overruling prior precedent. This reinforced sovereign immunity between states."
+    required_facts: ["Franchise Tax Board", "Hyatt", "state", "sued", "consent"]
+    required_entities: ["case-2018_franchise-tax-board-of-california-v-hyatt"]
+    question_class: semantic
+
+  - id: scotus-q-023
+    question: "What was at stake in the Iancu v. Brunetti case regarding trademark registration?"
+    gold_answer: "The Court held that the Lanham Act's prohibition on registering immoral or scandalous trademarks violated the First Amendment's Free Speech Clause because it discriminated based on viewpoint."
+    required_facts: ["Iancu v. Brunetti", "Lanham Act", "immoral", "scandalous", "First Amendment"]
+    required_entities: ["case-2018_iancu-v-brunetti"]
+    question_class: semantic
+
+  - id: scotus-q-024
+    question: "What question was presented in Garza v. Idaho regarding criminal defense?"
+    gold_answer: "The Court held that the decision of a criminal defense attorney to not file an appeal that the client instructed constitutes deficient performance, and prejudice is presumed."
+    required_facts: ["Garza v. Idaho", "criminal defense", "appeal", "deficient performance"]
+    required_entities: ["case-2018_garza-v-idaho"]
+    question_class: semantic
+
+  # === MULTI-HOP BRIDGING (6) ===
+  - id: scotus-q-025
+    question: "Which justices who voted in the majority in Bostock v. Clayton County (Civil Rights) dissented in Espinoza v. Montana (First Amendment)?"
+    gold_answer: "Ruth Bader Ginsburg, Stephen G. Breyer, Elena Kagan, and Sonia Sotomayor all voted majority in Bostock and dissented in Espinoza."
+    required_facts: ["Ruth Bader Ginsburg", "Stephen G. Breyer", "Elena Kagan", "Sonia Sotomayor", "Bostock", "Espinoza"]
+    required_entities: ["j-ginsburg", "j-breyer", "j-kagan", "j-sotomayor", "case-2019_bostock-v-clayton-county", "case-2019_espinoza-v-montana-department-of-revenue"]
+    question_class: multi_hop_bridging
+    notes: "Requires: Justice -> VOTED_MAJORITY -> Bostock, Justice -> VOTED_DISSENT -> Espinoza. Cross-referencing two different cases."
+
+  - id: scotus-q-026
+    question: "Carson v. Makin cites Espinoza v. Montana. What legal issues do these two cases share?"
+    gold_answer: "Both Carson v. Makin and Espinoza v. Montana concern First Amendment, Civil Rights, Administrative Law, Tax Law, and Environmental Law."
+    required_facts: ["Carson v. Makin", "Espinoza", "First Amendment", "Civil Rights"]
+    required_entities: ["case-2021_carson-v-makin", "case-2019_espinoza-v-montana-department-of-revenue", "iss-first-amend", "iss-civil-rights"]
+    question_class: multi_hop_bridging
+    notes: "Requires: Case -> CITED -> Case, then both cases -> CONCERNS -> Issues. Bridge from citation to shared issue areas."
+
+  - id: scotus-q-027
+    question: "Which justices wrote opinions in First Amendment cases and also voted in the majority in Loper Bright Enterprises v. Raimondo (Administrative Law)?"
+    gold_answer: "Clarence Thomas wrote opinions in First Amendment cases (Tanzin v. Tanvir, Uzuegbunam v. Preczewski, Egbert v. Boule, Ramirez v. Collier, Vidal v. Elster) and voted majority in Loper Bright. Neil Gorsuch wrote opinions in First Amendment cases (Tennessee Wine, Kennedy v. Bremerton, 303 Creative) and voted majority in Loper Bright. Amy Coney Barrett wrote opinions in First Amendment cases (United States v. Hansen, Lindke v. Freed, Murthy v. Missouri) and voted majority in Loper Bright. Brett M. Kavanaugh voted majority in Loper Bright and wrote opinions in First Amendment cases."
+    required_facts: ["Clarence Thomas", "Neil Gorsuch", "Amy Coney Barrett", "First Amendment", "Loper Bright"]
+    required_entities: ["j-thomas", "j-gorsuch", "j-barrett", "case-2023_loper-bright-enterprises-v-raimondo", "iss-first-amend"]
+    question_class: multi_hop_bridging
+    notes: "Requires: Justice -> WROTE_OPINION -> Case -> CONCERNS -> First Amendment, plus Justice -> VOTED_MAJORITY -> Loper Bright"
+
+  - id: scotus-q-028
+    question: "Which cases in the Voting Rights issue area were decided by a majority that included Kavanaugh, and where did Kagan dissent?"
+    gold_answer: "In Rucho v. Common Cause (Voting Rights), Kavanaugh voted majority and Kagan dissented. Kagan even wrote the dissenting opinion in that case."
+    required_facts: ["Rucho v. Common Cause", "Kavanaugh", "Kagan", "Voting Rights"]
+    required_entities: ["case-2018_rucho-v-common-cause", "j-kavanaugh", "j-kagan", "iss-voting"]
+    question_class: multi_hop_bridging
+    notes: "Requires: Case -> CONCERNS -> Voting Rights, Justice -> VOTED_MAJORITY -> Case, Justice -> VOTED_DISSENT -> Case"
+
+  - id: scotus-q-029
+    question: "United States v. Gary cites both Rehaif v. United States and Greer v. United States. Did any justices who voted majority in Rehaif also dissent in Greer?"
+    gold_answer: "United States v. Gary cites both Rehaif and Greer. To answer this requires checking the voting records of justices across Rehaif and Greer. Sotomayor and Kagan, who were in the majority in Rehaif v. United States, dissented in Greer v. United States."
+    required_facts: ["United States v. Gary", "Rehaif v. United States", "Greer v. United States", "Sotomayor", "Kagan"]
+    required_entities: ["case-2020_united-states-v-gary", "case-2018_rehaif-v-united-states", "case-2020_greer-v-united-states", "j-sotomayor", "j-kagan"]
+    question_class: multi_hop_bridging
+    notes: "Requires: Case -> CITED -> Case1, Case -> CITED -> Case2, Justice -> VOTED_MAJORITY -> Case1, Justice -> VOTED_DISSENT -> Case2"
+
+  - id: scotus-q-030
+    question: "Lamone v. Benisek and Rucho v. Common Cause cite each other. Do they concern the same legal issues, and did the same justices dissent in both?"
+    gold_answer: "Both Lamone v. Benisek and Rucho v. Common Cause cite each other. Rucho concerns Voting Rights and Environmental Law. In Rucho, Kagan, Ginsburg, Breyer, and Sotomayor dissented. Since these cases are paired (both about partisan gerrymandering from the same term), the liberal justices dissented in both."
+    required_facts: ["Lamone v. Benisek", "Rucho v. Common Cause", "Voting Rights", "Kagan", "Ginsburg", "Breyer", "Sotomayor"]
+    required_entities: ["case-2018_lamone-v-benisek", "case-2018_rucho-v-common-cause", "iss-voting", "j-kagan", "j-ginsburg", "j-breyer", "j-sotomayor"]
+    question_class: multi_hop_bridging
+    notes: "Requires: Case1 -> CITED -> Case2 (bidirectional), Case -> CONCERNS -> Issue, Justice -> VOTED_DISSENT -> both cases"
