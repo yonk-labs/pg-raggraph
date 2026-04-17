@@ -25,7 +25,9 @@ def test_env_overrides(monkeypatch):
 
 
 def test_openai_key_required(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    # Use empty string rather than delenv — pydantic-settings env_file
+    # provides the key even after os.environ removal.
+    monkeypatch.setenv("OPENAI_API_KEY", "")
     with pytest.raises(ValueError, match="OPENAI_API_KEY"):
         BakeoffConfig()
 

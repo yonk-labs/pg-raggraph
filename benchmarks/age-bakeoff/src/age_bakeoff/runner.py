@@ -60,9 +60,19 @@ class Runner:
                 )
                 await engine.ingest(extraction)
 
+    async def ingest_corpus(self, corpus: str, extraction: ExtractionOutput) -> None:
+        """Ingest a single corpus into all engines (wipes previous data)."""
+        self.verify_symmetry()
+        for name, engine in self.engines.items():
+            logger.info("Ingesting corpus=%s into engine=%s", corpus, name)
+            await engine.ingest(extraction)
+
     async def run_corpus(
-        self, corpus: str, qset: QuestionSet | _LooseQuestionSet
+        self, corpus: str, qset: QuestionSet | _LooseQuestionSet,
+        extraction: ExtractionOutput | None = None,
     ) -> list[RunResult]:
+        if extraction:
+            await self.ingest_corpus(corpus, extraction)
         results: list[RunResult] = []
         for q in qset.questions:
             for run_number in range(1, self.options.runs_per_question + 1):

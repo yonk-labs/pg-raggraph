@@ -141,6 +141,8 @@ def run(corpus: tuple[str, ...], runs: int) -> None:
         click.echo("No question sets found")
         return
 
+    corpora = _load_corpora()
+
     async def _run():
         runner = Runner(
             config=cfg,
@@ -151,9 +153,15 @@ def run(corpus: tuple[str, ...], runs: int) -> None:
             ),
         )
         for name, yaml_path in available.items():
-            click.echo(f"Running corpus={name} ({runs} runs/question)")
             qset = load_question_set(yaml_path)
-            results = await runner.run_corpus(name, qset)
+            # Ingest corpus right before running its questions (single namespace)
+            extraction = None
+            corpus_obj = corpora.get(name)
+            if corpus_obj:
+                click.echo(f"Ingesting corpus={name} into both engines...")
+                extraction = corpus_obj.load()
+            click.echo(f"Running corpus={name} ({runs} runs/question)")
+            results = await runner.run_corpus(name, qset, extraction=extraction)
             click.echo(
                 f"  {len(results)} results written to "
                 f"{_RESULTS_DIR / 'raw' / name}.json"

@@ -98,12 +98,14 @@ class PgrgEngine:
             )
             chunk_pk_by_idx[idx] = row["id"]
 
-        # Insert entities
+        # Insert entities (ON CONFLICT handles duplicate names within a corpus)
         ent_pk_by_id: dict[str, int] = {}
         for ent, emb in zip(extraction.entities, ent_embs):
             row = await db.fetch_one(
                 "INSERT INTO entities (namespace, name, entity_type, description, embedding, properties) "
-                "VALUES (%s, %s, %s, %s, %s::vector, %s) RETURNING id",
+                "VALUES (%s, %s, %s, %s, %s::vector, %s) "
+                "ON CONFLICT (namespace, name) DO UPDATE SET description = EXCLUDED.description "
+                "RETURNING id",
                 (
                     ns,
                     ent.name,
