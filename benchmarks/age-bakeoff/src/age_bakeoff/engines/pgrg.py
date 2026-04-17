@@ -136,7 +136,10 @@ class PgrgEngine:
                         (ent_pk_by_id[ent.id], chunk_pk, 1.0),
                     )
 
-        # Insert relationships + relationship_chunks provenance links
+        # Build entity-id → name lookup for relationship_chunks linking
+        ent_id_to_name: dict[str, str] = {e.id: e.name.lower() for e in extraction.entities}
+
+        # Insert relationships + link to chunks that mention either endpoint
         for rel in extraction.relationships:
             if rel.src_id not in ent_pk_by_id or rel.dst_id not in ent_pk_by_id:
                 continue
@@ -154,13 +157,17 @@ class PgrgEngine:
                 ),
             )
             rel_pk = row["id"]
-            # Link relationship to all chunks for provenance
-            for chunk_pk in all_chunk_pks:
-                await db.execute(
-                    "INSERT INTO relationship_chunks (relationship_id, chunk_id, confidence) "
-                    "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
-                    (rel_pk, chunk_pk, 1.0),
-                )
+            # Link relationship to chunks mentioning src or dst entity
+            src_name = ent_id_to_name.get(rel.src_id, "")
+            dst_name = ent_id_to_name.get(rel.dst_id, "")
+            for idx, chunk in enumerate(extraction.chunks):
+                content_lower = chunk.content.lower()
+                if src_name in content_lower or dst_name in content_lower:
+                    await db.execute(
+                        "INSERT INTO relationship_chunks (relationship_id, chunk_id, confidence) "
+                        "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+                        (rel_pk, chunk_pk_by_idx[idx], 1.0),
+                    )
 
     async def retrieve(self, question: str) -> RetrievalResponse:
         await self._ensure_connected()
