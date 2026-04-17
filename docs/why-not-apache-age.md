@@ -11,7 +11,7 @@ For the full evaluation with benchmarks, query plans, and source links, see [`re
 | Cloud providers (managed PG) | Azure only | All of them |
 | Install | Restart PG, edit `shared_preload_libraries` | None — standard SQL |
 | pgvector in the same query | No (two round-trips) | Yes (one query) |
-| 1–3 hop traversal speed | 2–40× slower | Fast with normal indexes |
+| 1–3 hop traversal speed | 1.4–47× slower ([measured](../benchmarks/age-bakeoff/results/REPORT.md)) | Fast with normal indexes |
 | Query debugging | `agtype`, custom errors | Standard `EXPLAIN` |
 | Required for GraphRAG | No | — |
 
@@ -70,7 +70,16 @@ For a library whose entire reason for existing is "pgvector + graph traversal in
 
 People assume "purpose-built graph engine" means "faster traversals." For 1–3 hop queries on a properly indexed adjacency table, the opposite is true.
 
-Published benchmarks show recursive CTEs beating AGE Cypher by **2–4× on small datasets** for simple traversals, and one social-graph benchmark found them **40× faster** for 4-hop queries. The reasons are mundane:
+Our own [bake-off benchmark](../benchmarks/age-bakeoff/results/REPORT.md) measured this directly on two corpora with identical inputs on both engines:
+
+| Corpus | pg-raggraph p50 | AGE p50 | Ratio |
+|---|---|---|---|
+| Acme Labs (42 entities, 103 rels) | **33 ms** | 47 ms | **1.4x** |
+| SCOTUS (416 entities, 4,397 rels) | **60 ms** | 2,863 ms | **47x** |
+
+The gap widens dramatically on denser graphs. On the small Acme corpus, the difference is modest (1.4x). On the SCOTUS legal-citations corpus — a realistic knowledge graph with thousands of cross-references — pg-raggraph's recursive CTEs are **47x faster** than AGE's Cypher traversal at p50. Published third-party benchmarks cite 2–40x for similar comparisons; our measurement on the dense end exceeds even the high end of that range.
+
+The reasons are mundane:
 
 - AGE does **not** auto-create indexes. You must manually create BTREE indexes on `id`, `start_id`, `end_id`, plus GIN indexes on `properties`, for every label table.
 - `agtype` property access goes through `agtype_access_operator`, which is slower than touching a typed column.

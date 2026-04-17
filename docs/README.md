@@ -18,6 +18,11 @@
 - **[blog-what-we-learned.md](blog-what-we-learned.md)** — Narrative blog of the project journey
 - **[smart-mode-plan.md](smart-mode-plan.md)** — Original implementation plan for smart mode
 
+## AGE Bake-Off
+
+- **[../benchmarks/age-bakeoff/results/REPORT.md](../benchmarks/age-bakeoff/results/REPORT.md)** — Head-to-head results: pg-raggraph 1.4–47× faster retrieval, comparable answer quality
+- **[../benchmarks/age-bakeoff/README.md](../benchmarks/age-bakeoff/README.md)** — How to reproduce the benchmark
+
 ## Benchmarks
 
 - **[../benchmarks/FINAL_RESULTS.md](../benchmarks/FINAL_RESULTS.md)** — Cross-corpus results (NTSB, SEC, PG docs, SCOTUS)
