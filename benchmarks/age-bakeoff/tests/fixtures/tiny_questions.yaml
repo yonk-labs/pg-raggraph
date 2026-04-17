@@ -1,0 +1,14 @@
+corpus: parity
+questions:
+  - id: tiny-q-001
+    question: "What is Alpha?"
+    gold_answer: "Alpha is a core concept."
+    required_facts: ["Alpha"]
+    required_entities: ["alpha"]
+    question_class: single_hop
+  - id: tiny-q-002
+    question: "How does Beta relate to Gamma?"
+    gold_answer: "Beta relates to Gamma through association."
+    required_facts: ["Beta", "Gamma"]
+    required_entities: ["beta", "gamma"]
+    question_class: single_hop
