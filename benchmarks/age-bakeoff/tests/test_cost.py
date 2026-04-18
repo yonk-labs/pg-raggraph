@@ -31,8 +31,6 @@ def test_tracks_calls():
 
 
 def test_tally_report_summarises_by_model():
-    from age_bakeoff.cost import CostTracker
-
     t = CostTracker(budget_usd=1.0)
     t.record("gpt-5-mini", 1000, 500)
     t.record("gpt-5-mini", 500, 250)

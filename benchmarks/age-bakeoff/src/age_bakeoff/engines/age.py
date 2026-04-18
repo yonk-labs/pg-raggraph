@@ -10,6 +10,7 @@ from functools import partial
 import psycopg
 from fastembed import TextEmbedding
 
+from age_bakeoff.cost import CostTracker
 from age_bakeoff.engines.base import EngineInfo, RetrievalResponse
 from age_bakeoff.models import ExtractionOutput
 
@@ -356,7 +357,7 @@ class AgeEngine:
         self,
         question: str,
         retrieved_contents: list[str],
-        tracker=None,
+        tracker: CostTracker | None = None,
     ) -> tuple[str, float]:
         from age_bakeoff.engines.openai_answerer import generate_answer
 

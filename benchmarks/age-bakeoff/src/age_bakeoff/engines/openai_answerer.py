@@ -1,9 +1,13 @@
 """Shared OpenAI answer generation — identical path for both engines."""
 from __future__ import annotations
 
+import logging
+
 from openai import AsyncOpenAI
 
 from age_bakeoff.cost import CostTracker
+
+logger = logging.getLogger(__name__)
 
 _ANSWER_SYSTEM = """You answer questions using only the provided context chunks. If the context does not contain the answer, say so. Be concise — 1-3 sentences unless the question demands more."""
 
@@ -36,5 +40,9 @@ async def generate_answer(
             model,
             resp.usage.prompt_tokens,
             resp.usage.completion_tokens,
+        )
+    elif tracker is not None and resp.usage is None:
+        logger.warning(
+            "OpenAI response missing usage; cost not tracked for this call"
         )
     return resp.choices[0].message.content or ""

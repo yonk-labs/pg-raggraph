@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from enum import Enum
 from typing import Any
 
 from age_bakeoff.cost import CostTracker
+
+logger = logging.getLogger(__name__)
 
 _JUDGE_SYSTEM = """You are grading an AI-generated answer against a reference answer.
 
@@ -68,6 +71,10 @@ async def judge_answer(
             model,
             resp.usage.prompt_tokens,
             resp.usage.completion_tokens,
+        )
+    elif tracker is not None and resp.usage is None:
+        logger.warning(
+            "OpenAI response missing usage; cost not tracked for this call"
         )
     content = resp.choices[0].message.content or "{}"
     data = json.loads(content)
