@@ -5,6 +5,7 @@ from typing import Protocol
 
 from pydantic import BaseModel
 
+from age_bakeoff.cost import CostTracker
 from age_bakeoff.models import ExtractionOutput
 
 
@@ -25,5 +26,10 @@ class RetrievalResponse(BaseModel):
 class Engine(Protocol):
     async def ingest(self, extraction: ExtractionOutput) -> None: ...
     async def retrieve(self, question: str) -> RetrievalResponse: ...
-    async def generate_answer(self, question: str, retrieved_contents: list[str]) -> tuple[str, float]: ...
+    async def generate_answer(
+        self,
+        question: str,
+        retrieved_contents: list[str],
+        tracker: CostTracker | None = None,
+    ) -> tuple[str, float]: ...
     def info(self) -> EngineInfo: ...

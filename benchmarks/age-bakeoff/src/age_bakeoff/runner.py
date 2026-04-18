@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from age_bakeoff.config import BakeoffConfig
+from age_bakeoff.cost import CostBudgetExceeded, CostTracker
 from age_bakeoff.engines.base import Engine
 from age_bakeoff.models import ExtractionOutput, RunResult
 from age_bakeoff.questions.schema import QuestionSet, _LooseQuestionSet
@@ -26,10 +27,12 @@ class Runner:
         config: BakeoffConfig,
         engines: dict[str, Engine],
         options: RunnerOptions,
+        tracker: CostTracker | None = None,
     ):
         self.config = config
         self.engines = engines
         self.options = options
+        self._tracker = tracker
         self.options.output_dir.mkdir(parents=True, exist_ok=True)
 
     def verify_symmetry(self) -> None:
@@ -81,7 +84,9 @@ class Runner:
                     try:
                         retrieval = await engine.retrieve(q.question)
                         answer, answer_ms = await engine.generate_answer(
-                            q.question, retrieval.retrieved_chunk_contents
+                            q.question,
+                            retrieval.retrieved_chunk_contents,
+                            tracker=self._tracker,
                         )
                         results.append(
                             RunResult(
@@ -96,6 +101,18 @@ class Runner:
                                 generated_answer=answer,
                             )
                         )
+                    except CostBudgetExceeded:
+                        # Hard cap: write partial results and propagate so the
+                        # CLI's finally-block can persist the cost tally.
+                        out = self.options.output_dir / f"{corpus}.json"
+                        out.write_text(
+                            json.dumps(
+                                [r.model_dump() for r in results],
+                                indent=2,
+                                sort_keys=True,
+                            )
+                        )
+                        raise
                     except Exception as exc:
                         logger.exception(
                             "Run failed q=%s engine=%s", q.id, name

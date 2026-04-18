@@ -9,11 +9,14 @@ from pathlib import Path
 import click
 
 from age_bakeoff.config import BakeoffConfig
+from age_bakeoff.cost import CostTracker
 
 logger = logging.getLogger("age_bakeoff")
 
 _QUESTIONS_DIR = Path(__file__).resolve().parents[2] / "questions"
 _RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
+
+_TRACKER: CostTracker | None = None
 
 
 def _get_config() -> BakeoffConfig:
@@ -122,8 +125,17 @@ def ingest(corpus: tuple[str, ...]) -> None:
 @click.option(
     "--runs", "-n", default=3, help="Runs per question (default: 3)"
 )
-def run(corpus: tuple[str, ...], runs: int) -> None:
+@click.option(
+    "--budget-usd",
+    default=50.0,
+    type=float,
+    help="Hard cap on OpenAI spend (default: $50)",
+)
+def run(corpus: tuple[str, ...], runs: int, budget_usd: float) -> None:
     """Run benchmark questions against both engines."""
+    global _TRACKER
+    _TRACKER = CostTracker(budget_usd=budget_usd)
+
     cfg = _get_config()
     engines = _get_engines(cfg)
 
@@ -151,6 +163,7 @@ def run(corpus: tuple[str, ...], runs: int) -> None:
                 runs_per_question=runs,
                 output_dir=_RESULTS_DIR / "raw",
             ),
+            tracker=_TRACKER,
         )
         for name, yaml_path in available.items():
             qset = load_question_set(yaml_path)
@@ -167,7 +180,16 @@ def run(corpus: tuple[str, ...], runs: int) -> None:
                 f"{_RESULTS_DIR / 'raw' / name}.json"
             )
 
-    asyncio.run(_run())
+    try:
+        asyncio.run(_run())
+    finally:
+        if _TRACKER is not None:
+            _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+            _TRACKER.save_report(_RESULTS_DIR / "cost.json")
+            click.echo(
+                f"Cost tally: ${_TRACKER.total_usd:.4f} / ${_TRACKER.budget_usd:.2f} "
+                f"(report at {_RESULTS_DIR / 'cost.json'})"
+            )
 
 
 @cli.command()
@@ -177,8 +199,17 @@ def run(corpus: tuple[str, ...], runs: int) -> None:
     multiple=True,
     help="Corpus to judge (default: all with results)",
 )
-def judge(corpus: tuple[str, ...]) -> None:
+@click.option(
+    "--budget-usd",
+    default=50.0,
+    type=float,
+    help="Hard cap on OpenAI spend (default: $50)",
+)
+def judge(corpus: tuple[str, ...], budget_usd: float) -> None:
     """Run LLM judge on generated answers."""
+    global _TRACKER
+    _TRACKER = CostTracker(budget_usd=budget_usd)
+
     cfg = _get_config()
 
     from openai import AsyncOpenAI
@@ -230,6 +261,7 @@ def judge(corpus: tuple[str, ...]) -> None:
                     gold_answer=q.gold_answer,
                     generated_answer=r.generated_answer,
                     model=cfg.judge_model,
+                    tracker=_TRACKER,
                 )
                 verdicts[key]["votes"].append(v.value)
 
@@ -250,7 +282,16 @@ def judge(corpus: tuple[str, ...]) -> None:
             out.write_text(json.dumps(final, indent=2, sort_keys=True))
             click.echo(f"Judged {len(final)} question/engine pairs for {name}")
 
-    asyncio.run(_run())
+    try:
+        asyncio.run(_run())
+    finally:
+        if _TRACKER is not None:
+            _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+            _TRACKER.save_report(_RESULTS_DIR / "cost.json")
+            click.echo(
+                f"Cost tally: ${_TRACKER.total_usd:.4f} / ${_TRACKER.budget_usd:.2f} "
+                f"(report at {_RESULTS_DIR / 'cost.json'})"
+            )
 
 
 @cli.command()

@@ -44,3 +44,23 @@ class CostTracker:
             raise CostBudgetExceeded(
                 f"Cost ${self.total_usd:.4f} exceeds budget ${self.budget_usd:.2f}"
             )
+
+    def tally_report(self) -> dict:
+        by_model: dict[str, dict] = {}
+        for call in self.calls:
+            m = call["model"]
+            bucket = by_model.setdefault(m, {"calls": 0, "usd": 0.0, "prompt_tokens": 0, "completion_tokens": 0})
+            bucket["calls"] += 1
+            bucket["usd"] += call["usd"]
+            bucket["prompt_tokens"] += call["prompt_tokens"]
+            bucket["completion_tokens"] += call["completion_tokens"]
+        return {
+            "total_usd": self.total_usd,
+            "budget_usd": self.budget_usd,
+            "by_model": by_model,
+        }
+
+    def save_report(self, path) -> None:
+        import json
+        from pathlib import Path
+        Path(path).write_text(json.dumps(self.tally_report(), indent=2, sort_keys=True))

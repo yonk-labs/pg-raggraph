@@ -5,6 +5,8 @@ import json
 from enum import Enum
 from typing import Any
 
+from age_bakeoff.cost import CostTracker
+
 _JUDGE_SYSTEM = """You are grading an AI-generated answer against a reference answer.
 
 Return strict JSON: {"verdict": "fully_correct | partially_correct | wrong | hallucinated", "rationale": "one short sentence"}
@@ -43,6 +45,7 @@ async def judge_answer(
     gold_answer: str,
     generated_answer: str,
     model: str,
+    tracker: CostTracker | None = None,
 ) -> JudgeVerdict:
     resp = await client.chat.completions.create(
         model=model,
@@ -60,6 +63,12 @@ async def judge_answer(
         response_format={"type": "json_object"},
         temperature=0,
     )
+    if tracker is not None and resp.usage is not None:
+        tracker.record(
+            model,
+            resp.usage.prompt_tokens,
+            resp.usage.completion_tokens,
+        )
     content = resp.choices[0].message.content or "{}"
     data = json.loads(content)
     return JudgeVerdict(data["verdict"])

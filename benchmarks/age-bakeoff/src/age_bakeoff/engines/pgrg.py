@@ -189,12 +189,20 @@ class PgrgEngine:
         )
 
     async def generate_answer(
-        self, question: str, retrieved_contents: list[str]
+        self,
+        question: str,
+        retrieved_contents: list[str],
+        tracker=None,
     ) -> tuple[str, float]:
         from age_bakeoff.engines.openai_answerer import generate_answer
 
         t0 = time.perf_counter()
-        answer = await generate_answer(question, retrieved_contents, model=self._answer_model)
+        answer = await generate_answer(
+            question,
+            retrieved_contents,
+            model=self._answer_model,
+            tracker=tracker,
+        )
         elapsed_ms = (time.perf_counter() - t0) * 1000
         return answer, elapsed_ms
 
