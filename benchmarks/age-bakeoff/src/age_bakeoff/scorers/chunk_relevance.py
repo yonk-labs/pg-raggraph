@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 async def score_chunk_relevance(
@@ -44,5 +47,14 @@ async def score_chunk_relevance(
     scores = data.get("relevances", [])
     # Pad/truncate to match chunks length so downstream consumers don't crash
     if len(scores) < len(chunks):
+        logger.warning(
+            "chunk_relevance judge returned %d scores for %d chunks; "
+            "padding with 0.0 (model=%s)", len(scores), len(chunks), model,
+        )
         scores = list(scores) + [0.0] * (len(chunks) - len(scores))
+    elif len(scores) > len(chunks):
+        logger.warning(
+            "chunk_relevance judge returned %d scores for %d chunks; "
+            "truncating (model=%s)", len(scores), len(chunks), model,
+        )
     return scores[: len(chunks)]

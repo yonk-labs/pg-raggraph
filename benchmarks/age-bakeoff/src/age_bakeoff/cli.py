@@ -804,6 +804,7 @@ def context_relevance_cmd(
             "judge_model": cfg.judge_model,
             "seed": seed,
             "samples": samples,
+            "scoring_policy": "first_run_only",
             "corpora": result,
         }
         out_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
