@@ -1,6 +1,7 @@
 """Benchmark harness -- runs all questions across all engines, records JSON."""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from dataclasses import dataclass, field
@@ -20,6 +21,9 @@ class RunnerOptions:
     runs_per_question: int = 3
     output_dir: Path = field(default_factory=lambda: Path("results/raw"))
     label: str | None = None
+    # Per-query timeout so a hung retrieval/answer doesn't block the whole run.
+    # Smart mode on SCOTUS hung for 70+ min in Phase 2 without this.
+    query_timeout_sec: float = 120.0
 
 
 class Runner:
@@ -88,11 +92,17 @@ class Runner:
                 cold = run_number == 1
                 for name, engine in self.engines.items():
                     try:
-                        retrieval = await engine.retrieve(q.question)
-                        answer, answer_ms = await engine.generate_answer(
-                            q.question,
-                            retrieval.retrieved_chunk_contents,
-                            tracker=self._tracker,
+                        retrieval = await asyncio.wait_for(
+                            engine.retrieve(q.question),
+                            timeout=self.options.query_timeout_sec,
+                        )
+                        answer, answer_ms = await asyncio.wait_for(
+                            engine.generate_answer(
+                                q.question,
+                                retrieval.retrieved_chunk_contents,
+                                tracker=self._tracker,
+                            ),
+                            timeout=self.options.query_timeout_sec,
                         )
                         results.append(
                             RunResult(
