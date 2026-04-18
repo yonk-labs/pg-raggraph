@@ -14,7 +14,13 @@ async def sample_gold_alternative_phrasings(
     tracker: Any | None = None,
 ) -> list[str]:
     """Ask the judge model for N alternative phrasings of the gold answer that
-    should still be judged fully_correct. Used to audit strictness."""
+    should still be judged fully_correct. Used to audit strictness.
+
+    Caveat: generator and grader are typically the same judge model.
+    ``strict_count > 0`` means either the gold is narrow OR the judge is
+    internally inconsistent (generates X, then grades X as wrong) --
+    QUALITY-ANALYSIS.md should distinguish these when citing these numbers.
+    """
     prompt = (
         f"Question: {question}\nCanonical answer: {gold_answer}\n\n"
         f"Produce {n} alternative answers that are factually equivalent but "

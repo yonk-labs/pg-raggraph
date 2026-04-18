@@ -64,3 +64,43 @@ class CostTracker:
         import json
         from pathlib import Path
         Path(path).write_text(json.dumps(self.tally_report(), indent=2, sort_keys=True))
+
+
+def load_tally_reports(results_dir) -> dict:
+    """Aggregate per-command cost files into a combined view.
+
+    Reads every ``cost-*.json`` file in ``results_dir`` (e.g. ``cost-run.json``,
+    ``cost-judge.json``, ``cost-diagnose.json``) and returns a merged tally so
+    SC-015's $50 budget can be checked across command sequences.
+
+    Returns: ``{total_usd, budget_usd, by_command: {name: {total_usd, by_model}},
+    by_model: {...}}``.
+    """
+    import json
+    from pathlib import Path
+
+    results_dir = Path(results_dir)
+    combined: dict = {
+        "total_usd": 0.0,
+        "budget_usd": None,
+        "by_command": {},
+        "by_model": {},
+    }
+    for path in sorted(results_dir.glob("cost-*.json")):
+        command = path.stem.replace("cost-", "", 1)  # "cost-run" -> "run"
+        data = json.loads(path.read_text())
+        combined["by_command"][command] = {
+            "total_usd": data.get("total_usd", 0.0),
+            "by_model": data.get("by_model", {}),
+        }
+        combined["total_usd"] += data.get("total_usd", 0.0)
+        if combined["budget_usd"] is None and data.get("budget_usd"):
+            combined["budget_usd"] = data["budget_usd"]
+        for model, bucket in data.get("by_model", {}).items():
+            agg = combined["by_model"].setdefault(
+                model,
+                {"calls": 0, "usd": 0.0, "prompt_tokens": 0, "completion_tokens": 0},
+            )
+            for k in ("calls", "usd", "prompt_tokens", "completion_tokens"):
+                agg[k] += bucket.get(k, 0)
+    return combined

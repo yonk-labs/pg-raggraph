@@ -181,10 +181,11 @@ def run(corpus: tuple[str, ...], runs: int, budget_usd: float) -> None:
         asyncio.run(_run())
     finally:
         _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-        tracker.save_report(_RESULTS_DIR / "cost.json")
+        cost_path = _RESULTS_DIR / "cost-run.json"
+        tracker.save_report(cost_path)
         click.echo(
             f"Cost tally: ${tracker.total_usd:.4f} / ${tracker.budget_usd:.2f} "
-            f"(report at {_RESULTS_DIR / 'cost.json'})"
+            f"(report at {cost_path})"
         )
 
 
@@ -281,10 +282,11 @@ def judge(corpus: tuple[str, ...], budget_usd: float) -> None:
         asyncio.run(_run())
     finally:
         _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-        tracker.save_report(_RESULTS_DIR / "cost.json")
+        cost_path = _RESULTS_DIR / "cost-judge.json"
+        tracker.save_report(cost_path)
         click.echo(
             f"Cost tally: ${tracker.total_usd:.4f} / ${tracker.budget_usd:.2f} "
-            f"(report at {_RESULTS_DIR / 'cost.json'})"
+            f"(report at {cost_path})"
         )
 
 
@@ -416,7 +418,15 @@ def diagnose() -> None:
     multiple=True,
     help="Corpus to diagnose (default: all available)",
 )
-@click.option("--seed", default=42, type=int, help="RNG seed for sampling")
+@click.option(
+    "--seed",
+    default=42,
+    type=int,
+    help=(
+        "Question-sampling seed (alternative phrasings are non-deterministic "
+        "at temperature=0.7)"
+    ),
+)
 @click.option(
     "--samples",
     default=5,
@@ -540,12 +550,21 @@ def gold_strictness_cmd(
     try:
         result = asyncio.run(_run())
         out_path = diag_dir / "gold_strictness.json"
-        out_path.write_text(json.dumps(result, indent=2, sort_keys=True))
+        payload = {
+            "judge_model": cfg.judge_model,
+            "generator_model": cfg.judge_model,  # same model; documented caveat
+            "seed": seed,
+            "samples": samples,
+            "alts_per_q": alts_per_q,
+            "corpora": result,
+        }
+        out_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
         click.echo(f"Wrote {out_path}")
     finally:
         _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-        tracker.save_report(_RESULTS_DIR / "cost.json")
+        cost_path = _RESULTS_DIR / "cost-diagnose.json"
+        tracker.save_report(cost_path)
         click.echo(
             f"Cost tally: ${tracker.total_usd:.4f} / ${tracker.budget_usd:.2f} "
-            f"(report at {_RESULTS_DIR / 'cost.json'})"
+            f"(report at {cost_path})"
         )
