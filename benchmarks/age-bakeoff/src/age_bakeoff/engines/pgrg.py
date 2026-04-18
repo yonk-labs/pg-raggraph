@@ -172,6 +172,10 @@ class PgrgEngine:
 
     async def retrieve(self, question: str) -> RetrievalResponse:
         await self._ensure_connected()
+        # Drive top_k into GraphRAG's retriever. Without this, self._top_k only
+        # post-slices whatever GraphRAG returned under its own config.top_k
+        # (default 10), making any top_k sweep above that degenerate on pgrg.
+        self._rag.config.top_k = self._top_k
         t0 = time.perf_counter()
         result = await self._rag.query(
             question, mode=self._retrieval_mode, namespace=self._namespace
@@ -180,6 +184,8 @@ class PgrgEngine:
 
         # QueryResult.chunks is list[ChunkResult] with .content, .chunk_id, .document_source
         chunks = result.chunks or []
+        # Keep the post-slice as a safety net -- GraphRAG may return slightly
+        # more than top_k in some retrieval modes.
         top = chunks[: self._top_k]
         return RetrievalResponse(
             retrieved_chunk_ids=[

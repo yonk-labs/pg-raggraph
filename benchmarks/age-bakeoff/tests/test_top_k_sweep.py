@@ -93,3 +93,28 @@ async def test_top_k_sweep_tolerates_engine_without_top_k_attr():
         engine=NoKEngine(), questions=["q"], k_values=[5, 10]
     )
     assert set(out.keys()) == {5, 10}
+
+
+def test_parse_k_values_rejects_non_positive():
+    """k <= 0 is meaningless for retrieval; must fail loud."""
+    import click
+
+    from age_bakeoff.cli import _parse_k_values
+
+    with pytest.raises(click.BadParameter):
+        _parse_k_values("0")
+    with pytest.raises(click.BadParameter):
+        _parse_k_values("-5")
+    with pytest.raises(click.BadParameter):
+        # Mixed valid+invalid must still reject.
+        _parse_k_values("5,0,10")
+
+
+def test_parse_k_values_dedups_preserving_order():
+    """Duplicates waste work and bloat the output; dedupe while preserving
+    first-seen order so callers still get an intuitive sweep."""
+    from age_bakeoff.cli import _parse_k_values
+
+    assert _parse_k_values("5,10,5,20,10") == [5, 10, 20]
+    # Idempotent on already-unique input.
+    assert _parse_k_values("5,10,20") == [5, 10, 20]

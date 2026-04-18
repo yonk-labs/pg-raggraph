@@ -820,8 +820,10 @@ def context_relevance_cmd(
 def _parse_k_values(raw: str) -> list[int]:
     """Parse comma-separated ints like "5,10,20" or "5, 10, 20".
 
-    Strips whitespace around each entry. Rejects empty entries and non-ints so
-    users get a clear error instead of a mysterious ``KeyError`` downstream.
+    Strips whitespace around each entry. Rejects empty entries, non-ints, and
+    non-positive values so users get a clear error instead of a mysterious
+    ``KeyError`` or degenerate retrieval downstream. Dedupes while preserving
+    first-seen order so ``"5,10,5,20,10"`` sweeps each k exactly once.
     """
     parts = [p.strip() for p in raw.split(",") if p.strip()]
     if not parts:
@@ -829,11 +831,14 @@ def _parse_k_values(raw: str) -> list[int]:
             "--k-values must contain at least one integer"
         )
     try:
-        return [int(p) for p in parts]
+        ks = [int(p) for p in parts]
     except ValueError as exc:
         raise click.BadParameter(
             f"--k-values must be comma-separated integers, got {raw!r}"
         ) from exc
+    if any(k <= 0 for k in ks):
+        raise click.BadParameter("k_values must be positive integers")
+    return list(dict.fromkeys(ks))
 
 
 @diagnose.command("top-k-sweep")
