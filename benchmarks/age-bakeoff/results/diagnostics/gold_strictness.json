@@ -1,0 +1,183 @@
+{
+  "alts_per_q": 3,
+  "corpora": {
+    "acme": [
+      {
+        "alternatives": [
+          "On 2025-07-12, the Payment Service experienced a Severity P1 outage that lasted for 47 minutes, due to a misconfigured deployment which caused a cascading failure in the Notification Service.",
+          "The Payment Service was down with a Severity P1 incident for 47 minutes on 2025-07-12, resulting from a misconfiguration during deployment that led to a cascading failure in the Notification Service.",
+          "A Severity P1 outage affected the Payment Service on 2025-07-12, lasting 47 minutes and originating from a misconfigured deployment that triggered a cascading failure in the Notification Service."
+        ],
+        "gold_answer": "The Payment Service outage was Severity P1 lasting 47 minutes, caused by a misconfigured deployment that triggered a cascading failure in the Notification Service.",
+        "qid": "acme-q-021",
+        "question": "What was the severity and duration of the Payment Service outage on 2025-07-12?",
+        "strict_count": 0,
+        "total": 3,
+        "verdicts": [
+          "fully_correct",
+          "fully_correct",
+          "fully_correct"
+        ]
+      },
+      {
+        "alternatives": [
+          "The purpose of the Billing Migration project is to transfer the billing system to a new payment processor.",
+          "The Billing Migration project is designed to shift the billing system over to a new payment processor.",
+          "The goal of the Billing Migration project is to move the billing system to a different payment processor."
+        ],
+        "gold_answer": "The Billing Migration project aims to migrate the billing system to a new payment processor.",
+        "qid": "acme-q-004",
+        "question": "What is the purpose of the Billing Migration project?",
+        "strict_count": 0,
+        "total": 3,
+        "verdicts": [
+          "fully_correct",
+          "fully_correct",
+          "fully_correct"
+        ]
+      },
+      {
+        "alternatives": [
+          "Alice Chen holds the position of Staff Engineer at Acme Labs.",
+          "At Acme Labs, Alice Chen works as a Staff Engineer.",
+          "Alice Chen serves as a Staff Engineer at Acme Labs."
+        ],
+        "gold_answer": "Alice Chen is a Staff Engineer at Acme Labs.",
+        "qid": "acme-q-001",
+        "question": "What is Alice Chen's role at Acme Labs?",
+        "strict_count": 0,
+        "total": 3,
+        "verdicts": [
+          "fully_correct",
+          "fully_correct",
+          "fully_correct"
+        ]
+      },
+      {
+        "alternatives": [
+          "Iris Nakamura suggested prioritizing the stabilization of the Analytics Dashboard over introducing new features, and the team agreed to emphasize reliability. Carol Washington was assigned to create the revised roadmap.",
+          "The Product team agreed to focus on enhancing the stability of the Analytics Dashboard prior to developing new functionalities, following Iris Nakamura's proposal. Carol Washington took responsibility for updating the roadmap accordingly.",
+          "Following Iris Nakamura's recommendation to concentrate on stabilizing the Analytics Dashboard before feature expansion, the team voted to prioritize reliability. Carol Washington was charged with preparing the updated project roadmap."
+        ],
+        "gold_answer": "Iris Nakamura proposed focusing on Analytics Dashboard stabilization before adding new features. The team voted to prioritize reliability, and Carol Washington was tasked with drafting the updated roadmap.",
+        "qid": "acme-q-024",
+        "question": "What did the Product team decide about Q2 priorities for the Analytics Dashboard?",
+        "strict_count": 0,
+        "total": 3,
+        "verdicts": [
+          "fully_correct",
+          "fully_correct",
+          "fully_correct"
+        ]
+      },
+      {
+        "alternatives": [
+          "The Billing Migration project relies on the Auth Service and the Payment Service.",
+          "The Payment Service and Auth Service are dependencies for the Billing Migration project.",
+          "For the Billing Migration project, both the Payment Service and the Auth Service are required."
+        ],
+        "gold_answer": "The Billing Migration project depends on the Payment Service and the Auth Service.",
+        "qid": "acme-q-009",
+        "question": "What services does the Billing Migration project depend on?",
+        "strict_count": 0,
+        "total": 3,
+        "verdicts": [
+          "fully_correct",
+          "fully_correct",
+          "fully_correct"
+        ]
+      }
+    ],
+    "scotus": [
+      {
+        "alternatives": [
+          "Did a sale of an invention by the inventor to a third party, who is bound by a confidentiality agreement, constitute prior art under the Leahy-Smith America Invents Act?",
+          "Whether an inventor\u2019s confidential sale of their invention to another party counts as prior art under the Leahy-Smith America Invents Act was the issue in Helsinn Healthcare S.A. v. Teva Pharmaceuticals.",
+          "The case questioned if an inventor\u2019s sale to a third party under a confidentiality obligation should be considered prior art according to the Leahy-Smith America Invents Act."
+        ],
+        "gold_answer": "The question was whether an inventor's sale of an invention to a third party who is contractually obligated to keep the invention confidential qualifies as prior art under the Leahy-Smith America Invents Act.",
+        "qid": "scotus-q-021",
+        "question": "What question was presented in Helsinn Healthcare S.A. v. Teva Pharmaceuticals regarding patent law?",
+        "strict_count": 0,
+        "total": 3,
+        "verdicts": [
+          "fully_correct",
+          "fully_correct",
+          "fully_correct"
+        ]
+      },
+      {
+        "alternatives": [
+          "Bostock v. Clayton County addresses issues related to civil rights protections, due process, and employment law.",
+          "The case of Bostock v. Clayton County involves legal questions concerning labor regulations, civil rights, and due process matters.",
+          "Legal issues in Bostock v. Clayton County pertain to labor law, civil rights, and the principles of due process."
+        ],
+        "gold_answer": "Bostock v. Clayton County concerns Civil Rights, Due Process, and Labor Law.",
+        "qid": "scotus-q-004",
+        "question": "What legal issues does Bostock v. Clayton County concern?",
+        "strict_count": 0,
+        "total": 3,
+        "verdicts": [
+          "fully_correct",
+          "fully_correct",
+          "fully_correct"
+        ]
+      },
+      {
+        "alternatives": [
+          "Justice Ketanji Brown Jackson's tenure on the Supreme Court includes the 2022-2023 terms.",
+          "Ketanji Brown Jackson served on the Supreme Court during the terms spanning 2022 to 2023.",
+          "The Supreme Court service of Justice Ketanji Brown Jackson covers the 2022-2023 terms."
+        ],
+        "gold_answer": "Ketanji Brown Jackson served during the 2022-2023 terms.",
+        "qid": "scotus-q-001",
+        "question": "During which terms did Justice Ketanji Brown Jackson serve on the Supreme Court in this dataset?",
+        "strict_count": 0,
+        "total": 3,
+        "verdicts": [
+          "fully_correct",
+          "fully_correct",
+          "fully_correct"
+        ]
+      },
+      {
+        "alternatives": [
+          "Whether a criminal defense lawyer's failure to file an appeal despite the client's clear instruction amounts to deficient performance requiring a presumption of prejudice.",
+          "If a defense attorney neglects to file an appeal as requested by the defendant, does that constitute ineffective assistance of counsel with presumed prejudice?",
+          "The issue before the Court was whether an attorney\u2019s decision not to file a requested appeal represents deficient legal representation, thereby triggering a presumption of prejudice."
+        ],
+        "gold_answer": "The Court held that the decision of a criminal defense attorney to not file an appeal that the client instructed constitutes deficient performance, and prejudice is presumed.",
+        "qid": "scotus-q-024",
+        "question": "What question was presented in Garza v. Idaho regarding criminal defense?",
+        "strict_count": 0,
+        "total": 3,
+        "verdicts": [
+          "fully_correct",
+          "fully_correct",
+          "fully_correct"
+        ]
+      },
+      {
+        "alternatives": [
+          "Rehaif v. United States is cited in both Greer v. United States and United States v. Gary.",
+          "The cases Greer v. United States and United States v. Gary reference Rehaif v. United States.",
+          "Both Greer v. United States and United States v. Gary include citations to Rehaif v. United States."
+        ],
+        "gold_answer": "Greer v. United States and United States v. Gary cite Rehaif v. United States.",
+        "qid": "scotus-q-009",
+        "question": "Which cases cite Rehaif v. United States?",
+        "strict_count": 0,
+        "total": 3,
+        "verdicts": [
+          "fully_correct",
+          "fully_correct",
+          "fully_correct"
+        ]
+      }
+    ]
+  },
+  "generator_model": "gpt-4.1-mini",
+  "judge_model": "gpt-4.1-mini",
+  "samples": 5,
+  "seed": 42
+}

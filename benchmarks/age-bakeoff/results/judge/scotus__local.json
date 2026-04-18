@@ -1,0 +1,602 @@
+{
+  "age::scotus-q-001": {
+    "engine": "age",
+    "question_id": "scotus-q-001",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::scotus-q-002": {
+    "engine": "age",
+    "question_id": "scotus-q-002",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::scotus-q-003": {
+    "engine": "age",
+    "question_id": "scotus-q-003",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::scotus-q-004": {
+    "engine": "age",
+    "question_id": "scotus-q-004",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::scotus-q-005": {
+    "engine": "age",
+    "question_id": "scotus-q-005",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::scotus-q-006": {
+    "engine": "age",
+    "question_id": "scotus-q-006",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::scotus-q-007": {
+    "engine": "age",
+    "question_id": "scotus-q-007",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::scotus-q-008": {
+    "engine": "age",
+    "question_id": "scotus-q-008",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::scotus-q-009": {
+    "engine": "age",
+    "question_id": "scotus-q-009",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::scotus-q-010": {
+    "engine": "age",
+    "question_id": "scotus-q-010",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::scotus-q-011": {
+    "engine": "age",
+    "question_id": "scotus-q-011",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::scotus-q-012": {
+    "engine": "age",
+    "question_id": "scotus-q-012",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::scotus-q-013": {
+    "engine": "age",
+    "question_id": "scotus-q-013",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::scotus-q-014": {
+    "engine": "age",
+    "question_id": "scotus-q-014",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::scotus-q-015": {
+    "engine": "age",
+    "question_id": "scotus-q-015",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::scotus-q-016": {
+    "engine": "age",
+    "question_id": "scotus-q-016",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::scotus-q-017": {
+    "engine": "age",
+    "question_id": "scotus-q-017",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::scotus-q-018": {
+    "engine": "age",
+    "question_id": "scotus-q-018",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::scotus-q-019": {
+    "engine": "age",
+    "question_id": "scotus-q-019",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::scotus-q-020": {
+    "engine": "age",
+    "question_id": "scotus-q-020",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::scotus-q-021": {
+    "engine": "age",
+    "question_id": "scotus-q-021",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::scotus-q-022": {
+    "engine": "age",
+    "question_id": "scotus-q-022",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::scotus-q-023": {
+    "engine": "age",
+    "question_id": "scotus-q-023",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::scotus-q-024": {
+    "engine": "age",
+    "question_id": "scotus-q-024",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "age::scotus-q-025": {
+    "engine": "age",
+    "question_id": "scotus-q-025",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::scotus-q-026": {
+    "engine": "age",
+    "question_id": "scotus-q-026",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "fully_correct",
+      "partially_correct"
+    ]
+  },
+  "age::scotus-q-027": {
+    "engine": "age",
+    "question_id": "scotus-q-027",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::scotus-q-028": {
+    "engine": "age",
+    "question_id": "scotus-q-028",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "age::scotus-q-029": {
+    "engine": "age",
+    "question_id": "scotus-q-029",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "age::scotus-q-030": {
+    "engine": "age",
+    "question_id": "scotus-q-030",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::scotus-q-001": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-001",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "pgrg::scotus-q-002": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-002",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "pgrg::scotus-q-003": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-003",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::scotus-q-004": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-004",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "fully_correct"
+    ]
+  },
+  "pgrg::scotus-q-005": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-005",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "pgrg::scotus-q-006": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-006",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "pgrg::scotus-q-007": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-007",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::scotus-q-008": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-008",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "wrong",
+      "partially_correct"
+    ]
+  },
+  "pgrg::scotus-q-009": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-009",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "pgrg::scotus-q-010": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-010",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::scotus-q-011": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-011",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "pgrg::scotus-q-012": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-012",
+    "verdict": "fully_correct",
+    "votes": [
+      "partially_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "pgrg::scotus-q-013": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-013",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::scotus-q-014": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-014",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::scotus-q-015": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-015",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::scotus-q-016": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-016",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::scotus-q-017": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-017",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "pgrg::scotus-q-018": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-018",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "pgrg::scotus-q-019": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-019",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "pgrg::scotus-q-020": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-020",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "pgrg::scotus-q-021": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-021",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "pgrg::scotus-q-022": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-022",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::scotus-q-023": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-023",
+    "verdict": "fully_correct",
+    "votes": [
+      "fully_correct",
+      "fully_correct",
+      "fully_correct"
+    ]
+  },
+  "pgrg::scotus-q-024": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-024",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::scotus-q-025": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-025",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::scotus-q-026": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-026",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
+    ]
+  },
+  "pgrg::scotus-q-027": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-027",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::scotus-q-028": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-028",
+    "verdict": "partially_correct",
+    "votes": [
+      "partially_correct",
+      "partially_correct",
+      "wrong"
+    ]
+  },
+  "pgrg::scotus-q-029": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-029",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  },
+  "pgrg::scotus-q-030": {
+    "engine": "pgrg",
+    "question_id": "scotus-q-030",
+    "verdict": "wrong",
+    "votes": [
+      "wrong",
+      "wrong",
+      "wrong"
+    ]
+  }
+}

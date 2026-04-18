@@ -56,7 +56,7 @@
     "votes": [
       "partially_correct",
       "partially_correct",
-      "partially_correct"
+      "hallucinated"
     ]
   },
   "age::acme-q-007": {
@@ -112,11 +112,11 @@
   "age::acme-q-012": {
     "engine": "age",
     "question_id": "acme-q-012",
-    "verdict": "fully_correct",
+    "verdict": "partially_correct",
     "votes": [
-      "fully_correct",
-      "fully_correct",
-      "fully_correct"
+      "partially_correct",
+      "partially_correct",
+      "partially_correct"
     ]
   },
   "age::acme-q-013": {
@@ -145,7 +145,7 @@
     "verdict": "partially_correct",
     "votes": [
       "partially_correct",
-      "hallucinated",
+      "partially_correct",
       "partially_correct"
     ]
   },
@@ -192,11 +192,11 @@
   "age::acme-q-020": {
     "engine": "age",
     "question_id": "acme-q-020",
-    "verdict": "fully_correct",
+    "verdict": "hallucinated",
     "votes": [
       "hallucinated",
-      "fully_correct",
-      "fully_correct"
+      "hallucinated",
+      "hallucinated"
     ]
   },
   "age::acme-q-021": {
@@ -232,11 +232,11 @@
   "age::acme-q-024": {
     "engine": "age",
     "question_id": "acme-q-024",
-    "verdict": "partially_correct",
+    "verdict": "fully_correct",
     "votes": [
+      "fully_correct",
       "partially_correct",
-      "partially_correct",
-      "partially_correct"
+      "fully_correct"
     ]
   },
   "age::acme-q-025": {
@@ -296,7 +296,7 @@
     "votes": [
       "wrong",
       "wrong",
-      "wrong"
+      "hallucinated"
     ]
   },
   "pgrg::acme-q-001": {
@@ -305,7 +305,7 @@
     "verdict": "partially_correct",
     "votes": [
       "partially_correct",
-      "partially_correct",
+      "hallucinated",
       "partially_correct"
     ]
   },
@@ -404,7 +404,7 @@
     "question_id": "acme-q-011",
     "verdict": "partially_correct",
     "votes": [
-      "partially_correct",
+      "hallucinated",
       "partially_correct",
       "partially_correct"
     ]
@@ -442,10 +442,10 @@
   "pgrg::acme-q-015": {
     "engine": "pgrg",
     "question_id": "acme-q-015",
-    "verdict": "hallucinated",
+    "verdict": "partially_correct",
     "votes": [
-      "hallucinated",
-      "hallucinated",
+      "partially_correct",
+      "partially_correct",
       "partially_correct"
     ]
   },
@@ -535,7 +535,7 @@
     "verdict": "partially_correct",
     "votes": [
       "partially_correct",
-      "fully_correct",
+      "partially_correct",
       "partially_correct"
     ]
   },
