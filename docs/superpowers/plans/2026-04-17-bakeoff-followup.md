@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Close the quality ceiling, feature coverage, and documentation gaps left by the initial AGE vs pg-raggraph bake-off, as specified in `skill-output/mission-brief/Mission-Brief-bakeoff-followup.md` (the follow-up brief). The original brief at `skill-output/mission-brief/Mission-Brief-age-bakeoff.md` remains active — its SC-XXX and constraints must not be violated.
+**Goal:** Close the quality ceiling, feature coverage, and documentation gaps left by the initial AGE vs pg-raggraph bake-off, AND add Microsoft's own GraphRAG benchmark datasets (HotPotQA Filtered + Kevin Scott Podcasts) for third-party credibility, as specified in `skill-output/mission-brief/Mission-Brief-bakeoff-followup.md` (the follow-up brief). The original brief at `skill-output/mission-brief/Mission-Brief-age-bakeoff.md` remains active — its SC-XXX and constraints must not be violated.
 
 **Architecture:** Most additions are new CLI knobs, new diagnostic commands, and richer report wiring on top of the existing `benchmarks/age-bakeoff/` package. `PgrgEngine` already accepts a `retrieval_mode` parameter — plumbing it through is a CLI change, not a new class. `CostTracker` already exists but is not wired in. The report generator already accepts `fact_recall_by_corpus` and `question_classes` — they just need to be passed from the CLI. The single existing namespace `bakeoff` is reused; per-mode / per-signal runs write to distinct raw JSON filenames so the report generator can aggregate without conflation.
 
@@ -701,6 +701,165 @@ Only run this if quality has not moved by at least 10 pp after tasks 2.2–2.4.
 - [ ] **Step 3: Run with `--label rerank` on acme + scotus**
 - [ ] **Step 4: Compare judge scores to baseline**
 - [ ] **Step 5: Commit with findings either way — pass or fail counts**
+
+---
+
+## Phase 2.6: Microsoft GraphRAG Benchmark Datasets (SC-016)
+
+Third-party validation corpora from Microsoft's official GraphRAG benchmark (github.com/microsoft/graphrag-benchmarking-datasets). Runs BEFORE DC-003 so MSR judge scores feed the fix-threshold decision and land in QUALITY-ANALYSIS.md.
+
+**Why this matters:** HotPotQA is the industry-standard multi-hop QA dataset (Yang et al. 2018) — a real third-party test for SC-003's bridging thesis. Kevin Scott Podcasts (Edge et al. 2024, from the GraphRAG paper) is 125 thematic summarization questions — stresses `global` retrieval (SC-004). License is CDLA-Permissive 2.0 so we can include attribution without redistribution worry.
+
+### Task 2.6.1: Fetch MSR datasets
+
+**Files:**
+- Create: `benchmarks/age-bakeoff/scripts/fetch_msr_datasets.sh`
+- Create: `benchmarks/age-bakeoff/corpora/hotpotqa/` (gitignored; populated by fetch)
+- Create: `benchmarks/age-bakeoff/corpora/podcasts/` (gitignored; populated by fetch)
+
+- [ ] **Step 1: Write fetch script**
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+CORPUS_DIR="$(cd "$(dirname "$0")/.." && pwd)/corpora"
+MSR_BASE="https://raw.githubusercontent.com/microsoft/graphrag-benchmarking-datasets/main/data"
+
+for pair in \
+  "hotpotqa:HotPotQA%20Filtered%20Input%20Text.zip:HotPotQA%20Filtered%20Questions.csv" \
+  "podcasts:Kevin%20Scott%20Podcast%20Transcripts%20Input%20Text.zip:Kevin%20Scott%20Questions.csv"
+do
+    IFS=':' read -r name zip_enc csv_enc <<< "$pair"
+    mkdir -p "$CORPUS_DIR/$name"
+    if [ ! -f "$CORPUS_DIR/$name/questions.csv" ]; then
+        curl -sL "$MSR_BASE/$csv_enc" -o "$CORPUS_DIR/$name/questions.csv"
+    fi
+    if [ ! -d "$CORPUS_DIR/$name/input" ]; then
+        curl -sL "$MSR_BASE/$zip_enc" -o "/tmp/${name}.zip"
+        unzip -q "/tmp/${name}.zip" -d "$CORPUS_DIR/$name/input"
+        rm "/tmp/${name}.zip"
+    fi
+    echo "Fetched MSR $name"
+done
+```
+
+- [ ] **Step 2: Run it**
+```bash
+cd benchmarks/age-bakeoff && bash scripts/fetch_msr_datasets.sh
+```
+
+- [ ] **Step 3: Verify**
+```bash
+ls corpora/hotpotqa/input | head
+wc -l corpora/hotpotqa/questions.csv corpora/podcasts/questions.csv
+```
+
+- [ ] **Step 4: Add to `.gitignore`** under `benchmarks/age-bakeoff/`: `corpora/hotpotqa/input/`, `corpora/podcasts/input/` (data is fetched, not checked in). Questions CSVs are small (657KB + 15KB) — check them in.
+
+- [ ] **Step 5: Commit**
+
+### Task 2.6.2: Loaders and question-set conversion
+
+**Files:**
+- Create: `benchmarks/age-bakeoff/src/age_bakeoff/corpora/hotpotqa.py`
+- Create: `benchmarks/age-bakeoff/src/age_bakeoff/corpora/podcasts.py`
+- Create: `benchmarks/age-bakeoff/scripts/convert_msr_questions.py`
+- Create: `benchmarks/age-bakeoff/questions/hotpotqa.yaml` (generated)
+- Create: `benchmarks/age-bakeoff/questions/podcasts.yaml` (generated)
+- Create: `benchmarks/age-bakeoff/tests/test_msr_loaders.py`
+
+- [ ] **Step 1: Inspect CSV schemas** — `head -3 corpora/hotpotqa/questions.csv` and `head -3 corpora/podcasts/questions.csv` to confirm column names. HotPotQA likely has: `question, answer, supporting_facts, type` (bridge|comparison). Podcasts likely: `question_id, question` (open-ended).
+
+- [ ] **Step 2: Write failing tests** in `test_msr_loaders.py` — construct tiny fixture CSVs, call conversion helper, assert Question objects emitted with correct `question_class`.
+
+- [ ] **Step 3: Implement `convert_msr_questions.py`**
+  - HotPotQA: `question_class = multi_hop_bridging` if type='bridge', else `factual` if type='comparison'. `required_facts = supporting_facts` (titles+sentences from HotPotQA's format).
+  - Podcasts: all 125 as `semantic` (thematic summarization). `required_facts = []` (open-ended; fact-recall will be 1.0 trivially so this corpus relies on judge scoring).
+  - **Sample HotPotQA down to 30-60 questions** — fixture gives 1K+; too many. Stratified sample by type (≥5 bridge → multi_hop_bridging).
+  - Write output YAMLs matching our QuestionSet schema.
+
+- [ ] **Step 4: Run conversion, verify YAMLs load via `load_question_set(..., strict=False)`** (podcasts has 125 questions, not 30; hotpotqa sample is configurable)
+
+- [ ] **Step 5: Update `load_question_set`'s strict validator** — either extend strict to accept `len in (30, 60, 125)` OR add a `@property` `is_msr: bool` that relaxes bounds. Alternative (cleaner): make strict-mode check `"min_bridging": 5` only, not exact count. Choose based on existing schema.
+
+- [ ] **Step 6: Implement `corpora/hotpotqa.py` and `corpora/podcasts.py`** — thin loader classes matching the pattern of `acme.py`/`scotus.py`/`pg_src.py`. Read the zip contents, chunk with existing chunker.
+
+- [ ] **Step 7: Register in `cli.py::_load_corpora()`** — add both loaders. Gracefully skip if data not fetched (pattern from pg-src).
+
+- [ ] **Step 8: Run tests**
+```bash
+uv run pytest tests/test_msr_loaders.py -v
+```
+
+- [ ] **Step 9: Commit** — CSVs + loaders + question YAMLs.
+
+### Task 2.6.3: Run LLM extraction on MSR corpora
+
+Same pattern as pg-src extraction. Estimated spend $3-5.
+
+- [ ] **Step 1: Create `scripts/extract_msr.py`** mirroring `extract_pg_src.py` but for both MSR corpora. Uses the same `extract_pg_src` helper (rename to `extract_corpus` in a separate follow-up — for now copy-reuse).
+
+- [ ] **Step 2: Run**
+```bash
+cd benchmarks/age-bakeoff
+uv run python scripts/extract_msr.py --corpus hotpotqa
+uv run python scripts/extract_msr.py --corpus podcasts
+```
+
+- [ ] **Step 3: Verify caches** — `ls corpora/*/extraction_cache.json`
+
+- [ ] **Step 4: Record chunk/entity counts** for SC-010-style honesty.
+
+- [ ] **Step 5: Commit** extraction caches (they're deterministic + expensive to regenerate).
+
+### Task 2.6.4: Run bake-off against MSR corpora
+
+- [ ] **Step 1: Run baseline hybrid + mode sweep**
+```bash
+cd benchmarks/age-bakeoff
+uv run age-bakeoff run --corpus hotpotqa --corpus podcasts  # hybrid default
+uv run age-bakeoff run --mode smart  --label smart  --corpus hotpotqa --corpus podcasts
+uv run age-bakeoff run --mode local  --label local  --corpus hotpotqa --corpus podcasts
+uv run age-bakeoff run --mode global --label global --corpus hotpotqa --corpus podcasts
+uv run age-bakeoff judge --corpus hotpotqa --corpus podcasts
+uv run age-bakeoff report
+```
+
+- [ ] **Step 2: Verify** — REPORT.md now has hotpotqa + podcasts sections with all the tables.
+
+- [ ] **Step 3: Check budget** — cost.json under $15 for this phase so far (budgeted $50 total).
+
+- [ ] **Step 4: Commit** results.
+
+### Task 2.6.5: MSR attribution in REPORT.md / ARCHITECTURE.md / README.md / why-not-apache-age.md
+
+- [ ] **Step 1: Extend report generator** to emit an "Attributions" section at the bottom of REPORT.md listing: corpus source, license, papers, retrieval date. Hard-code the MSR block:
+
+```markdown
+## Attributions
+
+- **HotPotQA Filtered** and **Kevin Scott Podcasts** datasets from [microsoft/graphrag-benchmarking-datasets](https://github.com/microsoft/graphrag-benchmarking-datasets), used under CDLA-Permissive 2.0. Retrieved YYYY-MM-DD.
+  - HotPotQA: Yang, Z., Qi, P., Zhang, S. et al. (2018). *HotpotQA: A Dataset for Diverse, Explainable Multi-hop Question Answering*. EMNLP 2018.
+  - Kevin Scott Podcasts: Edge, D., Trinh, H., Chang, N. et al. (2024). *From Local to Global: A Graph RAG Approach to Query-Focused Summarization*.
+- **SCOTUS** corpus — U.S. Supreme Court opinions via CourtListener (public domain).
+- **Acme Labs** and **pg-src** — internal fixtures.
+```
+
+- [ ] **Step 2: Regenerate REPORT.md** — confirm Attributions section appears.
+
+- [ ] **Step 3: Update `README.md`** (written in Phase 6 Task 6.3) — add under "Reproducibility":
+> Third-party validation: this benchmark runs against Microsoft's own GraphRAG benchmark datasets (HotPotQA, Kevin Scott Podcasts). Same datasets Microsoft uses to evaluate their GraphRAG pipeline.
+
+- [ ] **Step 4: Update `ARCHITECTURE.md`** (written in Phase 6 Task 6.2) — in the "What this measures" section, list HotPotQA/Podcasts as third-party corpora alongside acme/scotus/pg-src.
+
+- [ ] **Step 5: Update `docs/why-not-apache-age.md`** "See Also" — link to the MSR datasets repo and the Edge et al. 2024 paper alongside the bakeoff REPORT.md.
+
+- [ ] **Step 6: Commit**
+
+### Phase 2.6 → DC-003 linkage
+
+After 2.6.4, the judge scores on HotPotQA (real multi-hop bridging!) feed directly into DC-003's fix-threshold decision. If pg-raggraph beats AGE by ≥10 pp `fully_correct` on HotPotQA, that's the strongest possible validation of the bridging thesis — more meaningful than Acme or SCOTUS. If both engines sit at <30%, the quality ceiling diagnosis is confirmed with a credible third-party corpus behind it.
 
 ---
 
@@ -1418,6 +1577,7 @@ For each SC-XXX in the follow-up brief, list the evidence:
 - SC-013 → ARCHITECTURE.md exists; every asymmetry listed
 - SC-014 → Original-brief DCs closed with explicit evidence
 - SC-015 → `results/cost.json` shows total ≤ $50
+- SC-016 → REPORT.md has hotpotqa + podcasts sections; Attributions section names both papers + MSR repo; questions/hotpotqa.yaml + questions/podcasts.yaml checked in
 
 For each Original brief SC-001–SC-011: evidence cited in ARCHITECTURE.md or EVIDENCE.md section.
 
