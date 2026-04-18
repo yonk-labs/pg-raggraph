@@ -815,3 +815,134 @@ def context_relevance_cmd(
             f"Cost tally: ${tracker.total_usd:.4f} / ${tracker.budget_usd:.2f} "
             f"(report at {cost_path})"
         )
+
+
+def _parse_k_values(raw: str) -> list[int]:
+    """Parse comma-separated ints like "5,10,20" or "5, 10, 20".
+
+    Strips whitespace around each entry. Rejects empty entries and non-ints so
+    users get a clear error instead of a mysterious ``KeyError`` downstream.
+    """
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    if not parts:
+        raise click.BadParameter(
+            "--k-values must contain at least one integer"
+        )
+    try:
+        return [int(p) for p in parts]
+    except ValueError as exc:
+        raise click.BadParameter(
+            f"--k-values must be comma-separated integers, got {raw!r}"
+        ) from exc
+
+
+@diagnose.command("top-k-sweep")
+@click.option(
+    "--corpus",
+    "-c",
+    multiple=True,
+    help="Corpus to diagnose (default: all available)",
+)
+@click.option(
+    "--k-values",
+    default="5,10,20,50",
+    help="Comma-separated top_k values to sweep (default: 5,10,20,50)",
+)
+@click.option(
+    "--samples",
+    default=10,
+    type=int,
+    help="Questions to sample per corpus (default: 10)",
+)
+@click.option(
+    "--seed",
+    default=42,
+    type=int,
+    help="Question-sampling seed (default: 42)",
+)
+def top_k_sweep_cmd(
+    corpus: tuple[str, ...],
+    k_values: str,
+    samples: int,
+    seed: int,
+) -> None:
+    """Re-run sampled questions at multiple ``top_k`` values per engine.
+
+    LLM-free: only calls ``engine.retrieve()`` -- no OpenAI spend, no answer
+    generation, no judge. Captures ``chunk_ids`` + ``contents`` + ``retrieval_ms``
+    at each ``top_k`` setting so the downstream fact-recall pass in
+    ``QUALITY-ANALYSIS.md`` can quantify whether raising ``k`` recovers missing
+    facts.
+
+    Assumes both engines have already ingested the target corpora via a prior
+    ``age-bakeoff run``; this command does NOT re-ingest.
+
+    Output: ``results/diagnostics/top_k_sweep.json`` with schema
+    ``{k_values, samples, seed, corpora: {corpus: {engine: {k: runs}}}}``.
+    JSON object keys for ``k`` are stringified ints (standard JSON behavior).
+    """
+    import random
+
+    from pydantic import ValidationError
+
+    ks = _parse_k_values(k_values)
+
+    cfg = _get_config()
+    engines = _get_engines(cfg)
+
+    from age_bakeoff.diagnostics import top_k_sweep
+    from age_bakeoff.questions.schema import load_question_set
+
+    diag_dir = _RESULTS_DIR / "diagnostics"
+    diag_dir.mkdir(parents=True, exist_ok=True)
+
+    # Find available question sets
+    available: dict[str, Path] = {}
+    for yaml_file in sorted(_QUESTIONS_DIR.glob("*.yaml")):
+        name = yaml_file.stem
+        if not corpus or name in corpus:
+            available[name] = yaml_file
+
+    if not available:
+        click.echo("No question sets found")
+        return
+
+    async def _run() -> dict:
+        out_by_corpus: dict[str, dict[str, dict[int, list]]] = {}
+
+        for name, yaml_path in available.items():
+            try:
+                qset = load_question_set(yaml_path)
+            except (ValidationError, ValueError):
+                # Strict 30-question validator rejects fixtures; fall back.
+                qset = load_question_set(yaml_path, strict=False)
+
+            rnd = random.Random(seed)
+            sampled = rnd.sample(
+                qset.questions, min(samples, len(qset.questions))
+            )
+            questions = [q.question for q in sampled]
+
+            per_engine: dict[str, dict[int, list]] = {}
+            for engine_name, engine in engines.items():
+                per_engine[engine_name] = await top_k_sweep(
+                    engine=engine, questions=questions, k_values=ks
+                )
+            out_by_corpus[name] = per_engine
+            click.echo(
+                f"Diagnosed corpus={name}: {len(questions)} questions "
+                f"x {len(ks)} k values x {len(engines)} engines"
+            )
+
+        return out_by_corpus
+
+    result = asyncio.run(_run())
+    out_path = diag_dir / "top_k_sweep.json"
+    payload = {
+        "k_values": ks,
+        "samples": samples,
+        "seed": seed,
+        "corpora": result,
+    }
+    out_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    click.echo(f"Wrote {out_path}")
