@@ -402,3 +402,150 @@ def report() -> None:
     )
     click.echo(f"Report written to {out_path}")
     click.echo(f"({len(report_text)} chars)")
+
+
+@cli.group()
+def diagnose() -> None:
+    """Research diagnostics (Phase 1)."""
+
+
+@diagnose.command("gold-strictness")
+@click.option(
+    "--corpus",
+    "-c",
+    multiple=True,
+    help="Corpus to diagnose (default: all available)",
+)
+@click.option("--seed", default=42, type=int, help="RNG seed for sampling")
+@click.option(
+    "--samples",
+    default=5,
+    type=int,
+    help="Questions to sample per corpus (default: 5)",
+)
+@click.option(
+    "--alts-per-q",
+    default=3,
+    type=int,
+    help="Alternative phrasings per question (default: 3)",
+)
+@click.option(
+    "--budget-usd",
+    default=50.0,
+    type=float,
+    help="Hard cap on OpenAI spend (default: $50)",
+)
+def gold_strictness_cmd(
+    corpus: tuple[str, ...],
+    seed: int,
+    samples: int,
+    alts_per_q: int,
+    budget_usd: float,
+) -> None:
+    """Audit gold-answer strictness by sampling alternative phrasings.
+
+    For each sampled question, asks the judge model for N factually-equivalent
+    alternative phrasings, then re-judges each one. Alternatives judged `wrong`
+    or `hallucinated` indicate the gold answer is "strict" -- reasonable
+    paraphrases would fail the rubric.
+
+    Output: results/diagnostics/gold_strictness.json
+    """
+    import random
+
+    from pydantic import ValidationError
+
+    tracker = CostTracker(budget_usd=budget_usd)
+
+    cfg = _get_config()
+
+    from openai import AsyncOpenAI
+
+    from age_bakeoff.diagnostics import sample_gold_alternative_phrasings
+    from age_bakeoff.questions.schema import load_question_set
+    from age_bakeoff.scorers.llm_judge import judge_answer
+
+    diag_dir = _RESULTS_DIR / "diagnostics"
+    diag_dir.mkdir(parents=True, exist_ok=True)
+
+    # Find available question sets
+    available: dict[str, Path] = {}
+    for yaml_file in sorted(_QUESTIONS_DIR.glob("*.yaml")):
+        name = yaml_file.stem
+        if not corpus or name in corpus:
+            available[name] = yaml_file
+
+    if not available:
+        click.echo("No question sets found")
+        return
+
+    async def _run() -> dict:
+        client = AsyncOpenAI()
+        out_by_corpus: dict[str, list[dict]] = {}
+
+        for name, yaml_path in available.items():
+            try:
+                qset = load_question_set(yaml_path)
+            except (ValidationError, ValueError):
+                # Strict 30-question validator rejects fixtures; fall back.
+                qset = load_question_set(yaml_path, strict=False)
+
+            rnd = random.Random(seed)
+            sampled = rnd.sample(
+                qset.questions, min(samples, len(qset.questions))
+            )
+
+            rows: list[dict] = []
+            for q in sampled:
+                alts = await sample_gold_alternative_phrasings(
+                    client=client,
+                    question=q.question,
+                    gold_answer=q.gold_answer,
+                    n=alts_per_q,
+                    model=cfg.judge_model,
+                    tracker=tracker,
+                )
+                verdicts: list[str] = []
+                for alt in alts:
+                    v = await judge_answer(
+                        client=client,
+                        question=q.question,
+                        gold_answer=q.gold_answer,
+                        generated_answer=alt,
+                        model=cfg.judge_model,
+                        tracker=tracker,
+                    )
+                    verdicts.append(v.value)
+                strict_count = sum(
+                    1 for v in verdicts if v in ("wrong", "hallucinated")
+                )
+                rows.append(
+                    {
+                        "qid": q.id,
+                        "question": q.question,
+                        "gold_answer": q.gold_answer,
+                        "alternatives": alts,
+                        "verdicts": verdicts,
+                        "strict_count": strict_count,
+                        "total": len(alts),
+                    }
+                )
+            out_by_corpus[name] = rows
+            click.echo(
+                f"Diagnosed corpus={name}: {len(rows)} questions sampled"
+            )
+
+        return out_by_corpus
+
+    try:
+        result = asyncio.run(_run())
+        out_path = diag_dir / "gold_strictness.json"
+        out_path.write_text(json.dumps(result, indent=2, sort_keys=True))
+        click.echo(f"Wrote {out_path}")
+    finally:
+        _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+        tracker.save_report(_RESULTS_DIR / "cost.json")
+        click.echo(
+            f"Cost tally: ${tracker.total_usd:.4f} / ${tracker.budget_usd:.2f} "
+            f"(report at {_RESULTS_DIR / 'cost.json'})"
+        )
