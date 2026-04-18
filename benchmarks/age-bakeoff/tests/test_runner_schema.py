@@ -95,3 +95,21 @@ def test_verify_symmetry_mismatch(monkeypatch):
     )
     with pytest.raises(RuntimeError, match="Embedding model mismatch"):
         runner.verify_symmetry()
+
+
+async def test_runner_writes_label_suffix_in_filename(tmp_path, monkeypatch):
+    """RunnerOptions.label produces raw_dir/{corpus}__{label}.json filenames."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    cfg = BakeoffConfig()
+    engines = {"stub": _mock_engine("stub")}
+    opts = RunnerOptions(
+        output_dir=tmp_path, runs_per_question=1, label="smart"
+    )
+    runner = Runner(config=cfg, engines=engines, options=opts)
+
+    fixtures = Path(__file__).parent / "fixtures"
+    qset = load_question_set(fixtures / "tiny_questions.yaml", strict=False)
+    await runner.run_corpus("acme", qset)
+
+    assert (tmp_path / "acme__smart.json").exists()
+    assert not (tmp_path / "acme.json").exists()

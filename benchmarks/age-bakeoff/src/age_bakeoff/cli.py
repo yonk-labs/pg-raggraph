@@ -96,6 +96,7 @@ def _get_engines(cfg: BakeoffConfig) -> dict:
             dsn=cfg.pgrg_dsn,
             top_k=cfg.top_k,
             hop_budget=cfg.hop_budget,
+            retrieval_mode=cfg.retrieval_mode,
             answer_model=cfg.answer_model,
             embedding_model=cfg.embedding_model,
         ),
@@ -190,16 +191,43 @@ def ingest(corpus: tuple[str, ...]) -> None:
     "--runs", "-n", default=3, help="Runs per question (default: 3)"
 )
 @click.option(
+    "--mode",
+    default=None,
+    help=(
+        "pg-raggraph retrieval mode: hybrid|smart|local|global|naive "
+        "(overrides config; only affects the pgrg engine)"
+    ),
+)
+@click.option(
+    "--label",
+    default=None,
+    help=(
+        "Suffix for raw JSON filename (e.g., 'smart', 'sig-vector'). "
+        "Omit to write results/raw/{corpus}.json; with a label, "
+        "writes results/raw/{corpus}__{label}.json."
+    ),
+)
+@click.option(
     "--budget-usd",
     default=50.0,
     type=float,
     help="Hard cap on OpenAI spend (default: $50)",
 )
-def run(corpus: tuple[str, ...], runs: int, budget_usd: float) -> None:
+def run(
+    corpus: tuple[str, ...],
+    runs: int,
+    mode: str | None,
+    label: str | None,
+    budget_usd: float,
+) -> None:
     """Run benchmark questions against both engines."""
     tracker = CostTracker(budget_usd=budget_usd)
 
     cfg = _get_config()
+    if mode is not None:
+        # BakeoffConfig is a non-frozen pydantic-settings model; direct mutation
+        # is fine and avoids the model_copy boilerplate.
+        cfg.retrieval_mode = mode
     engines = _get_engines(cfg)
 
     from age_bakeoff.questions.schema import load_question_set
@@ -225,9 +253,11 @@ def run(corpus: tuple[str, ...], runs: int, budget_usd: float) -> None:
             options=RunnerOptions(
                 runs_per_question=runs,
                 output_dir=_RESULTS_DIR / "raw",
+                label=label,
             ),
             tracker=tracker,
         )
+        suffix = f"__{label}" if label else ""
         for name, yaml_path in available.items():
             qset = load_question_set(yaml_path)
             # Ingest corpus right before running its questions (single namespace)
@@ -240,7 +270,7 @@ def run(corpus: tuple[str, ...], runs: int, budget_usd: float) -> None:
             results = await runner.run_corpus(name, qset, extraction=extraction)
             click.echo(
                 f"  {len(results)} results written to "
-                f"{_RESULTS_DIR / 'raw' / name}.json"
+                f"{_RESULTS_DIR / 'raw' / f'{name}{suffix}'}.json"
             )
 
     try:

@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 class RunnerOptions:
     runs_per_question: int = 3
     output_dir: Path = field(default_factory=lambda: Path("results/raw"))
+    label: str | None = None
 
 
 class Runner:
@@ -76,6 +77,11 @@ class Runner:
     ) -> list[RunResult]:
         if extraction:
             await self.ingest_corpus(corpus, extraction)
+        # Labelled filenames keep per-mode / per-signal runs from clobbering the
+        # baseline. Omitting --label preserves the pre-Task-2.1 filename so
+        # existing REPORT pipelines still find {corpus}.json.
+        suffix = f"__{self.options.label}" if self.options.label else ""
+        out = self.options.output_dir / f"{corpus}{suffix}.json"
         results: list[RunResult] = []
         for q in qset.questions:
             for run_number in range(1, self.options.runs_per_question + 1):
@@ -105,7 +111,6 @@ class Runner:
                     except CostBudgetExceeded:
                         # Hard cap: write partial results and propagate so the
                         # CLI's finally-block can persist the cost tally.
-                        out = self.options.output_dir / f"{corpus}.json"
                         out.write_text(
                             json.dumps(
                                 [r.model_dump() for r in results],
@@ -132,7 +137,6 @@ class Runner:
                                 error=str(exc),
                             )
                         )
-        out = self.options.output_dir / f"{corpus}.json"
         out.write_text(
             json.dumps(
                 [r.model_dump() for r in results], indent=2, sort_keys=True
