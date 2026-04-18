@@ -21,6 +21,24 @@ def _get_config() -> BakeoffConfig:
     return BakeoffConfig()
 
 
+def _corpus_and_label_from_stem(stem: str) -> tuple[str, str | None]:
+    """Split a raw-JSON filename stem into (base_corpus, label).
+
+    ``'acme'`` -> ``('acme', None)``.
+    ``'acme__smart'`` -> ``('acme', 'smart')``.
+
+    Labelled raw JSON is produced by ``age-bakeoff run --label <label>`` and
+    shares its question set with the unlabelled baseline. The label is only a
+    filename suffix, never a separate corpus — downstream commands (judge,
+    report, diagnose context-relevance) use the BASE corpus to find
+    ``questions/{base}.yaml``.
+    """
+    if "__" in stem:
+        base, label = stem.split("__", 1)
+        return base, label
+    return stem, None
+
+
 def _merge_diagnose_cost(
     cost_path: Path, tracker: CostTracker, phase: str
 ) -> float:
@@ -321,8 +339,10 @@ def judge(corpus: tuple[str, ...], budget_usd: float) -> None:
             if corpus and name not in corpus:
                 continue
 
-            # Load question set for gold answers
-            yaml_path = _QUESTIONS_DIR / f"{name}.yaml"
+            # Labelled raw JSON (acme__smart.json) shares its question set with
+            # the baseline — look up questions/{base}.yaml, not {name}.yaml.
+            base, _label = _corpus_and_label_from_stem(name)
+            yaml_path = _QUESTIONS_DIR / f"{base}.yaml"
             if not yaml_path.exists():
                 click.echo(f"No question set for {name}, skipping judge")
                 continue
@@ -442,7 +462,12 @@ def report() -> None:
     skipped_corpora: set[str] = set()
 
     for name, results in results_by_corpus.items():
-        yaml_path = _QUESTIONS_DIR / f"{name}.yaml"
+        # Labelled raw JSON (acme__smart.json) shares its question set with the
+        # baseline; resolve to questions/{base}.yaml. The full stem stays as the
+        # results_by_corpus/fact_recall/question_classes key so labelled runs
+        # appear as distinct rows in REPORT.md.
+        base, _label = _corpus_and_label_from_stem(name)
+        yaml_path = _QUESTIONS_DIR / f"{base}.yaml"
         if not yaml_path.exists():
             continue
         try:
@@ -768,7 +793,10 @@ def context_relevance_cmd(
                 )
                 continue
 
-            yaml_path = _QUESTIONS_DIR / f"{name}.yaml"
+            # Labelled raw JSON (acme__smart.json) shares its question set
+            # with the baseline — look up questions/{base}.yaml.
+            base, _label = _corpus_and_label_from_stem(name)
+            yaml_path = _QUESTIONS_DIR / f"{base}.yaml"
             if not yaml_path.exists():
                 click.echo(f"No question set for {name}, skipping")
                 continue

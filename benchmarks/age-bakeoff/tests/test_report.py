@@ -409,6 +409,115 @@ questions:
     assert "Rerun `age-bakeoff run`" in result.output
 
 
+def test_corpus_and_label_from_stem():
+    """Pins the `__label` split for downstream question-set resolution."""
+    from age_bakeoff.cli import _corpus_and_label_from_stem
+
+    assert _corpus_and_label_from_stem("acme") == ("acme", None)
+    assert _corpus_and_label_from_stem("acme__smart") == ("acme", "smart")
+    # Single underscore is NOT a label separator (only '__' is).
+    assert _corpus_and_label_from_stem("pg_src") == ("pg_src", None)
+    # Hyphenated labels pass through unmodified.
+    assert _corpus_and_label_from_stem("acme__sig-vec-bm25") == (
+        "acme",
+        "sig-vec-bm25",
+    )
+
+
+def test_report_cli_handles_labelled_raw_json(tmp_path, monkeypatch):
+    """Labelled raw JSON (tiny__smart.json) resolves questions via the BASE
+    corpus (tiny.yaml) and appears as a distinct corpus row in REPORT.md.
+
+    Pins the Task 2.1 follow-up: `judge`, `report`, and `diagnose
+    context-relevance` split raw filename stems on '__' so labelled runs
+    share the baseline question set instead of silently getting skipped
+    for missing `questions/tiny__smart.yaml`.
+    """
+    import json
+
+    from age_bakeoff import cli as cli_module
+    from click.testing import CliRunner
+
+    results_dir = tmp_path / "results"
+    raw_dir = results_dir / "raw"
+    raw_dir.mkdir(parents=True)
+    questions_dir = tmp_path / "questions"
+    questions_dir.mkdir()
+
+    (questions_dir / "tiny.yaml").write_text(
+        """\
+corpus: tiny
+questions:
+  - id: tiny-q-001
+    question: "What is Alpha?"
+    gold_answer: "Alpha is a core concept."
+    required_facts: ["Alpha"]
+    required_entities: ["alpha"]
+    question_class: single_hop
+  - id: tiny-q-002
+    question: "How does Beta relate to Gamma?"
+    gold_answer: "Beta relates to Gamma through association."
+    required_facts: ["Beta", "Gamma"]
+    required_entities: ["beta", "gamma"]
+    question_class: multi_hop_bridging
+"""
+    )
+
+    baseline_payload = [
+        {
+            "engine": "pgrg",
+            "corpus": "tiny",
+            "question_id": "tiny-q-001",
+            "run_number": 1,
+            "cold": True,
+            "retrieval_ms": 20.0,
+            "answer_ms": 100.0,
+            "retrieved_chunk_ids": ["c1"],
+            "retrieved_chunk_contents": ["Alpha is the first concept."],
+            "generated_answer": "Alpha answer",
+            "error": None,
+        },
+    ]
+    labelled_payload = [
+        {
+            "engine": "pgrg",
+            "corpus": "tiny",
+            "question_id": "tiny-q-001",
+            "run_number": 1,
+            "cold": True,
+            "retrieval_ms": 15.0,
+            "answer_ms": 95.0,
+            "retrieved_chunk_ids": ["c1"],
+            "retrieved_chunk_contents": ["Alpha is the first concept."],
+            "generated_answer": "Alpha answer (smart)",
+            "error": None,
+        },
+    ]
+    (raw_dir / "tiny.json").write_text(json.dumps(baseline_payload, indent=2))
+    (raw_dir / "tiny__smart.json").write_text(
+        json.dumps(labelled_payload, indent=2)
+    )
+
+    monkeypatch.setattr(cli_module, "_RESULTS_DIR", results_dir)
+    monkeypatch.setattr(cli_module, "_QUESTIONS_DIR", questions_dir)
+
+    runner = CliRunner()
+    result = runner.invoke(cli_module.cli, ["report"])
+    assert result.exit_code == 0, result.output
+
+    # The base-corpus lookup means the labelled run is NOT skipped for
+    # "missing question set" — only genuinely missing YAMLs trigger that path.
+    assert "Fact recall skipped" not in result.output
+
+    out_path = results_dir / "REPORT.md"
+    md = out_path.read_text()
+    # Both the baseline and the labelled run appear as distinct corpus rows.
+    assert "## Corpus: tiny" in md
+    assert "## Corpus: tiny__smart" in md
+    # Fact recall computed for both (via the shared tiny.yaml).
+    assert "### Fact Recall" in md
+
+
 def test_report_cli_skips_legacy_rows_without_chunk_contents(tmp_path, monkeypatch):
     """Legacy raw JSON rows (no retrieved_chunk_contents) should not crash or score 0."""
     import json
