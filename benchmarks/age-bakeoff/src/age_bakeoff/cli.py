@@ -21,6 +21,72 @@ def _get_config() -> BakeoffConfig:
     return BakeoffConfig()
 
 
+def _merge_diagnose_cost(
+    cost_path: Path, tracker: CostTracker, phase: str
+) -> float:
+    """Accumulate cost across successive ``diagnose <subcommand>`` runs.
+
+    ``cost-diagnose.json`` is shared by all ``diagnose`` subcommands so the
+    $50 budget ceiling is enforced across the full research session, not per
+    invocation. This helper handles both halves of that lifecycle:
+
+    - ``phase="load"``: if a prior ``cost-diagnose.json`` exists, seed
+      ``tracker.total_usd`` with its prior total so budget-breach checks in
+      ``tracker.record`` fire against the cumulative spend. Returns the prior
+      total (``0.0`` if no file).
+    - ``phase="save"``: merge any new calls recorded during this run INTO the
+      prior file's ``by_model`` aggregation and write the combined report.
+      Individual ``calls`` lists aren't persisted across invocations (only the
+      per-model aggregate), so only the current tracker's calls are added.
+
+    Returns the prior total on load; returns ``0.0`` on save.
+    """
+    if phase == "load":
+        if not cost_path.exists():
+            return 0.0
+        prior = json.loads(cost_path.read_text())
+        prior_total = float(prior.get("total_usd", 0.0))
+        tracker.total_usd = prior_total
+        return prior_total
+
+    if phase == "save":
+        cost_path.parent.mkdir(parents=True, exist_ok=True)
+        prior_by_model: dict = {}
+        if cost_path.exists():
+            prior = json.loads(cost_path.read_text())
+            prior_by_model = prior.get("by_model", {}) or {}
+
+        # Start from prior aggregate, add each new call from this invocation
+        merged_by_model: dict = {
+            m: dict(bucket) for m, bucket in prior_by_model.items()
+        }
+        for call in tracker.calls:
+            m = call["model"]
+            bucket = merged_by_model.setdefault(
+                m,
+                {
+                    "calls": 0,
+                    "usd": 0.0,
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                },
+            )
+            bucket["calls"] += 1
+            bucket["usd"] += call["usd"]
+            bucket["prompt_tokens"] += call["prompt_tokens"]
+            bucket["completion_tokens"] += call["completion_tokens"]
+
+        report = {
+            "total_usd": tracker.total_usd,
+            "budget_usd": tracker.budget_usd,
+            "by_model": merged_by_model,
+        }
+        cost_path.write_text(json.dumps(report, indent=2, sort_keys=True))
+        return 0.0
+
+    raise ValueError(f"unknown phase {phase!r}")
+
+
 def _get_engines(cfg: BakeoffConfig) -> dict:
     from age_bakeoff.engines.age import AgeEngine
     from age_bakeoff.engines.pgrg import PgrgEngine
@@ -467,6 +533,12 @@ def gold_strictness_cmd(
 
     tracker = CostTracker(budget_usd=budget_usd)
 
+    # Share cost-diagnose.json across all diagnose subcommands so the budget
+    # ceiling is enforced across the full research session.
+    _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    cost_path = _RESULTS_DIR / "cost-diagnose.json"
+    _merge_diagnose_cost(cost_path, tracker, phase="load")
+
     cfg = _get_config()
 
     from openai import AsyncOpenAI
@@ -561,9 +633,183 @@ def gold_strictness_cmd(
         out_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
         click.echo(f"Wrote {out_path}")
     finally:
-        _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-        cost_path = _RESULTS_DIR / "cost-diagnose.json"
-        tracker.save_report(cost_path)
+        _merge_diagnose_cost(cost_path, tracker, phase="save")
+        click.echo(
+            f"Cost tally: ${tracker.total_usd:.4f} / ${tracker.budget_usd:.2f} "
+            f"(report at {cost_path})"
+        )
+
+
+@diagnose.command("context-relevance")
+@click.option(
+    "--corpus",
+    "-c",
+    multiple=True,
+    help="Corpus to diagnose (default: all with raw results)",
+)
+@click.option(
+    "--seed",
+    default=42,
+    type=int,
+    help="Question-sampling seed (default: 42)",
+)
+@click.option(
+    "--samples",
+    default=10,
+    type=int,
+    help="Questions to sample per corpus (default: 10)",
+)
+@click.option(
+    "--budget-usd",
+    default=50.0,
+    type=float,
+    help="Hard cap on OpenAI spend (default: $50)",
+)
+def context_relevance_cmd(
+    corpus: tuple[str, ...],
+    seed: int,
+    samples: int,
+    budget_usd: float,
+) -> None:
+    """Score per-chunk LLM-judged relevance for sampled questions.
+
+    Separates retrieval quality from answer-generation quality. A chunk that
+    scores 0.0 relevance but was retrieved is a retrieval issue; a chunk that
+    scores 1.0 where the final answer is still wrong is an answer-generation
+    issue.
+
+    Skips corpora whose raw JSON predates ``retrieved_chunk_contents`` (the
+    default ``[]`` from pydantic is indistinguishable from "retrieved nothing";
+    rerun ``age-bakeoff run`` to regenerate those corpora).
+
+    Output: ``results/diagnostics/context_relevance.json``.
+    """
+    import random
+
+    from pydantic import ValidationError
+
+    tracker = CostTracker(budget_usd=budget_usd)
+
+    # Share cost-diagnose.json across diagnose subcommands (see _merge_diagnose_cost).
+    _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    cost_path = _RESULTS_DIR / "cost-diagnose.json"
+    _merge_diagnose_cost(cost_path, tracker, phase="load")
+
+    cfg = _get_config()
+
+    from openai import AsyncOpenAI
+
+    from age_bakeoff.questions.schema import load_question_set
+    from age_bakeoff.scorers.chunk_relevance import score_chunk_relevance
+
+    raw_dir = _RESULTS_DIR / "raw"
+    diag_dir = _RESULTS_DIR / "diagnostics"
+    diag_dir.mkdir(parents=True, exist_ok=True)
+
+    # Which raw files carry retrieved_chunk_contents? Mirror the report command:
+    # peek at raw rows; skip corpora that predate Task 0.2.
+    raw_rows_by_corpus: dict[str, list[dict]] = {}
+    has_contents_by_corpus: dict[str, bool] = {}
+    for json_file in sorted(raw_dir.glob("*.json")):
+        name = json_file.stem
+        if name.startswith("cost-"):
+            continue  # defensive; raw_dir shouldn't hold cost files anyway
+        if corpus and name not in corpus:
+            continue
+        rows = json.loads(json_file.read_text())
+        raw_rows_by_corpus[name] = rows
+        has_contents_by_corpus[name] = any(
+            "retrieved_chunk_contents" in row for row in rows
+        )
+
+    if not raw_rows_by_corpus:
+        click.echo("No raw results found under results/raw/.")
+        return
+
+    async def _run() -> dict:
+        client = AsyncOpenAI()
+        out: dict[str, dict[str, dict[str, list[float]]]] = {}
+
+        for name, rows in raw_rows_by_corpus.items():
+            if not has_contents_by_corpus.get(name, False):
+                click.echo(
+                    f"Skipping corpus={name}: raw JSON predates "
+                    "retrieved_chunk_contents. Rerun `age-bakeoff run`."
+                )
+                continue
+
+            yaml_path = _QUESTIONS_DIR / f"{name}.yaml"
+            if not yaml_path.exists():
+                click.echo(f"No question set for {name}, skipping")
+                continue
+            try:
+                qset = load_question_set(yaml_path)
+            except (ValidationError, ValueError):
+                # Strict 30-question validator rejects fixtures; fall back.
+                qset = load_question_set(yaml_path, strict=False)
+            q_by_id = {q.id: q for q in qset.questions}
+
+            rnd = random.Random(seed)
+            # Sample from questions that actually appear in the raw rows so we
+            # don't pick question IDs that were never run.
+            qids_with_rows = sorted({r["question_id"] for r in rows})
+            picked_qids = set(
+                rnd.sample(
+                    qids_with_rows, min(samples, len(qids_with_rows))
+                )
+            )
+
+            per_engine: dict[str, dict[str, list[float]]] = {}
+            for r in rows:
+                qid = r["question_id"]
+                if qid not in picked_qids:
+                    continue
+                q = q_by_id.get(qid)
+                if not q:
+                    continue
+                chunks = r.get("retrieved_chunk_contents") or []
+                if not chunks:
+                    # Legacy or genuinely empty -- skip (score_chunk_relevance
+                    # returns [] anyway; skipping avoids bloating the output).
+                    continue
+                engine = r["engine"]
+                # Only score once per (engine, qid) -- if there are multiple
+                # runs, use the first.
+                engine_bucket = per_engine.setdefault(engine, {})
+                if qid in engine_bucket:
+                    continue
+                scores = await score_chunk_relevance(
+                    client=client,
+                    question=q.question,
+                    chunks=chunks,
+                    model=cfg.judge_model,
+                    tracker=tracker,
+                )
+                engine_bucket[qid] = scores
+
+            if per_engine:
+                out[name] = per_engine
+                total_pairs = sum(len(v) for v in per_engine.values())
+                click.echo(
+                    f"Diagnosed corpus={name}: {total_pairs} "
+                    "(engine,question) pairs scored"
+                )
+
+        return out
+
+    try:
+        result = asyncio.run(_run())
+        out_path = diag_dir / "context_relevance.json"
+        payload = {
+            "judge_model": cfg.judge_model,
+            "seed": seed,
+            "samples": samples,
+            "corpora": result,
+        }
+        out_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+        click.echo(f"Wrote {out_path}")
+    finally:
+        _merge_diagnose_cost(cost_path, tracker, phase="save")
         click.echo(
             f"Cost tally: ${tracker.total_usd:.4f} / ${tracker.budget_usd:.2f} "
             f"(report at {cost_path})"
