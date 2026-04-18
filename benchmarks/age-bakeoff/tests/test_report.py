@@ -275,6 +275,140 @@ questions:
     assert "0.500" in md
 
 
+def test_report_cli_scores_zero_retrieval_when_schema_current(tmp_path, monkeypatch):
+    """Current-schema rows with retrieved_chunk_contents=[] score 0.0, not skipped.
+
+    Pins Fix 1: the legacy-vs-zero-retrieval distinction happens at JSON load
+    time (by checking whether the key exists in the raw dict), not at scoring
+    time. An engine that legitimately retrieved no chunks for a question must
+    receive a 0.0 fact-recall score — silently excluding it biases the result.
+    """
+    import json
+
+    from age_bakeoff import cli as cli_module
+    from click.testing import CliRunner
+
+    results_dir = tmp_path / "results"
+    raw_dir = results_dir / "raw"
+    raw_dir.mkdir(parents=True)
+    questions_dir = tmp_path / "questions"
+    questions_dir.mkdir()
+
+    (questions_dir / "zero.yaml").write_text(
+        """\
+corpus: zero
+questions:
+  - id: zero-q-001
+    question: "What is Alpha?"
+    gold_answer: "Alpha is first."
+    required_facts: ["Alpha"]
+    required_entities: ["alpha"]
+    question_class: single_hop
+"""
+    )
+
+    # Key IS present (current schema) but the list is empty -- real zero-retrieval.
+    zero_payload = [
+        {
+            "engine": "pgrg",
+            "corpus": "zero",
+            "question_id": "zero-q-001",
+            "run_number": 1,
+            "cold": True,
+            "retrieval_ms": 20.0,
+            "answer_ms": 100.0,
+            "retrieved_chunk_ids": [],
+            "retrieved_chunk_contents": [],
+            "generated_answer": "no context",
+            "error": None,
+        },
+        {
+            "engine": "age",
+            "corpus": "zero",
+            "question_id": "zero-q-001",
+            "run_number": 1,
+            "cold": True,
+            "retrieval_ms": 40.0,
+            "answer_ms": 110.0,
+            "retrieved_chunk_ids": ["c1"],
+            "retrieved_chunk_contents": ["Alpha is the first concept."],
+            "generated_answer": "Alpha answer",
+            "error": None,
+        },
+    ]
+    (raw_dir / "zero.json").write_text(json.dumps(zero_payload, indent=2))
+
+    monkeypatch.setattr(cli_module, "_RESULTS_DIR", results_dir)
+    monkeypatch.setattr(cli_module, "_QUESTIONS_DIR", questions_dir)
+
+    runner = CliRunner()
+    result = runner.invoke(cli_module.cli, ["report"])
+    assert result.exit_code == 0, result.output
+    # No legacy-skip warning -- schema is current.
+    assert "Fact recall skipped" not in result.output
+
+    out_path = results_dir / "REPORT.md"
+    md = out_path.read_text()
+    assert "### Fact Recall" in md
+    # pgrg had no retrieval -> 0.000; age covered Alpha -> 1.000
+    assert "0.000" in md
+    assert "1.000" in md
+
+
+def test_report_cli_warns_when_legacy_raw_json_skips_fact_recall(tmp_path, monkeypatch):
+    """Fix 2: emit a click warning when legacy raw JSON causes a skip."""
+    import json
+
+    from age_bakeoff import cli as cli_module
+    from click.testing import CliRunner
+
+    results_dir = tmp_path / "results"
+    raw_dir = results_dir / "raw"
+    raw_dir.mkdir(parents=True)
+    questions_dir = tmp_path / "questions"
+    questions_dir.mkdir()
+
+    (questions_dir / "legacywarn.yaml").write_text(
+        """\
+corpus: legacywarn
+questions:
+  - id: legacywarn-q-001
+    question: "What is Alpha?"
+    gold_answer: "Alpha is first."
+    required_facts: ["Alpha"]
+    required_entities: ["alpha"]
+    question_class: single_hop
+"""
+    )
+
+    # Legacy rows: key absent entirely.
+    legacy_payload = [
+        {
+            "engine": "pgrg",
+            "corpus": "legacywarn",
+            "question_id": "legacywarn-q-001",
+            "run_number": 1,
+            "cold": True,
+            "retrieval_ms": 20.0,
+            "answer_ms": 100.0,
+            "retrieved_chunk_ids": ["c1"],
+            "generated_answer": "ans",
+            "error": None,
+        },
+    ]
+    (raw_dir / "legacywarn.json").write_text(json.dumps(legacy_payload, indent=2))
+
+    monkeypatch.setattr(cli_module, "_RESULTS_DIR", results_dir)
+    monkeypatch.setattr(cli_module, "_QUESTIONS_DIR", questions_dir)
+
+    runner = CliRunner()
+    result = runner.invoke(cli_module.cli, ["report"])
+    assert result.exit_code == 0, result.output
+    assert "Fact recall skipped" in result.output
+    assert "legacywarn" in result.output
+    assert "Rerun `age-bakeoff run`" in result.output
+
+
 def test_report_cli_skips_legacy_rows_without_chunk_contents(tmp_path, monkeypatch):
     """Legacy raw JSON rows (no retrieved_chunk_contents) should not crash or score 0."""
     import json

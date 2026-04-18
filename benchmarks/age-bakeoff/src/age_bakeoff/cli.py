@@ -291,6 +291,8 @@ def judge(corpus: tuple[str, ...], budget_usd: float) -> None:
 @cli.command()
 def report() -> None:
     """Generate the bake-off report from raw results."""
+    from pydantic import ValidationError
+
     from age_bakeoff.models import RunResult
     from age_bakeoff.report.generator import generate_report
     from age_bakeoff.scorers.llm_judge import JudgeVerdict
@@ -299,13 +301,20 @@ def report() -> None:
     judge_dir = _RESULTS_DIR / "judge"
 
     results_by_corpus: dict[str, list[RunResult]] = {}
+    # Track which corpora have the `retrieved_chunk_contents` key in raw JSON.
+    # Legacy raw JSON (written before that column existed) must be skipped for
+    # fact recall — pydantic fills a default `[]`, which would otherwise be
+    # indistinguishable from an engine that genuinely retrieved nothing.
+    has_contents_by_corpus: dict[str, bool] = {}
     judge_by_corpus: dict = {}
 
     for json_file in sorted(raw_dir.glob("*.json")):
         name = json_file.stem
-        results_by_corpus[name] = [
-            RunResult(**r) for r in json.loads(json_file.read_text())
-        ]
+        raw_rows = json.loads(json_file.read_text())
+        has_contents_by_corpus[name] = any(
+            "retrieved_chunk_contents" in row for row in raw_rows
+        )
+        results_by_corpus[name] = [RunResult(**r) for r in raw_rows]
 
     # Load judge results if available
     for json_file in sorted(judge_dir.glob("*.json")):
@@ -332,6 +341,7 @@ def report() -> None:
 
     fact_recall_by_corpus: dict[str, dict[str, dict[str, float]]] = {}
     question_classes: dict[str, dict[str, object]] = {}
+    skipped_corpora: set[str] = set()
 
     for name, results in results_by_corpus.items():
         yaml_path = _QUESTIONS_DIR / f"{name}.yaml"
@@ -339,43 +349,48 @@ def report() -> None:
             continue
         try:
             qset = load_question_set(yaml_path)
-        except Exception:
-            # Strict 30-question validator may reject small fixture sets;
+        except (ValidationError, ValueError):
+            # Strict 30-question validator rejects fixture-size question sets;
             # fall back to loose mode so the CLI still produces a report.
+            # YAML parse errors / FileNotFoundError / unknown enums propagate.
             qset = load_question_set(yaml_path, strict=False)
         q_by_id = {q.id: q for q in qset.questions}
         question_classes[name] = {qid: q.question_class for qid, q in q_by_id.items()}
 
-        per_engine: dict[str, dict[str, object]] = {}
+        # If this corpus was produced by a pre-Task-0.2 run, skip fact recall
+        # entirely. Scoring would be misleading: the default `[]` from pydantic
+        # is indistinguishable from "engine retrieved nothing".
+        if not has_contents_by_corpus.get(name, False):
+            skipped_corpora.add(name)
+            continue
+
+        per_engine: dict[str, dict[str, list[float]]] = {}
         for r in results:
             if r.error:
                 continue
             q = q_by_id.get(r.question_id)
             if not q:
                 continue
-            if not r.retrieved_chunk_contents:
-                # Raw JSON from before this change won't have contents — skip gracefully
-                continue
+            # Score even when retrieved_chunk_contents is []: that's a real
+            # measurement (engine retrieved nothing), not missing data.
             engine_bucket = per_engine.setdefault(r.engine, {})
-            # Aggregate per question: average across multiple runs
-            score = score_fact_recall(q, r.retrieved_chunk_contents)
-            existing = engine_bucket.get(r.question_id)
-            if existing is None:
-                engine_bucket[r.question_id] = [score]
-            elif isinstance(existing, list):
-                existing.append(score)
-                engine_bucket[r.question_id] = existing
-            else:
-                engine_bucket[r.question_id] = [existing, score]
-        # Collapse lists to means
-        collapsed: dict[str, dict[str, float]] = {}
-        for engine, qmap in per_engine.items():
-            collapsed[engine] = {
-                qid: (sum(scores) / len(scores) if isinstance(scores, list) else scores)
-                for qid, scores in qmap.items()
-            }
+            engine_bucket.setdefault(r.question_id, []).append(
+                score_fact_recall(q, r.retrieved_chunk_contents)
+            )
+
+        collapsed = {
+            engine: {qid: sum(s) / len(s) for qid, s in qmap.items()}
+            for engine, qmap in per_engine.items()
+        }
         if collapsed:
             fact_recall_by_corpus[name] = collapsed
+
+    if skipped_corpora:
+        click.echo(
+            f"Fact recall skipped for {len(skipped_corpora)} corpora "
+            f"({', '.join(sorted(skipped_corpora))}): raw JSON predates "
+            "retrieved_chunk_contents. Rerun `age-bakeoff run` to regenerate."
+        )
 
     out_path = _RESULTS_DIR / "REPORT.md"
     report_text = generate_report(
