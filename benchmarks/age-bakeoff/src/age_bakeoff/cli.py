@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 
 import click
+from dotenv import load_dotenv
 
 from age_bakeoff.config import BakeoffConfig
 from age_bakeoff.cost import CostTracker
@@ -15,6 +16,11 @@ logger = logging.getLogger("age_bakeoff")
 
 _QUESTIONS_DIR = Path(__file__).resolve().parents[2] / "questions"
 _RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
+
+# pydantic-settings reads .env for BakeoffConfig fields but does NOT export to
+# os.environ. AsyncOpenAI() reads OPENAI_API_KEY from os.environ directly, so
+# without this call the CLI silently records every response as an auth error.
+load_dotenv(_RESULTS_DIR.parent / ".env")
 
 
 def _get_config() -> BakeoffConfig:
