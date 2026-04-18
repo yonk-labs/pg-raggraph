@@ -324,10 +324,65 @@ def report() -> None:
         click.echo("No results found. Run `age-bakeoff run` first.")
         return
 
+    # Compute fact recall + gather question classes from YAML question sets.
+    # Legacy raw JSON (pre retrieved_chunk_contents) is skipped gracefully so
+    # the report still generates; those rows will pick up fact recall on rerun.
+    from age_bakeoff.questions.schema import load_question_set
+    from age_bakeoff.scorers.fact_recall import score_fact_recall
+
+    fact_recall_by_corpus: dict[str, dict[str, dict[str, float]]] = {}
+    question_classes: dict[str, dict[str, object]] = {}
+
+    for name, results in results_by_corpus.items():
+        yaml_path = _QUESTIONS_DIR / f"{name}.yaml"
+        if not yaml_path.exists():
+            continue
+        try:
+            qset = load_question_set(yaml_path)
+        except Exception:
+            # Strict 30-question validator may reject small fixture sets;
+            # fall back to loose mode so the CLI still produces a report.
+            qset = load_question_set(yaml_path, strict=False)
+        q_by_id = {q.id: q for q in qset.questions}
+        question_classes[name] = {qid: q.question_class for qid, q in q_by_id.items()}
+
+        per_engine: dict[str, dict[str, object]] = {}
+        for r in results:
+            if r.error:
+                continue
+            q = q_by_id.get(r.question_id)
+            if not q:
+                continue
+            if not r.retrieved_chunk_contents:
+                # Raw JSON from before this change won't have contents — skip gracefully
+                continue
+            engine_bucket = per_engine.setdefault(r.engine, {})
+            # Aggregate per question: average across multiple runs
+            score = score_fact_recall(q, r.retrieved_chunk_contents)
+            existing = engine_bucket.get(r.question_id)
+            if existing is None:
+                engine_bucket[r.question_id] = [score]
+            elif isinstance(existing, list):
+                existing.append(score)
+                engine_bucket[r.question_id] = existing
+            else:
+                engine_bucket[r.question_id] = [existing, score]
+        # Collapse lists to means
+        collapsed: dict[str, dict[str, float]] = {}
+        for engine, qmap in per_engine.items():
+            collapsed[engine] = {
+                qid: (sum(scores) / len(scores) if isinstance(scores, list) else scores)
+                for qid, scores in qmap.items()
+            }
+        if collapsed:
+            fact_recall_by_corpus[name] = collapsed
+
     out_path = _RESULTS_DIR / "REPORT.md"
     report_text = generate_report(
         results_by_corpus=results_by_corpus,
+        fact_recall_by_corpus=fact_recall_by_corpus if fact_recall_by_corpus else None,
         judge_by_corpus=judge_by_corpus if judge_by_corpus else None,
+        question_classes=question_classes if question_classes else None,
         output_path=out_path,
     )
     click.echo(f"Report written to {out_path}")

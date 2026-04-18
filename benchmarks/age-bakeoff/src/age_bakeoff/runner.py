@@ -98,6 +98,7 @@ class Runner:
                                 retrieval_ms=retrieval.retrieval_ms,
                                 answer_ms=answer_ms,
                                 retrieved_chunk_ids=retrieval.retrieved_chunk_ids,
+                                retrieved_chunk_contents=retrieval.retrieved_chunk_contents,
                                 generated_answer=answer,
                             )
                         )

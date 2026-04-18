@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import pytest
-
 from age_bakeoff.models import QuestionClass, RunResult
 from age_bakeoff.report.aggregate import (
     group_by_engine,
@@ -141,3 +140,194 @@ def test_where_age_wins_section():
     report = generate_report({"acme": results})
     assert "Where AGE Wins" in report
     assert "faster" in report
+
+
+def test_report_includes_fact_recall_and_per_class_when_provided():
+    from age_bakeoff.models import QuestionClass, RunResult
+    from age_bakeoff.report.generator import generate_report
+
+    results = [
+        RunResult(engine="pgrg", corpus="acme", question_id="q1", run_number=1,
+                  cold=True, retrieval_ms=20.0, answer_ms=100.0,
+                  retrieved_chunk_ids=["a::1"], generated_answer="x"),
+        RunResult(engine="age", corpus="acme", question_id="q1", run_number=1,
+                  cold=True, retrieval_ms=40.0, answer_ms=110.0,
+                  retrieved_chunk_ids=["a::1"], generated_answer="y"),
+    ]
+    md = generate_report(
+        results_by_corpus={"acme": results},
+        fact_recall_by_corpus={"acme": {"pgrg": {"q1": 1.0}, "age": {"q1": 0.5}}},
+        question_classes={"acme": {"q1": QuestionClass.multi_hop_bridging}},
+    )
+    assert "### Fact Recall" in md
+    assert "### Per-Question-Class Latency Breakdown" in md
+    assert "multi_hop_bridging" in md
+
+
+def test_report_cli_computes_fact_recall_from_raw_and_questions(tmp_path, monkeypatch):
+    """CLI report command computes fact recall from retrieved_chunk_contents + gold required_facts."""
+    import json
+
+    from age_bakeoff import cli as cli_module
+    from click.testing import CliRunner
+
+    # Build a fixture tree mirroring what the CLI expects.
+    results_dir = tmp_path / "results"
+    raw_dir = results_dir / "raw"
+    raw_dir.mkdir(parents=True)
+    questions_dir = tmp_path / "questions"
+    questions_dir.mkdir()
+
+    # Minimal 2-question YAML (loose-mode parse, since <30 questions).
+    questions_yaml = """\
+corpus: tiny
+questions:
+  - id: tiny-q-001
+    question: "What is Alpha?"
+    gold_answer: "Alpha is a core concept."
+    required_facts: ["Alpha"]
+    required_entities: ["alpha"]
+    question_class: single_hop
+  - id: tiny-q-002
+    question: "How does Beta relate to Gamma?"
+    gold_answer: "Beta relates to Gamma through association."
+    required_facts: ["Beta", "Gamma"]
+    required_entities: ["beta", "gamma"]
+    question_class: multi_hop_bridging
+"""
+    (questions_dir / "tiny.yaml").write_text(questions_yaml)
+
+    # Raw results: pgrg retrieves chunks covering both facts; age misses Gamma.
+    raw_payload = [
+        {
+            "engine": "pgrg",
+            "corpus": "tiny",
+            "question_id": "tiny-q-001",
+            "run_number": 1,
+            "cold": True,
+            "retrieval_ms": 20.0,
+            "answer_ms": 100.0,
+            "retrieved_chunk_ids": ["c1"],
+            "retrieved_chunk_contents": ["Alpha is the first concept."],
+            "generated_answer": "Alpha answer",
+            "error": None,
+        },
+        {
+            "engine": "pgrg",
+            "corpus": "tiny",
+            "question_id": "tiny-q-002",
+            "run_number": 1,
+            "cold": True,
+            "retrieval_ms": 22.0,
+            "answer_ms": 105.0,
+            "retrieved_chunk_ids": ["c2"],
+            "retrieved_chunk_contents": ["Beta connects to Gamma via bridge."],
+            "generated_answer": "Beta-Gamma answer",
+            "error": None,
+        },
+        {
+            "engine": "age",
+            "corpus": "tiny",
+            "question_id": "tiny-q-001",
+            "run_number": 1,
+            "cold": True,
+            "retrieval_ms": 40.0,
+            "answer_ms": 110.0,
+            "retrieved_chunk_ids": ["c1"],
+            "retrieved_chunk_contents": ["Alpha is the first concept."],
+            "generated_answer": "Alpha answer age",
+            "error": None,
+        },
+        {
+            "engine": "age",
+            "corpus": "tiny",
+            "question_id": "tiny-q-002",
+            "run_number": 1,
+            "cold": True,
+            "retrieval_ms": 44.0,
+            "answer_ms": 115.0,
+            "retrieved_chunk_ids": ["c2"],
+            # Only covers Beta, not Gamma -> recall 0.5
+            "retrieved_chunk_contents": ["Beta stands alone."],
+            "generated_answer": "Beta answer age",
+            "error": None,
+        },
+    ]
+    (raw_dir / "tiny.json").write_text(json.dumps(raw_payload, indent=2))
+
+    # Point the CLI's module-level dirs at tmp_path.
+    monkeypatch.setattr(cli_module, "_RESULTS_DIR", results_dir)
+    monkeypatch.setattr(cli_module, "_QUESTIONS_DIR", questions_dir)
+
+    runner = CliRunner()
+    result = runner.invoke(cli_module.cli, ["report"])
+    assert result.exit_code == 0, result.output
+
+    out_path = results_dir / "REPORT.md"
+    assert out_path.exists()
+    md = out_path.read_text()
+    assert "### Fact Recall" in md
+    assert "### Per-Question-Class Latency Breakdown" in md
+    assert "multi_hop_bridging" in md
+    # pgrg covers 100% of facts on both questions -> mean 1.000
+    assert "1.000" in md
+    # age covers Alpha fully (1.0) and Beta/Gamma partially (0.5) -> min 0.500
+    assert "0.500" in md
+
+
+def test_report_cli_skips_legacy_rows_without_chunk_contents(tmp_path, monkeypatch):
+    """Legacy raw JSON rows (no retrieved_chunk_contents) should not crash or score 0."""
+    import json
+
+    from age_bakeoff import cli as cli_module
+    from click.testing import CliRunner
+
+    results_dir = tmp_path / "results"
+    raw_dir = results_dir / "raw"
+    raw_dir.mkdir(parents=True)
+    questions_dir = tmp_path / "questions"
+    questions_dir.mkdir()
+
+    (questions_dir / "legacy.yaml").write_text(
+        """\
+corpus: legacy
+questions:
+  - id: legacy-q-001
+    question: "What is Alpha?"
+    gold_answer: "Alpha is first."
+    required_facts: ["Alpha"]
+    required_entities: ["alpha"]
+    question_class: single_hop
+"""
+    )
+
+    # Legacy row has NO retrieved_chunk_contents key -- model default kicks in.
+    legacy_payload = [
+        {
+            "engine": "pgrg",
+            "corpus": "legacy",
+            "question_id": "legacy-q-001",
+            "run_number": 1,
+            "cold": True,
+            "retrieval_ms": 20.0,
+            "answer_ms": 100.0,
+            "retrieved_chunk_ids": ["c1"],
+            "generated_answer": "ans",
+            "error": None,
+        },
+    ]
+    (raw_dir / "legacy.json").write_text(json.dumps(legacy_payload, indent=2))
+
+    monkeypatch.setattr(cli_module, "_RESULTS_DIR", results_dir)
+    monkeypatch.setattr(cli_module, "_QUESTIONS_DIR", questions_dir)
+
+    runner = CliRunner()
+    result = runner.invoke(cli_module.cli, ["report"])
+    assert result.exit_code == 0, result.output
+
+    out_path = results_dir / "REPORT.md"
+    assert out_path.exists()
+    md = out_path.read_text()
+    # Report still generates; no fact-recall section should appear for this corpus
+    # (since all rows were skipped as legacy).
+    assert "AGE vs pg-raggraph Bake-off Report" in md

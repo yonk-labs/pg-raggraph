@@ -78,4 +78,5 @@ class RunResult(BaseModel):
     answer_ms: float
     retrieved_chunk_ids: list[str]
     generated_answer: str
+    retrieved_chunk_contents: list[str] = Field(default_factory=list)
     error: str | None = None
