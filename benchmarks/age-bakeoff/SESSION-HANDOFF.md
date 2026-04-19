@@ -1,156 +1,135 @@
-# Bake-off Follow-up — Session Handoff
+# Bake-off Follow-up — Session Handoff (2026-04-19 23:30 EDT)
 
-Last session ended: 2026-04-18 after Phase 2 benchmark sweep on acme + scotus. Git is clean; all work is committed. Latest commit: `300f8e5`.
+Previous handoff at end of 2026-04-18 session (commit `4762028`). Git tip is still `4762028`; this session has NOT committed. 15 modified files + 5 new files are uncommitted.
 
 ## TL;DR in plain English
 
-We ran a **head-to-head benchmark** comparing two ways to do GraphRAG (pg-raggraph vs Apache AGE). The original bake-off proved pg-raggraph is **47× faster on SCOTUS**, but *both* engines had low answer quality (17-37% "fully correct"). This follow-up phase was supposed to figure out why the quality is low and find a fix.
+Last session ran `naive` and `naive_boost` modes — the two modes we'd missed in Phase 2 — hypothesizing they'd clear DC-003's +10 pp fix-threshold. **Neither did** (best lift +3.3 pp = +1 question on scotus/pgrg). The blog's +18.9% naive_boost win turns out to have been on a **different corpus** (pg_agents, a 909-doc codebase) with a **different metric** (avg top_score + high-confidence count, not LLM-judged fully_correct). It didn't transfer to gold-labeled legal QA.
 
-**What we just did:**
-1. Built 3 diagnostic CLIs that inspect the retrieval pipeline without running benchmarks (gold-strictness, context-relevance, top-k-sweep). These are data-collection tools, not fixes.
-2. Added `--mode` and `--label` knobs so we can run the bench with pg-raggraph's different retrieval modes (`hybrid`, `smart`, `local`, `global`) without clobbering prior results.
-3. Ran the full bench on acme + scotus with all 4 modes × 2 engines (8 variants, 180 records each). Also ran all 3 diagnostics.
-4. Fixed 3 real bugs along the way:
-   - `CostTracker` wasn't wired up (SC-015 budget cap was advisory)
-   - `PgrgEngine._top_k` was only post-slicing, not driving retrieval (degenerate data above k=10)
-   - `.env` file wasn't being loaded into `os.environ` (caused a 16-min run of all-error records)
+The user's reaction was decisive: **30% accuracy is production-unacceptable. A +10 pp lift at 30% is noise in a broken system.** We pivoted off mode-shopping and onto a **pipeline-root-cause investigation** — the real question is why ~44% of required gold facts never reach the top-K retrieved chunks. If the gold-fact-bearing chunk isn't in the context, no mode / ranking tweak can recover it.
 
-**The headline:** Speed advantage holds (pg-raggraph 36ms vs AGE 2,389ms on scotus smart mode = **66× faster**). But the quality ceiling is real: **no mode switch moved "fully correct" by more than +2 questions** (out of 30) on any corpus. Best single improvement: pgrg `global` mode on acme (+2 absolute, +7 percentage points). Our bar to declare a fix was **+3 questions (+10 pp)**, so none qualify.
+We designed a **factorial chunking × embedding experiment** to isolate which upstream knob actually moves retrieval coverage. Plan is written at `docs/superpowers/plans/2026-04-19-factorial-chunking-embedding.md`. $0 spend, ~45-60 min local, 48 observations.
 
-**Total OpenAI spend: $0.59 / $50** — basically nothing.
+## What this session produced
 
-## What "pp" means
+### Code changes (uncommitted)
+- **`benchmarks/age-bakeoff/src/age_bakeoff/cli.py`**
+  - Added `naive_boost` to the `--mode` help text (line ~221)
+  - **Bug fix** (2 sites, lines ~345 and ~778): `judge` and `diagnose context-relevance` were skipping labelled raw JSONs (`acme__naive.json` etc.) when invoked with `--corpus acme --corpus scotus`, because the filter checked the raw filename stem rather than the base corpus. Fixed to filter via `_corpus_and_label_from_stem(name)`. Phase 2 results weren't affected because those runs used bare `judge` (no `--corpus` arg); this only bit us when the new harness passed `--corpus` explicitly.
+- **`benchmarks/age-bakeoff/src/age_bakeoff/config.py`** — comment listing valid modes updated to include `naive_boost`.
+- **`benchmarks/age-bakeoff/tests/test_config.py`** — `+23` lines, 2 new tests: `test_naive_boost_is_accepted_mode` and `test_all_pgrg_modes_accepted`. Test count 97 → 99.
+- **NEW `benchmarks/age-bakeoff/scripts/run-mode-sweep.sh`** — instrumented harness. Per-step `timeout 45m`, record-count verification on `results/raw/{corpus}__{label}.json`, diagnostic dump to `/tmp/bakeoff-stall-<ts>-<tag>/` on failure (log tail, `ps`, `docker stats`, both DBs' `pg_stat_activity` + blocked locks, disk free). **Reusable for Task 2.4, MSR, pg-src.** Why it exists: the first 2 subagent attempts at `run --mode naive --corpus scotus` both stalled silently around scotus AGE ingest. Root cause: the subagents combined `ScheduleWakeup` with a foreground Bash — suspending the agent killed its child process. Fix: always `run_in_background: true` for long Bash calls, and never combine them with ScheduleWakeup.
 
-"**pp**" = **percentage points**. It's the DIFFERENCE between two percentages:
-- "Raising from 17% to 27% is **+10 pp**" (10 percentage points added)
-- "Raising from 17% to 27% is **+59%**" (a 59% relative increase)
+### Data produced (uncommitted)
+- **`results/raw/acme__naive.json`, `acme__naive-boost.json`, `scotus__naive.json`, `scotus__naive-boost.json`** — 4 new labelled raw runs. Note: these are gitignored (via `benchmarks/age-bakeoff/.gitignore:5`) — only judge outputs get committed.
+- **`results/judge/acme__naive.json`, `acme__naive-boost.json`, `scotus__naive.json`, `scotus__naive-boost.json`** — new.
+- **`results/judge/{acme,acme__global,acme__local,acme__smart,scotus,scotus__global,scotus__local,scotus__smart}.json`** — re-judged (majority-vote is stochastic; verdicts shifted by 0-2 questions on each).
+- **`results/REPORT.md`** — regenerated, now covers all 12 corpus variants (`+222` lines vs prior).
+- **`results/cost-run.json` / `cost-judge.json`** — updated.
+- **NEW `results/diagnostics/FINDINGS.md`** — contains the pre-existing diagnostic analysis AND a new addendum documenting the naive_boost sweep, DC-003 verdict, and the two CLI bugs we fixed.
 
-We use pp because talking about the "absolute gap" between two accuracy numbers is less confusing than "was 17%, now 27% = 59% improvement."
+## Headline numbers
 
-## Your hypothesis (worth testing)
+`fully_correct` out of 30, per mode per (corpus, engine). Δ is percentage-points vs `hybrid` baseline (the plain `acme.json` / `scotus.json` unlabelled files).
 
-> "We had issues with getting acme and scotus results getting better with just age, when we looked at source code with more docs it switched heavily as we just did not have enough data points until then. Hoping that pg_source or the Microsoft benchmark will have an impact."
+| Mode | acme/age | acme/pgrg | scotus/age | scotus/pgrg | Best Δ |
+|---|---|---|---|---|---|
+| hybrid (baseline) | 5 | 5 | 11 | 10 | — |
+| smart | 4 (−3.3) | 6 (+3.3) | **12 (+3.3)** | 11 (+3.3) | +3.3 pp |
+| local | 4 (−3.3) | 6 (+3.3) | 11 (0) | 10 (0) | +3.3 pp |
+| global | **6 (+3.3)** | **7 (+6.7)** | 11 (0) | 10 (0) | **+6.7 pp** (acme/pgrg) |
+| **naive** | 4 (−3.3) | 4 (−3.3) | 11 (0) | 11 (+3.3) | +3.3 pp |
+| **naive_boost** | 4 (−3.3) | 4 (−3.3) | 11 (0) | 11 (+3.3) | +3.3 pp |
 
-That's a real possibility. Acme is a tiny fixture corpus (6 docs), SCOTUS is ~50 cases. Neither is big enough to stress multi-hop reasoning. Two bigger/harder corpora are still pending:
+**DC-003 threshold is +3 questions (+10 pp). No mode clears it on any cell.**
 
-1. **pg-src** (PostgreSQL executor + optimizer + full SGML docs, ~5-8K chunks). 30 questions already written. Extraction cache not yet run (~$1-2). Would be the "code corpus" showcase.
-2. **Microsoft GraphRAG benchmark datasets** (you added this mid-session):
-   - **HotPotQA Filtered** — industry-standard multi-hop QA benchmark (Yang et al. 2018). 12MB of text, thousands of gold-labeled questions. Sample ~60.
-   - **Kevin Scott Podcasts** — 125 thematic questions (Edge et al. 2024 — the GraphRAG paper). Tests the `global` mode specifically.
+Retrieval latency p50: pgrg scotus naive/naive_boost = **22-24 ms** (3× faster than smart at 36 ms, 3× faster than hybrid at 70 ms, **~100× faster than AGE at 2,175-2,599 ms**).
 
-Both are pending (Tasks 2.6.1 through 2.6.5). If pg-raggraph beats AGE on HotPotQA's multi-hop questions, that's the strongest possible validation of the bridging thesis.
+## What's known about the ceiling (cite when planning fixes)
 
-## Where things stand
+1. **Judge is fine.** `gold_strictness.json`: 0/30 paraphrased gold answers judged wrong or hallucinated.
+2. **Retrieval coverage is the ceiling.** `context_relevance.json`: ~44% of required gold facts never appear in any retrieved chunk at k=10 on scotus (17/38 pgrg, 16/38 age).
+3. **Ranking is not the fix.** `top_k_sweep.json`: k=10 → k=50 lifts scotus/age +5.83 pp, pgrg +0.00 pp. Under threshold.
+4. **Mode switches are not the fix.** Table above.
+5. **The blog's +18.9% is irrelevant to this benchmark.** `docs/modes.md:340` — measured on `pg_agents` codebase, 20 open-ended dev questions, metric was `avg top_score` + `high-confidence count` (router-routing signal, not answer correctness). Do not cite on scotus.
+6. **Retrieval gets ~55-60% of required facts at best** — that's the wall the mode sweep is hitting. Fixing ranking is deck-chair work at this level.
 
-### Completed (9 commits this session)
-- ✅ Task 0.1: CostTracker wired into runner + judge + CLI (`84bc2d0`, `da4b21b`)
-- ✅ Task 0.2: Fact recall + per-class wired into REPORT.md (`c5b7e1e`, `b835796`)
-- ✅ Task 1.1: `diagnose gold-strictness` CLI (`1f085e2`, `6ec9d32`)
-- ✅ Task 1.2: `diagnose context-relevance` CLI (`76d8ce2`, `3c51d63`)
-- ✅ Task 1.3: `diagnose top-k-sweep` CLI + PgrgEngine `_top_k` bug fix (`02fbeff`, `cb4c2d5`)
-- ✅ DC-001: drift check passed
-- ✅ Task 2.1: `--mode`/`--label` CLI knobs + downstream `__label` handling (`c2b3046`, `27ad78b`)
-- ✅ `load_dotenv()` fix in CLI (`10a30ef`)
-- ✅ Per-query timeout in runner (`f3e0b3c`)
-- ✅ Tasks 2.2 + 2.3: Smart/local/global modes run on acme + scotus + all 3 diagnostics (`300f8e5`)
+## The factorial experiment (next major work)
 
-**Tests: 97 passing**. Budget used: $0.59 of $50.
+**Plan:** `docs/superpowers/plans/2026-04-19-factorial-chunking-embedding.md`
 
-### Pending tasks (priority order)
+**Design (4 × 3 = 12 cells × 4 probes = 48 observations):**
 
-**Before DC-003 gate:**
-1. **Analyze top_k_sweep + context_relevance data** (NO spend) — the diagnostic JSONs exist at `results/diagnostics/`. If k=50 recovers 10%+ more required facts than k=10 misses, that's a candidate fix with no code change.
-2. **Task 2.4** — BM25 isolation via `--signals` knob (needs adding). ~$2. Tests which retrieval signal (vector / BM25 / graph) carries the most weight.
-3. **Phase 2.6** — MSR corpora (HotPotQA + Podcasts). ~$5-10. This is your hypothesis test.
-    - 2.6.1: fetch datasets
-    - 2.6.2: build loaders + convert CSV questions to YAML
-    - 2.6.3: LLM extraction (~$3-5)
-    - 2.6.4: run bake-off (all modes)
-    - 2.6.5: attribution blocks in REPORT/ARCHITECTURE/README
-4. **pg-src extraction + run** (Task 5.1, 5.2). ~$1-2 extraction + $2-3 bench. Same test as MSR — does a bigger/harder corpus change the picture?
-5. **Task 2.5** — Cross-encoder re-ranking (conditional). Only if 2.4 + MSR both flatline.
-6. **DC-003 gate** — did ANY experiment hit +10 pp? If yes: lock via regression test, proceed to Phase 3 writeup. If no: ship the research doc documenting why the ceiling is real.
+Chunking variants:
+- A: Current (sentence-aware, auto-detect)
+- B: Fixed-size + 50% overlap
+- C: Hierarchy-aware (section → paragraph, parent header attached)
+- D: Current + retrieval-time ±1 neighbor expansion (reuses A's index)
 
-**After DC-003:**
-7. **Phase 3**: Write `QUALITY-ANALYSIS.md` citing all the diagnostic JSONs
-8. **Phase 4**: Feature coverage tasks (SC-006 entity resolution, SC-007 incremental ingest, SC-008 concurrent queries, SC-009 AGE tuned indexes)
-9. **Phase 5**: pg-src corpus run if not done earlier
-10. **Phase 6**: Docs closeout (README, ARCHITECTURE, DC-FINAL)
+Embedding variants:
+- E1: `BAAI/bge-small-en-v1.5` (384-dim, current default)
+- E2: `BAAI/bge-base-en-v1.5` (768-dim)
+- E3: `nomic-ai/nomic-embed-text-v1.5` (768-dim, different family)
 
-### Known issues to resolve later
-- **Task #26**: Smart-mode hang on SCOTUS was worked around with a 120s per-query timeout — the real hang may still exist in `pg_raggraph/retrieval.py::_smart_query` or `_graph_boost` on large graphs. Didn't recur on the second run — timeout may have been a red herring.
-- **Task #25**: Upstream pg-raggraph design flaw — `GraphRAG.query()` should accept `top_k` as a kwarg instead of forcing callers to mutate `config.top_k`.
-- **Task #19**: Follow-up refactor — tracker prop-drill (7 files) → `contextvars.ContextVar`. Non-urgent.
+Probes:
+- `scotus-q-018` (semantic, fully_correct both engines — **control**)
+- `scotus-q-004` (factual, partially_correct — "legal issues in Bostock v. Clayton County")
+- `scotus-q-008` (single_hop, partially_correct — "justices who dissented in Apple v. Pepper")
+- `scotus-q-025` (multi_hop_bridging, wrong both — "justices who voted majority in Bostock AND dissented in Espinoza" — **thesis case**)
 
-## Key numbers from Phase 2 runs (from REPORT.md)
+**Measured per cell:** rank of first gold-containing chunk, top-10 hit, top-50 hit, per-fact recall @10. All pure-vector probes, $0 spend, ~45-60 min local.
 
-### Fully correct (out of 30 per variant per engine)
+**Output:** `results/diagnostics/factorial-probe.json` + `results/diagnostics/factorial-probe-REPORT.md`.
 
-| Corpus | Mode | pgrg | age |
-|---|---|---|---|
-| acme | baseline | 5 | 5 |
-| acme | global | **7** | 6 |
-| acme | local | 6 | 4 |
-| acme | smart | 6 | 4 |
-| scotus | baseline | 10 | 11 |
-| scotus | global | 10 | **12** |
-| scotus | local | 10 | 11 |
-| scotus | smart | **11** | 12 |
+**Decision rule:** If any cell lifts `required_facts_matched` on the 3 failing probes by ≥30%, adopt that config and rerun the full bake-off. If no cell moves meaningfully, the ceiling is entity-extraction coverage or gold-fact mismatch, and we move to a second forensic drill.
 
-### Retrieval latency p50
+## Task list on entry
 
-| Corpus | Mode | pgrg (ms) | age (ms) | ratio |
-|---|---|---|---|---|
-| acme | smart | 23 | 45 | 2× |
-| acme | local | 31 | 45 | 1.5× |
-| scotus | baseline | 60 | 2,863 | 47× |
-| **scotus** | **smart** | **36** | **2,389** | **66×** |
+Run `TaskList` to see current state. Snapshot of what was active at handoff:
 
-pg-raggraph is getting FASTER under smart mode on SCOTUS (60→36ms). That's a retrieval-infrastructure win independent of answer quality.
+| # | Status | Task |
+|---|---|---|
+| 1 | ✅ done | Analyze diagnostic JSONs (FINDINGS.md) |
+| 9 | ✅ done | Task 2.3b — naive + naive_boost modes (DC-003 not cleared; documented) |
+| **11** | **pending** | **Commit pending bake-off work (naive_boost sweep + harness + CLI fix) — 2 commits** |
+| **12** | **pending** | **Factorial chunking × embedding experiment** — blocks everything below until results inform next step |
+| 2 | pending (blocked by 12) | Task 2.4 — BM25 isolation via --signals knob |
+| 10 | pending (blocked by 12) | Harness: snapshot+restore via PG template databases |
+| 3, 4, 5, 6 | pending (blocked by 12) | Phase 2.6 MSR datasets (HotPotQA + Podcasts) |
+| 7 | pending (blocked by 12) | pg-src extraction + bake-off run |
+| 8 | pending (blocked by 12) | DC-003 fix-threshold gate |
 
-## How to restart in a new session
+**Task #12 is the gate.** Don't burn MSR / pg-src / BM25 spend on a broken pipeline.
 
-Copy-paste this prompt to resume:
+## How to restart cold
 
-```
-Continue the pg-raggraph bake-off follow-up work.
+1. Read this file.
+2. Read `results/diagnostics/FINDINGS.md` for the full ceiling diagnosis.
+3. Read `docs/superpowers/plans/2026-04-19-factorial-chunking-embedding.md` for the next experiment.
+4. Run `TaskList` — task **#11 comes first** (commit), then **#12** (factorial).
+5. Re-dispatch via `superpowers:subagent-driven-development` — same pattern: implementer → spec reviewer → code quality reviewer. **Critical rule learned this session:** subagents that run long Bash commands must use `run_in_background: true`, **never** `ScheduleWakeup`. ScheduleWakeup suspends the agent and kills child subprocesses silently — this caused two stall-then-abandon cycles.
 
-Context:
-- Mission brief: skill-output/mission-brief/Mission-Brief-bakeoff-followup.md
-- Original brief: skill-output/mission-brief/Mission-Brief-age-bakeoff.md
-- Plan: docs/superpowers/plans/2026-04-17-bakeoff-followup.md
-- Handoff doc: benchmarks/age-bakeoff/SESSION-HANDOFF.md (READ THIS FIRST)
+## Environment state at handoff
 
-Git state: main at commit 300f8e5, clean. Tests 97 passing. Budget used $0.59/$50.
+- Docker: `age-bakeoff-pgrg` (5434) and `age-bakeoff-age` (5435) both up healthy, 3+ days uptime.
+- PG data state: pgrg has scotus fully ingested (774 docs, 823 chunks, 420 entities, 4401 relationships); AGE has scotus graph but some ingest churn from the naive_boost runs. Safe to reuse. AGE DB does **not** snapshot state across runs — the bake-off runner re-ingests before every `run`. (Task #10 would fix this.)
+- `.env` with OPENAI_API_KEY wired via `load_dotenv()` at CLI entry.
+- Tests: 99 passing (97 + 2 new naive_boost tests).
+- Git: `main` at `4762028` (unchanged this session), 15 modified + 5 new files, nothing staged.
 
-Next priorities (in order):
-1. Analyze existing diagnostic data at results/diagnostics/{gold_strictness,context_relevance,top_k_sweep}.json — NO spend, just data mining.
-2. Task 2.4: BM25 isolation via --signals knob
-3. Phase 2.6: Microsoft GraphRAG benchmark (HotPotQA + Podcasts) — this is the big open test
-4. pg-src corpus run
-5. DC-003 fix-threshold gate
+## Budget
 
-User hypothesis to test: Acme + SCOTUS may be too small to differentiate engines. pg-src
-(bigger code corpus) and MSR benchmarks (real multi-hop questions) should reveal actual
-differences.
+| File | Total |
+|---|---|
+| `cost-run.json` | $0.2561 |
+| `cost-judge.json` | $0.0546 |
+| `cost-diagnose.json` | $0.0341 |
+| **Session total** | **$0.3448** |
+| **Phase total** | **~$0.94** (pre-session tally $0.59 + this session $0.34) |
+| **Budget remaining** | **$49.06 of $50** |
 
-Resume subagent-driven-development skill. Same pattern: implementer + spec reviewer + code quality reviewer per task. Docker containers still up (age-bakeoff-pgrg:5434, age-bakeoff-age:5435). .env has OPENAI_API_KEY. load_dotenv() already wired into cli.py.
-```
-
-## Key files to re-read on resume
-
-- `benchmarks/age-bakeoff/results/REPORT.md` — current numbers (8 corpus variants)
-- `benchmarks/age-bakeoff/results/diagnostics/*.json` — diagnostic data not yet analyzed
-- `benchmarks/age-bakeoff/TODO.md` — original TODO list (some items still live)
-- `docs/superpowers/plans/2026-04-17-bakeoff-followup.md` — full execution plan with DC gates
-- `skill-output/mission-brief/Mission-Brief-bakeoff-followup.md` — Success Criteria SC-001 through SC-016
-
-## Cost tracking
+## One-line next-session prompt
 
 ```
-results/cost-run.json       $0.3359  (360 benchmark-run calls)
-results/cost-judge.json     $0.2177  (1440 judge calls, majority-vote)
-results/cost-diagnose.json  $0.0341  (80 diagnostic calls)
---------------------------------------------------------
-Total                       $0.5877  of $50 budget ($49.41 remaining)
+Resume pg-raggraph bake-off follow-up. Read benchmarks/age-bakeoff/SESSION-HANDOFF.md first, then docs/superpowers/plans/2026-04-19-factorial-chunking-embedding.md. Run TaskList. Priority: Task #11 (commit uncommitted work, 2 commits) then Task #12 (factorial chunking×embedding experiment, $0 spend). Budget $49/50 remaining.
 ```

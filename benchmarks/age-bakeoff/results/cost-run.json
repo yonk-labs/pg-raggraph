@@ -2,11 +2,11 @@
   "budget_usd": 50.0,
   "by_model": {
     "gpt-4.1-mini": {
-      "calls": 360,
-      "completion_tokens": 16463,
-      "prompt_tokens": 773838,
-      "usd": 0.33587599999999984
+      "calls": 180,
+      "completion_tokens": 9539,
+      "prompt_tokens": 602028,
+      "usd": 0.25607359999999996
     }
   },
-  "total_usd": 0.33587599999999984
+  "total_usd": 0.25607359999999996
 }
