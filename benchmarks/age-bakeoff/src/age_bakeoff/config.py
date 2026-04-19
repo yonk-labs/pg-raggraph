@@ -18,7 +18,7 @@ class BakeoffConfig(BaseSettings):
     top_k: int = 10
     hop_budget: int = 2
     cost_budget_usd: float = 25.0
-    # pg-raggraph retrieval mode (hybrid|smart|local|global|naive). Only the
+    # pg-raggraph retrieval mode (hybrid|smart|local|global|naive|naive_boost). Only the
     # pgrg engine honours this; AGE has a fixed retrieval strategy.
     retrieval_mode: str = Field(
         default="hybrid",

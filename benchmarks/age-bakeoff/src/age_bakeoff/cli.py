@@ -218,7 +218,7 @@ def ingest(corpus: tuple[str, ...]) -> None:
     "--mode",
     default=None,
     help=(
-        "pg-raggraph retrieval mode: hybrid|smart|local|global|naive "
+        "pg-raggraph retrieval mode: hybrid|smart|local|global|naive|naive_boost "
         "(overrides config; only affects the pgrg engine)"
     ),
 )
@@ -342,12 +342,13 @@ def judge(corpus: tuple[str, ...], budget_usd: float) -> None:
         client = AsyncOpenAI()
         for json_file in sorted(raw_dir.glob("*.json")):
             name = json_file.stem
-            if corpus and name not in corpus:
-                continue
-
             # Labelled raw JSON (acme__smart.json) shares its question set with
             # the baseline — look up questions/{base}.yaml, not {name}.yaml.
+            # Filter `--corpus` against the base, so `--corpus acme` matches
+            # both `acme.json` and `acme__*.json` (SC-003/004/005 labels).
             base, _label = _corpus_and_label_from_stem(name)
+            if corpus and base not in corpus:
+                continue
             yaml_path = _QUESTIONS_DIR / f"{base}.yaml"
             if not yaml_path.exists():
                 click.echo(f"No question set for {name}, skipping judge")
@@ -775,7 +776,9 @@ def context_relevance_cmd(
         name = json_file.stem
         if name.startswith("cost-"):
             continue  # defensive; raw_dir shouldn't hold cost files anyway
-        if corpus and name not in corpus:
+        # `--corpus acme` must match labelled variants like `acme__smart` too.
+        base, _label = _corpus_and_label_from_stem(name)
+        if corpus and base not in corpus:
             continue
         rows = json.loads(json_file.read_text())
         raw_rows_by_corpus[name] = rows
