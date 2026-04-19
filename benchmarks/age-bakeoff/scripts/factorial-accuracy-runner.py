@@ -15,6 +15,7 @@ Writes:
 """
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import logging
@@ -28,6 +29,10 @@ import yaml
 from dotenv import load_dotenv
 from fastembed import TextEmbedding
 from openai import AsyncOpenAI
+
+# Register chunkshop's int8 fastembed variants so --precision int8 can resolve
+# Xenova/bge-*-int8 model names.
+import chunkshop.embedders  # noqa: F401
 
 # ── env ──────────────────────────────────────────────────────────────────────
 load_dotenv()
@@ -50,21 +55,42 @@ _OUT_RATE = 1.60 / 1_000_000
 HARD_BUDGET_USD = 4.0
 CELL_CONCURRENCY = 4
 
-CELLS = [
-    # (chunking, embedding, table, model_name, dim)
-    ("A", "bge-small", "a_bge_small", "BAAI/bge-small-en-v1.5", 384),
-    ("A", "bge-base",  "a_bge_base",  "BAAI/bge-base-en-v1.5",  768),
-    ("A", "nomic",     "a_nomic",     "nomic-ai/nomic-embed-text-v1.5", 768),
-    ("B", "bge-small", "b_bge_small", "BAAI/bge-small-en-v1.5", 384),
-    ("B", "bge-base",  "b_bge_base",  "BAAI/bge-base-en-v1.5",  768),
-    ("B", "nomic",     "b_nomic",     "nomic-ai/nomic-embed-text-v1.5", 768),
-    ("C", "bge-small", "c_bge_small", "BAAI/bge-small-en-v1.5", 384),
-    ("C", "bge-base",  "c_bge_base",  "BAAI/bge-base-en-v1.5",  768),
-    ("C", "nomic",     "c_nomic",     "nomic-ai/nomic-embed-text-v1.5", 768),
-    ("D", "bge-small", "d_bge_small", "BAAI/bge-small-en-v1.5", 384),
-    ("D", "bge-base",  "d_bge_base",  "BAAI/bge-base-en-v1.5",  768),
-    ("D", "nomic",     "d_nomic",     "nomic-ai/nomic-embed-text-v1.5", 768),
+_CELL_ROWS = [
+    # (chunking, embedding, table, fp32_model, int8_model, dim)
+    ("A", "bge-small", "a_bge_small",
+     "BAAI/bge-small-en-v1.5", "Xenova/bge-small-en-v1.5-int8", 384),
+    ("A", "bge-base",  "a_bge_base",
+     "BAAI/bge-base-en-v1.5", "Xenova/bge-base-en-v1.5-int8", 768),
+    ("A", "nomic",     "a_nomic",
+     "nomic-ai/nomic-embed-text-v1.5", "nomic-ai/nomic-embed-text-v1.5-Q", 768),
+    ("B", "bge-small", "b_bge_small",
+     "BAAI/bge-small-en-v1.5", "Xenova/bge-small-en-v1.5-int8", 384),
+    ("B", "bge-base",  "b_bge_base",
+     "BAAI/bge-base-en-v1.5", "Xenova/bge-base-en-v1.5-int8", 768),
+    ("B", "nomic",     "b_nomic",
+     "nomic-ai/nomic-embed-text-v1.5", "nomic-ai/nomic-embed-text-v1.5-Q", 768),
+    ("C", "bge-small", "c_bge_small",
+     "BAAI/bge-small-en-v1.5", "Xenova/bge-small-en-v1.5-int8", 384),
+    ("C", "bge-base",  "c_bge_base",
+     "BAAI/bge-base-en-v1.5", "Xenova/bge-base-en-v1.5-int8", 768),
+    ("C", "nomic",     "c_nomic",
+     "nomic-ai/nomic-embed-text-v1.5", "nomic-ai/nomic-embed-text-v1.5-Q", 768),
+    ("D", "bge-small", "d_bge_small",
+     "BAAI/bge-small-en-v1.5", "Xenova/bge-small-en-v1.5-int8", 384),
+    ("D", "bge-base",  "d_bge_base",
+     "BAAI/bge-base-en-v1.5", "Xenova/bge-base-en-v1.5-int8", 768),
+    ("D", "nomic",     "d_nomic",
+     "nomic-ai/nomic-embed-text-v1.5", "nomic-ai/nomic-embed-text-v1.5-Q", 768),
 ]
+
+
+def cells_for(precision: str) -> list[tuple]:
+    idx = 3 if precision == "fp32" else 4
+    return [(r[0], r[1], r[2], r[idx], r[5]) for r in _CELL_ROWS]
+
+
+def schema_for(precision: str) -> str:
+    return "factorial" if precision == "fp32" else "factorial_int8"
 
 # ── answer + judge prompts (reused from age_bakeoff.engines.openai_answerer
 #    and age_bakeoff.scorers.llm_judge for result comparability) ───────────────
@@ -127,11 +153,11 @@ def embed_query(embedder: TextEmbedding, text: str) -> str:
     return "[" + ",".join(f"{x:.6f}" for x in vec) + "]"
 
 
-def vector_search(conn: psycopg.Connection, table: str, vec_lit: str, limit: int = 10) -> list[dict]:
+def vector_search(conn: psycopg.Connection, schema: str, table: str, vec_lit: str, limit: int = 10) -> list[dict]:
     with conn.cursor() as cur:
         cur.execute(
             f"SELECT id, doc_id, seq_num, original_content, metadata "
-            f"FROM factorial.{table} "
+            f"FROM {schema}.{table} "
             f"ORDER BY embedding <=> %s::vector LIMIT %s",
             (vec_lit, limit),
         )
@@ -198,6 +224,7 @@ async def run_cell(
     embedding: str,
     table: str,
     model_name: str,
+    schema: str,
     questions: list[dict],
     dsn: str,
     embedder_cache: dict[str, TextEmbedding],
@@ -217,7 +244,7 @@ async def run_cell(
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    f"SELECT COUNT(*), COUNT(DISTINCT doc_id) FROM factorial.{table}"
+                    f"SELECT COUNT(*), COUNT(DISTINCT doc_id) FROM {schema}.{table}"
                 )
                 n_chunks, n_docs = cur.fetchone()
 
@@ -239,7 +266,7 @@ async def run_cell(
 
                 # 2. Vector search
                 t_ret = time.perf_counter()
-                chunks = vector_search(conn, table, vec_lit, limit=10)
+                chunks = vector_search(conn, schema, table, vec_lit, limit=10)
                 retrieval_ms = (time.perf_counter() - t_ret) * 1000
 
                 # 3. Generate answer
@@ -305,6 +332,16 @@ async def run_cell(
 
 
 async def main() -> None:
+    parser = argparse.ArgumentParser(description="End-to-end accuracy across 12 factorial cells")
+    parser.add_argument("--precision", choices=["fp32", "int8"], default="fp32",
+                        help="Which schema / embedders to benchmark")
+    parser.add_argument("--output-suffix", default=None,
+                        help="File suffix for outputs. Default: matches --precision")
+    args = parser.parse_args()
+    suffix = args.output_suffix or args.precision
+    schema = schema_for(args.precision)
+    cells = cells_for(args.precision)
+
     # Accept either the explicit env var or the .env fallback key
     dsn = os.environ.get("AGE_BAKEOFF_PGRG_DSN") or os.environ.get("PGRG_DSN")
     if not dsn:
@@ -343,10 +380,10 @@ async def main() -> None:
     t_wall = time.perf_counter()
     tasks = [
         run_cell(
-            chunking, embedding, table, model_name,
+            chunking, embedding, table, model_name, schema,
             questions, dsn, embedder_cache, client, tracker, semaphore,
         )
-        for chunking, embedding, table, model_name, _ in CELLS
+        for chunking, embedding, table, model_name, _ in cells
     ]
     variants = await asyncio.gather(*tasks)
     wall_sec = time.perf_counter() - t_wall
@@ -355,7 +392,8 @@ async def main() -> None:
     result = {
         "experiment": "factorial-accuracy",
         "corpus": "scotus",
-        "precision": "fp32",
+        "precision": args.precision,
+        "schema": schema,
         "generated_at": generated_at,
         "model_gen": MODEL_GEN,
         "model_judge": MODEL_JUDGE,
@@ -364,7 +402,7 @@ async def main() -> None:
         "variants": list(variants),
     }
 
-    json_path = out_dir / "factorial-accuracy-fp32.json"
+    json_path = out_dir / f"factorial-accuracy-{suffix}.json"
     json_path.write_text(json.dumps(result, indent=2))
     print(f"\nWrote {json_path}", flush=True)
 
@@ -381,7 +419,7 @@ async def main() -> None:
     best = sorted_variants[0]
 
     lines: list[str] = []
-    lines.append("# Factorial End-to-End Accuracy Report (fp32)\n")
+    lines.append(f"# Factorial End-to-End Accuracy Report ({args.precision})\n")
     lines.append(f"Generated: {generated_at}  |  Model gen/judge: {MODEL_GEN}  |  Wall time: {wall_sec/60:.1f} min")
     lines.append(f"\nTotal cost: **${tracker.total_usd:.4f}**\n")
 
@@ -424,7 +462,7 @@ async def main() -> None:
     )
     lines.append(f"\n**DECISION: {decision}**\n")
 
-    md_path = out_dir / "factorial-accuracy-fp32-REPORT.md"
+    md_path = out_dir / f"factorial-accuracy-{suffix}-REPORT.md"
     md_path.write_text("\n".join(lines) + "\n")
     print(f"Wrote {md_path}", flush=True)
 

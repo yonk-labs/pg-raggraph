@@ -18,6 +18,7 @@ Writes:
   - results/diagnostics/factorial-probe-REPORT.md (TL;DR + 12-row ranked table + DECISION line)
 """
 from __future__ import annotations
+import argparse
 import json
 import os
 import sys
@@ -28,24 +29,50 @@ import psycopg
 import yaml
 from fastembed import TextEmbedding
 
+# chunkshop is installed as a path dep; importing registers int8 variants
+# (Xenova/bge-*-int8 + nomic -Q) before we look up any embedder.
+import chunkshop.embedders  # noqa: F401
+
 PROBES = ["scotus-q-018", "scotus-q-004", "scotus-q-008", "scotus-q-025"]
 FAILING_PROBES = ["scotus-q-004", "scotus-q-008", "scotus-q-025"]
 
-CELLS = [
-    # (chunking, embedding, table, model_name, dim)
-    ("A", "bge-small", "a_bge_small", "BAAI/bge-small-en-v1.5", 384),
-    ("A", "bge-base",  "a_bge_base",  "BAAI/bge-base-en-v1.5",  768),
-    ("A", "nomic",     "a_nomic",     "nomic-ai/nomic-embed-text-v1.5", 768),
-    ("B", "bge-small", "b_bge_small", "BAAI/bge-small-en-v1.5", 384),
-    ("B", "bge-base",  "b_bge_base",  "BAAI/bge-base-en-v1.5",  768),
-    ("B", "nomic",     "b_nomic",     "nomic-ai/nomic-embed-text-v1.5", 768),
-    ("C", "bge-small", "c_bge_small", "BAAI/bge-small-en-v1.5", 384),
-    ("C", "bge-base",  "c_bge_base",  "BAAI/bge-base-en-v1.5",  768),
-    ("C", "nomic",     "c_nomic",     "nomic-ai/nomic-embed-text-v1.5", 768),
-    ("D", "bge-small", "d_bge_small", "BAAI/bge-small-en-v1.5", 384),
-    ("D", "bge-base",  "d_bge_base",  "BAAI/bge-base-en-v1.5",  768),
-    ("D", "nomic",     "d_nomic",     "nomic-ai/nomic-embed-text-v1.5", 768),
+_CELL_ROWS = [
+    # (chunking, embedding, table, fp32_model, int8_model, dim)
+    ("A", "bge-small", "a_bge_small",
+     "BAAI/bge-small-en-v1.5", "Xenova/bge-small-en-v1.5-int8", 384),
+    ("A", "bge-base",  "a_bge_base",
+     "BAAI/bge-base-en-v1.5", "Xenova/bge-base-en-v1.5-int8", 768),
+    ("A", "nomic",     "a_nomic",
+     "nomic-ai/nomic-embed-text-v1.5", "nomic-ai/nomic-embed-text-v1.5-Q", 768),
+    ("B", "bge-small", "b_bge_small",
+     "BAAI/bge-small-en-v1.5", "Xenova/bge-small-en-v1.5-int8", 384),
+    ("B", "bge-base",  "b_bge_base",
+     "BAAI/bge-base-en-v1.5", "Xenova/bge-base-en-v1.5-int8", 768),
+    ("B", "nomic",     "b_nomic",
+     "nomic-ai/nomic-embed-text-v1.5", "nomic-ai/nomic-embed-text-v1.5-Q", 768),
+    ("C", "bge-small", "c_bge_small",
+     "BAAI/bge-small-en-v1.5", "Xenova/bge-small-en-v1.5-int8", 384),
+    ("C", "bge-base",  "c_bge_base",
+     "BAAI/bge-base-en-v1.5", "Xenova/bge-base-en-v1.5-int8", 768),
+    ("C", "nomic",     "c_nomic",
+     "nomic-ai/nomic-embed-text-v1.5", "nomic-ai/nomic-embed-text-v1.5-Q", 768),
+    ("D", "bge-small", "d_bge_small",
+     "BAAI/bge-small-en-v1.5", "Xenova/bge-small-en-v1.5-int8", 384),
+    ("D", "bge-base",  "d_bge_base",
+     "BAAI/bge-base-en-v1.5", "Xenova/bge-base-en-v1.5-int8", 768),
+    ("D", "nomic",     "d_nomic",
+     "nomic-ai/nomic-embed-text-v1.5", "nomic-ai/nomic-embed-text-v1.5-Q", 768),
 ]
+
+
+def cells_for(precision: str) -> list[tuple]:
+    """Return [(chunking, embedding, table, model_name, dim), ...] for the precision."""
+    idx = 3 if precision == "fp32" else 4
+    return [(r[0], r[1], r[2], r[idx], r[5]) for r in _CELL_ROWS]
+
+
+def schema_for(precision: str) -> str:
+    return "factorial" if precision == "fp32" else "factorial_int8"
 
 
 def load_probes(yaml_path: Path) -> dict:
@@ -54,14 +81,14 @@ def load_probes(yaml_path: Path) -> dict:
     return {qid: by_id[qid] for qid in PROBES}
 
 
-def probe_cell(conn, table: str, probes: dict, embedder: TextEmbedding) -> dict:
+def probe_cell(conn, schema: str, table: str, probes: dict, embedder: TextEmbedding) -> dict:
     results = {}
     for qid, q in probes.items():
         qvec = list(embedder.embed([q["question"]]))[0].tolist()
         vec_lit = "[" + ",".join(f"{x:.6f}" for x in qvec) + "]"
         with conn.cursor() as cur:
             cur.execute(
-                f"SELECT id, original_content FROM factorial.{table} "
+                f"SELECT id, original_content FROM {schema}.{table} "
                 "ORDER BY embedding <=> %s::vector LIMIT 50",
                 (vec_lit,),
             )
@@ -99,6 +126,17 @@ def probe_cell(conn, table: str, probes: dict, embedder: TextEmbedding) -> dict:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Probe factorial.* tables with 4 scotus questions")
+    parser.add_argument("--precision", choices=["fp32", "int8"], default="fp32",
+                        help="Which schema / embedders to probe (fp32 -> factorial.*, int8 -> factorial_int8.*)")
+    parser.add_argument("--output-suffix", default=None,
+                        help="File suffix for outputs. Default: matches --precision (fp32 or int8)")
+    args = parser.parse_args()
+
+    suffix = args.output_suffix or args.precision
+    schema = schema_for(args.precision)
+    cells = cells_for(args.precision)
+
     root = Path(__file__).resolve().parent.parent
     probes_path = root / "questions" / "scotus.yaml"
     out_dir = root / "results" / "diagnostics"
@@ -118,30 +156,33 @@ def main():
     out = {
         "experiment": "factorial-chunking-embedding",
         "corpus": "scotus",
+        "precision": args.precision,
+        "schema": schema,
         "probes": list(probes.keys()),
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "variants": [],
     }
 
     with psycopg.connect(dsn) as conn:
-        for chunking, embedding, table, model_name, dim in CELLS:
-            print(f"[probe] cell {chunking}/{embedding} -> factorial.{table}", flush=True)
+        for chunking, embedding, table, model_name, dim in cells:
+            print(f"[probe] cell {chunking}/{embedding} -> {schema}.{table}  ({model_name})", flush=True)
             emb = get_embedder(model_name)
             with conn.cursor() as cur:
-                cur.execute(f"SELECT COUNT(*), COUNT(DISTINCT doc_id) FROM factorial.{table}")
+                cur.execute(f"SELECT COUNT(*), COUNT(DISTINCT doc_id) FROM {schema}.{table}")
                 n_chunks, n_docs = cur.fetchone()
-            per_probe = probe_cell(conn, table, probes, emb)
+            per_probe = probe_cell(conn, schema, table, probes, emb)
             out["variants"].append({
                 "chunking": chunking,
                 "embedding": embedding,
                 "table": table,
+                "model_name": model_name,
                 "n_chunks": n_chunks,
                 "n_docs": n_docs,
                 "embed_dim": dim,
                 "per_probe": per_probe,
             })
 
-    json_path = out_dir / "factorial-probe.json"
+    json_path = out_dir / f"factorial-probe-{suffix}.json"
     json_path.write_text(json.dumps(out, indent=2))
 
     # Build report
@@ -203,7 +244,7 @@ def main():
             decision = "NO_LIFT_NEXT=ENTITY_DRILL"
         lines.append(f"DECISION: {decision}\n")
 
-    md_path = out_dir / "factorial-probe-REPORT.md"
+    md_path = out_dir / f"factorial-probe-{suffix}-REPORT.md"
     md_path.write_text("\n".join(lines))
     print(f"[probe] wrote {json_path} and {md_path}", flush=True)
 
