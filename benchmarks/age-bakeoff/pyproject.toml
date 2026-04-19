@@ -5,6 +5,7 @@ description = "Head-to-head benchmark: Apache AGE vs pg-raggraph"
 requires-python = ">=3.12"
 dependencies = [
     "pg-raggraph",
+    "chunkshop",
     "openai>=1.50",
     "psycopg[binary]>=3.2",
     "pydantic>=2.7",
@@ -31,6 +32,7 @@ age-bakeoff = "age_bakeoff.cli:cli"
 # Run `uv sync --extra dev` from this directory (benchmarks/age-bakeoff/).
 [tool.uv.sources]
 pg-raggraph = { path = "../..", editable = true }
+chunkshop = { path = "../../../chunkshop/python", editable = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
