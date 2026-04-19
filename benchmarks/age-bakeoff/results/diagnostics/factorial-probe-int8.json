@@ -1,0 +1,810 @@
+{
+  "experiment": "factorial-chunking-embedding",
+  "corpus": "scotus",
+  "precision": "int8",
+  "schema": "factorial_int8",
+  "probes": [
+    "scotus-q-018",
+    "scotus-q-004",
+    "scotus-q-008",
+    "scotus-q-025"
+  ],
+  "generated_at": "2026-04-19T17:49:08",
+  "variants": [
+    {
+      "chunking": "A",
+      "embedding": "bge-small",
+      "table": "a_bge_small",
+      "model_name": "Xenova/bge-small-en-v1.5-int8",
+      "n_chunks": 816,
+      "n_docs": 772,
+      "embed_dim": 384,
+      "per_probe": {
+        "scotus-q-018": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 1.0,
+          "required_facts_matched": [
+            "Rucho v. Common Cause",
+            "partisan gerrymandering",
+            "political questions"
+          ],
+          "required_facts_missed": []
+        },
+        "scotus-q-004": {
+          "rank_of_first_gold_chunk": 5,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.25,
+          "required_facts_matched": [
+            "Civil Rights"
+          ],
+          "required_facts_missed": [
+            "Bostock v. Clayton County",
+            "Due Process",
+            "Labor Law"
+          ]
+        },
+        "scotus-q-008": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Clarence Thomas",
+            "Neil Gorsuch"
+          ],
+          "required_facts_missed": [
+            "Apple v. Pepper"
+          ]
+        },
+        "scotus-q-025": {
+          "rank_of_first_gold_chunk": 3,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.5,
+          "required_facts_matched": [
+            "Elena Kagan",
+            "Ruth Bader Ginsburg",
+            "Sonia Sotomayor"
+          ],
+          "required_facts_missed": [
+            "Bostock",
+            "Espinoza",
+            "Stephen G. Breyer"
+          ]
+        }
+      }
+    },
+    {
+      "chunking": "A",
+      "embedding": "bge-base",
+      "table": "a_bge_base",
+      "model_name": "Xenova/bge-base-en-v1.5-int8",
+      "n_chunks": 816,
+      "n_docs": 772,
+      "embed_dim": 768,
+      "per_probe": {
+        "scotus-q-018": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 1.0,
+          "required_facts_matched": [
+            "Rucho v. Common Cause",
+            "partisan gerrymandering",
+            "political questions"
+          ],
+          "required_facts_missed": []
+        },
+        "scotus-q-004": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.5,
+          "required_facts_matched": [
+            "Civil Rights",
+            "Due Process"
+          ],
+          "required_facts_missed": [
+            "Bostock v. Clayton County",
+            "Labor Law"
+          ]
+        },
+        "scotus-q-008": {
+          "rank_of_first_gold_chunk": 3,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Clarence Thomas",
+            "Neil Gorsuch"
+          ],
+          "required_facts_missed": [
+            "Apple v. Pepper"
+          ]
+        },
+        "scotus-q-025": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.8333,
+          "required_facts_matched": [
+            "Bostock",
+            "Elena Kagan",
+            "Espinoza",
+            "Ruth Bader Ginsburg",
+            "Sonia Sotomayor"
+          ],
+          "required_facts_missed": [
+            "Stephen G. Breyer"
+          ]
+        }
+      }
+    },
+    {
+      "chunking": "A",
+      "embedding": "nomic",
+      "table": "a_nomic",
+      "model_name": "nomic-ai/nomic-embed-text-v1.5-Q",
+      "n_chunks": 816,
+      "n_docs": 772,
+      "embed_dim": 768,
+      "per_probe": {
+        "scotus-q-018": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Rucho v. Common Cause",
+            "partisan gerrymandering"
+          ],
+          "required_facts_missed": [
+            "political questions"
+          ]
+        },
+        "scotus-q-004": {
+          "rank_of_first_gold_chunk": 6,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.25,
+          "required_facts_matched": [
+            "Due Process"
+          ],
+          "required_facts_missed": [
+            "Bostock v. Clayton County",
+            "Civil Rights",
+            "Labor Law"
+          ]
+        },
+        "scotus-q-008": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Clarence Thomas",
+            "Neil Gorsuch"
+          ],
+          "required_facts_missed": [
+            "Apple v. Pepper"
+          ]
+        },
+        "scotus-q-025": {
+          "rank_of_first_gold_chunk": 2,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Elena Kagan",
+            "Espinoza",
+            "Ruth Bader Ginsburg",
+            "Sonia Sotomayor"
+          ],
+          "required_facts_missed": [
+            "Bostock",
+            "Stephen G. Breyer"
+          ]
+        }
+      }
+    },
+    {
+      "chunking": "B",
+      "embedding": "bge-small",
+      "table": "b_bge_small",
+      "model_name": "Xenova/bge-small-en-v1.5-int8",
+      "n_chunks": 1107,
+      "n_docs": 772,
+      "embed_dim": 384,
+      "per_probe": {
+        "scotus-q-018": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 1.0,
+          "required_facts_matched": [
+            "Rucho v. Common Cause",
+            "partisan gerrymandering",
+            "political questions"
+          ],
+          "required_facts_missed": []
+        },
+        "scotus-q-004": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.25,
+          "required_facts_matched": [
+            "Civil Rights"
+          ],
+          "required_facts_missed": [
+            "Bostock v. Clayton County",
+            "Due Process",
+            "Labor Law"
+          ]
+        },
+        "scotus-q-008": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Clarence Thomas",
+            "Neil Gorsuch"
+          ],
+          "required_facts_missed": [
+            "Apple v. Pepper"
+          ]
+        },
+        "scotus-q-025": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Bostock",
+            "Elena Kagan",
+            "Ruth Bader Ginsburg",
+            "Sonia Sotomayor"
+          ],
+          "required_facts_missed": [
+            "Espinoza",
+            "Stephen G. Breyer"
+          ]
+        }
+      }
+    },
+    {
+      "chunking": "B",
+      "embedding": "bge-base",
+      "table": "b_bge_base",
+      "model_name": "Xenova/bge-base-en-v1.5-int8",
+      "n_chunks": 1107,
+      "n_docs": 772,
+      "embed_dim": 768,
+      "per_probe": {
+        "scotus-q-018": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 1.0,
+          "required_facts_matched": [
+            "Rucho v. Common Cause",
+            "partisan gerrymandering",
+            "political questions"
+          ],
+          "required_facts_missed": []
+        },
+        "scotus-q-004": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.25,
+          "required_facts_matched": [
+            "Civil Rights"
+          ],
+          "required_facts_missed": [
+            "Bostock v. Clayton County",
+            "Due Process",
+            "Labor Law"
+          ]
+        },
+        "scotus-q-008": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Clarence Thomas",
+            "Neil Gorsuch"
+          ],
+          "required_facts_missed": [
+            "Apple v. Pepper"
+          ]
+        },
+        "scotus-q-025": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.8333,
+          "required_facts_matched": [
+            "Bostock",
+            "Elena Kagan",
+            "Espinoza",
+            "Ruth Bader Ginsburg",
+            "Sonia Sotomayor"
+          ],
+          "required_facts_missed": [
+            "Stephen G. Breyer"
+          ]
+        }
+      }
+    },
+    {
+      "chunking": "B",
+      "embedding": "nomic",
+      "table": "b_nomic",
+      "model_name": "nomic-ai/nomic-embed-text-v1.5-Q",
+      "n_chunks": 1107,
+      "n_docs": 772,
+      "embed_dim": 768,
+      "per_probe": {
+        "scotus-q-018": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Rucho v. Common Cause",
+            "partisan gerrymandering"
+          ],
+          "required_facts_missed": [
+            "political questions"
+          ]
+        },
+        "scotus-q-004": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.5,
+          "required_facts_matched": [
+            "Civil Rights",
+            "Due Process"
+          ],
+          "required_facts_missed": [
+            "Bostock v. Clayton County",
+            "Labor Law"
+          ]
+        },
+        "scotus-q-008": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Clarence Thomas",
+            "Neil Gorsuch"
+          ],
+          "required_facts_missed": [
+            "Apple v. Pepper"
+          ]
+        },
+        "scotus-q-025": {
+          "rank_of_first_gold_chunk": 2,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.5,
+          "required_facts_matched": [
+            "Elena Kagan",
+            "Ruth Bader Ginsburg",
+            "Sonia Sotomayor"
+          ],
+          "required_facts_missed": [
+            "Bostock",
+            "Espinoza",
+            "Stephen G. Breyer"
+          ]
+        }
+      }
+    },
+    {
+      "chunking": "C",
+      "embedding": "bge-small",
+      "table": "c_bge_small",
+      "model_name": "Xenova/bge-small-en-v1.5-int8",
+      "n_chunks": 772,
+      "n_docs": 772,
+      "embed_dim": 384,
+      "per_probe": {
+        "scotus-q-018": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 1.0,
+          "required_facts_matched": [
+            "Rucho v. Common Cause",
+            "partisan gerrymandering",
+            "political questions"
+          ],
+          "required_facts_missed": []
+        },
+        "scotus-q-004": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.5,
+          "required_facts_matched": [
+            "Civil Rights",
+            "Due Process"
+          ],
+          "required_facts_missed": [
+            "Bostock v. Clayton County",
+            "Labor Law"
+          ]
+        },
+        "scotus-q-008": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Clarence Thomas",
+            "Neil Gorsuch"
+          ],
+          "required_facts_missed": [
+            "Apple v. Pepper"
+          ]
+        },
+        "scotus-q-025": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.8333,
+          "required_facts_matched": [
+            "Bostock",
+            "Elena Kagan",
+            "Espinoza",
+            "Ruth Bader Ginsburg",
+            "Sonia Sotomayor"
+          ],
+          "required_facts_missed": [
+            "Stephen G. Breyer"
+          ]
+        }
+      }
+    },
+    {
+      "chunking": "C",
+      "embedding": "bge-base",
+      "table": "c_bge_base",
+      "model_name": "Xenova/bge-base-en-v1.5-int8",
+      "n_chunks": 772,
+      "n_docs": 772,
+      "embed_dim": 768,
+      "per_probe": {
+        "scotus-q-018": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 1.0,
+          "required_facts_matched": [
+            "Rucho v. Common Cause",
+            "partisan gerrymandering",
+            "political questions"
+          ],
+          "required_facts_missed": []
+        },
+        "scotus-q-004": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.25,
+          "required_facts_matched": [
+            "Civil Rights"
+          ],
+          "required_facts_missed": [
+            "Bostock v. Clayton County",
+            "Due Process",
+            "Labor Law"
+          ]
+        },
+        "scotus-q-008": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Clarence Thomas",
+            "Neil Gorsuch"
+          ],
+          "required_facts_missed": [
+            "Apple v. Pepper"
+          ]
+        },
+        "scotus-q-025": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.8333,
+          "required_facts_matched": [
+            "Bostock",
+            "Elena Kagan",
+            "Espinoza",
+            "Ruth Bader Ginsburg",
+            "Sonia Sotomayor"
+          ],
+          "required_facts_missed": [
+            "Stephen G. Breyer"
+          ]
+        }
+      }
+    },
+    {
+      "chunking": "C",
+      "embedding": "nomic",
+      "table": "c_nomic",
+      "model_name": "nomic-ai/nomic-embed-text-v1.5-Q",
+      "n_chunks": 772,
+      "n_docs": 772,
+      "embed_dim": 768,
+      "per_probe": {
+        "scotus-q-018": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 1.0,
+          "required_facts_matched": [
+            "Rucho v. Common Cause",
+            "partisan gerrymandering",
+            "political questions"
+          ],
+          "required_facts_missed": []
+        },
+        "scotus-q-004": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.5,
+          "required_facts_matched": [
+            "Civil Rights",
+            "Due Process"
+          ],
+          "required_facts_missed": [
+            "Bostock v. Clayton County",
+            "Labor Law"
+          ]
+        },
+        "scotus-q-008": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Clarence Thomas",
+            "Neil Gorsuch"
+          ],
+          "required_facts_missed": [
+            "Apple v. Pepper"
+          ]
+        },
+        "scotus-q-025": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Elena Kagan",
+            "Espinoza",
+            "Ruth Bader Ginsburg",
+            "Sonia Sotomayor"
+          ],
+          "required_facts_missed": [
+            "Bostock",
+            "Stephen G. Breyer"
+          ]
+        }
+      }
+    },
+    {
+      "chunking": "D",
+      "embedding": "bge-small",
+      "table": "d_bge_small",
+      "model_name": "Xenova/bge-small-en-v1.5-int8",
+      "n_chunks": 816,
+      "n_docs": 772,
+      "embed_dim": 384,
+      "per_probe": {
+        "scotus-q-018": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 1.0,
+          "required_facts_matched": [
+            "Rucho v. Common Cause",
+            "partisan gerrymandering",
+            "political questions"
+          ],
+          "required_facts_missed": []
+        },
+        "scotus-q-004": {
+          "rank_of_first_gold_chunk": 6,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.25,
+          "required_facts_matched": [
+            "Civil Rights"
+          ],
+          "required_facts_missed": [
+            "Bostock v. Clayton County",
+            "Due Process",
+            "Labor Law"
+          ]
+        },
+        "scotus-q-008": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Clarence Thomas",
+            "Neil Gorsuch"
+          ],
+          "required_facts_missed": [
+            "Apple v. Pepper"
+          ]
+        },
+        "scotus-q-025": {
+          "rank_of_first_gold_chunk": 3,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.5,
+          "required_facts_matched": [
+            "Elena Kagan",
+            "Ruth Bader Ginsburg",
+            "Sonia Sotomayor"
+          ],
+          "required_facts_missed": [
+            "Bostock",
+            "Espinoza",
+            "Stephen G. Breyer"
+          ]
+        }
+      }
+    },
+    {
+      "chunking": "D",
+      "embedding": "bge-base",
+      "table": "d_bge_base",
+      "model_name": "Xenova/bge-base-en-v1.5-int8",
+      "n_chunks": 816,
+      "n_docs": 772,
+      "embed_dim": 768,
+      "per_probe": {
+        "scotus-q-018": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 1.0,
+          "required_facts_matched": [
+            "Rucho v. Common Cause",
+            "partisan gerrymandering",
+            "political questions"
+          ],
+          "required_facts_missed": []
+        },
+        "scotus-q-004": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.5,
+          "required_facts_matched": [
+            "Civil Rights",
+            "Due Process"
+          ],
+          "required_facts_missed": [
+            "Bostock v. Clayton County",
+            "Labor Law"
+          ]
+        },
+        "scotus-q-008": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Clarence Thomas",
+            "Neil Gorsuch"
+          ],
+          "required_facts_missed": [
+            "Apple v. Pepper"
+          ]
+        },
+        "scotus-q-025": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.8333,
+          "required_facts_matched": [
+            "Bostock",
+            "Elena Kagan",
+            "Espinoza",
+            "Ruth Bader Ginsburg",
+            "Sonia Sotomayor"
+          ],
+          "required_facts_missed": [
+            "Stephen G. Breyer"
+          ]
+        }
+      }
+    },
+    {
+      "chunking": "D",
+      "embedding": "nomic",
+      "table": "d_nomic",
+      "model_name": "nomic-ai/nomic-embed-text-v1.5-Q",
+      "n_chunks": 816,
+      "n_docs": 772,
+      "embed_dim": 768,
+      "per_probe": {
+        "scotus-q-018": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Rucho v. Common Cause",
+            "partisan gerrymandering"
+          ],
+          "required_facts_missed": [
+            "political questions"
+          ]
+        },
+        "scotus-q-004": {
+          "rank_of_first_gold_chunk": 7,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.25,
+          "required_facts_matched": [
+            "Due Process"
+          ],
+          "required_facts_missed": [
+            "Bostock v. Clayton County",
+            "Civil Rights",
+            "Labor Law"
+          ]
+        },
+        "scotus-q-008": {
+          "rank_of_first_gold_chunk": 1,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.6667,
+          "required_facts_matched": [
+            "Clarence Thomas",
+            "Neil Gorsuch"
+          ],
+          "required_facts_missed": [
+            "Apple v. Pepper"
+          ]
+        },
+        "scotus-q-025": {
+          "rank_of_first_gold_chunk": 2,
+          "top10_hit": true,
+          "top50_hit": true,
+          "per_fact_recall_at_10": 0.5,
+          "required_facts_matched": [
+            "Elena Kagan",
+            "Ruth Bader Ginsburg",
+            "Sonia Sotomayor"
+          ],
+          "required_facts_missed": [
+            "Bostock",
+            "Espinoza",
+            "Stephen G. Breyer"
+          ]
+        }
+      }
+    }
+  ]
+}
