@@ -14,6 +14,12 @@ _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 _SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
 _enc = tiktoken.get_encoding("cl100k_base")
 
+# Hierarchy strategy constants — ported byte-for-byte from age-bakeoff so the
+# +8 SCOTUS lift reproduces. Char-based on purpose; no token-budget split.
+_HIER_MAX_CHARS = 3000
+_HIER_MIN_SECTION_CHARS = 100
+_HIER_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)$", re.MULTILINE)
+
 
 def token_count(text: str) -> int:
     return len(_enc.encode(text))
@@ -38,21 +44,28 @@ def chunk_document(
     max_tokens = config.chunk_max_tokens
     overlap_tokens = config.chunk_overlap_tokens
 
-    # Detect type
-    is_markdown = _is_markdown(content, source_path)
-    is_code = _is_code(source_path)
-
-    if is_code:
-        sections = _split_by_code_structure(content, source_path)
-    elif is_markdown:
-        sections = _split_by_headings(content)
+    # Hierarchy strategy is a separate code path — heading-prefixed, char-sized,
+    # no token-budget split. Used when callers opt in for corpora with concrete
+    # per-doc titles (see config.chunk_strategy docstring).
+    if config.chunk_strategy == "hierarchy":
+        title = _derive_title(content, source_path)
+        chunks = _split_hierarchy(content, title=title)
     else:
-        sections = [content]
+        # Detect type
+        is_markdown = _is_markdown(content, source_path)
+        is_code = _is_code(source_path)
 
-    chunks = []
-    for section in sections:
-        section_chunks = _split_to_token_budget(section, max_tokens, overlap_tokens)
-        chunks.extend(section_chunks)
+        if is_code:
+            sections = _split_by_code_structure(content, source_path)
+        elif is_markdown:
+            sections = _split_by_headings(content)
+        else:
+            sections = [content]
+
+        chunks = []
+        for section in sections:
+            section_chunks = _split_to_token_budget(section, max_tokens, overlap_tokens)
+            chunks.extend(section_chunks)
 
     # Build output with metadata
     result = []
@@ -175,6 +188,59 @@ def _split_by_headings(content: str) -> list[str]:
     parts = re.split(r"(?=^#{1,4}\s)", content, flags=re.MULTILINE)
     sections = [p for p in parts if p.strip()]
     return sections if sections else [content]
+
+
+def _derive_title(content: str, source_path: str | None) -> str:
+    """Pick a title for hierarchy-strategy title-prefix fallback.
+
+    First markdown H1 if present; else the source_path basename without
+    extension; else empty (then ``_split_hierarchy`` emits unprefixed chunks).
+    """
+    for m in _HIER_HEADING_RE.finditer(content):
+        if m.group(1) == "#":
+            return m.group(2).strip()
+    if source_path:
+        return os.path.splitext(os.path.basename(source_path))[0]
+    return ""
+
+
+def _split_hierarchy(text: str, title: str = "") -> list[str]:
+    """Heading-prefixed chunks (ported from age-bakeoff / chunkshop).
+
+    - One chunk per markdown heading (H1-H6); body prefixed with the heading
+      so the embedder sees ``heading + body`` as one unit.
+    - Pre-first-heading prefix becomes its own chunk with ``title`` prefix.
+    - No headings: single chunk = ``{title}\\n\\n{body}`` (body alone if title
+      is empty). This is the path that carried the +8 SCOTUS lift.
+    - Sections shorter than ``_HIER_MIN_SECTION_CHARS`` are dropped, matching
+      chunkshop so replication is faithful. Whole-doc case preserves short
+      bodies (mirrors the heading-less single-chunk fall-through).
+    """
+    headings = list(_HIER_HEADING_RE.finditer(text))
+    title_prefix = (title or "").strip()
+
+    if not headings:
+        body = text.strip()
+        if not body:
+            return []
+        if title_prefix:
+            return [f"{title_prefix}\n\n{body}"]
+        return [body]
+
+    result: list[str] = []
+    if headings[0].start() > 0:
+        body = text[: headings[0].start()].strip()
+        if len(body) >= _HIER_MIN_SECTION_CHARS:
+            result.append(f"{title_prefix}\n\n{body}" if title_prefix else body)
+    for i, m in enumerate(headings):
+        heading_text = m.group(2).strip()
+        start = m.end()
+        end = headings[i + 1].start() if i + 1 < len(headings) else len(text)
+        body = text[start:end].strip()
+        if len(body) < _HIER_MIN_SECTION_CHARS:
+            continue
+        result.append(f"{heading_text}\n\n{body}")
+    return result
 
 
 def _hard_split_tokens(text: str, max_tokens: int) -> list[str]:

@@ -68,7 +68,16 @@ class PGRGConfig(BaseSettings):
     skip_extraction: bool = False
 
     # Chunking
-    chunk_strategy: str = "auto"  # auto | markdown | sentence | fixed
+    # auto     — default; detect markdown/code/prose from source_path + content
+    # hierarchy — heading-prefixed chunks (H1-H6), or title-prefix fallback when
+    #             no headings exist. Opt-in: wins on corpora with concrete
+    #             per-doc titles (case names, article titles). Regresses on
+    #             format-string titles (meeting updates, ticket prefixes) — see
+    #             benchmarks/age-bakeoff/results/ACME-HIER-REPLICATION.md.
+    #             Skips token-budget splitting by design; relies on embedder
+    #             truncation for oversized sections (mirrors the benchmarked
+    #             behavior byte-for-byte).
+    chunk_strategy: str = "auto"
     chunk_max_tokens: int = 512
     chunk_overlap_tokens: int = 50
 

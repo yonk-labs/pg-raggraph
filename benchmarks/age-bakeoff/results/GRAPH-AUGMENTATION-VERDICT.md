@@ -46,14 +46,14 @@ The fanciest retrieval (hybrid, global) ties the simplest (naive). The confidenc
 
 ## Implications for the product
 
-1. **Ship hierarchy as the pgrg default chunker for prose.** Every use case in the SCOTUS test suite benefits; zero regressions.
+1. **Ship hierarchy as an opt-in chunker** (`chunk_strategy="hierarchy"`), not the default. On SCOTUS every retrieval mode benefits with zero regressions; on acme (meeting-format titles) it regresses accuracy and triples hallucinations — see `ACME-HIER-REPLICATION.md`. The title-prefix fallback wins when per-doc titles are concrete disambiguating nouns (case names, article titles) and loses when they're format strings that repeat across the corpus. Default chunker stays `auto`.
 2. **Demote graph modes from "core feature" to "advanced option."** Document them as useful when chunks are weak (short messages, adversarial document structure, multi-doc bridging questions where the answer is in no single chunk) — not as the default path.
-3. **`smart` mode needs revisiting.** Its confidence-based routing is supposed to beat naive by escalating only when needed; instead it underperforms naive by 1 question. Either the confidence heuristic is miscalibrated at the 18/30 operating point, or the escalation path adds friction. Neither is a reason to keep it as default.
+3. **`smart` mode needs revisiting.** Its confidence-based routing is supposed to beat naive by escalating only when needed; instead it underperforms naive by 1 question. Per-question diff (see `RETURN-TO-BAKEOFF-2.md` §smart) puts that gap inside ±1-question noise, so no code change yet — revisit with a larger question set or recalibrate the confidence thresholds against the 18/30 operating point.
 4. **Stop benchmarking retrieval in isolation.** The factorial probe (`c_bge_small` = 15/30) understated the same-chunker-same-embedder ceiling by 3 questions because it skipped pgrg's answer-generation pipeline. Always measure end-to-end accuracy, not just top-k-contains-gold-chunk retrieval rank.
 
 ## Caveats
 
-- **Single dataset.** SCOTUS is 772 short legal cases with explicit case names in the title. The hierarchy chunker's title-prefix fallback is tailor-made for this shape. On document corpora with no useful title (raw PDF extractions, log dumps, scraped HTML without `<title>`), hierarchy buys nothing and graph augmentation might resurface. Need a second-corpus replication before calling this universal.
+- **Single dataset.** SCOTUS is 772 short legal cases with explicit case names in the title. The hierarchy chunker's title-prefix fallback is tailor-made for this shape. On document corpora with no useful title (raw PDF extractions, log dumps, scraped HTML without `<title>`), hierarchy buys nothing and graph augmentation might resurface. Second-corpus replication on acme (160 project-update docs, meeting-format titles) confirmed this: hierarchy regressed −1 to −2 questions and tripled hallucinations. See `ACME-HIER-REPLICATION.md`. Hierarchy is opt-in, not universal.
 - **Question class mix matters.** These 30 questions include single-hop factual, semantic, and multi-hop bridging classes. If the sample skewed toward questions whose answers live in a single chunk, naive retrieval would naturally dominate. Per-class breakdown is in `results/REPORT.md`.
 - **bge-small caps at 512 tokens.** 41 / 772 SCOTUS docs are >3000 chars (>~750 tokens) and get silently truncated at embed time. A bigger-context embedder (nomic) lifted factorial pure-vector from 15 to 18/30 on the same chunks. The ceiling under hierarchy isn't 18/30 — it's probably higher with a better embedder. The graph layer's marginal value might re-appear if the pure-vector ceiling rises.
 
@@ -65,4 +65,4 @@ The fanciest retrieval (hybrid, global) ties the simplest (naive). The confidenc
 
 ## Decision
 
-**Graph is noise when chunks are good.** Hierarchy-chunk pure pgvector retrieval (pgrg/naive/hier) is the simplest, fastest, cheapest path and ties every graph-augmented mode on SCOTUS. Ship that as the default and keep graph features as an escape hatch for the cases where naive genuinely underperforms.
+**Graph is noise when chunks are good.** Hierarchy-chunk pure pgvector retrieval (pgrg/naive/hier) is the simplest, fastest, cheapest path and ties every graph-augmented mode on SCOTUS. Ship hierarchy as an opt-in `chunk_strategy` for corpora with concrete per-doc titles (the acme replication showed it regresses on format-string titles — see `ACME-HIER-REPLICATION.md`) and keep graph features as an escape hatch for the cases where naive genuinely underperforms.

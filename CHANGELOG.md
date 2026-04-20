@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-04-20 — `chunk_strategy="hierarchy"` opt-in chunker
+
+### Added
+
+- **`chunk_strategy="hierarchy"`** — heading-prefixed chunker ported from the AGE bake-off (`benchmarks/age-bakeoff/src/age_bakeoff/chunker.py:_split_hierarchy`). Each section body is prefixed with its markdown heading so pgvector embeds `heading+body` as one unit. When a document has no headings, the body is prefixed with a derived title (first H1, else source filename). No token-budget split — sections over `chunk_max_tokens` are passed through unchanged and get truncated at embed time, mirroring the benchmarked behavior byte-for-byte.
+- **When to use it:** corpora with concrete, per-doc disambiguating titles — SCOTUS-style case names ("Miranda v. Arizona"), article titles, product names. On the SCOTUS corpus this cleared DC-003 by 2.5× across all six retrieval modes (`benchmarks/age-bakeoff/results/REPORT-VERDICT.md` §6).
+- **When NOT to use it:** corpora with format-string titles that repeat across docs — meeting updates ("Weekly sync: …"), ticket prefixes, templated status reports. The acme replication on that shape regressed −1 to −2 questions per retrieval mode and tripled hallucinations (`benchmarks/age-bakeoff/results/ACME-HIER-REPLICATION.md`).
+- Default `chunk_strategy` remains `"auto"`. This is an opt-in config, not a behavior change for existing users.
+
 ## 2026-04-17 — AGE Bake-Off Benchmark (v0.3.1)
 
 ### Added

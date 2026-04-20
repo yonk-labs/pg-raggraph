@@ -105,19 +105,19 @@ When the accuracy is a tie, the decision collapses to operations. AGE's `shared_
 
 From the same data (see `GRAPH-AUGMENTATION-VERDICT.md`): **the graph layer itself didn't add signal once the chunker was good.** pgrg/naive/hierarchy (pure pgvector, no graph) = 18/30, tying the graph-augmented hybrid mode. This reshapes the pg-raggraph product story:
 
-- **Ship hierarchy chunking as the default** for prose. It clears DC-003 by 2.5×.
+- **Ship hierarchy chunking as an opt-in** for corpora with concrete per-doc titles (case names, article titles, product names). On SCOTUS it clears DC-003 by 2.5×. On acme (meeting-format titles like "Weekly sync: …") it regresses slightly and triples hallucinations — see `ACME-HIER-REPLICATION.md`. It ships behind `chunk_strategy="hierarchy"` (default remains `auto`).
 - **Demote graph modes from "core feature" to "advanced option."** They're an escape hatch for weak chunks or adversarial corpora, not the default path.
 - **Revisit `smart` mode.** Its confidence-based routing tied or slightly underperformed pure naive on this workload.
 
 ### Caveats
 
-- **Single corpus, single embedder, single answer model.** SCOTUS has document titles that the hierarchy chunker exploits as natural heading prefixes; corpora without useful titles may not see the same lift. A second-corpus replication (long-form docs like technical whitepapers, conversational data like email threads) is needed before declaring this universal.
+- **Single corpus, single embedder, single answer model.** SCOTUS has document titles that the hierarchy chunker exploits as natural heading prefixes; corpora without useful titles may not see the same lift. The acme second-corpus replication (`ACME-HIER-REPLICATION.md`) confirmed this cuts both ways: on meeting-format titles hierarchy regresses −1 to −2 questions and triples hallucinations. Treat hierarchy as opt-in, not universal.
 - **30-question sample.** ±1 question = ±3.3 pp. The tie between modes and between engines is within noise. The +7/+8 lift from chunker is not within noise.
 - **AGE performance could theoretically improve** with Cypher query tuning, custom indexes on the Cypher labels, or a different graph representation. But the catastrophic query plans documented in the AGE evaluation (`research/apache-age-evaluation.md`) make this unpromising — and the cloud-compatibility issue remains regardless.
 - **Graph-augmentation value might resurface** on multi-hop bridging questions specifically. Per-class breakdown is in `results/REPORT.md`; this verdict aggregated across question classes.
 
 ### Closing the mission brief
 
-DC-003 (ship threshold: pgrg fully_correct must lift by ≥ +3 questions / +10 pp over baseline 10/30) is **cleared by 2.5×** under hierarchy chunking across all six retrieval modes. The bake-off's core question — whether pg-raggraph as a GraphRAG library can beat or match Apache AGE on a fair head-to-head — is **answered affirmatively on every measurable axis** (accuracy tie, latency 42–111× faster, operational story dramatically better).
+DC-003 (ship threshold: pgrg fully_correct must lift by ≥ +3 questions / +10 pp over baseline 10/30) is **cleared by 2.5× on SCOTUS** under hierarchy chunking across all six retrieval modes. The acme second-corpus replication did not reproduce that lift and is documented in `ACME-HIER-REPLICATION.md`; hierarchy ships as an opt-in `chunk_strategy`, not as the library default. The bake-off's core question — whether pg-raggraph as a GraphRAG library can beat or match Apache AGE on a fair head-to-head — is **answered affirmatively on every measurable axis** (accuracy tie, latency 42–111× faster, operational story dramatically better).
 
 The decision to build pg-raggraph without Apache AGE was the right call.
