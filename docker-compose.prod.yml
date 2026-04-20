@@ -20,6 +20,11 @@ services:
     #   - "5432:5432"
 
   pgrg:
+    # NOTE: the bundled FastAPI server has no auth, rate limit, or upload
+    # caps. For any public-facing deployment, put a reverse proxy (nginx,
+    # Caddy, Traefik, Cloudflare) in front of this service that adds auth,
+    # TLS termination, and rate limiting. See docs/user-guide.md §
+    # Production deployment for the recommended pattern.
     build:
       context: .
       dockerfile: Dockerfile

@@ -241,7 +241,7 @@ erDiagram
 - ✅ **Throttle profiles** — `conservative`/`balanced`/`aggressive`/`max`
 - ✅ **`rag.ask()` + `/ask` endpoint** — grounded LLM answers with source citations
 - ✅ **MCP server** — `pgrg mcp-serve` for Claude Desktop, Cursor, Zed
-- ✅ **FastAPI server + web UI** — `pgrg serve` or `pgrg demo`
+- ✅ **FastAPI server + web UI** — `pgrg serve` or `pgrg demo` _(local/demo use; put an auth proxy in front for public deployments — see [user-guide § Production deployment](docs/user-guide.md#production-deployment))_
 - ✅ **Schema migrations** — per-filename tracking, applied on every connect
 - ✅ **Incremental re-ingest** — changed files atomically replace stale docs
 

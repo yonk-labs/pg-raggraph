@@ -12,6 +12,7 @@
 - [Ingesting Documents](#ingesting-documents)
 - [Python SDK](#python-sdk)
 - [REST API](#rest-api)
+  - [Production deployment](#production-deployment)
 - [Web UI](#web-ui)
 - [Troubleshooting](#troubleshooting)
 
@@ -430,6 +431,8 @@ result.latency_ms      # float: how long the query took
 
 ## REST API
 
+> **The bundled server is for local development and demos.** It ships without authentication, rate limiting, upload size limits, or CORS configuration. Do not expose `pgrg serve` directly to the public internet. For production, run it behind a reverse proxy (nginx, Caddy, Cloudflare, Traefik) that adds auth, TLS, and rate limits — or embed `create_app()` in your own FastAPI application that supplies those middlewares. See [Production deployment](#production-deployment) below.
+
 ### Launch Server
 ```bash
 pgrg serve --port 8080
@@ -471,6 +474,36 @@ curl http://localhost:8080/graph
 curl http://localhost:8080/health
 # {"status":"ok","db":"connected"}
 ```
+
+### Production deployment
+
+`pgrg serve` is a reference server for development, demos, and single-user local use. It intentionally does not bundle:
+
+- Authentication
+- Rate limiting
+- Upload size caps on `/ingest`
+- MIME-type validation on `/ingest`
+- CORS policy
+
+If you want to deploy it for external users, put a reverse proxy in front that adds those. The recommended pattern:
+
+```
+Client → (Cloudflare / nginx / Caddy / Traefik) → pgrg serve → Postgres
+          ↑
+          handles: TLS, auth, rate limit, upload caps, access logs
+```
+
+Minimum proxy-side checks for any public deployment:
+
+- Enforce auth (API key, OAuth, basic auth, or whatever your stack uses).
+- Cap `POST /ingest` request bodies to a sensible limit (10-100 MB).
+- Rate-limit `POST /ingest` and `POST /query` separately.
+- Access-log every request with the authenticated caller.
+- Terminate TLS; don't run `pgrg serve` on HTTP over a public IP.
+
+For multi-tenant deployments, always pass `namespace` on every request from the proxy layer — the server does not enforce tenant boundaries on its own.
+
+Alternatively, embed `create_app()` in your own FastAPI app so you can wire your existing middleware (auth, rate-limit, CORS) into the pg-raggraph endpoints directly.
 
 ---
 
