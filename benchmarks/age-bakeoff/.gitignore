@@ -7,3 +7,4 @@ corpora/pg-src/
 logs/
 .env
 uv.lock
+corpora/external/
