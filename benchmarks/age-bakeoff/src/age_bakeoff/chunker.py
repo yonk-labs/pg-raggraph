@@ -5,6 +5,10 @@ Responsibilities:
 2. Code (.py, .c, .h): split on top-level function/class/struct boundaries,
    fall back to hard 800-token split
 3. Plain text: paragraph-aware hard split
+4. Hierarchy: heading-aware with heading-as-prefix (ported from chunkshop,
+   factorial-detour winner: C/nomic fp32 = 18/30 on scotus). Opt-in via
+   ``strategy="hierarchy"`` on ``chunk_text()`` or the ``BAKEOFF_CHUNKER`` env
+   flag in ``extraction.loaders``.
 
 Determinism: given the same bytes on disk, produces byte-identical output.
 """
@@ -12,19 +16,24 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Literal
 
 from age_bakeoff.models import Chunk
 
 _MAX_CHARS = 3000  # ~750 tokens for BAAI/bge-small-en-v1.5
 _MIN_CHARS = 200
+_HIER_MIN_SECTION_CHARS = 100  # match chunkshop HierarchyChunker default
 
 _MD_HEADING = re.compile(r"^#{1,6}\s+.+$", re.MULTILINE)
+_MD_HEADING_PARSE = re.compile(r"^(#{1,6})\s+(.+?)$", re.MULTILINE)
 _PY_DEF = re.compile(r"^(def |class |async def )", re.MULTILINE)
 _C_FUNC = re.compile(
     r"^(?:static\s+)?(?:[A-Za-z_][\w*\s]*)\s+\**[A-Za-z_]\w*\s*\([^;]*\)\s*\{",
     re.MULTILINE,
 )
 _C_STRUCT = re.compile(r"^(?:typedef\s+)?struct\s+[A-Za-z_]\w*", re.MULTILINE)
+
+ChunkerStrategy = Literal["sentence_aware", "hierarchy"]
 
 
 def chunk_file(path: str | Path) -> list[Chunk]:
@@ -43,11 +52,35 @@ def chunk_file(path: str | Path) -> list[Chunk]:
     return _to_chunks(doc_id, splits, source_path=str(p))
 
 
-def chunk_text(text: str, document_id: str, doc_type: str = "prose") -> list[Chunk]:
-    if doc_type == "code":
-        splits = _split_plain(text)
+def chunk_text(
+    text: str,
+    document_id: str,
+    doc_type: str = "prose",
+    strategy: ChunkerStrategy = "sentence_aware",
+    title: str | None = None,
+) -> list[Chunk]:
+    """Split ``text`` into chunks for ingestion.
+
+    ``strategy`` selects the chunker:
+    - ``"sentence_aware"`` (default): preserves the original baseline. Heading
+      or paragraph split, then heading-aware aggregation. Matches prior
+      ``scotus.json`` raw results byte-identically.
+    - ``"hierarchy"``: factorial-detour winner — prepends the section heading
+      (or ``title`` when no headings exist) to each chunk so pgvector sees
+      heading+body as one unit. No hard-split; sections above the embedder's
+      context cap get truncated at embedding time by design.
+
+    ``title`` only matters for ``strategy="hierarchy"``; ignored otherwise.
+    """
+    if strategy == "hierarchy":
+        splits = _split_hierarchy(text, title=title)
+    elif strategy == "sentence_aware":
+        splits = _split_plain(text) if doc_type == "code" else _split_prose(text)
     else:
-        splits = _split_prose(text)
+        raise ValueError(
+            f"chunk_text: unknown strategy {strategy!r}; expected one of "
+            "('sentence_aware', 'hierarchy')"
+        )
     return _to_chunks(document_id, splits)
 
 
@@ -72,6 +105,49 @@ def _split_prose(text: str) -> list[str]:
     if len(text) <= _MAX_CHARS:
         return [s for s in result if s]
     return [s for s in result if len(s) >= _MIN_CHARS]
+
+
+def _split_hierarchy(text: str, title: str | None = None) -> list[str]:
+    """Heading-prefixed chunks, ported from chunkshop HierarchyChunker.
+
+    - One chunk per markdown heading (H1–H6); body prefixed with the heading
+      so the embedder sees heading+body as one unit.
+    - Pre-first-heading prefix becomes its own chunk with ``title`` as prefix.
+    - No headings found: single chunk = ``{title}\\n\\n{body}`` (body alone if
+      title is empty). This is the scotus case — 0/772 docs have markdown
+      headings, so the title-prefix fallback is the path that carried the
+      factorial C/nomic = 18/30 result.
+    - Sections shorter than ``_HIER_MIN_SECTION_CHARS`` are dropped, matching
+      chunkshop so replication is faithful.
+    """
+    headings = list(_MD_HEADING_PARSE.finditer(text))
+    title_prefix = (title or "").strip()
+
+    if not headings:
+        body = text.strip()
+        if not body:
+            return []
+        if title_prefix:
+            return [f"{title_prefix}\n\n{body}"]
+        return [body]
+
+    result: list[str] = []
+    if headings[0].start() > 0:
+        body = text[: headings[0].start()].strip()
+        if len(body) >= _HIER_MIN_SECTION_CHARS:
+            if title_prefix:
+                result.append(f"{title_prefix}\n\n{body}")
+            else:
+                result.append(body)
+    for i, m in enumerate(headings):
+        heading_text = m.group(2).strip()
+        start = m.end()
+        end = headings[i + 1].start() if i + 1 < len(headings) else len(text)
+        body = text[start:end].strip()
+        if len(body) < _HIER_MIN_SECTION_CHARS:
+            continue
+        result.append(f"{heading_text}\n\n{body}")
+    return result
 
 
 def _split_python(text: str) -> list[str]:

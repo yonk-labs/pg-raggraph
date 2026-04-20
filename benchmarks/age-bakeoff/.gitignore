@@ -4,5 +4,6 @@ __pycache__/
 .pytest_cache/
 results/raw/
 corpora/pg-src/
+logs/
 .env
 uv.lock

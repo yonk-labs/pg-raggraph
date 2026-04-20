@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from pathlib import Path
 
 import click
@@ -11,6 +12,21 @@ from dotenv import load_dotenv
 
 from age_bakeoff.config import BakeoffConfig
 from age_bakeoff.cost import CostTracker
+
+_CHUNKER_CHOICES = ("sentence_aware", "hierarchy")
+
+
+def _apply_chunker_flag(chunker: str | None) -> None:
+    """Propagate ``--chunker`` to ``BAKEOFF_CHUNKER`` for loaders downstream.
+
+    ``extraction.loaders`` reads the env var lazily; setting it here makes the
+    CLI flag the single override point. ``None`` means leave the env alone
+    (caller's shell-exported value wins, default ``sentence_aware`` takes over
+    if unset).
+    """
+    if chunker is None:
+        return
+    os.environ["BAKEOFF_CHUNKER"] = chunker
 
 logger = logging.getLogger("age_bakeoff")
 
@@ -176,8 +192,18 @@ def cli(verbose: bool) -> None:
     multiple=True,
     help="Corpus to ingest (default: all available)",
 )
-def ingest(corpus: tuple[str, ...]) -> None:
+@click.option(
+    "--chunker",
+    type=click.Choice(_CHUNKER_CHOICES),
+    default=None,
+    help=(
+        "Chunker strategy (default: env BAKEOFF_CHUNKER or 'sentence_aware'). "
+        "'hierarchy' enables heading/title-prefixed chunks."
+    ),
+)
+def ingest(corpus: tuple[str, ...], chunker: str | None) -> None:
     """Ingest corpora into both engines."""
+    _apply_chunker_flag(chunker)
     cfg = _get_config()
     engines = _get_engines(cfg)
     corpora = _load_corpora()
@@ -237,14 +263,36 @@ def ingest(corpus: tuple[str, ...]) -> None:
     type=float,
     help="Hard cap on OpenAI spend (default: $50)",
 )
+@click.option(
+    "--chunker",
+    type=click.Choice(_CHUNKER_CHOICES),
+    default=None,
+    help=(
+        "Chunker strategy (default: env BAKEOFF_CHUNKER or 'sentence_aware'). "
+        "Only affects corpora re-ingested by this command."
+    ),
+)
+@click.option(
+    "--skip-ingest/--no-skip-ingest",
+    default=False,
+    help=(
+        "Skip re-ingestion and reuse whatever is already in each engine's DB. "
+        "Use for mode sweeps where ingest time dominates: ingest once under a "
+        "prior --mode, then pass --skip-ingest for subsequent modes. Retrieval "
+        "results stay valid because retrieval_mode is a query-time parameter."
+    ),
+)
 def run(
     corpus: tuple[str, ...],
     runs: int,
     mode: str | None,
     label: str | None,
     budget_usd: float,
+    chunker: str | None,
+    skip_ingest: bool,
 ) -> None:
     """Run benchmark questions against both engines."""
+    _apply_chunker_flag(chunker)
     tracker = CostTracker(budget_usd=budget_usd)
 
     cfg = _get_config()
@@ -284,12 +332,19 @@ def run(
         suffix = f"__{label}" if label else ""
         for name, yaml_path in available.items():
             qset = load_question_set(yaml_path)
-            # Ingest corpus right before running its questions (single namespace)
+            # Ingest corpus right before running its questions (single namespace).
+            # --skip-ingest reuses whatever each engine already has, which is
+            # the mode-sweep fast path (ingest once, run many modes).
             extraction = None
             corpus_obj = corpora.get(name)
-            if corpus_obj:
+            if corpus_obj and not skip_ingest:
                 click.echo(f"Ingesting corpus={name} into both engines...")
                 extraction = corpus_obj.load()
+            elif skip_ingest:
+                click.echo(
+                    f"Skipping ingest for corpus={name} "
+                    "(reusing previously-ingested state)"
+                )
             click.echo(f"Running corpus={name} ({runs} runs/question)")
             results = await runner.run_corpus(name, qset, extraction=extraction)
             click.echo(
