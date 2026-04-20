@@ -18,11 +18,13 @@
 
 ## P0 — loose ends from the session that just ended
 
-| id | item | effort | notes |
+_All three items shipped in `edb6cc3` (2026-04-20). Replication table complete; docs + integration tests landed._
+
+| id | item | status | notes |
 |---|---|---|---|
-| T-01 | Re-judge `acme__hier_smart.json` — judge wrapper timed out; file is the only one missing from the 6-mode replication table | 10 min + ~$0.20 | `uv run age-bakeoff judge --corpus acme` with `SKIP_INGEST=1`. ±1 question; does not move the replication story, but closes the data cleanly. |
-| T-02 | Document `chunk_strategy="hierarchy"` in `README.md` + `docs/user-guide.md` | 30 min | Neither mentions the new opt-in. Add a "Chunking strategies" subsection referencing `ACME-HIER-REPLICATION.md` for the when-to-use / when-not-to-use call. |
-| T-03 | Integration test: ingest a fixture with `chunk_strategy="hierarchy"` end-to-end | ~1 hour | Unit tests cover `_split_hierarchy` in isolation. Need at least one `tests/integration/test_ingestion.py` case that flips the strategy via config and asserts chunk count + first-chunk prefix. |
+| T-01 | Re-judge `acme__hier_smart.json` | ✅ done | pgrg 4/30 (−2 vs sa 6/30), age 4/30. Consistent regression pattern. Cost $0.026. |
+| T-02 | Document `chunk_strategy="hierarchy"` in README + user-guide | ✅ done | Config table + chunking section updated; both link ACME-HIER-REPLICATION.md. |
+| T-03 | Integration test: ingest with `chunk_strategy="hierarchy"` | ✅ done | Two tests in `tests/integration/test_ingestion.py`: heading-prefixed + title-prefix fallback. 100 tests pass. |
 
 ## P1 — strategic questions that gate everything downstream
 
@@ -40,16 +42,16 @@ Repo is publishable but not polished. Current state: LICENSE (MIT) ✓, CI lint 
 
 | id | item | effort | notes |
 |---|---|---|---|
-| T-P1 | Run `/secret-scan` before any public push | 15 min | Non-negotiable per `secret-awareness.md` rule. |
-| T-P2 | Add `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` | 1-2 hours | None exist. CONTRIBUTING should include: local dev setup, test matrix, PR expectations. SECURITY should name the reporting channel. |
-| T-P3 | GitHub issue + PR templates under `.github/` | 30 min | Bug report, feature request, question templates. PR template with test-plan checklist. |
-| T-P4 | CI — expand beyond lint: unit tests, integration tests (with service container for PG), coverage threshold | 2-3 hours | Current `test.yml` only runs lint + format. No actual test execution in CI. This is the biggest hole. |
-| T-P5 | Re-run `/prod-ready` against current `main` + act on the real gaps | 1-2 days incl. fixes | Existing `ProdReady-FixPlan.md` is 8 days pre-bakeoff (2026-04-12). Fresh audit captures drift. Supersedes / confirms T-14 + T-15 below. |
-| T-P6 | Re-run `/aat` external lens + act on P0/P1 items that haven't been addressed | 1-2 days | `AAT-BattlePlan.md` calls out: README honesty gap, LLM setup docs, positioning, demo-that-actually-runs. Check which are done, act on the rest. |
-| T-P7 | PyPI publish workflow | 2-3 hours | Tag-triggered GH Action that builds + publishes. Test on TestPyPI first. Documented version policy (semver). |
-| T-P8 | Reproducible install story — commit `uv.lock` and wire `uv sync --frozen` into CI | 30 min | Lockfile exists but not verified as CI-enforced. |
-| T-P9 | README tightening for first impression | 2 hours | Current headline table shows dev-KB numbers (`+18.9%`). Since the bake-off shipped, the headline should either stay dev-KB-focused with a link to SCOTUS, or switch to SCOTUS with a footnote about corpus-shape sensitivity. Coordinate with T-18. |
-| T-P10 | Demo that actually works from scratch | 2-4 hours incl. recording | `pgrg demo` + a quickstart GIF/video. `/user-test` skill could stress-test the first-run experience. |
+| T-P1 | Run `/secret-scan` before any public push | ✅ done | Clean. Report at `skill-output/secret-scan/secret-scan-report.md` (local-only). Zero real keys in tree or history. Both `.env` files gitignored. |
+| T-P2 | Add `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` | ✅ done | All three shipped in `5091f34`. CoC adopts Contributor Covenant v2.1 by reference. SECURITY points to `matt@theyonk.com` + GitHub private advisories. |
+| T-P3 | GitHub issue + PR templates under `.github/` | ✅ done | Bug / feature / question issue templates + PR template with test plan + benchmark-impact checklist. Blank issues disabled; security reports routed to private advisories. |
+| T-P4 | CI — run real tests, not just lint | ✅ already done | Existing `test.yml` runs unit + integration + E2E against a pgvector service container. TODO had overstated the gap. |
+| T-P5 | Re-run `/prod-ready` against current `main` + act on the real gaps | **next up, running now** | Existing audit is 8 days pre-bakeoff. Fresh run will write to `skill-output/prod-ready/`. Fixes still need per-item approval before shipping. |
+| T-P6 | Re-run `/aat` external lens + act on open P0/P1 items | 1-2 days | Sequencing: run this after T-P5 so the reports can reference each other. |
+| T-P7 | PyPI publish workflow | 2-3 hours, **needs user input** | Blocks on: (a) confirmed package name on PyPI (`pg-raggraph` vs `pg_raggraph`), (b) TestPyPI + PyPI tokens as GH secrets, (c) semver policy call. |
+| T-P8 | `uv sync --frozen` in CI | ✅ done | `uv.lock` was already tracked; CI now runs `uv sync --all-extras --frozen` so lockfile drift fails the build. |
+| T-P9 | README tightening for first impression | 2 hours, **needs user input** | Current headline quotes dev-KB numbers (`+18.9%`). Since the bake-off shipped, headline should either stay dev-KB-focused (with a SCOTUS link) or switch to SCOTUS numbers (with a corpus-shape footnote). Judgment call on which story to lead with. |
+| T-P10 | First-run demo that actually works | 2-4 hours incl. recording | `pgrg demo` + a quickstart GIF/video. `/user-test` skill would stress-test the first-run experience. Manual video work toward the end. |
 
 ## P2 — test + doc debt exposed this session
 
