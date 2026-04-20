@@ -14,8 +14,11 @@ _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 _SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
 _enc = tiktoken.get_encoding("cl100k_base")
 
-# Hierarchy strategy constants — ported byte-for-byte from age-bakeoff so the
-# +8 SCOTUS lift reproduces. Char-based on purpose; no token-budget split.
+# Hierarchy strategy constants — ported byte-for-byte from age-bakeoff
+# (benchmarks/age-bakeoff/src/age_bakeoff/chunker.py, which itself lineages to
+# chunkshop's HierarchyChunker at github.com/yonk-labs/chunkshop) so the +8
+# SCOTUS lift reproduces. Char-based on purpose; no token-budget split.
+# See docs/chunkshop-integration.md § port policy when updating.
 _HIER_MAX_CHARS = 3000
 _HIER_MIN_SECTION_CHARS = 100
 _HIER_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)$", re.MULTILINE)
