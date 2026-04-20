@@ -3,8 +3,8 @@
 ## Overview
 
 - **Engines**: age, pgrg
-- **Corpora**: acme, acme__global, acme__local, acme__naive, acme__naive-boost, acme__smart, scotus, scotus__global, scotus__local, scotus__naive, scotus__naive-boost, scotus__smart
-- **Total data points**: 2160
+- **Corpora**: acme, acme__global, acme__local, acme__naive, acme__naive-boost, acme__smart, scotus, scotus__global, scotus__hier_global, scotus__hier_hybrid, scotus__hier_local, scotus__hier_naive, scotus__hier_naive_boost, scotus__hier_smart, scotus__local, scotus__naive, scotus__naive-boost, scotus__smart
+- **Total data points**: 3240
 
 ## Corpus: acme
 
@@ -334,7 +334,7 @@
 | Engine | Fully Correct | Partially | Wrong | Hallucinated | n |
 |--------|--------------|-----------|-------|--------------|---|
 | age | 11 | 7 | 12 | 0 | 30 |
-| pgrg | 10 | 7 | 13 | 0 | 30 |
+| pgrg | 10 | 6 | 14 | 0 | 30 |
 
 ### Per-Question-Class Latency Breakdown
 
@@ -383,8 +383,8 @@
 
 | Engine | Fully Correct | Partially | Wrong | Hallucinated | n |
 |--------|--------------|-----------|-------|--------------|---|
-| age | 11 | 6 | 13 | 0 | 30 |
-| pgrg | 10 | 5 | 15 | 0 | 30 |
+| age | 12 | 5 | 13 | 0 | 30 |
+| pgrg | 10 | 7 | 13 | 0 | 30 |
 
 ### Per-Question-Class Latency Breakdown
 
@@ -405,6 +405,306 @@
 | single_hop | 26.6 | 29.6 | 30 |
 | multi_hop_bridging | 28.7 | 31.2 | 18 |
 | factual | 27.2 | 28.8 | 18 |
+
+## Corpus: scotus__hier_global
+
+### Retrieval Latency (ms)
+
+| Engine | p50 | p95 | p99 | mean | n |
+|--------|-----|-----|-----|------|---|
+| age | 3912.3 | 4774.4 | 5282.1 | 3968.7 | 90 |
+| pgrg | 42.9 | 134.0 | 407.4 | 59.4 | 90 |
+
+### Answer Generation Latency (ms)
+
+| Engine | p50 | p95 | p99 | mean | n |
+|--------|-----|-----|-----|------|---|
+| age | 1090.3 | 1933.4 | 2818.4 | 1198.4 | 90 |
+| pgrg | 1031.9 | 1899.7 | 2405.3 | 1171.6 | 90 |
+
+### Fact Recall
+
+| Engine | Mean | Min | Max | n |
+|--------|------|-----|-----|---|
+| age | 0.868 | 0.333 | 1.000 | 30 |
+| pgrg | 0.842 | 0.333 | 1.000 | 30 |
+
+### LLM Judge Verdicts
+
+| Engine | Fully Correct | Partially | Wrong | Hallucinated | n |
+|--------|--------------|-----------|-------|--------------|---|
+| age | 18 | 8 | 4 | 0 | 30 |
+| pgrg | 18 | 8 | 4 | 0 | 30 |
+
+### Per-Question-Class Latency Breakdown
+
+**age**
+
+| Question Class | p50 (ms) | mean (ms) | n |
+|----------------|----------|-----------|---|
+| semantic | 3797.3 | 3953.5 | 24 |
+| single_hop | 3988.1 | 3891.8 | 30 |
+| multi_hop_bridging | 4192.7 | 4044.4 | 18 |
+| factual | 3889.5 | 4041.2 | 18 |
+
+**pgrg**
+
+| Question Class | p50 (ms) | mean (ms) | n |
+|----------------|----------|-----------|---|
+| semantic | 43.9 | 44.7 | 24 |
+| single_hop | 43.0 | 49.3 | 30 |
+| multi_hop_bridging | 45.8 | 64.2 | 18 |
+| factual | 40.4 | 91.2 | 18 |
+
+## Corpus: scotus__hier_hybrid
+
+### Retrieval Latency (ms)
+
+| Engine | p50 | p95 | p99 | mean | n |
+|--------|-----|-----|-----|------|---|
+| age | 3089.0 | 3762.0 | 4045.0 | 3085.1 | 90 |
+| pgrg | 72.6 | 89.7 | 141.0 | 79.1 | 90 |
+
+### Answer Generation Latency (ms)
+
+| Engine | p50 | p95 | p99 | mean | n |
+|--------|-----|-----|-----|------|---|
+| age | 1071.8 | 2250.1 | 2785.2 | 1213.3 | 90 |
+| pgrg | 1121.4 | 1974.1 | 2887.4 | 1237.1 | 90 |
+
+### Fact Recall
+
+| Engine | Mean | Min | Max | n |
+|--------|------|-----|-----|---|
+| age | 0.868 | 0.333 | 1.000 | 30 |
+| pgrg | 0.868 | 0.333 | 1.000 | 30 |
+
+### LLM Judge Verdicts
+
+| Engine | Fully Correct | Partially | Wrong | Hallucinated | n |
+|--------|--------------|-----------|-------|--------------|---|
+| age | 17 | 8 | 5 | 0 | 30 |
+| pgrg | 18 | 8 | 4 | 0 | 30 |
+
+### Per-Question-Class Latency Breakdown
+
+**age**
+
+| Question Class | p50 (ms) | mean (ms) | n |
+|----------------|----------|-----------|---|
+| semantic | 2929.6 | 3038.5 | 24 |
+| single_hop | 3109.4 | 3024.1 | 30 |
+| multi_hop_bridging | 3263.5 | 3109.3 | 18 |
+| factual | 3111.6 | 3225.0 | 18 |
+
+**pgrg**
+
+| Question Class | p50 (ms) | mean (ms) | n |
+|----------------|----------|-----------|---|
+| semantic | 72.3 | 75.3 | 24 |
+| single_hop | 72.0 | 74.2 | 30 |
+| multi_hop_bridging | 75.0 | 76.1 | 18 |
+| factual | 72.7 | 95.4 | 18 |
+
+## Corpus: scotus__hier_local
+
+### Retrieval Latency (ms)
+
+| Engine | p50 | p95 | p99 | mean | n |
+|--------|-----|-----|-----|------|---|
+| age | 3079.3 | 3877.5 | 3995.5 | 3096.6 | 90 |
+| pgrg | 64.6 | 83.4 | 254.0 | 70.6 | 90 |
+
+### Answer Generation Latency (ms)
+
+| Engine | p50 | p95 | p99 | mean | n |
+|--------|-----|-----|-----|------|---|
+| age | 1063.5 | 1999.0 | 2214.7 | 1149.7 | 90 |
+| pgrg | 1068.2 | 2336.4 | 2818.2 | 1243.2 | 90 |
+
+### Fact Recall
+
+| Engine | Mean | Min | Max | n |
+|--------|------|-----|-----|---|
+| age | 0.868 | 0.333 | 1.000 | 30 |
+| pgrg | 0.868 | 0.333 | 1.000 | 30 |
+
+### LLM Judge Verdicts
+
+| Engine | Fully Correct | Partially | Wrong | Hallucinated | n |
+|--------|--------------|-----------|-------|--------------|---|
+| age | 17 | 10 | 3 | 0 | 30 |
+| pgrg | 18 | 8 | 4 | 0 | 30 |
+
+### Per-Question-Class Latency Breakdown
+
+**age**
+
+| Question Class | p50 (ms) | mean (ms) | n |
+|----------------|----------|-----------|---|
+| semantic | 2977.0 | 3126.0 | 24 |
+| single_hop | 3079.3 | 2983.5 | 30 |
+| multi_hop_bridging | 3307.9 | 3150.1 | 18 |
+| factual | 3073.6 | 3192.4 | 18 |
+
+**pgrg**
+
+| Question Class | p50 (ms) | mean (ms) | n |
+|----------------|----------|-----------|---|
+| semantic | 69.4 | 70.7 | 24 |
+| single_hop | 62.4 | 64.0 | 30 |
+| multi_hop_bridging | 62.0 | 76.9 | 18 |
+| factual | 62.3 | 75.0 | 18 |
+
+## Corpus: scotus__hier_naive
+
+### Retrieval Latency (ms)
+
+| Engine | p50 | p95 | p99 | mean | n |
+|--------|-----|-----|-----|------|---|
+| age | 3874.0 | 4660.7 | 5010.4 | 3855.7 | 90 |
+| pgrg | 35.1 | 42.3 | 208.3 | 47.6 | 90 |
+
+### Answer Generation Latency (ms)
+
+| Engine | p50 | p95 | p99 | mean | n |
+|--------|-----|-----|-----|------|---|
+| age | 1090.8 | 2198.5 | 2672.7 | 1233.5 | 90 |
+| pgrg | 1081.8 | 2025.6 | 2810.8 | 1187.2 | 90 |
+
+### Fact Recall
+
+| Engine | Mean | Min | Max | n |
+|--------|------|-----|-----|---|
+| age | 0.868 | 0.333 | 1.000 | 30 |
+| pgrg | 0.868 | 0.333 | 1.000 | 30 |
+
+### LLM Judge Verdicts
+
+| Engine | Fully Correct | Partially | Wrong | Hallucinated | n |
+|--------|--------------|-----------|-------|--------------|---|
+| age | 18 | 8 | 4 | 0 | 30 |
+| pgrg | 18 | 9 | 3 | 0 | 30 |
+
+### Per-Question-Class Latency Breakdown
+
+**age**
+
+| Question Class | p50 (ms) | mean (ms) | n |
+|----------------|----------|-----------|---|
+| semantic | 3730.6 | 3852.5 | 24 |
+| single_hop | 3869.4 | 3757.6 | 30 |
+| multi_hop_bridging | 4112.0 | 3924.5 | 18 |
+| factual | 3822.6 | 3954.5 | 18 |
+
+**pgrg**
+
+| Question Class | p50 (ms) | mean (ms) | n |
+|----------------|----------|-----------|---|
+| semantic | 34.5 | 34.7 | 24 |
+| single_hop | 35.1 | 37.9 | 30 |
+| multi_hop_bridging | 37.0 | 36.4 | 18 |
+| factual | 34.9 | 92.2 | 18 |
+
+## Corpus: scotus__hier_naive_boost
+
+### Retrieval Latency (ms)
+
+| Engine | p50 | p95 | p99 | mean | n |
+|--------|-----|-----|-----|------|---|
+| age | 3898.6 | 4820.1 | 4988.6 | 3929.0 | 90 |
+| pgrg | 39.6 | 45.3 | 106.6 | 45.9 | 90 |
+
+### Answer Generation Latency (ms)
+
+| Engine | p50 | p95 | p99 | mean | n |
+|--------|-----|-----|-----|------|---|
+| age | 1104.0 | 2194.7 | 2861.0 | 1222.9 | 90 |
+| pgrg | 1071.0 | 1948.0 | 3294.2 | 1246.2 | 90 |
+
+### Fact Recall
+
+| Engine | Mean | Min | Max | n |
+|--------|------|-----|-----|---|
+| age | 0.868 | 0.333 | 1.000 | 30 |
+| pgrg | 0.868 | 0.333 | 1.000 | 30 |
+
+### LLM Judge Verdicts
+
+| Engine | Fully Correct | Partially | Wrong | Hallucinated | n |
+|--------|--------------|-----------|-------|--------------|---|
+| age | 18 | 9 | 3 | 0 | 30 |
+| pgrg | 17 | 9 | 4 | 0 | 30 |
+
+### Per-Question-Class Latency Breakdown
+
+**age**
+
+| Question Class | p50 (ms) | mean (ms) | n |
+|----------------|----------|-----------|---|
+| semantic | 3751.9 | 3922.3 | 24 |
+| single_hop | 3923.3 | 3842.8 | 30 |
+| multi_hop_bridging | 4128.3 | 4014.2 | 18 |
+| factual | 3876.3 | 3996.4 | 18 |
+
+**pgrg**
+
+| Question Class | p50 (ms) | mean (ms) | n |
+|----------------|----------|-----------|---|
+| semantic | 39.8 | 40.1 | 24 |
+| single_hop | 38.5 | 39.0 | 30 |
+| multi_hop_bridging | 41.7 | 41.9 | 18 |
+| factual | 38.7 | 69.3 | 18 |
+
+## Corpus: scotus__hier_smart
+
+### Retrieval Latency (ms)
+
+| Engine | p50 | p95 | p99 | mean | n |
+|--------|-----|-----|-----|------|---|
+| age | 3226.9 | 4103.7 | 4383.6 | 3255.6 | 90 |
+| pgrg | 32.1 | 49.2 | 234.0 | 39.4 | 90 |
+
+### Answer Generation Latency (ms)
+
+| Engine | p50 | p95 | p99 | mean | n |
+|--------|-----|-----|-----|------|---|
+| age | 1038.1 | 1801.8 | 2825.4 | 1161.8 | 90 |
+| pgrg | 1080.3 | 1795.8 | 2274.3 | 1146.8 | 90 |
+
+### Fact Recall
+
+| Engine | Mean | Min | Max | n |
+|--------|------|-----|-----|---|
+| age | 0.868 | 0.333 | 1.000 | 30 |
+| pgrg | 0.868 | 0.333 | 1.000 | 30 |
+
+### LLM Judge Verdicts
+
+| Engine | Fully Correct | Partially | Wrong | Hallucinated | n |
+|--------|--------------|-----------|-------|--------------|---|
+| age | 18 | 9 | 3 | 0 | 30 |
+| pgrg | 17 | 10 | 3 | 0 | 30 |
+
+### Per-Question-Class Latency Breakdown
+
+**age**
+
+| Question Class | p50 (ms) | mean (ms) | n |
+|----------------|----------|-----------|---|
+| semantic | 3217.5 | 3403.8 | 24 |
+| single_hop | 3182.6 | 3099.5 | 30 |
+| multi_hop_bridging | 3444.4 | 3269.3 | 18 |
+| factual | 3187.7 | 3304.7 | 18 |
+
+**pgrg**
+
+| Question Class | p50 (ms) | mean (ms) | n |
+|----------------|----------|-----------|---|
+| semantic | 37.0 | 59.9 | 24 |
+| single_hop | 26.0 | 27.4 | 30 |
+| multi_hop_bridging | 35.7 | 36.8 | 18 |
+| factual | 25.0 | 34.7 | 18 |
 
 ## Corpus: scotus__local
 
@@ -433,8 +733,8 @@
 
 | Engine | Fully Correct | Partially | Wrong | Hallucinated | n |
 |--------|--------------|-----------|-------|--------------|---|
-| age | 11 | 6 | 13 | 0 | 30 |
-| pgrg | 10 | 6 | 14 | 0 | 30 |
+| age | 11 | 7 | 12 | 0 | 30 |
+| pgrg | 9 | 7 | 14 | 0 | 30 |
 
 ### Per-Question-Class Latency Breakdown
 
@@ -483,8 +783,8 @@
 
 | Engine | Fully Correct | Partially | Wrong | Hallucinated | n |
 |--------|--------------|-----------|-------|--------------|---|
-| age | 11 | 8 | 11 | 0 | 30 |
-| pgrg | 11 | 7 | 12 | 0 | 30 |
+| age | 12 | 6 | 12 | 0 | 30 |
+| pgrg | 11 | 8 | 11 | 0 | 30 |
 
 ### Per-Question-Class Latency Breakdown
 
@@ -534,7 +834,7 @@
 | Engine | Fully Correct | Partially | Wrong | Hallucinated | n |
 |--------|--------------|-----------|-------|--------------|---|
 | age | 11 | 7 | 12 | 0 | 30 |
-| pgrg | 11 | 7 | 12 | 0 | 30 |
+| pgrg | 11 | 8 | 11 | 0 | 30 |
 
 ### Per-Question-Class Latency Breakdown
 

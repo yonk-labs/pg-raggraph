@@ -3,10 +3,10 @@
   "by_model": {
     "gpt-4.1-mini": {
       "calls": 180,
-      "completion_tokens": 9539,
-      "prompt_tokens": 602028,
-      "usd": 0.25607359999999996
+      "completion_tokens": 12126,
+      "prompt_tokens": 682680,
+      "usd": 0.29247359999999983
     }
   },
-  "total_usd": 0.25607359999999996
+  "total_usd": 0.29247359999999983
 }

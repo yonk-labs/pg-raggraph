@@ -4,7 +4,7 @@
     "question_id": "scotus-q-001",
     "verdict": "partially_correct",
     "votes": [
-      "wrong",
+      "partially_correct",
       "partially_correct",
       "partially_correct"
     ]
@@ -72,11 +72,11 @@
   "age::scotus-q-008": {
     "engine": "age",
     "question_id": "scotus-q-008",
-    "verdict": "partially_correct",
+    "verdict": "wrong",
     "votes": [
-      "partially_correct",
-      "partially_correct",
-      "wrong"
+      "wrong",
+      "wrong",
+      "partially_correct"
     ]
   },
   "age::scotus-q-009": {
@@ -252,9 +252,9 @@
   "age::scotus-q-026": {
     "engine": "age",
     "question_id": "scotus-q-026",
-    "verdict": "partially_correct",
+    "verdict": "fully_correct",
     "votes": [
-      "partially_correct",
+      "fully_correct",
       "partially_correct",
       "fully_correct"
     ]
@@ -285,7 +285,7 @@
     "verdict": "wrong",
     "votes": [
       "wrong",
-      "partially_correct",
+      "wrong",
       "wrong"
     ]
   },
@@ -304,9 +304,9 @@
     "question_id": "scotus-q-001",
     "verdict": "partially_correct",
     "votes": [
+      "wrong",
       "partially_correct",
-      "partially_correct",
-      "wrong"
+      "partially_correct"
     ]
   },
   "pgrg::scotus-q-002": {
@@ -372,10 +372,10 @@
   "pgrg::scotus-q-008": {
     "engine": "pgrg",
     "question_id": "scotus-q-008",
-    "verdict": "wrong",
+    "verdict": "partially_correct",
     "votes": [
-      "wrong",
-      "wrong",
+      "partially_correct",
+      "partially_correct",
       "wrong"
     ]
   },
@@ -556,7 +556,7 @@
     "votes": [
       "partially_correct",
       "partially_correct",
-      "fully_correct"
+      "partially_correct"
     ]
   },
   "pgrg::scotus-q-027": {

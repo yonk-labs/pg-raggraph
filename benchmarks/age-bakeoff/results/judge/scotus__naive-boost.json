@@ -75,7 +75,7 @@
     "verdict": "wrong",
     "votes": [
       "wrong",
-      "wrong",
+      "partially_correct",
       "wrong"
     ]
   },
@@ -306,7 +306,7 @@
     "votes": [
       "partially_correct",
       "partially_correct",
-      "partially_correct"
+      "wrong"
     ]
   },
   "pgrg::scotus-q-002": {
@@ -372,9 +372,9 @@
   "pgrg::scotus-q-008": {
     "engine": "pgrg",
     "question_id": "scotus-q-008",
-    "verdict": "wrong",
+    "verdict": "partially_correct",
     "votes": [
-      "wrong",
+      "partially_correct",
       "wrong",
       "partially_correct"
     ]
@@ -555,7 +555,7 @@
     "verdict": "partially_correct",
     "votes": [
       "partially_correct",
-      "partially_correct",
+      "fully_correct",
       "partially_correct"
     ]
   },
