@@ -19,9 +19,9 @@ Acme pgrg `fully_correct` / 30, sentence_aware → hierarchy:
 | global      | 7              | 5         | **-2** | 2 → 4 |
 | naive       | 4              | 4         | 0     | 3 → 4 |
 | naive_boost | 4              | 5         | +1    | 2 → 3 |
-| smart       | 6              | (pending re-judge) | ? | — |
+| smart       | 6              | 4         | **-2** | 1 → 6 |
 
-_**(The smart row was cut off by a judge-wrapper timeout; re-judge was in progress when this doc was saved. All other numbers are final.)**_
+_**(Smart row re-judged 2026-04-20. Landed at 4/30, consistent with the other hierarchy modes' regression pattern. All six rows are now final.)**_
 
 For comparison, the same sweep on SCOTUS:
 
@@ -81,13 +81,12 @@ Total acme sweep + judge: estimated <$1 (much cheaper than SCOTUS because 160 do
 
 1. **Update REPORT-VERDICT.md's shipping-recommendation section** — soften "ship as default" to "ship as opt-in."
 2. **Update GRAPH-AUGMENTATION-VERDICT.md's shipping-implications section** — same softening.
-3. **Re-judge `acme__hier_smart.json`** — 20-min wrapper timeout truncated it; background judge was re-running at the time of handoff. Verify it lands at parity with the other modes (expected: 4-5/30).
+3. ~~Re-judge `acme__hier_smart.json`~~ — **done 2026-04-20.** Result: 4/30 pgrg, 4/30 age. Matches the predicted 4-5 range and the rest of the regression pattern.
 4. **Decide on the Option A/B/C fork above** before proceeding to library port.
 5. **Optional third-corpus replication** (Option B) — would strengthen the generalization story either way.
 
 ## Artifacts
 
 - `results/raw/acme__hier_{hybrid,smart,local,global,naive,naive_boost}.json` — all 6 raw files, 180 records each.
-- `results/judge/acme__hier_{hybrid,local,global,naive,naive_boost}.json` — 5 finished judge files.
-- `results/judge/acme__hier_smart.json` — **missing pending re-judge**.
+- `results/judge/acme__hier_{hybrid,local,global,naive,naive_boost,smart}.json` — all 6 judge files (smart added 2026-04-20).
 - Baselines: `results/judge/acme.json` + `results/judge/acme__{smart,local,global,naive,naive-boost}.json` (unchanged from yesterday).

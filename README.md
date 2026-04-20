@@ -269,6 +269,7 @@ All settings via environment variables (prefix `PGRG_`):
 | `PGRG_LLM_MODEL` | `llama3.2` | LLM model name |
 | `PGRG_LLM_API_KEY` | `""` | API key (empty for Ollama) |
 | `PGRG_EXTRACTION_PROMPT` | `default` | `default` or `dev` (code-tuned) |
+| `PGRG_CHUNK_STRATEGY` | `auto` | `auto` or `hierarchy`. Use `hierarchy` only when per-doc titles are concrete disambiguators (case names, article titles); it regresses on format-string titles like meeting updates. See [user-guide](docs/user-guide.md#chunking) and [bake-off evidence](benchmarks/age-bakeoff/results/ACME-HIER-REPLICATION.md). |
 | `PGRG_INGEST_PROFILE` | `balanced` | `conservative` / `balanced` / `aggressive` / `max` |
 | `PGRG_MAX_HOPS` | `2` | Graph traversal depth |
 | `PGRG_TOP_K` | `10` | Results per query |

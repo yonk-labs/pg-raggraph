@@ -241,10 +241,20 @@ export PGRG_LLM_API_KEY=   # Empty for local, set for cloud APIs
 
 ### Chunking
 ```bash
-export PGRG_CHUNK_STRATEGY=auto      # auto | markdown | sentence | fixed
-export PGRG_CHUNK_MAX_TOKENS=512     # Max tokens per chunk
-export PGRG_CHUNK_OVERLAP_TOKENS=50  # Overlap between chunks
+export PGRG_CHUNK_STRATEGY=auto      # auto | hierarchy
+export PGRG_CHUNK_MAX_TOKENS=512     # Max tokens per chunk (auto strategy)
+export PGRG_CHUNK_OVERLAP_TOKENS=50  # Overlap between chunks (auto strategy)
 ```
+
+#### `auto` (default)
+Detects markdown / code / prose from the source path and content, then chunks by structure with a token budget. Markdown splits on headings; code splits on `def`/`class`/`func` boundaries; plain text splits on sentence boundaries. Hard-splits oversized chunks to respect `chunk_max_tokens`.
+
+#### `hierarchy` (opt-in)
+Heading-prefixed chunker ported from the AGE bake-off. Each section body is prefixed with its markdown heading (or a derived title — first H1, else filename stem) so the embedder sees `heading + body` as one unit. **Does not enforce a token budget** — oversized sections pass through unchanged and get truncated at embed time, mirroring the benchmarked behavior.
+
+**Use `hierarchy` when** your corpus has concrete, disambiguating per-document titles: case names, article titles, product names, Wikipedia-shaped pages. On the SCOTUS benchmark this cleared the ship threshold by 2.5× across all six retrieval modes.
+
+**Do NOT use `hierarchy` when** your titles are format strings that repeat across documents: meeting updates ("Weekly sync: …"), ticket-prefix subjects, templated status reports. On such corpora the title prefix homogenizes embeddings and slightly regresses accuracy while raising hallucinations. See [`benchmarks/age-bakeoff/results/ACME-HIER-REPLICATION.md`](../benchmarks/age-bakeoff/results/ACME-HIER-REPLICATION.md) for the data.
 
 ### Retrieval
 ```bash
