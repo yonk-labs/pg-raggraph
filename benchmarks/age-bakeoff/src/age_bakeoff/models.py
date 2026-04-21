@@ -50,10 +50,18 @@ class ExtractionOutput(BaseModel):
 
 
 class QuestionClass(str, Enum):
+    # Legacy classes — used by hand-authored SCOTUS / acme / pg-src sets
     semantic = "semantic"
     single_hop = "single_hop"
     multi_hop_bridging = "multi_hop_bridging"
     factual = "factual"
+    # GraphRAG-Bench question types (ICLR'26 benchmark)
+    fact_retrieval = "Fact Retrieval"
+    complex_reasoning = "Complex Reasoning"
+    contextual_summarize = "Contextual Summarize"
+    creative_generation = "Creative Generation"
+    # Catch-all for corpora without a meaningful class (MS sensemaking sets)
+    unclassified = "unclassified"
 
 
 class Question(BaseModel):
@@ -62,7 +70,7 @@ class Question(BaseModel):
     id: str
     question: str
     gold_answer: str
-    required_facts: list[str]
+    required_facts: list[str] = Field(default_factory=list)
     required_entities: list[str] = Field(default_factory=list)
     question_class: QuestionClass
     notes: str = ""

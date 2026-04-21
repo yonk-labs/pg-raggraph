@@ -31,14 +31,17 @@ def materialize(corpus_id: str, n: int | None, seed: int, out_path: Path) -> int
     _docs, questions = load_corpus(corpus_id, n_questions=n, seed=seed)
 
     yaml_data = {
-        "name": corpus_id,
+        "corpus": corpus_id,
         "questions": [
             {
                 "id": q["id"],
                 "question": q["question"],
                 "gold_answer": q.get("gold_answer") or "",
+                # GraphRAG-Bench ships `evidence` — map to required_facts so
+                # the bakeoff's fact-recall scorer has something to check.
+                # MS datasets have neither; default to empty list.
+                "required_facts": q.get("evidence", []) or [],
                 "question_class": q.get("question_class", "unclassified"),
-                "metadata": q.get("metadata", {}),
             }
             for q in questions
         ],

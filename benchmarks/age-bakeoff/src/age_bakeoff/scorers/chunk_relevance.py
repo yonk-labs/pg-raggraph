@@ -36,7 +36,7 @@ async def score_chunk_relevance(
     resp = await client.chat.completions.create(
         model=model,
         response_format={"type": "json_object"},
-        temperature=0,
+        **({"temperature": 0} if not model.startswith(("gpt-5","o1","o3")) else {}),
         messages=[{"role": "user", "content": prompt}],
     )
     if tracker is not None and resp.usage is not None:

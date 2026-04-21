@@ -51,7 +51,7 @@ def extract_pg_src(
                 {"role": "user", "content": user_msg},
             ],
             response_format={"type": "json_object"},
-            temperature=0,
+            **({"temperature": 0} if not model.startswith(("gpt-5","o1","o3")) else {}),
         )
         content = resp.choices[0].message.content or "{}"
         try:

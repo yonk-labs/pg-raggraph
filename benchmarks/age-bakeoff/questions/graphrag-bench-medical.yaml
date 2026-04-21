@@ -1,4 +1,4 @@
-name: graphrag-bench-medical
+corpus: graphrag-bench-medical
 questions:
 - id: Medical-0cd460d0
   question: You are a clinician asked to create a discharge summary for a patient
@@ -16,31 +16,51 @@ questions:
     \ therapy as per protocol. Repeat bone marrow evaluation and molecular testing\
     \ to assess remission status. Monitor for differentiation syndrome and provide\
     \ ongoing supportive care.\n\nFertility counseling was completed prior to therapy."
+  required_facts:
+  - The patient has been diagnosed with acute promyelocytic leukemia (APL), a subtype
+    of AML.
+  - The diagnosis was confirmed by bone marrow biopsy showing more than 20% blasts.
+  - The PML::RARA fusion gene was identified in the patient.
+  - Cytogenetic and molecular testing was positive for the PML::RARA fusion.
+  - Induction therapy with chemotherapy and targeted therapy was initiated.
+  - Supportive care included transfusions.
+  - Supportive care included infection prophylaxis.
+  - The patient developed thrombocytopenia.
+  - The patient developed neutropenic fever.
+  - Thrombocytopenia was managed with platelet transfusions.
+  - Neutropenic fever was managed with broad-spectrum antibiotics.
+  - Consolidation therapy should continue as per protocol.
+  - A repeat bone marrow evaluation and molecular testing are recommended to assess
+    remission status.
+  - Monitoring for differentiation syndrome is necessary.
+  - Ongoing supportive care is required.
+  - Fertility counseling was completed prior to therapy.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-ac502742
   question: How can PD-L1 expression influence the treatment of throat cancer?
   gold_answer: PD-L1 expression may guide immunotherapy treatment decisions in throat
     cancer.
+  required_facts:
+  - PD-L1 expression may guide immunotherapy treatment decisions in throat cancer.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-9ba19145
   question: Which assessments help determine performance status in esophageal cancer
     patients?
   gold_answer: Performance status assessment is used.
+  required_facts:
+  - Performance status assessment is used to determine performance status in esophageal
+    cancer patients.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-2a0d5063
   question: How often should skin and lymph node exams be performed for low-risk local
     CSCC during the first 2 years after treatment?
   gold_answer: Skin and lymph node exams every 3-12 months for 2 years are recommended
     for low-risk local CSCC.
+  required_facts:
+  - Skin and lymph node exams are recommended for low-risk local CSCC.
+  - Skin and lymph node exams should be performed every 3-12 months.
+  - Skin and lymph node exams should be performed for 2 years.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-bc02cc6c
   question: Rewrite the key points from the prostate cancer guideline as a public
     health advisory aimed at men over 50, emphasizing risk factors, early detection,
@@ -59,9 +79,28 @@ questions:
     from active surveillance for low-risk cases to surgery, radiation, hormone therapy,
     and chemotherapy for more advanced disease. Regular follow-up with PSA testing
     and imaging is important for all men diagnosed with prostate cancer.'
+  required_facts:
+  - Prostate cancer is one of the most common cancers among men.
+  - Early stages of prostate cancer are often asymptomatic.
+  - Screening is crucial for early detection of prostate cancer.
+  - The risk of prostate cancer increases with age.
+  - A family history of prostate cancer increases risk.
+  - Black race is a risk factor for prostate cancer.
+  - Genetic mutations such as BRCA1 and BRCA2 increase the risk of prostate cancer.
+  - Lifestyle factors such as obesity, smoking, and high-fat diets may elevate the
+    risk of prostate cancer.
+  - Screening methods for prostate cancer include the PSA blood test and digital rectal
+    exam.
+  - Abnormal screening results should be evaluated by a healthcare professional.
+  - Diagnosis of prostate cancer is confirmed with a prostate biopsy.
+  - Imaging such as MRI or ultrasound may be used to determine the extent of the disease.
+  - Treatment options for prostate cancer vary by stage and risk group.
+  - Active surveillance is an option for low-risk prostate cancer cases.
+  - Surgery, radiation, hormone therapy, and chemotherapy are treatment options for
+    more advanced prostate cancer.
+  - Regular follow-up with PSA testing and imaging is important for men diagnosed
+    with prostate cancer.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-5242d398
   question: You are an oncologist tasked with drafting an initial treatment plan for
     a patient newly diagnosed with non-clear cell RCC (papillary subtype) confined
@@ -76,17 +115,32 @@ questions:
     localized nature and non-clear cell histology, surgical resection (partial or
     radical nephrectomy depending on tumor size and location) is the mainstay of treatment.
     Further management would be determined by final pathology and risk assessment.
+  required_facts:
+  - The patient has a new diagnosis of papillary renal cell carcinoma (PRCC).
+  - The PRCC is confined to the kidney.
+  - The diagnosis will be confirmed using imaging tests such as CT or MRI.
+  - Blood and urine tests will be performed for diagnostic confirmation.
+  - A percutaneous biopsy will be conducted for histologic subtyping.
+  - Biomarker and genetic risk testing will identify actionable alterations.
+  - Staging will ensure there is no local spread to surrounding fat.
+  - Staging will ensure there is no local spread to blood vessels.
+  - Staging will ensure there is no local spread to lymph nodes.
+  - Staging will ensure there is no distant metastasis.
+  - Surgical resection is the mainstay of treatment.
+  - The surgical resection may be partial or radical nephrectomy.
+  - The type of nephrectomy depends on tumor size and location.
+  - Further management will be determined by final pathology and risk assessment.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-4b359d87
   question: If a patient's lymph node biopsy reveals popcorn-shaped cells, what is
     the diagnosis and what is a potential complication?
   gold_answer: The diagnosis is nodular lymphocyte-predominant Hodgkin lymphoma, which
     can transform into diffuse large B-cell lymphoma.
+  required_facts:
+  - The diagnosis is nodular lymphocyte-predominant Hodgkin lymphoma.
+  - Nodular lymphocyte-predominant Hodgkin lymphoma can transform into diffuse large
+    B-cell lymphoma.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-f9a73f1e
   question: How is cervical cancer staged and what are the main treatment modalities
     at different stages?
@@ -95,9 +149,17 @@ questions:
     options), while locally advanced stages are managed with chemoradiation, and metastatic
     or recurrent disease may require systemic therapy including chemotherapy, targeted
     therapy, or immunotherapy.
+  required_facts:
+  - Cervical cancer is staged using the FIGO system.
+  - The FIGO system includes Stages I-IV with sub-stages.
+  - Early-stage cervical cancer is mainly treated with surgery.
+  - Fertility-sparing options are available for early-stage cervical cancer treatment.
+  - Locally advanced stages of cervical cancer are managed with chemoradiation.
+  - Metastatic or recurrent cervical cancer may require systemic therapy.
+  - Systemic therapy for cervical cancer may include chemotherapy.
+  - Systemic therapy for cervical cancer may include targeted therapy.
+  - Systemic therapy for cervical cancer may include immunotherapy.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-53e61e6b
   question: Rewrite the mouth cancer practice guideline into a concise discharge summary
     for a patient who underwent initial evaluation and is pending definitive treatment.
@@ -139,9 +201,27 @@ questions:
 
 
     Follow-up: Outpatient oncology clinic in 1 week.'
+  required_facts:
+  - The patient is diagnosed with squamous cell carcinoma of the oral cavity.
+  - The lesion is located on the tongue, specifically the front two-thirds.
+  - Imaging (MRI, CT) revealed a 2.2 cm mass.
+  - The depth of invasion is 6 mm.
+  - There is no evidence of distant metastasis.
+  - A biopsy confirmed squamous cell carcinoma.
+  - Fine-needle aspiration of a submandibular lymph node was negative for metastasis.
+  - The performance status is ECOG 1.
+  - The patient has a history of tobacco use.
+  - The patient has a history of alcohol use.
+  - A panoramic dental x-ray identified dental issues requiring management.
+  - Biomarker testing (PD-L1, MSI-H/dMMR, TMB) is pending.
+  - The staging is Stage II (T2N0M0) per TNM classification.
+  - Recommendations include completing biomarker testing.
+  - Recommendations include dental, speech and swallowing, and nutrition assessments.
+  - Recommendations include smoking and alcohol cessation support.
+  - Recommendations include discussing fertility preservation if relevant.
+  - Recommendations include multidisciplinary tumor board review for treatment planning.
+  - Follow-up is scheduled for the outpatient oncology clinic in 1 week.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-cdbc8593
   question: You are a pediatric hematologist receiving a referral for a 7-year-old
     newly diagnosed with acute lymphoblastic leukemia (ALL). Write a detailed initial
@@ -161,38 +241,60 @@ questions:
     therapy and supportive care as standard. Clinical trial enrollment will be considered,
     as recommended. The treatment approach will be further tailored once subtype and
     risk factors are fully established.'
+  required_facts:
+  - The patient is a 7-year-old child with a new diagnosis of acute lymphoblastic
+    leukemia (ALL).
+  - ALL is the most common cancer in children.
+  - Diagnostic workup included blood tests and bone marrow aspiration.
+  - The bone marrow aspiration revealed more than 20% lymphoblasts in the marrow.
+  - Subtype analysis is pending to distinguish between B-cell ALL (B-ALL) and T-cell
+    ALL (T-ALL).
+  - B-ALL is more common than T-ALL.
+  - T-ALL may present with an enlarged thymus or breathing problems.
+  - Further evaluation includes imaging tests.
+  - Heart function assessment is part of the evaluation.
+  - A lumbar puncture is performed to assess CNS involvement.
+  - Biomarker and pharmacogenomic testing are ordered to assess for BCR::ABL1 status.
+  - All patients with ALL receive steroids and multiagent chemotherapy.
+  - Systemic therapy and supportive care are standard for ALL treatment.
+  - Clinical trial enrollment will be considered as recommended.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-0103d518
   question: How are hereditary breast-ovarian cancer syndrome and HBOC related to
     pancreatic ductal adenocarcinoma risk?
   gold_answer: Both hereditary breast-ovarian cancer syndrome and HBOC are genetic
     syndromes that increase the risk of pancreatic ductal adenocarcinoma.
+  required_facts:
+  - Hereditary breast-ovarian cancer syndrome is a genetic syndrome.
+  - HBOC is a genetic syndrome.
+  - Both hereditary breast-ovarian cancer syndrome and HBOC increase the risk of pancreatic
+    ductal adenocarcinoma.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-f657d12f
   question: What surveillance strategies are recommended for patients with throat
     cancer after initial treatment?
   gold_answer: Surveillance for throat cancer patients includes regular dental health
     assessment, imaging follow-up, and physical examinations to monitor for recurrence
     and manage complications.
+  required_facts:
+  - Surveillance for throat cancer patients includes regular dental health assessment.
+  - Surveillance for throat cancer patients includes imaging follow-up.
+  - Surveillance for throat cancer patients includes physical examinations.
+  - Surveillance for throat cancer patients is conducted to monitor for recurrence.
+  - Surveillance for throat cancer patients is conducted to manage complications.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-2360f9dd
   question: What defines Stage 0 colon cancer?
   gold_answer: Stage 0 colon cancer is carcinoma in situ.
+  required_facts:
+  - Stage 0 colon cancer is carcinoma in situ.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-b2e840c7
   question: Which ALL subtype can cause an enlarged thymus?
   gold_answer: T-cell ALL (T-ALL) can cause an enlarged thymus.
+  required_facts:
+  - T-cell ALL (T-ALL) can cause an enlarged thymus.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-5b2ade97
   question: You are a medical oncologist asked to summarize the evidence-based first-line
     treatment options for metastatic (Stage 4) colon cancer, including biomarker-driven
@@ -207,17 +309,31 @@ questions:
     Palliative care should be integrated early to address symptoms and improve quality
     of life. Surveillance with imaging and CEA testing is essential for monitoring
     treatment response.
+  required_facts:
+  - For Stage 4 (metastatic) colon cancer, distant metastases must be confirmed with
+    contrast-enhanced CT imaging.
+  - All tumors must be tested for mismatch repair deficiency (dMMR) or microsatellite
+    instability-high (MSI-H).
+  - Immunotherapy with checkpoint inhibitors is preferred for dMMR/MSI-H cancers.
+  - Examples of checkpoint inhibitors include pembrolizumab and nivolumab.
+  - Systemic chemotherapy regimens such as FOLFOX or CAPEOX are recommended for pMMR/MSS
+    tumors.
+  - Surgical resection of the primary tumor or metastases may be considered for select
+    patients.
+  - Palliative care should be integrated early to address symptoms.
+  - Palliative care aims to improve quality of life.
+  - Surveillance with imaging and CEA testing is essential for monitoring treatment
+    response.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-f7ce6257
   question: How does the treatment approach differ between T1 and T2 rectal tumors
     according to surgical recommendations?
   gold_answer: T1 tumors are treated with local excision or endoscopic methods, while
     T2 tumors require transabdominal surgery.
+  required_facts:
+  - T1 rectal tumors are treated with local excision or endoscopic methods.
+  - T2 rectal tumors require transabdominal surgery.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-1f9a3a9d
   question: Imagine you are a hematology fellow asked to write a detailed diagnostic
     summary for a patient with suspected chronic lymphocytic leukemia (CLL). Your
@@ -237,17 +353,34 @@ questions:
     microglobulin for disease activity and a thorough review of the patient''s age
     and family history, as these are significant risk factors for CLL. If needed,
     a lymph node or bone marrow biopsy may be performed to support the diagnosis.'
+  required_facts:
+  - The patient presents with persistent lymphocytosis.
+  - Clinical features suggest chronic lymphocytic leukemia (CLL).
+  - The patient has swollen glands and fatigue.
+  - Initial laboratory evaluation includes a complete blood count (CBC).
+  - The CBC should demonstrate ≥5,000 monoclonal B lymphocytes per microliter.
+  - Flow cytometry is warranted to confirm the immunophenotype of the lymphocytes.
+  - Surface markers such as CD20, CD200, and LEF1 are assessed in flow cytometry.
+  - Additional biomarker testing with FISH is performed to identify 17p deletion.
+  - DNA sequencing is indicated for TP53 and IGHV mutations.
+  - Karyotype analysis evaluates for complex chromosomal abnormalities.
+  - Diagnostic imaging with a CT scan is recommended to assess lymph node and organ
+    involvement.
+  - Risk assessment includes evaluation of beta-2 microglobulin for disease activity.
+  - The patient's age and family history are significant risk factors for CLL.
+  - A lymph node or bone marrow biopsy may be performed to support the diagnosis if
+    needed.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-4a4eaab8
   question: How does the presence or absence of the t(14;18) translocation affect
     the classification of follicular lymphoma?
   gold_answer: FL cases lacking t(14;18) or with uncommon pathologic features are
     classified as uncommon FL (uFL) but are treated as classic FL.
+  required_facts:
+  - FL cases lacking t(14;18) are classified as uncommon FL (uFL).
+  - FL cases with uncommon pathologic features are classified as uncommon FL (uFL).
+  - Uncommon FL (uFL) is treated as classic FL.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-ec347ef8
   question: Rewrite the core recommendations from the liver cancer guideline as a
     public health advisory targeted at patients with cirrhosis or chronic hepatitis
@@ -262,9 +395,18 @@ questions:
     cancer screening with ultrasound and alpha-fetoprotein (AFP) blood tests every
     6 months. These tests can identify liver cancer at a stage when it is more treatable.
     Please speak with your healthcare provider about arranging regular screening.'
+  required_facts:
+  - Individuals with cirrhosis or chronic hepatitis B are at increased risk for developing
+    liver cancer.
+  - Early detection improves treatment options and outcomes.
+  - All individuals with cirrhosis or chronic hepatitis B should undergo liver cancer
+    screening.
+  - Liver cancer screening should include ultrasound and alpha-fetoprotein (AFP) blood
+    tests.
+  - Screening should occur every 6 months.
+  - These tests can identify liver cancer at a more treatable stage.
+  - Patients should speak with their healthcare provider about arranging regular screening.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-a3c71579
   question: What staging systems and factors are used to determine the extent and
     prognosis of throat cancer?
@@ -272,49 +414,65 @@ questions:
     tumor size, lymph node involvement, and metastasis, and incorporates both clinical
     and pathologic stages; prognosis is further informed by factors such as ECOG performance
     status and HPV/p16 status.
+  required_facts:
+  - Throat cancer staging is based on the AJCC TNM system.
+  - The AJCC TNM system evaluates tumor size.
+  - The AJCC TNM system evaluates lymph node involvement.
+  - The AJCC TNM system evaluates metastasis.
+  - Throat cancer staging incorporates both clinical and pathologic stages.
+  - Prognosis for throat cancer is informed by ECOG performance status.
+  - Prognosis for throat cancer is informed by HPV/p16 status.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-fc13ecfe
   question: What is the rationale for recommending chemotherapy after colectomy in
     stage 3 colon cancer but not always in stage 2?
   gold_answer: Chemotherapy is recommended after colectomy for all stage 3 colon cancers
     due to lymph node involvement, while only some stage 2 cases receive it as they
     lack lymph node spread.
+  required_facts:
+  - Chemotherapy is recommended after colectomy for all stage 3 colon cancers.
+  - Stage 3 colon cancers have lymph node involvement.
+  - Only some stage 2 colon cancer cases receive chemotherapy.
+  - Some stage 2 colon cancer cases lack lymph node spread.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-6809b810
   question: What are the main types and subtypes of throat cancer and how are they
     classified within head and neck cancers?
   gold_answer: Throat cancer is classified as a subtype of head and neck cancer, with
     oropharyngeal cancer as a further subtype; squamous cell carcinoma is the most
     common type of throat cancer, often arising in the oropharynx.
+  required_facts:
+  - Throat cancer is classified as a subtype of head and neck cancer.
+  - Oropharyngeal cancer is a further subtype of throat cancer.
+  - Squamous cell carcinoma is the most common type of throat cancer.
+  - Squamous cell carcinoma often arises in the oropharynx.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-14016ce3
   question: What is the rationale for recommending surgery as the most common treatment
     for BCC lesions on sun-exposed areas?
   gold_answer: Because BCC most commonly develops on sun-exposed areas and surgery
     is the most effective treatment.
+  required_facts:
+  - Basal cell carcinoma most commonly develops on sun-exposed areas.
+  - Surgery is the most effective treatment for basal cell carcinoma lesions.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-2c20babc
   question: What does T4b represent in the TNM classification for mouth cancer?
   gold_answer: T4b represents very advanced local disease.
+  required_facts:
+  - T4b represents very advanced local disease in mouth cancer.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-b200a90c
   question: Which bladder cancer subtypes are less common and how does this affect
     the overall classification of the disease?
   gold_answer: Squamous cell carcinoma, adenocarcinoma, and small cell carcinoma are
     less common subtypes, with urothelial carcinoma being the most common.
+  required_facts:
+  - Squamous cell carcinoma is a less common subtype of bladder cancer.
+  - Adenocarcinoma is a less common subtype of bladder cancer.
+  - Small cell carcinoma is a less common subtype of bladder cancer.
+  - Urothelial carcinoma is the most common subtype of bladder cancer.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-c84d2076
   question: What are the main types of adrenal tumors and how do they differ in terms
     of malignancy and function?
@@ -322,48 +480,74 @@ questions:
     adenomas often being non-metastasizing and either functional or nonfunctioning,
     while malignant tumors include adrenocortical carcinoma, pheochromocytoma, and
     neuroblastoma, which may produce hormones and have potential for metastasis.
+  required_facts:
+  - Adrenal tumors can be benign or malignant.
+  - Benign adrenal tumors like adenomas are often non-metastasizing.
+  - Benign adrenal tumors can be functional or nonfunctioning.
+  - Malignant adrenal tumors include adrenocortical carcinoma.
+  - Malignant adrenal tumors include pheochromocytoma.
+  - Malignant adrenal tumors include neuroblastoma.
+  - Malignant adrenal tumors may produce hormones.
+  - Malignant adrenal tumors have potential for metastasis.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-ec091b24
   question: Is immune suppression a risk factor for BCC?
   gold_answer: Immune suppression is a risk factor for BCC.
+  required_facts:
+  - Immune suppression is a risk factor for BCC.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-c58fae3b
   question: Which targeted therapies are approved for progressive, unresectable, or
     metastatic thyroid cancer, and what is their main indication?
   gold_answer: Lenvatinib, sorafenib, and cabozantinib are approved for progressive,
     unresectable, or metastatic thyroid cancer not responsive to surgery or RAI.
+  required_facts:
+  - Lenvatinib is approved for progressive thyroid cancer.
+  - Sorafenib is approved for progressive thyroid cancer.
+  - Cabozantinib is approved for progressive thyroid cancer.
+  - These therapies are approved for unresectable thyroid cancer.
+  - These therapies are approved for metastatic thyroid cancer.
+  - These therapies are not responsive to surgery or RAI.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-e14162c2
   question: What criteria distinguish extra-mediastinal gray zone lymphoma from DLBCL,
     not otherwise specified (DLBCL-NOS)?
   gold_answer: Extra-mediastinal gray zone lymphoma, when presenting with disease
     outside the mediastinum, is diagnosed as DLBCL-NOS, particularly in cases with
     bone marrow or extranodal involvement and advanced-stage disease.
+  required_facts:
+  - Extra-mediastinal gray zone lymphoma is diagnosed as DLBCL-NOS when presenting
+    with disease outside the mediastinum.
+  - Extra-mediastinal gray zone lymphoma is particularly diagnosed as DLBCL-NOS in
+    cases with bone marrow involvement.
+  - Extra-mediastinal gray zone lymphoma is particularly diagnosed as DLBCL-NOS in
+    cases with extranodal involvement.
+  - Extra-mediastinal gray zone lymphoma is particularly diagnosed as DLBCL-NOS in
+    cases of advanced-stage disease.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-594504cc
   question: What genetic and biomarker testing is necessary for ALL patients and how
     does it impact therapy selection?
   gold_answer: ALL patients require genetic and biomarker testing to identify alterations
     like BCR::ABL1, which guide targeted therapy selection.
+  required_facts:
+  - ALL patients require genetic testing.
+  - ALL patients require biomarker testing.
+  - Genetic and biomarker testing identifies alterations like BCR::ABL1.
+  - BCR::ABL1 alterations guide targeted therapy selection.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-b6606867
   question: What are the primary symptoms of anal cancer and its most common subtype?
   gold_answer: The main symptoms of anal cancer, particularly anal squamous cell carcinoma—the
     most prevalent subtype—include rectal bleeding, anal itching, anal pain, and a
     lump near the anus.
+  required_facts:
+  - The main symptoms of anal cancer include rectal bleeding.
+  - The main symptoms of anal cancer include anal itching.
+  - The main symptoms of anal cancer include anal pain.
+  - The main symptoms of anal cancer include a lump near the anus.
+  - Anal squamous cell carcinoma is the most prevalent subtype of anal cancer.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-de2ed9e3
   question: Transform the core clinical and pathological features of mediastinal gray
     zone lymphoma (MGZL) into a formal referral letter from a primary care physician
@@ -387,9 +571,18 @@ questions:
     Sincerely,
 
     [Referring Physician]'
+  required_facts:
+  - The patient is a 28-year-old male with a rapidly enlarging mediastinal mass and
+    supraclavicular lymphadenopathy.
+  - Imaging studies confirm a bulky mediastinal tumor.
+  - Histopathological examination revealed the presence of Reed-Sternberg cells.
+  - There is an overlap of features between primary mediastinal B-cell lymphoma (PMBL)
+    and Hodgkin lymphoma (HL).
+  - An expert evaluation is sought for possible mediastinal gray zone lymphoma (MGZL).
+  - Expert hematopathologist review is recommended to establish a definitive diagnosis.
+  - Management may include consideration of chemoimmunotherapy.
+  - Involved-site radiation therapy may also be considered.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-9210668e
   question: Transform the clinical facts on metastatic breast cancer (MBC) into a
     structured SOAP (Subjective, Objective, Assessment, Plan) progress note for a
@@ -418,9 +611,27 @@ questions:
     eligibility for targeted therapies.
 
     '
+  required_facts:
+  - The patient reports persistent bone pain.
+  - The patient reports intermittent shortness of breath.
+  - The patient has no new neurological symptoms.
+  - The patient has no liver dysfunction.
+  - Imaging tests confirm metastases to bone and lung.
+  - Blood tests are within normal limits.
+  - A biopsy confirms metastatic breast cancer.
+  - Biomarker analysis reveals hormone receptor positivity (ER/PR+).
+  - Biomarker analysis reveals HER2 negativity.
+  - The patient's performance status remains stable.
+  - The assessment is stage IV metastatic breast cancer with bone and pulmonary involvement.
+  - The cancer is hormone receptor-positive.
+  - The cancer is HER2-negative.
+  - The plan is to continue systemic therapy with endocrine therapy and CDK4/6 inhibitor.
+  - The plan includes monitoring for disease progression with regular imaging and
+    physical exams.
+  - The plan includes managing bone metastases with bisphosphonates.
+  - The plan includes providing supportive care for symptom control.
+  - The plan includes discussing ongoing eligibility for targeted therapies.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-afaa48c4
   question: You are a multidisciplinary tumor board coordinator tasked with drafting
     a template for a mouth cancer case summary to be used in board meetings. The template
@@ -457,41 +668,66 @@ questions:
 
     14. Supportive Needs: Smoking/alcohol cessation, dental, speech, and nutritional
     support'
+  required_facts:
+  - The template is for a mouth cancer tumor board case summary.
+  - Patient demographics should include age, sex, and relevant history.
+  - The anatomical site should specify the location within the mouth.
+  - Symptom description should document changes in the mouth, tongue, or neck.
+  - Diagnostic imaging should include findings from CT, MRI, PET/CT, or ultrasound.
+  - Histology should include the biopsy result.
+  - TNM staging should include tumor size, depth, nodal involvement, and metastasis.
+  - Biomarker results should include PD-L1, MSI-H/dMMR, and TMB.
+  - Performance status should include the ECOG score.
+  - Dental assessment should include findings from a panoramic dental x-ray.
+  - Speech, swallowing, and nutrition assessments should be summarized.
+  - Fertility considerations should be noted and addressed if relevant.
+  - Risk factors should include smoking, vaping, and alcohol use.
+  - Treatment planning should include the proposed approach and rationale.
+  - Supportive needs should include smoking/alcohol cessation and dental, speech,
+    and nutritional support.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-47b62614
   question: What is the appropriate targeted therapy for a patient with chondrosarcoma
     harboring an IDH1 mutation, and how is this mutation identified?
   gold_answer: Ivosidenib is the targeted therapy for chondrosarcoma with IDH1 mutation,
     which is identified through biomarker testing.
+  required_facts:
+  - Ivosidenib is the targeted therapy for chondrosarcoma with IDH1 mutation.
+  - IDH1 mutation is identified through biomarker testing.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-f8dc595c
   question: What is the relationship between chromosomal abnormalities and biomarkers
     in the diagnosis of CML?
   gold_answer: The Philadelphia chromosome, resulting from a translocation between
     chromosomes 9 and 22, and the BCR::ABL1 fusion gene are interrelated chromosomal
     abnormalities and biomarkers essential for CML diagnosis.
+  required_facts:
+  - The Philadelphia chromosome is a chromosomal abnormality in CML.
+  - The Philadelphia chromosome results from a translocation between chromosomes 9
+    and 22.
+  - The BCR::ABL1 fusion gene is a biomarker essential for CML diagnosis.
+  - The BCR::ABL1 fusion gene is a chromosomal abnormality in CML.
+  - The Philadelphia chromosome and BCR::ABL1 fusion gene are interrelated.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-1587857f
   question: Which patient populations are most commonly affected by ALL and what supportive
     care considerations are important?
   gold_answer: ALL most often affects children but also occurs in adolescents, young
     adults, and adults, and supportive care such as fertility preservation should
     be considered before treatment.
+  required_facts:
+  - ALL most often affects children.
+  - ALL also occurs in adolescents.
+  - ALL also occurs in young adults.
+  - ALL also occurs in adults.
+  - Supportive care such as fertility preservation should be considered before treatment.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-cfc34fd6
   question: Which cancer type does Hodgkin lymphoma belong to?
   gold_answer: Hodgkin lymphoma belongs to the lymphoma cancer type.
+  required_facts:
+  - Hodgkin lymphoma belongs to the lymphoma cancer type.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-714cd769
   question: You are an oncology nurse preparing a discharge summary for a patient
     recently treated for metastatic prostate cancer with androgen deprivation therapy
@@ -509,58 +745,93 @@ questions:
     \ as needed to guide ongoing therapy. The patient was counseled on symptom monitoring,\
     \ including bone pain, weight loss, and urinary symptoms, and provided with contact\
     \ information for palliative care and oncology follow-up."
+  required_facts:
+  - The diagnosis is metastatic prostate cancer.
+  - Metastatic prostate cancer was confirmed by biopsy.
+  - Imaging studies included MRI, CT, and bone scan.
+  - Imaging studies demonstrated bone metastases.
+  - The patient presented with bone pain.
+  - The patient presented with elevated PSA levels.
+  - The patient received androgen deprivation therapy (ADT).
+  - The ADT included a combination of leuprolide and bicalutamide.
+  - The patient also received docetaxel-based chemotherapy.
+  - Genetic testing revealed a BRCA2 mutation.
+  - The BRCA2 mutation informs the use of targeted agents in future lines.
+  - The patient is to undergo regular PSA monitoring.
+  - The patient is to undergo periodic imaging as indicated.
+  - Clinical assessment for symptoms will be conducted.
+  - Symptoms to monitor include bone pain and urinary issues.
+  - Molecular biomarker testing will be repeated as needed.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-83ff7511
   question: If liver cancer is found to have both hepatocellular and cholangiocarcinoma
     components, what is the tumor called and what does this imply about its classification?
   gold_answer: Such a tumor is called a mixed-type tumor, implying it contains both
     HCC and cholangiocarcinoma features.
+  required_facts:
+  - A tumor with both hepatocellular and cholangiocarcinoma components is called a
+    mixed-type tumor.
+  - A mixed-type tumor contains both HCC and cholangiocarcinoma features.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-6e4da4de
   question: What are the main routes of metastasis in throat cancer and which distant
     sites are commonly involved?
   gold_answer: Throat cancer can spread to lymph nodes in the neck and to distant
     sites such as lungs, liver, or spine.
+  required_facts:
+  - Throat cancer can spread to lymph nodes in the neck.
+  - Throat cancer can spread to distant sites such as the lungs.
+  - Throat cancer can spread to distant sites such as the liver.
+  - Throat cancer can spread to distant sites such as the spine.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-29e992c3
   question: Which biomarkers and genetic alterations are evaluated in cutaneous B-cell
     lymphoma (CBCL), and how are they assessed?
   gold_answer: CBCL diagnosis involves assessment of biomarkers and genetic changes,
     typically evaluated through immunophenotyping and related laboratory tests.
+  required_facts:
+  - CBCL diagnosis involves assessment of biomarkers.
+  - CBCL diagnosis involves assessment of genetic changes.
+  - Biomarkers and genetic changes in CBCL are typically evaluated through immunophenotyping.
+  - Biomarkers and genetic changes in CBCL are typically evaluated through related
+    laboratory tests.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-2148aacc
   question: What diagnostic methods are used to identify and classify gliomas?
   gold_answer: Glioma diagnosis involves neurological exam, imaging such as MRI and
     CT scan, and tissue sampling through biopsy, with MRI being the most useful imaging
     test and biopsy required for definitive diagnosis and molecular testing.
+  required_facts:
+  - Glioma diagnosis involves a neurological exam.
+  - Glioma diagnosis involves imaging such as MRI and CT scan.
+  - Tissue sampling through biopsy is used for glioma diagnosis.
+  - MRI is the most useful imaging test for glioma diagnosis.
+  - Biopsy is required for definitive diagnosis and molecular testing of gliomas.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-641dcaf5
   question: What distinguishes primary bone cancer from secondary bone malignancy
     in terms of origin and common cancer types?
   gold_answer: Primary bone cancer originates in bone or cartilage and includes sarcomas,
     while secondary bone malignancies are metastases from other organs such as breast,
     lung, or kidney.
+  required_facts:
+  - Primary bone cancer originates in bone or cartilage.
+  - Primary bone cancer includes sarcomas.
+  - Secondary bone malignancies are metastases from other organs.
+  - Common organs for secondary bone malignancies include breast, lung, or kidney.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-f4972c91
   question: Which treatments are used for metastatic differentiated thyroid cancer
     that is iodine-avid and which are considered if the disease is not iodine-avid?
   gold_answer: RAI therapy is used for iodine-avid disease, while targeted therapy
     and external beam radiation therapy are used if the disease is not iodine-avid.
+  required_facts:
+  - RAI therapy is used for iodine-avid metastatic differentiated thyroid cancer.
+  - Targeted therapy is used for metastatic differentiated thyroid cancer that is
+    not iodine-avid.
+  - External beam radiation therapy is used for metastatic differentiated thyroid
+    cancer that is not iodine-avid.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-fce3c59a
   question: Rewrite the essential steps of initial mouth cancer evaluation and staging
     into a formal SOAP (Subjective, Objective, Assessment, Plan) progress note. Use
@@ -580,40 +851,81 @@ questions:
     - Dental, speech and swallowing, and nutrition assessments\n- Smoking/alcohol\
     \ cessation counseling\n- Discuss fertility preservation as appropriate\n- Initiate\
     \ treatment planning based on final staging and patient values."
+  required_facts:
+  - The patient reports a persistent sore on the lateral tongue.
+  - The patient reports changes in the lateral tongue for 3 weeks.
+  - The patient reports mild discomfort.
+  - The patient denies dysphagia.
+  - The patient denies weight loss.
+  - The patient has a history of tobacco use.
+  - The patient has a history of alcohol use.
+  - An ulcerative lesion is found on the lateral tongue.
+  - An enlarged ipsilateral submandibular lymph node is noted.
+  - The performance status is ECOG 1.
+  - MRI shows a lesion measuring 2.5 cm with a depth of invasion of 8 mm.
+  - CT scan is negative for distant metastasis.
+  - A panoramic dental x-ray reveals dental health concerns.
+  - A biopsy confirmed squamous cell carcinoma.
+  - FNA of the lymph node is positive for metastasis.
+  - There is no extranodal extension.
+  - Biomarker testing is pending.
+  - The assessment indicates Stage II oral cavity squamous cell carcinoma of the tongue
+    with ipsilateral nodal involvement.
+  - The patient has a history of tobacco and alcohol use.
+  - The performance status is ECOG 1.
+  - The plan includes completing biomarker testing.
+  - The plan includes a multidisciplinary tumor board discussion.
+  - The plan includes dental, speech and swallowing, and nutrition assessments.
+  - The plan includes smoking/alcohol cessation counseling.
+  - The plan includes discussing fertility preservation as appropriate.
+  - The plan includes initiating treatment planning based on final staging and patient
+    values.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-1bae3e94
   question: What are the common imaging tests used to diagnose adrenal tumors?
   gold_answer: Imaging tests for adrenal tumors include CT scan, MRI scan, PET scan,
     FDG-PET/CT, and SSTR-PET/CT.
+  required_facts:
+  - Common imaging tests for adrenal tumors include CT scan.
+  - Common imaging tests for adrenal tumors include MRI scan.
+  - Common imaging tests for adrenal tumors include PET scan.
+  - Common imaging tests for adrenal tumors include FDG-PET/CT.
+  - Common imaging tests for adrenal tumors include SSTR-PET/CT.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-0002d2de
   question: How are bone cancers staged and what factors are considered in determining
     the stage?
   gold_answer: Bone cancers are staged using the TNM system, which considers tumor
     size/location (T), lymph node involvement (N), metastasis (M), and tumor grade
     (G), with the final stage determined by combining these scores.
+  required_facts:
+  - Bone cancers are staged using the TNM system.
+  - The TNM system considers tumor size and location (T).
+  - The TNM system considers lymph node involvement (N).
+  - The TNM system considers metastasis (M).
+  - The TNM system considers tumor grade (G).
+  - The final stage of bone cancer is determined by combining TNM scores.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-1d62116d
   question: What is the purpose of a lumbar puncture in ALL diagnosis?
   gold_answer: A lumbar puncture is used as a diagnostic method for ALL.
+  required_facts:
+  - A lumbar puncture is used as a diagnostic method for ALL.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-d94fa48e
   question: Which laboratory and imaging studies are commonly employed to assess CLL
     at diagnosis and during follow-up?
   gold_answer: Common studies for CLL include complete blood count, flow cytometry,
     comprehensive metabolic panel, beta-2 microglobulin testing, and diagnostic CT
     scans to evaluate disease status and extent.
+  required_facts:
+  - Common studies for CLL include complete blood count.
+  - Common studies for CLL include flow cytometry.
+  - Common studies for CLL include comprehensive metabolic panel.
+  - Common studies for CLL include beta-2 microglobulin testing.
+  - Common studies for CLL include diagnostic CT scans.
+  - These studies evaluate disease status and extent.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-8270fb83
   question: You are a nephrology fellow tasked with drafting a SOAP (Subjective, Objective,
     Assessment, Plan) note for a patient presenting with multiple renal masses, focusing
@@ -639,32 +951,53 @@ questions:
     Plan: Proceed with biopsy of both lesions for histologic classification, initiate
     biomarker and genetic risk testing, and discuss surgical management options, considering
     tumor size, location, and patient comorbidities.'
+  required_facts:
+  - The patient presents with incidental finding of multiple renal masses on imaging.
+  - The patient reports no symptoms.
+  - CT imaging reveals two lesions, one in each kidney.
+  - Blood and urine tests are within normal limits.
+  - There is no evidence of metastasis on chest imaging.
+  - Biopsy of both lesions is pending.
+  - Multiple renal tumors may represent synchronous primary renal cell carcinomas.
+  - Differential diagnosis includes clear cell RCC.
+  - Differential diagnosis includes papillary RCC.
+  - Differential diagnosis includes chromophobe RCC.
+  - Wilms tumor is less likely given the patient's adult age.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-7caf80a1
   question: How is platinum-sensitive recurrence of ovarian cancer treated?
   gold_answer: Platinum-sensitive recurrence is treated with platinum-based chemotherapy,
     possibly with bevacizumab, and may include secondary cytoreductive surgery.
+  required_facts:
+  - Platinum-sensitive recurrence of ovarian cancer is treated with platinum-based
+    chemotherapy.
+  - Bevacizumab may be used in the treatment of platinum-sensitive recurrence.
+  - Secondary cytoreductive surgery may be included in the treatment of platinum-sensitive
+    recurrence.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-22b8a5ee
   question: How is small lymphocytic lymphoma (SLL) differentiated from chronic lymphocytic
     leukemia (CLL) in terms of primary site and diagnostic approach?
   gold_answer: SLL primarily affects lymph nodes and spleen, while CLL affects blood
     and bone marrow, and both require blood tests and biopsies for diagnosis.
+  required_facts:
+  - Small lymphocytic lymphoma (SLL) primarily affects lymph nodes.
+  - Small lymphocytic lymphoma (SLL) primarily affects the spleen.
+  - Chronic lymphocytic leukemia (CLL) primarily affects blood.
+  - Chronic lymphocytic leukemia (CLL) primarily affects bone marrow.
+  - Both SLL and CLL require blood tests for diagnosis.
+  - Both SLL and CLL require biopsies for diagnosis.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-f9e22272
   question: Which two related lymphomas share overlapping features with gray zone
     lymphomas, complicating diagnosis?
   gold_answer: Primary mediastinal B-cell lymphoma (PMBL) and Hodgkin lymphoma (HL)
     share overlapping features with gray zone lymphomas.
+  required_facts:
+  - Primary mediastinal B-cell lymphoma (PMBL) shares overlapping features with gray
+    zone lymphomas.
+  - Hodgkin lymphoma (HL) shares overlapping features with gray zone lymphomas.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-3a2cfb6d
   question: As a medical intern on the oncology ward, you are asked to prepare a multidisciplinary
     team (MDT) note summarizing the pathogenesis, diagnostic approach, and clinical
@@ -681,9 +1014,25 @@ questions:
     zone lymphoma (PCMZL), primary cutaneous follicle center lymphoma (PCFCL), and
     primary cutaneous diffuse large B-cell lymphoma, leg type (PC-DLBCL, leg type).
     Most CBCLs are slow-growing, but aggressive variants exist.'
+  required_facts:
+  - Cutaneous B-cell lymphomas (CBCL) are a subset of primary cutaneous lymphomas
+    (PCL).
+  - PCLs are non-Hodgkin lymphomas that originate in the skin.
+  - CBCLs develop from abnormal B lymphocytes.
+  - B lymphocytes are a type of white blood cell involved in immune defense.
+  - The pathogenesis involves unregulated growth of B lymphocytes.
+  - CBCL typically presents as nodules or papules confined to the skin.
+  - Diagnosis requires a combination of skin examination and blood tests.
+  - Imaging studies are needed for diagnosis.
+  - Confirmatory biopsy with immunophenotyping is required to determine cell lineage.
+  - Further testing for biomarkers and genetic changes aids in precise classification.
+  - Major CBCL subtypes include primary cutaneous marginal zone lymphoma (PCMZL).
+  - Major CBCL subtypes include primary cutaneous follicle center lymphoma (PCFCL).
+  - Major CBCL subtypes include primary cutaneous diffuse large B-cell lymphoma, leg
+    type (PC-DLBCL, leg type).
+  - Most CBCLs are slow-growing.
+  - Aggressive variants of CBCL exist.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-296c7595
   question: How are the stages of esophageal cancer defined and what are their distinguishing
     features?
@@ -691,26 +1040,42 @@ questions:
     and not in lymph nodes), locoregional (invading the esophagus wall and/or nearby
     lymph nodes or organs), and metastatic (spread to distant organs such as liver,
     lung, bone, and brain).
+  required_facts:
+  - Esophageal cancer stages include early-stage.
+  - Early-stage esophageal cancer is confined to the esophagus.
+  - Early-stage esophageal cancer is not in lymph nodes.
+  - Esophageal cancer stages include locoregional.
+  - Locoregional esophageal cancer invades the esophagus wall.
+  - Locoregional esophageal cancer may involve nearby lymph nodes or organs.
+  - Esophageal cancer stages include metastatic.
+  - Metastatic esophageal cancer spreads to distant organs.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-f57e3ab2
   question: What combination of clinical and pathological features would support a
     diagnosis of mediastinal gray zone lymphoma (MGZL) in a young male patient?
   gold_answer: A large mediastinal mass, Reed-Sternberg cells, and an age of 20-40
     years assigned male at birth support MGZL diagnosis.
+  required_facts:
+  - A large mediastinal mass supports a diagnosis of mediastinal gray zone lymphoma
+    (MGZL).
+  - Reed-Sternberg cells support a diagnosis of mediastinal gray zone lymphoma (MGZL).
+  - An age of 20-40 years assigned male at birth supports a diagnosis of mediastinal
+    gray zone lymphoma (MGZL).
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-0bc96001
   question: How is follicular lymphoma (FL) classified by grade and what are the clinical
     implications of each grade?
   gold_answer: 'FL is graded based on the proportion of centrocytes and centroblasts:
     grades 1 and 2 are classic FL, grade 3A may be treated as classic FL or DLBCL,
     and grade 3B is treated as DLBCL, with grade guiding treatment decisions.'
+  required_facts:
+  - Follicular lymphoma (FL) is graded based on the proportion of centrocytes and
+    centroblasts.
+  - Grades 1 and 2 are classified as classic FL.
+  - Grade 3A may be treated as classic FL or diffuse large B-cell lymphoma (DLBCL).
+  - Grade 3B is treated as DLBCL.
+  - The grade of FL guides treatment decisions.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-350bcbcd
   question: Imagine you are a sarcoma specialist preparing a multidisciplinary case
     summary for a tumor board meeting. Your patient is a 19-year-old with a newly
@@ -729,17 +1094,39 @@ questions:
     Performance status was evaluated using ECOG criteria to guide treatment planning.
     The case was reviewed for consideration of fertility preservation prior to initiation
     of therapy.
+  required_facts:
+  - The patient is a 19-year-old presenting with a newly diagnosed diaphyseal bone
+    lesion.
+  - Initial workup included detailed medical and family history.
+  - Initial workup included physical examination.
+  - Initial workup included laboratory evaluation with CBC, CMP, alkaline phosphatase,
+    and LDH.
+  - Imaging studies performed included X-ray, MRI, CT scan, and PET scan.
+  - Imaging studies confirmed the presence of a destructive diaphyseal lesion.
+  - Core needle biopsy was obtained.
+  - The biopsy confirmed Ewing sarcoma.
+  - Molecular testing identified an EWSR1-FLI1 fusion via PCR.
+  - Genetic cancer risk assessment was discussed due to the patient's age and presentation.
+  - Staging was performed using the TNM system.
+  - Staging included evaluation for nodal and distant metastases.
+  - Tumor grade was established histologically.
+  - Performance status was evaluated using ECOG criteria to guide treatment planning.
+  - The case was reviewed for consideration of fertility preservation prior to initiation
+    of therapy.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-27edd702
   question: What systemic therapies are available for bladder cancer patients with
     advanced or metastatic disease?
   gold_answer: Systemic therapies include chemotherapy (cisplatin-based regimens),
     immunotherapy (checkpoint inhibitors), and targeted therapies.
+  required_facts:
+  - Systemic therapies for advanced or metastatic bladder cancer include chemotherapy.
+  - Cisplatin-based regimens are a type of chemotherapy for bladder cancer.
+  - Systemic therapies for advanced or metastatic bladder cancer include immunotherapy.
+  - Checkpoint inhibitors are a type of immunotherapy for bladder cancer.
+  - Systemic therapies for advanced or metastatic bladder cancer include targeted
+    therapies.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-21fe7d21
   question: You are a medical intern on the oncology service. Write a SOAP (Subjective,
     Objective, Assessment, Plan) progress note for a patient with high-risk localized
@@ -766,70 +1153,111 @@ questions:
     discussion for definitive management. Treatment options include radical prostatectomy
     or radiation therapy plus androgen deprivation therapy. Schedule baseline labs
     and imaging for follow-up. Patient education and decision support provided.'
+  required_facts:
+  - The patient is a 68-year-old male.
+  - The patient has no significant urinary symptoms.
+  - The patient reports occasional blood in urine.
+  - The patient has no bone pain.
+  - The patient has no weight loss.
+  - The PSA level is 14.2 ng/mL.
+  - A digital rectal exam reveals a firm nodule on the left prostate.
+  - MRI shows a lesion confined to the prostate.
+  - There is no nodal or distant spread of the cancer.
+  - A biopsy confirms adenocarcinoma with a Gleason score of 4+4=8.
+  - There is no evidence of metastasis on the bone scan.
+  - The assessment is high-risk localized prostate cancer.
+  - The risk factors include PSA >10, Gleason 8, organ-confined disease, and no metastasis.
+  - The plan includes molecular biomarker and genetic testing.
+  - A multidisciplinary discussion for definitive management is recommended.
+  - Treatment options include radical prostatectomy or radiation therapy plus androgen
+    deprivation therapy.
+  - Baseline labs and imaging for follow-up are scheduled.
+  - Patient education and decision support were provided.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-d5c10dcf
   question: Name the main numbered stages used for nasopharyngeal carcinoma.
   gold_answer: The main numbered stages are Stage 0, Stage I, Stage II, Stage III,
     and Stage IV.
+  required_facts:
+  - The main numbered stages of nasopharyngeal carcinoma are Stage 0.
+  - The main numbered stages of nasopharyngeal carcinoma are Stage I.
+  - The main numbered stages of nasopharyngeal carcinoma are Stage II.
+  - The main numbered stages of nasopharyngeal carcinoma are Stage III.
+  - The main numbered stages of nasopharyngeal carcinoma are Stage IV.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-62476085
   question: How are the subtypes of Hodgkin lymphoma characterized in terms of cell
     type?
   gold_answer: Classic Hodgkin lymphoma (CHL) is characterized by Reed-Sternberg cells,
     while nodular lymphocyte-predominant Hodgkin lymphoma (NLPHL) is characterized
     by popcorn-shaped cells.
+  required_facts:
+  - Classic Hodgkin lymphoma (CHL) is characterized by Reed-Sternberg cells.
+  - Nodular lymphocyte-predominant Hodgkin lymphoma (NLPHL) is characterized by popcorn-shaped
+    cells.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-7b422282
   question: How does the presence of Lynch syndrome affect colon cancer risk and management?
   gold_answer: Lynch syndrome increases colon cancer risk and requires testing for
     mismatch repair deficiency (dMMR) or MSI-H, which guides immunotherapy decisions.
+  required_facts:
+  - Lynch syndrome increases colon cancer risk.
+  - Lynch syndrome requires testing for mismatch repair deficiency (dMMR) or MSI-H.
+  - Testing for dMMR or MSI-H guides immunotherapy decisions.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-24928f80
   question: What is the role of rituximab in the treatment of MGZL?
   gold_answer: Rituximab may be added to chemotherapy for chemoimmunotherapy in MGZL.
+  required_facts:
+  - Rituximab may be added to chemotherapy for chemoimmunotherapy in MGZL.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-dbdb19b5
   question: Which risk factors and genetic syndromes are linked to rectal cancer,
     and what is their significance?
   gold_answer: Lynch syndrome and familial adenomatous polyposis (FAP) are significant
     genetic risk factors for rectal cancer, with FAP causing multiple polyps and increased
     cancer risk, highlighting the importance of genetic assessment in at-risk individuals.
+  required_facts:
+  - Lynch syndrome is a significant genetic risk factor for rectal cancer.
+  - Familial adenomatous polyposis (FAP) is a significant genetic risk factor for
+    rectal cancer.
+  - FAP causes multiple polyps.
+  - FAP increases the risk of cancer.
+  - Genetic assessment is important for at-risk individuals.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-57129a04
   question: What subtype of breast cancer is characterized by cancer cells blocking
     lymph vessels in the skin?
   gold_answer: Inflammatory breast cancer (IBC) is characterized by cancer cells blocking
     lymph vessels in the skin.
+  required_facts:
+  - Inflammatory breast cancer (IBC) is characterized by cancer cells blocking lymph
+    vessels.
+  - Inflammatory breast cancer (IBC) affects the skin.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-27c72004
   question: How do tobacco and alcohol use impact both the risk and outcomes of mouth
     cancer treatment?
   gold_answer: Tobacco and alcohol use increase the risk of mouth cancer and negatively
     affect treatment outcomes by increasing toxicity.
+  required_facts:
+  - Tobacco use increases the risk of mouth cancer.
+  - Alcohol use increases the risk of mouth cancer.
+  - Tobacco use negatively affects treatment outcomes for mouth cancer.
+  - Alcohol use negatively affects treatment outcomes for mouth cancer.
+  - Tobacco and alcohol use increase toxicity in mouth cancer treatment.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-8a22c205
   question: What follow-up is recommended after total thyroidectomy?
   gold_answer: Follow-up after total thyroidectomy includes physical exam, blood tests
     (TSH, Tg, Tg ab), and neck ultrasound.
+  required_facts:
+  - Follow-up after total thyroidectomy includes a physical exam.
+  - Follow-up after total thyroidectomy includes blood tests for TSH.
+  - Follow-up after total thyroidectomy includes blood tests for Tg.
+  - Follow-up after total thyroidectomy includes blood tests for Tg ab.
+  - Follow-up after total thyroidectomy includes a neck ultrasound.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-5d99d529
   question: Rewrite the guideline facts into a formal referral letter from a primary
     care physician to a hematologist, summarizing the clinical suspicion of Hodgkin
@@ -847,48 +1275,66 @@ questions:
     of excisional lymph node biopsy to confirm the diagnosis and distinguish between
     classic Hodgkin lymphoma (CHL) and nodular lymphocyte-predominant Hodgkin lymphoma
     (NLPHL), as subtyping will guide subsequent management.'
+  required_facts:
+  - The patient is a 32-year-old with persistent, painless lymphadenopathy in the
+    cervical and supraclavicular regions.
+  - The patient falls within the typical age range for Hodgkin lymphoma onset.
+  - The patient has no significant past medical history.
+  - Initial workup included health history, physical examination, blood tests, and
+    imaging.
+  - The findings indicate lymph node involvement predominantly in the upper body.
+  - There is concern about possible Hodgkin lymphoma.
+  - Further diagnostic evaluation is requested, including excisional lymph node biopsy.
+  - The biopsy will confirm the diagnosis and distinguish between classic Hodgkin
+    lymphoma and nodular lymphocyte-predominant Hodgkin lymphoma.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-30f4f09d
   question: What role do supportive care and systemic therapy play in the treatment
     of ALL in children?
   gold_answer: Supportive care and systemic therapy are integral to ALL treatment
     in children, provided alongside steroids and multiagent chemotherapy to address
     both disease and treatment-related needs.
+  required_facts:
+  - Supportive care is integral to ALL treatment in children.
+  - Systemic therapy is integral to ALL treatment in children.
+  - Supportive care is provided alongside steroids.
+  - Supportive care is provided alongside multiagent chemotherapy.
+  - Supportive care addresses both disease and treatment-related needs.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-adb77b8f
   question: What is the role of imaging in NPC management?
   gold_answer: Imaging is used for staging and surveillance of NPC.
+  required_facts:
+  - Imaging is used for staging of NPC.
+  - Imaging is used for surveillance of NPC.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-ff5b71cc
   question: What is the recommended biomarker test for all patients with oropharyngeal
     cancer?
   gold_answer: p16 (HPV) testing is recommended for all patients with oropharyngeal
     cancer.
+  required_facts:
+  - p16 (HPV) testing is recommended for all patients with oropharyngeal cancer.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-b1056b54
   question: Which management strategy is recommended for low-risk, early-stage prostate
     cancer?
   gold_answer: Active surveillance is a management option for low-risk, early-stage
     prostate cancer.
+  required_facts:
+  - Active surveillance is a management option for low-risk prostate cancer.
+  - Active surveillance is a management option for early-stage prostate cancer.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-8307a348
   question: Which surgical procedures are available for early-stage cervical cancer,
     and how do they relate to fertility preservation?
   gold_answer: Cone biopsy and trachelectomy are surgical options for early-stage
     disease, with trachelectomy serving as a fertility-sparing procedure.
+  required_facts:
+  - Cone biopsy is a surgical option for early-stage cervical cancer.
+  - Trachelectomy is a surgical option for early-stage cervical cancer.
+  - Trachelectomy serves as a fertility-sparing procedure.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-a4897c00
   question: What are the major subtypes of kidney cancer and how are they histologically
     classified?
@@ -898,9 +1344,22 @@ questions:
     chromophobe RCC, collecting duct RCC, renal medullary carcinoma, clear cell papillary
     renal cell tumor, fumarate hydratase-deficient RCC, and ELOC-mutated RCC), and
     sarcomatoid RCC.
+  required_facts:
+  - Kidney cancer includes subtypes such as renal cell carcinoma (RCC).
+  - Kidney cancer includes subtypes such as urothelial carcinoma.
+  - Kidney cancer includes subtypes such as Wilms tumor.
+  - Kidney cancer includes subtypes such as renal sarcoma.
+  - RCC is further classified by histology into clear cell RCC.
+  - RCC is further classified by histology into non-clear cell RCC.
+  - Non-clear cell RCC includes papillary RCC.
+  - Non-clear cell RCC includes chromophobe RCC.
+  - Non-clear cell RCC includes collecting duct RCC.
+  - Non-clear cell RCC includes renal medullary carcinoma.
+  - Non-clear cell RCC includes clear cell papillary renal cell tumor.
+  - Non-clear cell RCC includes fumarate hydratase-deficient RCC.
+  - Non-clear cell RCC includes ELOC-mutated RCC.
+  - RCC can also be classified as sarcomatoid RCC.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-0dc6b940
   question: What are the common sites of metastasis for thyroid cancer and the available
     treatment options?
@@ -908,9 +1367,19 @@ questions:
     brain, and spinal cord, and treatment options include radioactive iodine therapy
     (if iodine-avid), targeted therapy, external beam radiation therapy, and clinical
     trials.
+  required_facts:
+  - Thyroid cancer most commonly metastasizes to the lungs.
+  - Thyroid cancer most commonly metastasizes to the liver.
+  - Thyroid cancer most commonly metastasizes to the bones.
+  - Thyroid cancer most commonly metastasizes to the brain.
+  - Thyroid cancer most commonly metastasizes to the spinal cord.
+  - Treatment options for metastatic thyroid cancer include radioactive iodine therapy
+    if iodine-avid.
+  - Treatment options for metastatic thyroid cancer include targeted therapy.
+  - Treatment options for metastatic thyroid cancer include external beam radiation
+    therapy.
+  - Treatment options for metastatic thyroid cancer include clinical trials.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-22918f14
   question: Imagine you are a hematology fellow receiving a new referral for a patient
     with suspected chronic myeloid leukemia (CML). Draft a detailed diagnostic workup
@@ -930,35 +1399,60 @@ questions:
     of CML. The combination of clinical, morphologic, cytogenetic, and molecular findings
     would allow me to confirm CML, differentiate it from other myeloproliferative
     neoplasms, and determine if the disease is in chronic or blast phase.
+  required_facts:
+  - The diagnostic workup for suspected chronic myeloid leukemia (CML) begins with
+    a complete blood count (CBC).
+  - The CBC assesses for increased white blood cell (WBC) counts, particularly granulocytes.
+  - The CBC evaluates platelet (PLT) and red blood cell (RBC) levels.
+  - A peripheral blood smear is ordered to characterize granulocyte lineage.
+  - The peripheral blood smear helps identify abnormal cells.
+  - A bone marrow aspiration and biopsy are requested to assess myeloid progenitor
+    cell proliferation.
+  - The bone marrow evaluation looks for any increase in blasts.
+  - An increase in blasts could indicate blast phase CML (BP-CML).
+  - Cytogenetic analysis is performed to detect the presence of the Philadelphia chromosome
+    (Ph).
+  - The Philadelphia chromosome is the abnormal chromosome 22 resulting from the translocation
+    between chromosomes 9 and 22.
+  - Molecular testing for the BCR::ABL1 fusion gene is conducted.
+  - The presence of the BCR::ABL1 fusion gene is required for a definitive diagnosis
+    of CML.
+  - The combination of clinical, morphologic, cytogenetic, and molecular findings
+    confirms CML.
+  - The findings help differentiate CML from other myeloproliferative neoplasms.
+  - The findings determine if the disease is in chronic or blast phase.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-a07284fb
   question: What is the role of alkaline phosphatase in bone cancer evaluation?
   gold_answer: Alkaline phosphatase is used as a blood test in the evaluation of bone
     cancer.
+  required_facts:
+  - Alkaline phosphatase is used as a blood test in the evaluation of bone cancer.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-d44eb527
   question: What are the main non-clear cell subtypes of RCC?
   gold_answer: Papillary RCC, chromophobe RCC, collecting duct RCC, and renal medullary
     carcinoma are the main non-clear cell RCC subtypes.
+  required_facts:
+  - Papillary RCC is a main non-clear cell subtype of RCC.
+  - Chromophobe RCC is a main non-clear cell subtype of RCC.
+  - Collecting duct RCC is a main non-clear cell subtype of RCC.
+  - Renal medullary carcinoma is a main non-clear cell subtype of RCC.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-4a90fe75
   question: Which gene fusions are biomarkers for Ewing sarcoma?
   gold_answer: EWSR1-FLI1 fusion and EWSR1-ERG fusion are biomarkers for Ewing sarcoma.
+  required_facts:
+  - EWSR1-FLI1 fusion is a biomarker for Ewing sarcoma.
+  - EWSR1-ERG fusion is a biomarker for Ewing sarcoma.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-e8a07389
   question: Which radiation therapies are used for local control in cervical cancer?
   gold_answer: External beam radiation therapy (EBRT) and brachytherapy are used.
+  required_facts:
+  - External beam radiation therapy (EBRT) is used for local control in cervical cancer.
+  - Brachytherapy is used for local control in cervical cancer.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-8dc3153c
   question: Transform the following clinical facts into a formal discharge summary
     for a patient with Stage I perianal squamous cell carcinoma who underwent local
@@ -987,23 +1481,41 @@ questions:
 
     Potential Complications: Wound infection, local recurrence, anal pain, and rarely,
     bowel or urinary dysfunction.'
+  required_facts:
+  - The diagnosis is Stage I perianal squamous cell carcinoma.
+  - The tumor size is 2 cm or less.
+  - There is no lymph node or distant spread.
+  - A local excision of the perianal lesion was performed without complication.
+  - Surgical margins were negative on pathology.
+  - The pathology report indicates well-differentiated squamous cell carcinoma.
+  - The tumor size is 1.5 cm.
+  - There is no lymphovascular invasion.
+  - Follow-up includes digital rectal exams every 3-6 months for 5 years.
+  - Follow-up includes inguinal lymph node exams every 3-6 months for 5 years.
+  - Follow-up includes anoscopy every 6-12 months for 3 years.
+  - Imaging is as clinically indicated.
+  - The patient was advised on symptoms of recurrence.
+  - Symptoms of recurrence include rectal bleeding.
+  - Symptoms of recurrence include anal pain.
+  - Symptoms of recurrence include a lump.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-575e6d7f
   question: Which phases make up the standard treatment course for AML and what is
     their primary goal?
   gold_answer: Induction, consolidation, and maintenance phases make up AML treatment,
     aiming for remission.
+  required_facts:
+  - The standard treatment course for AML includes induction phases.
+  - The standard treatment course for AML includes consolidation phases.
+  - The standard treatment course for AML includes maintenance phases.
+  - The primary goal of AML treatment is to achieve remission.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-cc93885e
   question: Which subtype of hepatocellular carcinoma occurs at a younger age?
   gold_answer: Fibrolamellar hepatocellular carcinoma (FLHC) occurs at a younger age.
+  required_facts:
+  - Fibrolamellar hepatocellular carcinoma (FLHC) occurs at a younger age.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-cc919ee4
   question: As a patient education nurse, draft a public health announcement informing
     high-risk communities about nasopharyngeal carcinoma (NPC). Emphasize risk factors,
@@ -1021,22 +1533,35 @@ questions:
     seek medical evaluation promptly. Diagnosis involves a physical exam, imaging
     tests, and a biopsy. Talk to your healthcare provider about ways to reduce your
     risk and the importance of regular checkups.'
+  required_facts:
+  - Nasopharyngeal carcinoma (NPC) affects the area behind the nose and above the
+    back of the throat.
+  - People from Asia, Native America, and North Africa are at higher risk for NPC.
+  - Exposure to the Epstein-Barr virus (EBV) increases the risk of NPC.
+  - Use of tobacco and alcohol can also increase the risk of NPC.
+  - NPC may not cause symptoms until it is advanced.
+  - Warning signs of NPC include lumps in the neck and hearing loss.
+  - Early detection of NPC is important.
+  - Individuals with symptoms or risk factors should seek medical evaluation promptly.
+  - Diagnosis of NPC involves a physical exam, imaging tests, and a biopsy.
+  - Patients should talk to their healthcare provider about reducing risk and the
+    importance of regular checkups.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-41723902
   question: How is the cancer subtype determined in NPC?
   gold_answer: Biopsy determines cancer subtype in NPC.
+  required_facts:
+  - Biopsy determines cancer subtype in nasopharyngeal carcinoma.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-611ac003
   question: What anatomical locations are associated with esophageal squamous cell
     carcinoma?
   gold_answer: Upper, middle, and lower esophagus are associated locations.
+  required_facts:
+  - Upper esophagus is associated with esophageal squamous cell carcinoma.
+  - Middle esophagus is associated with esophageal squamous cell carcinoma.
+  - Lower esophagus is associated with esophageal squamous cell carcinoma.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-c8a65fec
   question: You are a hematology fellow evaluating a 28-year-old patient who presents
     with painless cervical lymphadenopathy. Based on the clinical practice guideline
@@ -1054,17 +1579,32 @@ questions:
     Hodgkin lymphoma (characterized by popcorn-shaped cells). Accurate subtyping guides
     prognosis and treatment planning, as NLPHL can transform into diffuse large B-cell
     lymphoma, impacting long-term management.
+  required_facts:
+  - The initial diagnostic approach begins with a thorough health history and physical
+    examination.
+  - The focus is on lymph node regions and systemic symptoms.
+  - Laboratory assessment with blood tests and imaging studies is necessary to evaluate
+    the extent of disease.
+  - A tissue sample is required for definitive diagnosis.
+  - Excisional lymph node biopsy is the gold standard for diagnosis.
+  - Core needle biopsy may be considered if excisional biopsy is not feasible.
+  - Histopathological analysis is crucial to distinguish between classic Hodgkin lymphoma
+    and nodular lymphocyte-predominant Hodgkin lymphoma.
+  - Classic Hodgkin lymphoma is characterized by Reed-Sternberg cells.
+  - Nodular lymphocyte-predominant Hodgkin lymphoma is characterized by popcorn-shaped
+    cells.
+  - Accurate subtyping guides prognosis and treatment planning.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-193a4b7f
   question: What chromosomal abnormality must be present for a diagnosis of chronic
     myeloid leukemia (CML)?
   gold_answer: The Philadelphia chromosome (Ph), resulting from a translocation between
     chromosome 9 and chromosome 22, must be present.
+  required_facts:
+  - The Philadelphia chromosome must be present for a diagnosis of CML.
+  - The Philadelphia chromosome results from a translocation between chromosome 9
+    and chromosome 22.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-c01491e4
   question: How are differentiated thyroid cancers (papillary, follicular, oncocytic)
     treated based on tumor size and spread?
@@ -1072,9 +1612,14 @@ questions:
     confined tumors, total thyroidectomy for larger or invasive tumors, neck dissection
     if lymph nodes are involved, and radioactive iodine therapy post-thyroidectomy
     if indicated.
+  required_facts:
+  - Differentiated thyroid cancers are treated with lobectomy for small, confined
+    tumors.
+  - Differentiated thyroid cancers are treated with total thyroidectomy for larger
+    or invasive tumors.
+  - Neck dissection is performed if lymph nodes are involved.
+  - Radioactive iodine therapy may be used post-thyroidectomy if indicated.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-4937721e
   question: How are non–muscle-invasive and muscle-invasive bladder cancers defined
     and treated?
@@ -1082,9 +1627,14 @@ questions:
     TURBT and intravesical therapy, while muscle-invasive bladder cancers (Stages
     2, 3, and 4) typically require radical cystectomy, with additional options such
     as systemic therapy and radiation.
+  required_facts:
+  - Non–muscle-invasive bladder cancers are classified as Stage 0 and 1.
+  - Non–muscle-invasive bladder cancers are treated with TURBT and intravesical therapy.
+  - Muscle-invasive bladder cancers are classified as Stages 2, 3, and 4.
+  - Muscle-invasive bladder cancers typically require radical cystectomy.
+  - Additional treatment options for muscle-invasive bladder cancers include systemic
+    therapy and radiation.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-a2771279
   question: Assume the role of a clinical pathologist and write a detailed report
     on the laboratory and molecular diagnostic steps necessary to establish an AML
@@ -1101,9 +1651,23 @@ questions:
     molecular testing (next-generation sequencing, PCR) were conducted to identify
     genetic alterations such as FLT3-ITD, inv(16), t(8;21), del(5q), and PML::RARA.
     These findings are essential for AML subtype classification and to guide therapy.'
+  required_facts:
+  - A diagnosis of AML requires identification of ≥20% myeloblasts in bone marrow
+    or blood.
+  - The diagnostic process begins with a complete blood count (CBC).
+  - A comprehensive metabolic panel (CMP) is performed during the diagnostic process.
+  - Lactate dehydrogenase (LDH) is evaluated to assess cell turnover.
+  - Bone marrow aspirate and biopsy are performed.
+  - Histopathology confirms increased blasts in the bone marrow.
+  - Flow cytometry is used to define the immunologic profile of the blasts.
+  - Immunophenotyping is part of the diagnostic process for AML.
+  - Cytogenetic analysis, including karyotype and FISH, is conducted.
+  - Molecular testing, such as next-generation sequencing and PCR, is performed.
+  - Genetic alterations such as FLT3-ITD, inv(16), t(8;21), del(5q), and PML::RARA
+    are identified.
+  - These findings are essential for AML subtype classification.
+  - The findings guide therapy for AML.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-917da89d
   question: You are a general practitioner drafting a referral letter to dermatology
     for a patient with persistent skin lesions. Summarize the clinical suspicion,
@@ -1125,9 +1689,19 @@ questions:
     and additional testing for biomarkers and genetic changes may help classify the
     subtype (e.g., PCMZL, PCFCL, or PC-DLBCL, leg type). Early identification is essential
     for optimal management.'
+  required_facts:
+  - The patient presents with persistent nodules and papules localized to the skin.
+  - The clinician is concerned about a possible primary cutaneous lymphoma (PCL).
+  - The specific concern is for cutaneous B-cell lymphoma (CBCL).
+  - CBCL arises from abnormal B lymphocytes.
+  - CBCL may present as indolent or aggressive disease.
+  - A detailed skin examination is recommended to establish a diagnosis.
+  - Blood tests are recommended as part of the workup.
+  - Imaging studies may be appropriate for further evaluation.
+  - A skin biopsy with immunophenotyping should be performed to confirm lymphoid lineage.
+  - Additional testing for biomarkers and genetic changes may help classify the subtype.
+  - Early identification of CBCL is essential for optimal management.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-6e3f025e
   question: You are a medical intern tasked with writing a referral note for a patient
     with suspected Stage 2 NSCLC based on the guideline. Your note should summarize
@@ -1143,45 +1717,71 @@ questions:
     thoracic oncology evaluation for definitive staging and management. As per guidelines,
     treatment options include surgery and/or chemoradiation. Supportive care for symptom
     management and follow-up surveillance should be discussed.'
+  required_facts:
+  - The patient is a 58-year-old with a 30 pack-year smoking history.
+  - The patient presents with persistent cough and chest pain.
+  - Imaging revealed a lung nodule.
+  - A biopsy confirmed non-small cell lung cancer (NSCLC).
+  - The NSCLC is likely Stage 2 based on local extension without distant spread.
+  - Major risk factors include tobacco use.
+  - Possible occupational exposure to asbestos is also a risk factor.
+  - A thoracic oncology evaluation is recommended for definitive staging and management.
+  - Treatment options include surgery and/or chemoradiation.
+  - Supportive care for symptom management should be discussed.
+  - Follow-up surveillance should be planned.
   question_class: Creative Generation
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-1b9a995e
   question: What is the hierarchical classification of CSCC within the broader context
     of skin cancers?
   gold_answer: CSCC, also known as cutaneous squamous cell carcinoma, is a subtype
     of nonmelanoma skin cancer and is the second most common type of skin cancer after
     basal cell carcinoma.
+  required_facts:
+  - CSCC is also known as cutaneous squamous cell carcinoma.
+  - CSCC is a subtype of nonmelanoma skin cancer.
+  - CSCC is the second most common type of skin cancer.
+  - Basal cell carcinoma is the most common type of skin cancer.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-8b99b755
   question: How does the management of high-risk local CSCC differ from low-risk local
     CSCC in terms of treatment and follow-up?
   gold_answer: High-risk local CSCC is treated with Mohs surgery or standard excision
     and may require radiation or systemic therapy, with more frequent follow-up exams
     than low-risk cases.
+  required_facts:
+  - High-risk local CSCC is treated with Mohs surgery.
+  - High-risk local CSCC is treated with standard excision.
+  - High-risk local CSCC may require radiation therapy.
+  - High-risk local CSCC may require systemic therapy.
+  - High-risk local CSCC requires more frequent follow-up exams than low-risk cases.
   question_class: Complex Reasoning
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-0c1ef334
   question: What is the role of lung nodules in the detection and diagnosis of NSCLC?
   gold_answer: Lung nodules, detected by imaging, are assessed by biopsy and lung
     cancer screening to determine if they are malignant and indicative of NSCLC.
+  required_facts:
+  - Lung nodules are detected by imaging.
+  - Lung nodules are assessed by biopsy.
+  - Lung nodules are assessed by lung cancer screening.
+  - Lung nodules are evaluated to determine if they are malignant.
+  - Malignant lung nodules may indicate NSCLC.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-436b2db6
   question: Which symptoms are associated with advanced and metastatic prostate cancer?
   gold_answer: Advanced and metastatic prostate cancer commonly present with symptoms
     such as bone pain, blood in urine or semen, unexplained weight loss, hip and back
     pain, and various urinary symptoms.
+  required_facts:
+  - Advanced prostate cancer commonly presents with bone pain.
+  - Advanced prostate cancer can present with blood in urine or semen.
+  - Advanced prostate cancer may cause unexplained weight loss.
+  - Advanced prostate cancer can cause hip and back pain.
+  - Advanced prostate cancer may present with various urinary symptoms.
   question_class: Contextual Summarize
-  metadata:
-    corpus: graphrag-bench-medical
 - id: Medical-a8dea23c
   question: Which care team professional manages drug treatments for pancreatic cancer?
   gold_answer: A medical oncologist manages drug treatments for pancreatic cancer.
+  required_facts:
+  - A medical oncologist manages drug treatments.
+  - A medical oncologist manages drug treatments for pancreatic cancer.
   question_class: Fact Retrieval
-  metadata:
-    corpus: graphrag-bench-medical

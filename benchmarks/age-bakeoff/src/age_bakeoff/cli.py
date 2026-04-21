@@ -152,6 +152,7 @@ def _get_engines(cfg: BakeoffConfig) -> dict:
 
 def _load_corpora() -> dict:
     from age_bakeoff.corpora.acme import AcmeCorpus
+    from age_bakeoff.corpora.external import all_external_corpora
     from age_bakeoff.corpora.scotus import ScotusCorpus
 
     corpora = {
@@ -169,6 +170,10 @@ def _load_corpora() -> dict:
         logger.warning(
             "pg-src extraction cache not found, skipping pg-src corpus"
         )
+    # External corpora (GraphRAG-Bench, Microsoft datasets): loaded when
+    # their extraction cache exists. Run tools.extract_external_corpus
+    # to populate.
+    corpora.update(all_external_corpora())
     return corpora
 
 
@@ -331,7 +336,14 @@ def run(
         )
         suffix = f"__{label}" if label else ""
         for name, yaml_path in available.items():
-            qset = load_question_set(yaml_path)
+            # Legacy sets (acme/scotus/pg-src) are exactly 30 Q with the
+            # classic question_class enum; external corpora use 100-Q
+            # stratified subsets with new classes. Fall back to loose
+            # validation when the strict schema rejects.
+            try:
+                qset = load_question_set(yaml_path)
+            except Exception:
+                qset = load_question_set(yaml_path, strict=False)
             # Ingest corpus right before running its questions (single namespace).
             # --skip-ingest reuses whatever each engine already has, which is
             # the mode-sweep fast path (ingest once, run many modes).

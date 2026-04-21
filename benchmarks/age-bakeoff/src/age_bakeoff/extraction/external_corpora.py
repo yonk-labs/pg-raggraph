@@ -24,6 +24,7 @@ import io
 import json
 import os
 import random
+import re
 import subprocess
 import zipfile
 from pathlib import Path
@@ -91,6 +92,43 @@ _GRB_QUESTIONS_URL = (
 )
 
 
+_MEDICAL_TOPIC_RE = re.compile(r"(?:^|(?<=\. ))About\s+([a-z][^?.]{3,80}?)(?=\s+(?:What|How|Basal|\?|$))")
+
+
+def _split_medical_topics(text: str) -> list[tuple[str, str]]:
+    """Split the concatenated medical corpus on "About <Topic>" boundaries.
+
+    Returns list of (title, body) tuples. Falls back to a single (corpus,
+    text) tuple if the regex finds no matches (defensive — don't lose data).
+    """
+    import re as _re
+
+    # Simpler heuristic: find each "About X" at the start or after a
+    # sentence end, use the "What is X?" follow-up to extract the topic name.
+    # The corpus pattern is: "About <topic> What is <topic>? ..."
+    boundaries = []
+    # Locate each "About " occurrence that's at start-of-string or after
+    # a sentence terminator.
+    for m in _re.finditer(r"(?:^|(?<=[.?!]\s))About\s+", text):
+        boundaries.append(m.start())
+    if len(boundaries) < 2:
+        return [("medical corpus", text.strip())]
+
+    parts = []
+    for i, start in enumerate(boundaries):
+        end = boundaries[i + 1] if i + 1 < len(boundaries) else len(text)
+        chunk = text[start:end].strip()
+        # Title = "About <topic>" — up to "?" or "." or 80 chars
+        title_match = _re.match(r"About\s+([^.?]{3,80})", chunk)
+        title = (
+            title_match.group(1).strip()
+            if title_match
+            else f"medical topic {i}"
+        )
+        parts.append((title, chunk))
+    return parts
+
+
 def _download(url: str, dest: Path) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists():
@@ -123,45 +161,43 @@ def load_graphrag_bench(
     raw_corpus = json.loads(corpus_path.read_text())
     raw_questions = json.loads(questions_path.read_text())
 
-    # Schema discovery — the HF dataset is a list of dicts; the shapes are
-    # documented in huggingface.co/datasets/GraphRAG-Bench/GraphRAG-Bench
+    # GraphRAG-Bench ships the corpus as a list of `{corpus_name, context}`
+    # rows. For novel: one row per novel (20 rows). For medical: a single
+    # row containing ~33 topics concatenated, each starting with "About X".
+    # Split medical on "About " boundaries so each topic becomes its own
+    # document with a semantic title.
     documents = []
-    if isinstance(raw_corpus, list):
-        for i, row in enumerate(raw_corpus):
-            # Corpus file keys observed: {id, source, title?, text | content}
-            text = row.get("content") or row.get("text") or row.get("context") or ""
-            if not text:
-                continue
-            doc_id = row.get("id") or _doc_id(text, prefix=f"grb-{subset}")
+    for row in raw_corpus if isinstance(raw_corpus, list) else [raw_corpus]:
+        raw_text = row.get("context") or row.get("content") or row.get("text") or ""
+        row_title = row.get("corpus_name") or row.get("title") or row.get("source") or ""
+        if not raw_text:
+            continue
+
+        if subset == "medical":
+            # Split on "About <Topic>" — the natural document boundary for
+            # the concatenated medical corpus.
+            parts = _split_medical_topics(raw_text)
+            for i, (topic_title, body) in enumerate(parts):
+                documents.append(
+                    {
+                        "id": f"medical-{i:02d}-{_doc_id(body, prefix='t')[:8]}",
+                        "title": topic_title,
+                        "content": body,
+                        "metadata": {
+                            "corpus": "graphrag-bench-medical",
+                            "topic_index": i,
+                        },
+                    }
+                )
+        else:
             documents.append(
                 {
-                    "id": str(doc_id),
-                    "title": row.get("title", "") or row.get("source", ""),
-                    "content": text,
+                    "id": f"novel-{_doc_id(raw_text, prefix='')[:8]}",
+                    "title": row_title,
+                    "content": raw_text,
                     "metadata": {
                         "corpus": f"graphrag-bench-{subset}",
-                        "source": row.get("source", ""),
-                    },
-                }
-            )
-    elif isinstance(raw_corpus, dict):
-        # Keyed dict form: {doc_id: text, ...} or {doc_id: {content, title, ...}}
-        for doc_id, val in raw_corpus.items():
-            if isinstance(val, str):
-                text, title = val, ""
-            else:
-                text = val.get("content") or val.get("text") or ""
-                title = val.get("title") or val.get("source") or ""
-            if not text:
-                continue
-            documents.append(
-                {
-                    "id": str(doc_id),
-                    "title": title,
-                    "content": text,
-                    "metadata": {
-                        "corpus": f"graphrag-bench-{subset}",
-                        "source": title,
+                        "source": row_title,
                     },
                 }
             )

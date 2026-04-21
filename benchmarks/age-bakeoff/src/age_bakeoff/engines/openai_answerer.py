@@ -27,14 +27,19 @@ async def generate_answer(
 ) -> str:
     client = AsyncOpenAI()
     context = "\n\n---\n\n".join(retrieved_contents)
-    resp = await client.chat.completions.create(
-        model=model,
-        messages=[
+    # GPT-5 family (gpt-5, gpt-5-mini, gpt-5-nano) only accepts the default
+    # temperature=1 — older gpt-4.1 / gpt-4o accepted 0 for determinism.
+    # Detect + branch rather than hardcode either.
+    kwargs: dict = {
+        "model": model,
+        "messages": [
             {"role": "system", "content": _ANSWER_SYSTEM},
             {"role": "user", "content": _ANSWER_USER_TEMPLATE.format(question=question, context=context)},
         ],
-        temperature=0,
-    )
+    }
+    if not model.startswith(("gpt-5", "o1", "o3")):
+        kwargs["temperature"] = 0
+    resp = await client.chat.completions.create(**kwargs)
     if tracker is not None and resp.usage is not None:
         tracker.record(
             model,
