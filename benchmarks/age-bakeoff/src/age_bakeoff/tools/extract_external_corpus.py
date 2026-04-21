@@ -93,7 +93,7 @@ async def extract_corpus(
     n_questions: int | None,
     seed: int,
 ) -> ExtractionOutput:
-    from openai import AsyncOpenAI
+    from age_bakeoff.llm_clients import client_for
 
     print(f"Loading corpus {corpus_id!r}...")
     documents, _questions = load_corpus(
@@ -106,7 +106,7 @@ async def extract_corpus(
     print(f"  {len(chunks)} chunks")
 
     print(f"Running LLM extraction ({model}, concurrency={concurrency})...")
-    client = AsyncOpenAI()
+    client = client_for("extraction")
 
     entities_by_id: dict[str, ExtractedEntity] = {}
     relationships: list[ExtractedRelationship] = []

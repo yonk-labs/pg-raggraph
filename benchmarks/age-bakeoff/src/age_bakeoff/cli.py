@@ -427,7 +427,9 @@ def judge(corpus: tuple[str, ...], budget_usd: float) -> None:
     judge_dir.mkdir(parents=True, exist_ok=True)
 
     async def _run():
-        client = AsyncOpenAI()
+        from age_bakeoff.llm_clients import client_for
+
+        client = client_for("judge")
         for json_file in sorted(raw_dir.glob("*.json")):
             name = json_file.stem
             # Labelled raw JSON (acme__smart.json) shares its question set with
@@ -712,7 +714,9 @@ def gold_strictness_cmd(
         return
 
     async def _run() -> dict:
-        client = AsyncOpenAI()
+        from age_bakeoff.llm_clients import client_for
+
+        client = client_for("judge")
         out_by_corpus: dict[str, list[dict]] = {}
 
         for name, yaml_path in available.items():
@@ -879,7 +883,9 @@ def context_relevance_cmd(
         return
 
     async def _run() -> dict:
-        client = AsyncOpenAI()
+        from age_bakeoff.llm_clients import client_for
+
+        client = client_for("judge")
         out: dict[str, dict[str, dict[str, list[float]]]] = {}
 
         for name, rows in raw_rows_by_corpus.items():
