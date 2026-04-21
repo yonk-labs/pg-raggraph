@@ -27,6 +27,13 @@ export BAKEOFF_ANSWER_BASE_URL=""
 export BAKEOFF_ANSWER_MODEL=gpt-5-mini
 export GRAPHRAG_API_KEY="${GRAPHRAG_API_KEY:-${OPENAI_API_KEY:-}}"
 
+# gpt-5-mini handles 130K+ token contexts fine (see hybrid run: $6.11/200
+# answers at ~11s per call). Disable chunk truncation so mini gets the
+# full retrieved context — prior mini/naive attempt scored 7/100 with
+# 2KB truncation because chunks lost the specific medical details. Qwen
+# truncation stays at 2KB via .env; empty-string skip here is mini-only.
+export BAKEOFF_ANSWER_CHUNK_CHARS=0
+
 STEP_TIMEOUT_MIN="${STEP_TIMEOUT_MIN:-90}"
 LOG_DIR="${BAKEOFF_DIR}/logs"
 mkdir -p "$LOG_DIR"
