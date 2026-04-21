@@ -287,6 +287,17 @@ def ingest(corpus: tuple[str, ...], chunker: str | None) -> None:
         "results stay valid because retrieval_mode is a query-time parameter."
     ),
 )
+@click.option(
+    "--engines",
+    "engine_filter",
+    default=None,
+    help=(
+        "Comma-separated engines to run (default: all). e.g. 'pgrg' runs only "
+        "pg-raggraph, 'age' only Apache AGE. Use to skip duplicate engine work "
+        "on pgrg-mode sweeps (naive, naive_boost, local, global, smart only "
+        "affect pgrg — AGE repeats unnecessarily without this filter)."
+    ),
+)
 def run(
     corpus: tuple[str, ...],
     runs: int,
@@ -295,6 +306,7 @@ def run(
     budget_usd: float,
     chunker: str | None,
     skip_ingest: bool,
+    engine_filter: str | None,
 ) -> None:
     """Run benchmark questions against both engines."""
     _apply_chunker_flag(chunker)
@@ -306,6 +318,15 @@ def run(
         # is fine and avoids the model_copy boilerplate.
         cfg.retrieval_mode = mode
     engines = _get_engines(cfg)
+    if engine_filter:
+        requested = {e.strip() for e in engine_filter.split(",") if e.strip()}
+        unknown = requested - set(engines)
+        if unknown:
+            raise click.BadParameter(
+                f"Unknown engine(s): {sorted(unknown)}. "
+                f"Available: {sorted(engines)}"
+            )
+        engines = {k: v for k, v in engines.items() if k in requested}
 
     from age_bakeoff.questions.schema import load_question_set
     from age_bakeoff.runner import Runner, RunnerOptions
