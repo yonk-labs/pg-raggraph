@@ -4,13 +4,33 @@ from __future__ import annotations
 
 _PRICING: dict[str, tuple[float, float]] = {
     # (input $/1M tokens, output $/1M tokens)
-    "gpt-5-mini": (0.25, 2.00),
+    # GPT-5 family (per user-provided pricing 2026-04-21)
+    "gpt-5": (1.25, 5.00),
+    "gpt-5.1": (1.25, 5.00),
+    "gpt-5-mini": (0.25, 1.00),
+    "gpt-5-nano": (0.125, 0.50),
+    "gpt-5.4": (2.50, 10.00),
+    "gpt-5.4-mini": (0.75, 3.00),
+    "gpt-5.4-nano": (0.375, 1.50),
+    # Legacy
+    "gpt-4.1": (2.00, 8.00),
     "gpt-4.1-mini": (0.40, 1.60),
     "gpt-4.1-mini-2025-04-14": (0.40, 1.60),
     "gpt-4o-mini": (0.15, 0.60),
     "gpt-4o": (2.50, 10.00),
 }
+# Local models run at $0. Any model name hitting the local prefix list
+# or containing a "Qwen" / "qwen" substring is zero-priced.
+_LOCAL_PREFIXES = ("Intel/", "Qwen/", "ollama/", "local/")
+_LOCAL_SUBSTRINGS = ("qwen", "llama", "mistral", "phi-")
 _FALLBACK = (5.00, 15.00)
+
+
+def _is_local_model(model: str) -> bool:
+    if model.startswith(_LOCAL_PREFIXES):
+        return True
+    low = model.lower()
+    return any(s in low for s in _LOCAL_SUBSTRINGS)
 
 
 class CostBudgetExceeded(Exception):
@@ -26,7 +46,10 @@ class CostTracker:
     def record(
         self, model: str, prompt_tokens: int, completion_tokens: int
     ) -> None:
-        in_rate, out_rate = _PRICING.get(model, _FALLBACK)
+        if _is_local_model(model):
+            in_rate, out_rate = (0.0, 0.0)
+        else:
+            in_rate, out_rate = _PRICING.get(model, _FALLBACK)
         cost = (
             (prompt_tokens / 1_000_000) * in_rate
             + (completion_tokens / 1_000_000) * out_rate

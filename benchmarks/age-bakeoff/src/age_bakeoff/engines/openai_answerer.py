@@ -33,12 +33,40 @@ Context:
 Answer:"""
 
 
+def _truncate_chunks(contents: list[str], per_chunk_chars: int) -> list[str]:
+    """Cap each chunk to ``per_chunk_chars`` so bulk context stays small.
+
+    The hierarchy chunker can produce 50KB+ chunks on corpora with long
+    topic sections (e.g. GraphRAG-Bench medical's 'bladder cancer' doc is
+    134KB uncut). 10 such chunks = 500KB = ~130k tokens of context, which
+    puts answer generation at 45-60s per call on the local LLM.
+    Truncating each chunk to its first ~2000 chars keeps the signal
+    (lead passages are usually most relevant) while dropping input tokens
+    ~6x.
+    """
+    if per_chunk_chars <= 0:
+        return contents
+    out = []
+    for c in contents:
+        if len(c) <= per_chunk_chars:
+            out.append(c)
+        else:
+            out.append(c[:per_chunk_chars] + "\n…[truncated]")
+    return out
+
+
 async def generate_answer(
     question: str,
     retrieved_contents: list[str],
     model: str,
     tracker: CostTracker | None = None,
 ) -> str:
+    # BAKEOFF_ANSWER_CHUNK_CHARS (default 2000): cap per-chunk context size
+    # sent to the LLM. Applied uniformly across engines so the fairness
+    # constraint ("all engines see the same context budget") holds.
+    per_chunk_chars = int(os.environ.get("BAKEOFF_ANSWER_CHUNK_CHARS", "2000"))
+    retrieved_contents = _truncate_chunks(retrieved_contents, per_chunk_chars)
+
     client = _client()
     context = "\n\n---\n\n".join(retrieved_contents)
     # GPT-5 family (gpt-5, gpt-5-mini, gpt-5-nano) only accepts the default
