@@ -19,6 +19,7 @@ Each loader downloads to ``CORPORA_CACHE_DIR`` (default:
 from __future__ import annotations
 
 import csv
+import gzip
 import hashlib
 import io
 import json
@@ -26,6 +27,7 @@ import os
 import random
 import re
 import subprocess
+import tarfile
 import zipfile
 from pathlib import Path
 
@@ -268,27 +270,62 @@ def _ms_path(key: str) -> Path:
     return dest
 
 
-def _unzip_docs(zip_path: Path) -> list[dict]:
-    """Each zip holds a flat collection of .txt transcripts. One doc per file."""
+def _unzip_docs(archive_path: Path) -> list[dict]:
+    """Each archive holds a flat collection of .txt transcripts. One doc per file.
+
+    MS ships most archives as true .zip but HotPotQA Filtered Input Text.zip is
+    actually a gzipped tarball despite the extension. Auto-detects by header.
+    """
     documents = []
-    with zipfile.ZipFile(zip_path) as zf:
-        for name in sorted(zf.namelist()):
-            if name.endswith("/"):
-                continue
-            data = zf.read(name).decode("utf-8", errors="replace")
-            if not data.strip():
-                continue
-            doc_id = Path(name).stem
-            title = Path(name).stem.replace("_", " ")
-            documents.append(
-                {
-                    "id": doc_id,
-                    "title": title,
-                    "content": data,
-                    "metadata": {"corpus": zip_path.stem, "filename": name},
-                }
-            )
+    with archive_path.open("rb") as f:
+        header = f.read(4)
+
+    if header[:2] == b"PK":
+        # True zip
+        with zipfile.ZipFile(archive_path) as zf:
+            names = sorted(zf.namelist())
+            for name in names:
+                if name.endswith("/"):
+                    continue
+                data = zf.read(name).decode("utf-8", errors="replace")
+                if not data.strip():
+                    continue
+                documents.append(_archive_row(name, data, archive_path))
+    elif header[:2] == b"\x1f\x8b":
+        # gzip — try as tar.gz first
+        with gzip.open(archive_path, "rb") as gz:
+            try:
+                with tarfile.open(fileobj=gz, mode="r:") as tf:
+                    for member in tf.getmembers():
+                        if not member.isfile():
+                            continue
+                        extracted = tf.extractfile(member)
+                        if extracted is None:
+                            continue
+                        data = extracted.read().decode("utf-8", errors="replace")
+                        if not data.strip():
+                            continue
+                        documents.append(_archive_row(member.name, data, archive_path))
+            except tarfile.TarError:
+                # Plain gzip of a single file
+                gz.seek(0)
+                data = gz.read().decode("utf-8", errors="replace")
+                documents.append(_archive_row(archive_path.stem, data, archive_path))
+    else:
+        raise ValueError(
+            f"Unknown archive format at {archive_path} (header bytes {header!r})"
+        )
     return documents
+
+
+def _archive_row(name: str, data: str, archive_path: Path) -> dict:
+    stem = Path(name).stem
+    return {
+        "id": stem,
+        "title": stem.replace("_", " "),
+        "content": data,
+        "metadata": {"corpus": archive_path.stem, "filename": name},
+    }
 
 
 def _parse_ms_questions(csv_path: Path, corpus_tag: str) -> list[dict]:
@@ -345,11 +382,51 @@ def _parse_ms_questions(csv_path: Path, corpus_tag: str) -> list[dict]:
     return out
 
 
+_HOTPOTQA_DEV_URL = (
+    "http://curtis.ml.cmu.edu/datasets/hotpot/hotpot_dev_fullwiki_v1.json"
+)
+
+
+def _load_hotpotqa_gold_answers() -> dict[str, str]:
+    """Fetch upstream HotPotQA dev set (CC-BY-SA 4.0, Yang et al. 2018) to
+    recover gold answers for questions in MS's filtered set.
+
+    MS's HotPotQA Filtered CSV ships only question_id + question_text. The
+    upstream HotPotQA release (curtis.ml.cmu.edu) has matching _id → answer
+    entries. Returns a {question_id: answer} map, cached locally after first
+    fetch.
+    """
+    cache = _ensure_cache_dir() / "ms-graphrag" / "hotpotqa_dev_fullwiki_v1.json"
+    if not cache.exists():
+        _download(_HOTPOTQA_DEV_URL, cache)
+    data = json.loads(cache.read_text())
+    # Upstream schema: list of {"_id", "answer", "question", "supporting_facts",
+    # "context", "type", "level"}
+    return {row["_id"]: row["answer"] for row in data if row.get("answer")}
+
+
 def load_ms_hotpotqa(
-    n_questions: int = 100, seed: int = 42
+    n_questions: int = 100, seed: int = 42, include_gold: bool = True
 ) -> tuple[list[dict], list[dict]]:
+    """Load MS's HotPotQA Filtered set. Optionally augment with upstream
+    gold answers (default True) so the classic fully_correct/partial/wrong
+    judge rubric works. Without gold, questions are pairwise-only.
+    """
     docs = _unzip_docs(_ms_path("hotpotqa-input"))
     qs = _parse_ms_questions(_ms_path("hotpotqa-questions"), corpus_tag="ms-hotpotqa")
+    if include_gold:
+        gold = _load_hotpotqa_gold_answers()
+        matched = 0
+        for q in qs:
+            if q["id"] in gold:
+                q["gold_answer"] = gold[q["id"]]
+                matched += 1
+        # Drop any question without a gold answer — they'd degrade the sweep
+        qs = [q for q in qs if q["gold_answer"]]
+        # Log coverage; helpful for Phase 2 paper methodology section
+        print(
+            f"  ms-hotpotqa: gold-answer coverage {matched}/{matched + (len(qs) - matched)}"
+        )
     qs_sample = _stratified_subset(qs, class_key="question_class", n=n_questions, seed=seed)
     return docs, qs_sample
 
