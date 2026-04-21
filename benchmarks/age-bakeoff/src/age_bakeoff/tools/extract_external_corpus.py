@@ -118,26 +118,39 @@ async def extract_corpus(
 
     async def _process(chunk: Chunk):
         async with sem:
-            ents, rels = await _extract_one_chunk(client, chunk, model)
+            try:
+                ents, rels = await _extract_one_chunk(client, chunk, model)
+            except Exception as e:
+                print(f"  WARN: chunk {chunk.id} extraction raised: {e}")
+                return
             for e in ents:
-                eid = _slug(e.get("name", ""))
+                # LLM sometimes returns entities as strings or malformed dicts.
+                # Skip anything that doesn't look like {"name": ...}.
+                if not isinstance(e, dict):
+                    continue
+                name = e.get("name") if isinstance(e.get("name"), str) else ""
+                eid = _slug(name)
                 if eid and eid not in entities_by_id:
                     entities_by_id[eid] = ExtractedEntity(
                         id=eid,
-                        name=e["name"],
-                        entity_type=e.get("entity_type", "Concept"),
-                        description=e.get("description", ""),
+                        name=name,
+                        entity_type=e.get("entity_type", "Concept") if isinstance(e.get("entity_type"), str) else "Concept",
+                        description=e.get("description", "") if isinstance(e.get("description"), str) else "",
                     )
             for r in rels:
-                src_id = _slug(r.get("src", ""))
-                dst_id = _slug(r.get("dst", ""))
+                if not isinstance(r, dict):
+                    continue
+                src = r.get("src") if isinstance(r.get("src"), str) else ""
+                dst = r.get("dst") if isinstance(r.get("dst"), str) else ""
+                src_id = _slug(src)
+                dst_id = _slug(dst)
                 if src_id in entities_by_id and dst_id in entities_by_id:
                     relationships.append(
                         ExtractedRelationship(
                             src_id=src_id,
                             dst_id=dst_id,
-                            rel_type=r.get("rel_type", "RELATES_TO"),
-                            description=r.get("description", ""),
+                            rel_type=r.get("rel_type", "RELATES_TO") if isinstance(r.get("rel_type"), str) else "RELATES_TO",
+                            description=r.get("description", "") if isinstance(r.get("description"), str) else "",
                         )
                     )
             done_count[0] += 1

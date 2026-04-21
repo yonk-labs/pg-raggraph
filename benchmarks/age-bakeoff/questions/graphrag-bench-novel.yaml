@@ -1,0 +1,1178 @@
+corpus: graphrag-bench-novel
+questions:
+- id: Novel-dd6a66f7
+  question: During the War of 1812 and other conflicts, in what ways did French-Canadian
+    militiamen, under the leadership of French-Canadian officers, demonstrate their
+    loyalty to the British crown?
+  gold_answer: French-Canadian militiamen showed loyalty to the British crown and
+    were led by French-Canadian officers.
+  required_facts:
+  - French-Canadian militiamen showed loyalty to the British crown.
+  - French-Canadian militiamen were led by French-Canadian officers.
+  question_class: Complex Reasoning
+- id: Novel-4172b5f0
+  question: How does Schummel's adoption of the title from Mittelstedt's translation,
+    his mention of Calais, and his writing about the character Rosenfeld exemplify
+    the circulation and intertextual referencing of literary titles and motifs among
+    authors in the German literary tradition?
+  gold_answer: Schummel used the title of Mittelstedt's translation, mentioned Calais,
+    and wrote about Rosenfeld, illustrating the circulation of titles and references
+    among authors.
+  required_facts:
+  - Schummel used the title of Mittelstedt's translation.
+  - Schummel mentioned Calais.
+  - Schummel wrote about the character Rosenfeld.
+  - These actions illustrate the circulation of titles and references among authors.
+  question_class: Contextual Summarize
+- id: Novel-e0a374bb
+  question: Imagine you are Don Carlo. Narrate the events of traveling to headquarters
+    and your partnership with Dan Carlo, including your encounter with Brindle Bill.
+  gold_answer: I rode alongside my trusted partner, Dan Carlo, heading towards headquarters.
+    The place was known as a resort for the notorious Brindle Bill. Tensions ran high,
+    as Bill had made it clear he wanted Simon. At headquarters, I couldn't avoid a
+    confrontation and ended up fighting Brindle Bill. The partnership with Dan was
+    put to the test, but together, we faced down the trouble that awaited us.
+  required_facts:
+  - I rode alongside my trusted partner, Dan Carlo.
+  - We were heading towards headquarters.
+  - The place was known as a resort for the notorious Brindle Bill.
+  - Tensions ran high because Brindle Bill wanted Simon.
+  - I confronted Brindle Bill at headquarters.
+  - I ended up fighting Brindle Bill.
+  - The partnership with Dan was put to the test.
+  question_class: Creative Generation
+- id: Novel-9dc9d9b2
+  question: Following his involvement in the Lower Canada Rebellion, where was Dr.
+    Wolfred Nelson held as a prisoner by the British authorities?
+  gold_answer: Wolfred Nelson was a prisoner in Montreal.
+  required_facts:
+  - Wolfred Nelson was a prisoner in Montreal.
+  question_class: Fact Retrieval
+- id: Novel-77287c53
+  question: During their conversation, what did Walters say to Cecil, and how does
+    this reflect their relationship in the narrative?
+  gold_answer: Walters said to Cecil.
+  required_facts:
+  - Walters said something to Cecil.
+  - Walters' statement to Cecil reflects their relationship.
+  question_class: Fact Retrieval
+- id: Novel-34e7cea9
+  question: Write a diary entry from the perspective of an Itzae reflecting on the
+    similarity between Mayab and Hindostan and their shared language.
+  gold_answer: Diary Entry — Lately, elders have spoken of the strange similarity
+    between our land, Mayab, and distant Hindostan. Our Maya language is spoken in
+    their valleys, and the stories we tell seem to share a common root. As I, an Itzae,
+    see our people have retreated before the Nahualt, I wonder if our kin in Hindostan
+    face the same fate or if our language will survive in either land.
+  required_facts:
+  - Elders have spoken of a similarity between Mayab and Hindostan.
+  - The Maya language is spoken in the valleys of Hindostan.
+  - The stories told by the Itzaes share a common root with those in Hindostan.
+  - The Itzaes have retreated before the Nahualt.
+  - The Itzae wonders if their kin in Hindostan face the same fate.
+  question_class: Creative Generation
+- id: Novel-0c89dcba
+  question: According to the discussion of individuality and social enrichment in
+    the novel, what has a modern book on Liberty maintained regarding the freedom
+    of individual men?
+  gold_answer: A modern book on Liberty has maintained that from the freedom of individual
+    men to persist in idiosyncrasies, the world may be enriched.
+  required_facts:
+  - A modern book on Liberty has maintained that the world may be enriched from the
+    freedom of individual men to persist in idiosyncrasies.
+  question_class: Fact Retrieval
+- id: Novel-63bc945d
+  question: How are the legal, familial, and romantic storylines intertwined through
+    the engagement of Roxie Daymon to Simon, Simon's obtaining a promise from Rose
+    Simon, and Governor Morock's offer to arrange testimony for Roxie Daymon?
+  gold_answer: Roxie Daymon was engaged to Simon, Simon obtained a promise from Rose
+    Simon, and Governor Morock offered to arrange the testimony for Roxie Daymon.
+  required_facts:
+  - Roxie Daymon was engaged to Simon.
+  - Simon obtained a promise from Rose Simon.
+  - Governor Morock offered to arrange the testimony for Roxie Daymon.
+  question_class: Contextual Summarize
+- id: Novel-c7bf38df
+  question: What evidence connects Moses Stickney to both Washington’s army and Mt.
+    Monadnock?
+  gold_answer: Moses Stickney was in Washington’s army and lived near Mt. Monadnock.
+  required_facts:
+  - Moses Stickney was in Washington’s army.
+  - Moses Stickney lived near Mt. Monadnock.
+  question_class: Complex Reasoning
+- id: Novel-5b1265c0
+  question: While tracking a suspect in the Burrbank murder case, whom did Gallegher
+    follow to the station at Torresdale?
+  gold_answer: Gallegher followed the stranger to Torresdale.
+  required_facts:
+  - Gallegher followed a stranger.
+  - Gallegher followed the stranger to the station at Torresdale.
+  question_class: Fact Retrieval
+- id: Novel-b1844c62
+  question: Describe the chain of events linking Sir Tristram, The Dean, and Augustin.
+  gold_answer: Sir Tristram pulled the horse's nose-bag over The Dean, Augustin is
+    also known as The Dean.
+  required_facts:
+  - Sir Tristram pulled the horse's nose-bag over The Dean.
+  - Augustin is also known as The Dean.
+  question_class: Complex Reasoning
+- id: Novel-cbc2a30b
+  question: How does the narrative employ the motif of captivity and rescue in the
+    episode where Suza Fairfield is captured by Tom Ditamus, who subsequently moves
+    to the Ohio River, and what impact does this have on Suza's storyline?
+  gold_answer: Suza Fairfield was captured by Tom Ditamus, who moved to the Ohio river.
+  required_facts:
+  - Suza Fairfield was captured by Tom Ditamus.
+  - Tom Ditamus moved to the Ohio River.
+  question_class: Contextual Summarize
+- id: Novel-25d1d605
+  question: How does Fleming's desire to recover the ring he gave as a deposit lead
+    to his subsequent interaction and confrontation with Katinka at the cabin?
+  gold_answer: Fleming wanted to recover the ring and confronted Katinka.
+  required_facts:
+  - Fleming wanted to recover the ring.
+  - Fleming confronted Katinka.
+  question_class: Complex Reasoning
+- id: Novel-5e5e5a5f
+  question: In the narrative, how are formal events—such as the King's appointment
+    of my Lord as Embassador and my Lord thanking Sir R. Slingsby—interwoven with
+    personal relationships, for example, the King's connection to his mistress Madame
+    Palmer attending the Theatre?
+  gold_answer: The chains show formal events like the King making my Lord Embassador
+    and my Lord thanking Sir R. Slingsby, alongside personal relationships such as
+    the King's mistress attending the Theatre.
+  required_facts:
+  - The King appointed my Lord as Embassador.
+  - My Lord thanked Sir R. Slingsby.
+  - The King's mistress attended the Theatre.
+  - Formal events are interwoven with personal relationships.
+  question_class: Contextual Summarize
+- id: Novel-fc1f08f3
+  question: Rewrite the discussion between Hinze and Felicia as a news report, focusing
+    on their views about English art and leadership, and noting that Mr Pitt was succeeded
+    by the Duke of Wellington.
+  gold_answer: London — In a recent exchange, Hinze expressed agreement with Felicia
+    regarding the cultural state of England. Contrary to rumors, Felicia clarified
+    that she did not state there was an actual decline in English art. She emphasized
+    her admiration for the country, describing England as lovable and laudable, filled
+    with good men and governed by capable leaders, notably from Mr Pitt, who was succeeded
+    by the Duke of Wellington. The conversation also touched on the Duke’s efforts
+    toward Catholic emancipation, reflecting ongoing social reforms.
+  required_facts:
+  - Hinze expressed agreement with Felicia regarding the cultural state of England.
+  - Felicia clarified that she did not state there was an actual decline in English
+    art.
+  - Felicia admires England, describing it as lovable and laudable.
+  - Felicia believes England is filled with good men.
+  - Felicia thinks England is governed by capable leaders.
+  - Mr Pitt was succeeded by the Duke of Wellington.
+  - The conversation included the Duke's efforts toward Catholic emancipation.
+  - The conversation reflected ongoing social reforms.
+  question_class: Creative Generation
+- id: Novel-8cd4c694
+  question: How is Johann Gottlieb Schummel connected to the Allgemeine deutsche Bibliothek
+    in the context of literary criticism and publication, especially regarding the
+    censure he received and the review of his work 'Die Gleichheit der menschlichen
+    Herzen' by this publication?
+  gold_answer: Schummel was censured by the Allgemeine deutsche Bibliothek, and his
+    work 'Die Gleichheit der menschlichen Herzen' was reviewed by the same publication.
+  required_facts:
+  - Schummel was censured by the Allgemeine deutsche Bibliothek.
+  - The Allgemeine deutsche Bibliothek reviewed Schummel's work 'Die Gleichheit der
+    menschlichen Herzen'.
+  question_class: Complex Reasoning
+- id: Novel-5779b132
+  question: What is the process of making sugar as described in the subgraphs?
+  gold_answer: Sugar is made from Sugar Maple.
+  required_facts:
+  - Sugar is made from Sugar Maple.
+  question_class: Contextual Summarize
+- id: Novel-aba4e30c
+  question: When Heywood interacted with Rudolph during the tense events at the nunnery,
+    how did Heywood treat Rudolph, and what name was Heywood called by in the narrative?
+  gold_answer: Heywood scoffed at Rudolph, and Heywood was called Maurice.
+  required_facts:
+  - Heywood scoffed at Rudolph.
+  - Heywood was called Maurice in the narrative.
+  question_class: Complex Reasoning
+- id: Novel-afb11f97
+  question: In which German city was the periodical 'Neue Zeitungen von Gelehrten
+    Sachen' published, contributing to Enlightenment literary culture?
+  gold_answer: Neue Zeitungen von Gelehrten Sachen was published in Leipzig.
+  required_facts:
+  - '''Neue Zeitungen von Gelehrten Sachen'' was published in Leipzig.'
+  question_class: Fact Retrieval
+- id: Novel-37b056d2
+  question: Why were Judge Boompointer and Judge Fletcher rumored to be rivals for
+    Miss Trotter's hand?
+  gold_answer: Judge Boompointer and Judge Fletcher were rumored to be rivals for
+    Miss Trotter's hand.
+  required_facts:
+  - Judge Boompointer and Judge Fletcher were rumored to be rivals.
+  - Judge Boompointer and Judge Fletcher were rivals for Miss Trotter's hand.
+  question_class: Complex Reasoning
+- id: Novel-77eddd03
+  question: As explained in the section on the properties of alcohol, what does alcohol
+    look like in appearance?
+  gold_answer: Alcohol looks like water.
+  required_facts:
+  - Alcohol looks like water.
+  question_class: Fact Retrieval
+- id: Novel-7849ac93
+  question: What is the demographic and economic significance of the city of Tetuan
+    in the novel, particularly regarding its population of both Berbers and Moors
+    and its trade relations with Spain?
+  gold_answer: Tetuan is inhabited by both Berbers and Moors and trades with Spain.
+  required_facts:
+  - Tetuan is inhabited by both Berbers and Moors.
+  - Tetuan trades with Spain.
+  question_class: Complex Reasoning
+- id: Novel-b3af6970
+  question: In the novel, what liquid was the stone jug, found in a character's cabin,
+    half full of?
+  gold_answer: The stone jug was half full of whisky.
+  required_facts:
+  - The stone jug was half full of whisky.
+  question_class: Fact Retrieval
+- id: Novel-35afeb4b
+  question: What topics did Angeline Stickney write about, according to the evidence
+    provided?
+  gold_answer: Angeline Stickney wrote about Slavery and the Garden of Eden.
+  required_facts:
+  - Angeline Stickney wrote about Slavery.
+  - Angeline Stickney wrote about the Garden of Eden.
+  question_class: Complex Reasoning
+- id: Novel-7044a5ef
+  question: As Gallegher raced back to the city in a stolen cab to deliver news to
+    the Press office, what did he drive beside during his journey?
+  gold_answer: Gallegher drove beside railroad tracks, freight cars, and coal cars.
+  required_facts:
+  - Gallegher drove beside railroad tracks.
+  - Gallegher drove beside freight cars.
+  - Gallegher drove beside coal cars.
+  question_class: Fact Retrieval
+- id: Novel-ae39f048
+  question: Within the social circles of Canada City, who is Piney introduced and
+    treated as a protegee by, reflecting her close relationship in the story?
+  gold_answer: Piney is the protegee of Cissy Trixit.
+  required_facts:
+  - Piney is the protegee of Cissy Trixit.
+  - Cissy Trixit has a close relationship with Piney.
+  question_class: Fact Retrieval
+- id: Novel-6b752e90
+  question: What is the chain of connections from big-sis’s influence on Cæsar Simon
+    to Young Simon’s parentage?
+  gold_answer: Big-sis raised Cæsar Simon, who was cousin of Young Simon, who is the
+    only son of S. S. Simon.
+  required_facts:
+  - Big-sis raised Cæsar Simon.
+  - Cæsar Simon was a cousin of Young Simon.
+  - Young Simon is the only son of S. S. Simon.
+  question_class: Complex Reasoning
+- id: Novel-84af5b0f
+  question: Imagine you are a French-Canadian militiaman reflecting in your diary
+    on your loyalty to the British crown despite conflicts with the English-speaking
+    population and the Chateau Clique.
+  gold_answer: Diary Entry — Today, I fought shoulder to shoulder with English-speaking
+    fellow-countrymen, fighting for the British crown. Despite our loyalty, the British
+    government still keeps us at arm's length, and the Chateau Clique continues to
+    make life difficult for us French Canadians. Our struggles seem endless, yet our
+    allegiance to the crown is unwavering, even as the Patriotes challenge the status
+    quo and tensions persist in Montreal.
+  required_facts:
+  - The militiaman fought alongside English-speaking fellow-countrymen.
+  - The militiaman fought for the British crown.
+  - The British government keeps French Canadians at arm's length.
+  - The Chateau Clique makes life difficult for French Canadians.
+  - The militiaman's allegiance to the crown is unwavering.
+  - The Patriotes challenge the status quo.
+  - Tensions persist in Montreal.
+  question_class: Creative Generation
+- id: Novel-f24b3922
+  question: Rewrite the story of the harp as told in a diary entry by a medieval Anglo-Saxon
+    scribe, who discovers its origins.
+  gold_answer: Diary Entry — While copying the manuscript today, I was struck by the
+    depiction of the harp. Curious, I inquired and learned that it is said to be rendered
+    from the ancient kinnor, an instrument played and suspended by the legendary David.
+    Our museum now holds both the manuscript and curious cymbals, supposedly of Egyptian
+    origin. Such a web of history binds our music to ages past.
+  required_facts:
+  - The scribe was struck by the depiction of the harp.
+  - The harp is said to be rendered from the ancient kinnor.
+  - The kinnor was played and suspended by the legendary David.
+  - The museum holds both the manuscript and cymbals.
+  - The cymbals are supposedly of Egyptian origin.
+  - There is a web of history that binds music to ages past.
+  question_class: Creative Generation
+- id: Novel-786a5d0e
+  question: Imagine you are Mr. Reade. Write a diary entry about your journey through
+    North Africa, focusing on your visit to Kairwan, your travels with Captain Balfour,
+    and your encounters with the diverse peoples and landscapes described.
+  gold_answer: Diary, April 17th — Today, I finally set foot in Kairwan, that ancient
+    city said to be home to descendants of the Prophet himself. The palms of North
+    Africa make for a striking landscape, though I heard in Jereed their heads are
+    cut off, a curious local custom. Traveling with Captain Balfour has been instructive;
+    his tales from Nefta, where he procured delicious dates, have made the journey
+    lively. The Atlas Jews we met in Mogador impressed me with their stature, so different
+    from other Jews in Morocco. From the Roman ruins in Jereed to the bustling commerce
+    flowing from Tunis towards the Sahara, every stop reveals a new facet of this
+    land.
+  required_facts:
+  - Mr. Reade set foot in Kairwan on April 17th.
+  - Kairwan is described as an ancient city.
+  - Kairwan is said to be home to descendants of the Prophet.
+  - North Africa has striking landscapes with palm trees.
+  - In Jereed, there is a local custom of cutting off the heads of palm trees.
+  - Mr. Reade traveled with Captain Balfour.
+  - Captain Balfour shared tales from Nefta.
+  - Captain Balfour procured delicious dates in Nefta.
+  - Mr. Reade met Atlas Jews in Mogador.
+  - The Atlas Jews impressed Mr. Reade with their stature.
+  - The stature of Atlas Jews is different from other Jews in Morocco.
+  - Mr. Reade visited Roman ruins in Jereed.
+  - Commerce flows from Tunis towards the Sahara.
+  - Every stop in North Africa reveals a new facet of the land.
+  question_class: Creative Generation
+- id: Novel-739e0700
+  question: Compose a news report on the various aliases and relationships, focusing
+    on The Dean, Augustin, and Georgiana’s nickname.
+  gold_answer: In recent social events, it has come to light that Augustin, also known
+    as The Dean, is the father of Sheba. Meanwhile, Georgiana Tidman is widely recognized
+    by her nickname 'George Tidd.' Salome is identified as Georgiana’s niece. The
+    day’s gathering included interactions among these individuals, highlighting the
+    close-knit yet lively nature of the household.
+  required_facts:
+  - Augustin is also known as The Dean.
+  - Augustin is the father of Sheba.
+  - Georgiana Tidman is recognized by her nickname 'George Tidd.'
+  - Salome is identified as Georgiana’s niece.
+  - The gathering included interactions among these individuals.
+  question_class: Creative Generation
+- id: Novel-3dea6ece
+  question: What is the relationship between the hopper and the cast iron frame in
+    the context of the Lime Kiln?
+  gold_answer: The hopper is fixed at the upper part of the cast iron frame.
+  required_facts:
+  - The hopper is fixed at the upper part of the cast iron frame.
+  question_class: Complex Reasoning
+- id: Novel-fb2edc8f
+  question: Write a news report about the dangers of alcohol and tobacco for young
+    people.
+  gold_answer: Health News — Medical professionals warn that alcohol and tobacco pose
+    significant risks to young people. Alcohol, which can be produced from sugar,
+    hurts the stomach and puts fat into muscles. Tobacco is classified as a narcotic
+    like alcohol and is considered especially harmful for boys, deadening the nerves
+    of men and impacting overall health.
+  required_facts:
+  - Alcohol poses significant risks to young people.
+  - Alcohol can be produced from sugar.
+  - Alcohol can hurt the stomach.
+  - Alcohol can put fat into muscles.
+  - Tobacco is classified as a narcotic like alcohol.
+  - Tobacco is considered especially harmful for boys.
+  - Tobacco deadens the nerves of men.
+  - Tobacco impacts overall health.
+  question_class: Creative Generation
+- id: Novel-884a8392
+  question: In the story of King Sligo and the High Cellarer, why did King Sligo have
+    the High Cellarer arrested, and what actions did the High Cellarer take involving
+    the key and the treasure-chamber that led to his arrest?
+  gold_answer: King Sligo had the High Cellarer arrested because the High Cellarer
+    found the key and opened the treasure-chamber that belonged to the King.
+  required_facts:
+  - King Sligo had the High Cellarer arrested.
+  - The High Cellarer found the key.
+  - The High Cellarer opened the treasure-chamber.
+  - The treasure-chamber belonged to the King.
+  question_class: Complex Reasoning
+- id: Novel-28f101b7
+  question: At the French restaurant with the terrace and the awning, who was accompanying
+    the young man during his meal?
+  gold_answer: The young lady was with the young man.
+  required_facts:
+  - The young lady was with the young man during his meal.
+  question_class: Fact Retrieval
+- id: Novel-2eef29fc
+  question: How is Angeline Stickney’s relationship to Moses Stickney established
+    through multiple intermediaries?
+  gold_answer: Charlotte was the sister of Mary Stickney, Charlotte was Edwin Ingalls's
+    wife, and Edwin Ingalls taught Angeline. Moses Stickney was the grandfather of
+    Angeline Stickney.
+  required_facts:
+  - Charlotte was the sister of Mary Stickney.
+  - Charlotte was the wife of Edwin Ingalls.
+  - Edwin Ingalls taught Angeline.
+  - Moses Stickney was the grandfather of Angeline Stickney.
+  question_class: Complex Reasoning
+- id: Novel-53254bcd
+  question: How do my Lord's actions of expressing gratitude to Sir R. Slingsby and
+    issuing orders to Mr. Creed demonstrate his leadership qualities and the way he
+    exercises both appreciation and authority in his role?
+  gold_answer: By thanking Sir R. Slingsby and ordering Mr. Creed, my Lord demonstrates
+    both appreciation and authority, underlining his leadership style.
+  required_facts:
+  - My Lord expressed gratitude to Sir R. Slingsby.
+  - My Lord issued orders to Mr. Creed.
+  - These actions demonstrate my Lord's appreciation and authority.
+  - These actions underline my Lord's leadership style.
+  question_class: Contextual Summarize
+- id: Novel-2413de86
+  question: How does the narrative depict the significance of the region of Sous within
+    Morocco's governance system, particularly in relation to its inclusion of Draha,
+    its status as part of Sous, and its obligation to pay regular tribute (impost)
+    to the Emperor of Morocco?
+  gold_answer: Sous pays regular tribute to the Emperor of Morocco, reflecting its
+    obligations within the Moroccan governance structure.
+  required_facts:
+  - Sous pays regular tribute to the Emperor of Morocco.
+  - This reflects Sous's obligations within the Moroccan governance structure.
+  question_class: Contextual Summarize
+- id: Novel-58e512de
+  question: How do the actions of George II in ratifying a treaty with Morocco and
+    Charles I in commencing political relations, as described in the novel, illustrate
+    the development of Morocco's diplomatic relations with other nations?
+  gold_answer: George II ratified a treaty with Morocco and Charles I commenced political
+    relations with Morocco.
+  required_facts:
+  - George II ratified a treaty with Morocco.
+  - Charles I commenced political relations with Morocco.
+  question_class: Complex Reasoning
+- id: Novel-afabde7f
+  question: According to the mythological accounts presented in the text, who is identified
+    as the mother of Romulus?
+  gold_answer: Ilia is the mother of Romulus.
+  required_facts:
+  - Ilia is the mother of Romulus.
+  question_class: Fact Retrieval
+- id: Novel-d446abb7
+  question: Imagine you are the Duke of Wellington. Write a diary entry about your
+    efforts to emancipate the Catholics and your thoughts on the Irish and English
+    relations.
+  gold_answer: Diary Entry — Today I continued my advocacy for Catholic emancipation.
+    I am aware that the Catholics of this era know the necessity of modesty, especially
+    considering their Irish heritage. There is a sentiment in high places that the
+    Irish have been too lenient toward the English, and yet, England itself is a nation
+    with a sense of common descent and unity. My hope is that these reforms will foster
+    greater harmony across all these groups.
+  required_facts:
+  - The Duke of Wellington continued his advocacy for Catholic emancipation today.
+  - The Catholics of this era know the necessity of modesty.
+  - The Duke is aware of the Irish heritage of Catholics.
+  - There is a sentiment in high places that the Irish have been too lenient toward
+    the English.
+  - England is a nation with a sense of common descent and unity.
+  - The Duke hopes that reforms will foster greater harmony across all groups.
+  question_class: Creative Generation
+- id: Novel-27b6e451
+  question: Imagine you are a visitor to Kynance Cove. Write a diary entry describing
+    your impressions of the Devil’s Throat and its legendary connections.
+  gold_answer: 'Diary: Today I visited Kynance Cove, a place of wild beauty. The Devil’s
+    Throat is both awe-inspiring and eerie, carved into the coastline. Locals say
+    King Arthur once passed this way, and the cove’s position in Cornwall makes the
+    legends come alive. I stood at the edge, imagining ancient knights and mystical
+    swords.'
+  required_facts:
+  - The visitor went to Kynance Cove.
+  - Kynance Cove is described as a place of wild beauty.
+  - The Devil’s Throat is carved into the coastline.
+  - The Devil’s Throat is described as awe-inspiring and eerie.
+  - Locals say King Arthur once passed this way.
+  - The cove’s position in Cornwall makes the legends come alive.
+  - The visitor imagined ancient knights and mystical swords.
+  question_class: Creative Generation
+- id: Novel-edba707f
+  question: Rewrite the sequence where Eileen Macarthy tells a story to Mrs. O'Shaughnessy,
+    who is standing by the window to watch Doctor O'Shaughnessy, as a news report.
+  gold_answer: Local Happenings — This evening, Eileen Macarthy captivated Mrs. O'Shaughnessy
+    with a story. Observers reported that Mrs. O'Shaughnessy stood by the window,
+    keeping a watchful eye on Doctor O'Shaughnessy, who was recently given charge
+    of Eileen. The family gathered at their cottage in Ireland, where the hermit is
+    a well-known figure, and the Green Man also made an appearance, posing questions
+    to Eileen.
+  required_facts:
+  - Eileen Macarthy captivated Mrs. O'Shaughnessy with a story.
+  - Mrs. O'Shaughnessy stood by the window.
+  - Mrs. O'Shaughnessy kept a watchful eye on Doctor O'Shaughnessy.
+  - Doctor O'Shaughnessy was recently given charge of Eileen.
+  - The family gathered at their cottage in Ireland.
+  - The hermit is a well-known figure in the area.
+  - The Green Man posed questions to Eileen.
+  question_class: Creative Generation
+- id: Novel-535c413f
+  question: What passages in the biography illustrate that Mrs. Hall traveled extensively
+    or had a broad interest in travel, such as observing the total eclipse of the
+    sun in Colorado, visiting Lake George and John Brown's farm, and expressing her
+    longing to visit Europe?
+  gold_answer: Mrs. Hall observed the total eclipse of the sun in Colorado, visited
+    Lake George and John Brown's farm, and longed to visit Europe.
+  required_facts:
+  - Mrs. Hall observed the total eclipse of the sun in Colorado.
+  - Mrs. Hall visited Lake George.
+  - Mrs. Hall visited John Brown's farm.
+  - Mrs. Hall expressed her longing to visit Europe.
+  question_class: Complex Reasoning
+- id: Novel-d7765001
+  question: In the narrative, what was revealed about the butterman's role—specifically
+    that he was actually the king—and what were his intentions regarding setting up
+    a public house in the city?
+  gold_answer: The butterman was revealed to be the king, and he thought of setting
+    up a public house in the city.
+  required_facts:
+  - The butterman was revealed to be the king.
+  - The king thought of setting up a public house in the city.
+  question_class: Complex Reasoning
+- id: Novel-ec347ef8
+  question: Write a news report about the discovery of an Assyrian harp made of catgut
+    and silk, highlighting its relation to other ancient instruments and its display
+    in the British Museum.
+  gold_answer: London — The British Museum has unveiled an Assyrian harp, notable
+    for its construction from both catgut and silk. Experts trace the lineage of such
+    harps to the ancient kinnor, once played and suspended by David, and rendered
+    as the harp in later manuscripts. The museum’s display also includes cymbals used
+    by Assyrian musicians and references to similar Oriental harps, providing visitors
+    with a comprehensive look at the evolution of stringed instruments across regions
+    and eras.
+  required_facts:
+  - The British Museum unveiled an Assyrian harp.
+  - The Assyrian harp is made of catgut and silk.
+  - Experts trace the lineage of the harp to the ancient kinnor.
+  - The kinnor was once played and suspended by David.
+  - The harp was rendered in later manuscripts.
+  - The museum’s display includes cymbals used by Assyrian musicians.
+  - The display references similar Oriental harps.
+  question_class: Creative Generation
+- id: Novel-e8019816
+  question: How is the Lizard related to Cornwall?
+  gold_answer: The Lizard is a village located in Cornwall.
+  required_facts:
+  - The Lizard is a village.
+  - The Lizard is located in Cornwall.
+  question_class: Fact Retrieval
+- id: Novel-e1db913e
+  question: In the context of literary criticism found in the Allgemeine deutsche
+    Bibliothek, how were Schummel and his works, such as 'Die Gleichheit der menschlichen
+    Herzen' and 'Der Greis', discussed or evaluated, and what role did Musäus's published
+    review play in shaping the reception of these works?
+  gold_answer: Schummel was censured by the Allgemeine deutsche Bibliothek, and his
+    works 'Die Gleichheit der menschlichen Herzen' and 'Der Greis' were reviewed in
+    its publications. A review by Musäus was published in the Allgemeine deutsche
+    Bibliothek.
+  required_facts:
+  - Schummel was censured by the Allgemeine deutsche Bibliothek.
+  - The works 'Die Gleichheit der menschlichen Herzen' and 'Der Greis' were reviewed
+    in the Allgemeine deutsche Bibliothek.
+  - A review by Musäus was published in the Allgemeine deutsche Bibliothek.
+  question_class: Contextual Summarize
+- id: Novel-cf87aed7
+  question: Whom is SALOME shown considering or reflecting upon, especially regarding
+    family dynamics and guidance in the play?
+  gold_answer: SALOME considers Aunt Georgiana.
+  required_facts:
+  - SALOME considers Aunt Georgiana.
+  question_class: Fact Retrieval
+- id: Novel-a4a83818
+  question: Rewrite the events surrounding Roxie's charge by Governor Morock as a
+    news article.
+  gold_answer: Governor Morock has officially charged Roxie in connection with recent
+    events, sources confirm. The charge follows the delivery of a note to the Governor
+    by Cousin Cæsar. Roxie, reportedly, conveyed news of the charge to Aunt Katy,
+    a close acquaintance of Tom Fairfield. Fairfield, married to Susan Lasco, is linked
+    by marriage to the Lasco family, whose ties extend to John A. Lasco, an emigrant
+    who remained in the old country. The circumstances leading to the charge remain
+    under investigation.
+  required_facts:
+  - Governor Morock has officially charged Roxie.
+  - The charge is in connection with recent events.
+  - Cousin Cæsar delivered a note to the Governor.
+  - Roxie conveyed news of the charge to Aunt Katy.
+  - Aunt Katy is a close acquaintance of Tom Fairfield.
+  - Tom Fairfield is married to Susan Lasco.
+  - The Lasco family is linked by marriage to Tom Fairfield.
+  - John A. Lasco is an emigrant who remained in the old country.
+  - The circumstances leading to the charge remain under investigation.
+  question_class: Creative Generation
+- id: Novel-5ba676fd
+  question: What major military actions and strategic decisions are associated with
+    General Price in 'Pen Pictures'? Please detail General Price's retreat south from
+    the Missouri river, his capture of a Federal force at Lexington, and his overall
+    campaign in Missouri.
+  gold_answer: General Price retreated south from the Missouri river, captured a Federal
+    force at Lexington, and had a campaign in Missouri.
+  required_facts:
+  - General Price retreated south from the Missouri river.
+  - General Price captured a Federal force at Lexington.
+  - General Price had a campaign in Missouri.
+  question_class: Contextual Summarize
+- id: Novel-c2dcacec
+  question: What are some of the main activities that Bruin, the bear living in the
+    cottage with Toto and his grandmother, participates in throughout the story—including
+    his actions in the kitchen, his interactions with Toto and the raccoon, and his
+    participation in games?
+  gold_answer: Bruin participates in activities such as lying himself down on the
+    hearth-rug, inviting Toto and the raccoon, polishing the kettle, and playing games.
+  required_facts:
+  - Bruin lies down on the hearth-rug.
+  - Bruin invites Toto and the raccoon.
+  - Bruin polishes the kettle.
+  - Bruin plays games.
+  question_class: Contextual Summarize
+- id: Novel-6d06bc29
+  question: Who published the collection known as the 'Sterne letters', which includes
+    the correspondence of Laurence Sterne?
+  gold_answer: The 'Sterne letters' were published by Lydia Sterne de Medalle.
+  required_facts:
+  - The 'Sterne letters' were published by Lydia Sterne de Medalle.
+  question_class: Fact Retrieval
+- id: Novel-bb870733
+  question: What institution for university women did Dr. Inglis found to support
+    female students in higher education?
+  gold_answer: Dr. Inglis founded Muir Hall of Residence for Women Students.
+  required_facts:
+  - Dr. Inglis founded Muir Hall of Residence for Women Students.
+  question_class: Fact Retrieval
+- id: Novel-05910147
+  question: Within the climatic discussion in the narrative, in which region is the
+    variation of the thermometer, as described in the text, observed?
+  gold_answer: The thermometer varies in Yucatan.
+  required_facts:
+  - The thermometer varies in Yucatan.
+  question_class: Fact Retrieval
+- id: Novel-bb76a927
+  question: In what ways do professional and occupational roles shape the interactions
+    between characters such as the editor, the foreman, and the social environment
+    of Ramierez's fonda, as seen when Colonel Starbottle extends his hand to the editor,
+    the editor speaks to the foreman, and the foreman visits the Ramierez fonda?
+  gold_answer: Colonel Starbottle extended his hand to the editor, the editor spoke
+    to the foreman, and the foreman went into Ramierez fonda.
+  required_facts:
+  - Colonel Starbottle extended his hand to the editor.
+  - The editor spoke to the foreman.
+  - The foreman went into Ramierez fonda.
+  question_class: Contextual Summarize
+- id: Novel-bcc6b060
+  question: Write a diary entry from a musician’s perspective on why ancient musical
+    instruments deserve the attention of both musicians and ethnologists.
+  gold_answer: Diary Entry — The more I study the lyre of David and the kinnor—now
+    seen as the harp—the more I appreciate their enduring power. Their legacy appears
+    in Anglo-Saxon manuscripts and museum collections beside cymbals and dulcimers.
+    As a musician, I am drawn to their sound, but I see why ethnologists find them
+    equally compelling; a collection of these instruments reveals the stories of our
+    shared past.
+  required_facts:
+  - The musician studies the lyre of David.
+  - The kinnor is now seen as the harp.
+  - The legacy of these instruments appears in Anglo-Saxon manuscripts.
+  - The instruments are displayed in museum collections.
+  - Cymbals and dulcimers are displayed alongside the lyre and kinnor.
+  - The collection reveals stories of our shared past.
+  question_class: Creative Generation
+- id: Novel-1e78dd0f
+  question: Who accompanied Mrs. Hall, also known as Angeline Hall, on her travels
+    as she visited various locations described in her later years?
+  gold_answer: Mrs. Hall was accompanied by Miss Sarah Waitt.
+  required_facts:
+  - Mrs. Hall was accompanied by Miss Sarah Waitt.
+  question_class: Fact Retrieval
+- id: Novel-5e0ccd4f
+  question: Where was Robert Bouchette, a prominent participant in the Patriote movement,
+    held as a prisoner following the events of the Lower Canada Rebellion?
+  gold_answer: Robert Bouchette was a prisoner in Montreal.
+  required_facts:
+  - Robert Bouchette was a prisoner in Montreal.
+  question_class: Fact Retrieval
+- id: Novel-20eb3bc8
+  question: How is the conflict and relationship between Don Carlo and Brindle Bill
+    portrayed in the novel 'Pen Pictures'? Please explain how Don Carlo defied and
+    fought Brindle Bill, leading to his identification as the Hero of Shirt-Tail Bend.
+  gold_answer: Don Carlo defied and fought Brindle Bill, and was identified as the
+    Hero of Shirt-Tail Bend.
+  required_facts:
+  - Don Carlo defied Brindle Bill.
+  - Don Carlo fought Brindle Bill.
+  - Don Carlo was identified as the Hero of Shirt-Tail Bend.
+  question_class: Contextual Summarize
+- id: Novel-e355503c
+  question: During the period when King Christian VII of Denmark traveled to England
+    and France, what was the specific relationship between Helfreich Peter Sturz and
+    the king, particularly with regard to their joint participation in these travels?
+  gold_answer: Helfreich Peter Sturz accompanied King Christian VII on his travels
+    to England and France, and both traveled to England and France.
+  required_facts:
+  - Helfreich Peter Sturz accompanied King Christian VII on his travels to England
+    and France.
+  - King Christian VII traveled to England and France.
+  question_class: Contextual Summarize
+- id: Novel-d289989b
+  question: How does alcohol indirectly affect the movement of the joints through
+    its impact on both the stomach and muscles?
+  gold_answer: Alcohol hurts the stomach and puts fat into muscles; muscles move joints.
+  required_facts:
+  - Alcohol hurts the stomach.
+  - Alcohol puts fat into muscles.
+  - Muscles move joints.
+  question_class: Complex Reasoning
+- id: Novel-2e0ffce2
+  question: Write a diary entry as the Parrot, describing your life with your mistress,
+    the farewell, and being snatched away, while referencing the trouble caused to
+    her lover.
+  gold_answer: Diary Entry — My days with my mistress were filled with warmth and
+    chatter. Today, I said farewell to Corinna, her eyes glistening with sorrow. I
+    was snatched away by envy, separated from her gentle hands. I have heard it said
+    that my mistress is born to be a cause of trouble to her lover, and perhaps, even
+    my loss plays a part in the tangled affairs of the heart.
+  required_facts:
+  - The parrot wrote a diary entry about life with its mistress.
+  - The parrot's days with its mistress were filled with warmth and chatter.
+  - The parrot said farewell to Corinna, who was sorrowful.
+  - The parrot was snatched away by envy.
+  - The parrot was separated from Corinna's gentle hands.
+  - The parrot heard that its mistress causes trouble for her lover.
+  - The parrot believes its loss affects the affairs of the heart.
+  question_class: Creative Generation
+- id: Novel-0d661e08
+  question: Who were Carleton's most trusted aides during his governance in Canada?
+  gold_answer: Carleton's most trusted aides included Captains Dambourges, Marcoux,
+    Colonel Dupre, and Dumas.
+  required_facts:
+  - Carleton's most trusted aides included Captain Dambourges.
+  - Carleton's most trusted aides included Captain Marcoux.
+  - Carleton's most trusted aides included Colonel Dupre.
+  - Carleton's most trusted aides included Dumas.
+  question_class: Contextual Summarize
+- id: Novel-bd563b72
+  question: In the interactions between Mr. Brice and Mrs. Tarbox, how do expressions
+    of gratitude and suggestions—such as Mr. Brice thanking Mrs. Tarbox and Mrs. Tarbox
+    offering advice—shape the nature and dynamics of their relationship within the
+    narrative?
+  gold_answer: Mr. Brice thanked Mrs. Tarbox, and Mrs. Tarbox made suggestions to
+    Mr. Brice, highlighting the dynamics of gratitude and advice in their interactions.
+  required_facts:
+  - Mr. Brice thanked Mrs. Tarbox.
+  - Mrs. Tarbox made suggestions to Mr. Brice.
+  question_class: Contextual Summarize
+- id: Novel-d8e24b59
+  question: Imagine you are Mr Pitt. Write a diary entry reflecting on your role as
+    a ruler of England, your succession by the Duke of Wellington, and the perceived
+    virtues of the country.
+  gold_answer: Diary Entry — My tenure as a ruler of England has been marked by many
+    challenges, but I am proud of the nation’s spirit. England seems lovable and laudable,
+    full of good men. Now, as I pass the torch to the Duke of Wellington, I am confident
+    his pursuit of Catholic emancipation will further our country’s reputation for
+    justice and decency.
+  required_facts:
+  - Mr Pitt's tenure as a ruler of England has been marked by many challenges.
+  - Mr Pitt is proud of the spirit of the nation.
+  - Mr Pitt believes England is lovable and laudable.
+  - England is full of good men.
+  - Mr Pitt is passing the torch to the Duke of Wellington.
+  - Mr Pitt is confident that the Duke's pursuit of Catholic emancipation will enhance
+    the country's reputation for justice and decency.
+  question_class: Creative Generation
+- id: Novel-fbc24d80
+  question: Imagine you are blood flowing through the body. Write about your journey
+    and the organs you visit.
+  gold_answer: Today, I started my journey carrying nutrients from the food that the
+    body needs. I made my way to the heart, which pumped me out into the lungs so
+    I could pick up fresh air. Then, I traveled back to the brain, which needs me
+    to keep thinking. Along the way, I passed through muscles and spine, helping every
+    part do its job.
+  required_facts:
+  - Blood carries nutrients from food that the body needs.
+  - Blood travels to the heart.
+  - The heart pumps blood into the lungs.
+  - Blood picks up fresh air in the lungs.
+  - Blood travels back to the brain.
+  - The brain needs blood to keep thinking.
+  - Blood passes through muscles and spine.
+  question_class: Creative Generation
+- id: Novel-f847846c
+  question: Imagine you are Young Simon. Write a diary entry about your family connections
+    and your feelings about the events involving your cousin Cæsar and Roxie.
+  gold_answer: As the only son of S. S. Simon, I often hear stories about our family.
+    My cousin, Cæsar, has been at the center of recent events, from delivering a note
+    to the Governor to helping Simon learn about Roxie's family. I hear Roxie has
+    been charged, and I worry for her. Our family feels so interconnected, especially
+    with big-sis raising Cæsar and our ties to the Carlow and Brindle families.
+  required_facts:
+  - I am the only son of S. S. Simon.
+  - I often hear stories about my family.
+  - My cousin, Cæsar, has been at the center of recent events.
+  - Cæsar delivered a note to the Governor.
+  - Cæsar helped Simon learn about Roxie's family.
+  - I hear Roxie has been charged.
+  - I worry for Roxie.
+  - Our family feels interconnected.
+  - Big-sis is raising Cæsar.
+  - We have ties to the Carlow and Brindle families.
+  question_class: Creative Generation
+- id: Novel-18c0b2dd
+  question: Throughout the novel 'Dragon's Blood,' what is Rudolph's professional
+    connection to Fliegelman and Sons, and how do other characters such as Wutzler
+    and Sturgeon interact with this trading company—including references to Rudolph
+    being an agent, Wutzler's knowledge of the firm, and Sturgeon arranging for Rudolph
+    to travel with wine from Fliegelman and Sons?
+  gold_answer: Rudolph was an agent for Fliegelman and Sons; Wutzler knew about Fliegelman
+    and Sons; and Sturgeon packed Rudolph into a palanquin with many bottles of the
+    best wine known to Fliegelman and Sons.
+  required_facts:
+  - Rudolph was an agent for Fliegelman and Sons.
+  - Wutzler knew about Fliegelman and Sons.
+  - Sturgeon packed Rudolph into a palanquin with wine from Fliegelman and Sons.
+  question_class: Contextual Summarize
+- id: Novel-e7d45d38
+  question: In what way does the refractory clay's transformation into blocks and
+    slabs support the operational integrity of the furnace?
+  gold_answer: Refractory clay forms blocks and slabs; the slabs cover the drier,
+    which is part of the furnace, supporting its operational integrity.
+  required_facts:
+  - Refractory clay forms blocks and slabs.
+  - The slabs cover the drier.
+  - The drier is part of the furnace.
+  - The slabs support the operational integrity of the furnace.
+  question_class: Complex Reasoning
+- id: Novel-ead123bc
+  question: In the narrative, what connections are described between the region of
+    Cilicia—located in Asia Minor and formerly a center of piracy until Pompey suppressed
+    it—the poet Aratus, who was a native of Cilicia, and the critical view held by
+    Quintilian, who condemned Aratus' work?
+  gold_answer: Cilicia was located in Asia Minor, was a center of piracy until suppressed
+    by Pompey, Aratus was a native of Cilicia, and Aratus was condemned by Quintilian.
+  required_facts:
+  - Cilicia was located in Asia Minor.
+  - Cilicia was a center of piracy until suppressed by Pompey.
+  - Aratus was a native of Cilicia.
+  - Quintilian condemned Aratus' work.
+  question_class: Contextual Summarize
+- id: Novel-069d432d
+  question: In what way does the presence of cymbals in the British Museum, which
+    were historically used by Assyrian musicians, provide a tangible link between
+    the museum's collection and the musical practices of ancient Assyria?
+  gold_answer: Cymbals in the British museum were used by Assyrian musicians, connecting
+    the museum's collection to Assyrian musical practices.
+  required_facts:
+  - Cymbals in the British Museum were used by Assyrian musicians.
+  - The presence of cymbals connects the museum's collection to Assyrian musical practices.
+  question_class: Contextual Summarize
+- id: Novel-cfdb85ba
+  question: According to the narrative describing the events surrounding the Sioux
+    Uprising, how did the Chippewas interact with the Sioux, and what role did their
+    chief, Hole-in-the-Day, play in communications or alliances between the two groups?
+  gold_answer: The Chippewas would come to the assistance of the Sioux and were in
+    communication with them through their chief, Hole-in-the-Day.
+  required_facts:
+  - The Chippewas assisted the Sioux.
+  - The Chippewas were in communication with the Sioux.
+  - Hole-in-the-Day was the chief of the Chippewas.
+  question_class: Complex Reasoning
+- id: Novel-c7b86a45
+  question: In the tale of Short-tailed Comet No. 73, how do interactions between
+    the comet and other celestial bodies—including planet Bungo, Earth, the Sun, and
+    a meteor—affect the comet's journey, especially in relation to the places the
+    comet approaches or is instructed to avoid?
+  gold_answer: The comet went near planet Bungo and Earth. The meteor wanted to go
+    near the Sun. The Sun, planet Bungo, and Earth would avoid Short-tailed Comet
+    No. 73.
+  required_facts:
+  - The comet went near planet Bungo.
+  - The comet went near Earth.
+  - The meteor wanted to go near the Sun.
+  - The Sun would avoid Short-tailed Comet No. 73.
+  - Planet Bungo would avoid Short-tailed Comet No. 73.
+  - Earth would avoid Short-tailed Comet No. 73.
+  question_class: Contextual Summarize
+- id: Novel-d33066da
+  question: Which groups provided support to the Glengarry volunteers during their
+    efforts?
+  gold_answer: The Royal Engineers and the 71st supported the Glengarry volunteers.
+  required_facts:
+  - The Royal Engineers supported the Glengarry volunteers.
+  - The 71st supported the Glengarry volunteers.
+  question_class: Contextual Summarize
+- id: Novel-7b422282
+  question: What is the described relationship between the Mayas and the Khati (Hittites)
+    in the narrative, considering the Khati's mention in the Scriptures, their defeats
+    by the Egyptians and Assyrians, their opposition to Egyptian expansion, and the
+    shared customs and attainments between the Mayas and Egyptians?
+  gold_answer: The Khati, also known as Hittites in the Scriptures, were vanquished
+    by Egyptians and Assyrians and placed obstacles in the way of the Egyptians, while
+    the Mayas had customs and attainments identical to those of the Egyptians.
+  required_facts:
+  - The Khati are also known as Hittites in the Scriptures.
+  - The Khati were vanquished by the Egyptians.
+  - The Khati were vanquished by the Assyrians.
+  - The Khati placed obstacles in the way of the Egyptians.
+  - The Mayas had customs identical to those of the Egyptians.
+  - The Mayas had attainments identical to those of the Egyptians.
+  question_class: Complex Reasoning
+- id: Novel-2ebac5e5
+  question: Which musical instrument, known as the botuto, was used by the Indians
+    in their traditional ceremonies?
+  gold_answer: botuto
+  required_facts:
+  - The botuto is a musical instrument.
+  - The botuto was used by the Indians in their traditional ceremonies.
+  question_class: Fact Retrieval
+- id: Novel-656cfe9f
+  question: How did British policies toward the French inhabitants of Canada—specifically,
+    the decision not to treat them as a conquered people—shape the social order of
+    the colony, particularly in regard to their continued loyalty to the British crown
+    and their participation in military efforts alongside English-speaking fellow-countrymen?
+  gold_answer: Great Britain did not treat the French inhabitants of Canada as a conquered
+    people; these inhabitants maintained loyalty to the British crown and French-Canadian
+    militiamen fought with English-speaking fellow-countrymen.
+  required_facts:
+  - Great Britain did not treat the French inhabitants of Canada as a conquered people.
+  - French inhabitants of Canada maintained loyalty to the British crown.
+  - French-Canadian militiamen fought with English-speaking fellow-countrymen.
+  question_class: Contextual Summarize
+- id: Novel-9d9b1ed1
+  question: Imagine you are a fish living in the cave near Lizard. Write a diary entry
+    about your encounter with John Curgenven’s boat and the launce.
+  gold_answer: 'Fish’s Diary: Today was unusual. A boat ventured into our watery cave—John
+    Curgenven was inside, peering into the depths. My fellow fishes and I darted around,
+    chasing launce as usual. The launce, always swift, kept to the waters near Lizard,
+    but the presence of humans made the currents feel different.'
+  required_facts:
+  - A boat ventured into the watery cave.
+  - John Curgenven was inside the boat.
+  - The fish darted around, chasing launce.
+  - Launce is swift and keeps to the waters near Lizard.
+  - The presence of humans changed the currents.
+  question_class: Creative Generation
+- id: Novel-6956692c
+  question: Rewrite the journey of John Curgenven in his boat and his remarks on Lizard
+    Lights as a news article, highlighting the nearby features.
+  gold_answer: The Lizard Gazette — John Curgenven, a local seafarer, was seen aboard
+    his boat near the iconic Lizard Lights. Curgenven, often compared to the legendary
+    King Arthur, remarked on the beauty of the lights while navigating waters close
+    to Housel Cove and Lizard. The region, noted for the proximity of Kynance and
+    the Devil’s Throat, remains a hub for both history and natural wonders.
+  required_facts:
+  - John Curgenven was seen aboard his boat near the iconic Lizard Lights.
+  - Curgenven is often compared to the legendary King Arthur.
+  - Curgenven remarked on the beauty of the lights.
+  - Curgenven was navigating waters close to Housel Cove.
+  - The region is noted for the proximity of Kynance and the Devil’s Throat.
+  - The region remains a hub for both history and natural wonders.
+  question_class: Creative Generation
+- id: Novel-350bcbcd
+  question: Write a diary entry from a Persian ethnologist reflecting on the significance
+    of the santir (dulcimer) and its connection to other ancient instruments in the
+    museum.
+  gold_answer: Diary Entry — Today, I examined the santir, our dulcimer, in the museum.
+    Alongside it are cymbals once played by Egyptians and harps rendered from the
+    kinnor of David. These instruments, displayed in manuscripts and museums, show
+    how music binds our civilizations together. As an ethnologist, I find endless
+    fascination in their journeys.
+  required_facts:
+  - The ethnologist examined the santir in the museum.
+  - The santir is also known as the dulcimer.
+  - Cymbals once played by Egyptians are displayed alongside the santir.
+  - Harps rendered from the kinnor of David are also displayed.
+  - These instruments show how music binds civilizations together.
+  question_class: Creative Generation
+- id: Novel-a5356e35
+  question: Imagine you are a musician in the British Museum. Narrate your thoughts
+    and feelings as you play replicas of the lyre, harp, and dulcimer for an audience,
+    referencing their historical background.
+  gold_answer: Standing in the British Museum, I play the lyre as David might have,
+    then move to the harp, its form inspired by the ancient kinnor. Next, the dulcimer—known
+    as santir among Persians—fills the hall with its resonance. I tell my audience
+    of the cymbals once used by Egyptian musicians, and how these sounds have traveled
+    through manuscripts, cultures, and ages to reach us here.
+  required_facts:
+  - The musician plays the lyre in the British Museum.
+  - The musician plays the harp, inspired by the ancient kinnor.
+  - The musician plays the dulcimer, known as santir among Persians.
+  - The sounds have traveled through manuscripts, cultures, and ages.
+  - The musician tells the audience about the cymbals used by Egyptian musicians.
+  question_class: Creative Generation
+- id: Novel-2f8f5467
+  question: How does the text characterize Morocco's geography and political landscape,
+    including references to the Atlas chain of mountains traversing the country, regions
+    such as Dimenet, Fez, and the Sahara as parts of Morocco, its inclusion within
+    Fronga, political relationships such as treaties with Great Britain, the historical
+    account of Morocco conquering itself, and the presence of the Sultan's palace?
+  gold_answer: Morocco's geography includes the Atlas chain of mountains, regions
+    such as Dimenet, Fez, and the Sahara, and it is part of Fronga. Politically, Morocco
+    has treaties with Great Britain, was first conquered by itself, and the Sultan
+    has a palace in Morocco.
+  required_facts:
+  - Morocco's geography includes the Atlas chain of mountains.
+  - Morocco includes regions such as Dimenet, Fez, and the Sahara.
+  - Morocco is part of Fronga.
+  - Morocco has treaties with Great Britain.
+  - Morocco was first conquered by itself.
+  - The Sultan has a palace in Morocco.
+  question_class: Contextual Summarize
+- id: Novel-e891105b
+  question: During periods of external conflict, such as wars involving the British
+    Empire, how did the loyalty of French Canadians to the British crown manifest,
+    particularly in terms of their military cooperation with English-speaking fellow-countrymen?
+  gold_answer: French Canadians were loyal to the British crown and French-Canadian
+    militiamen fought alongside English-speaking countrymen during periods of conflict.
+  required_facts:
+  - French Canadians were loyal to the British crown.
+  - French-Canadian militiamen fought alongside English-speaking countrymen during
+    periods of conflict.
+  question_class: Contextual Summarize
+- id: Novel-0c2f999d
+  question: To whom did Don Carlo appeal for help or understanding when facing difficulties
+    in their wood yard partnership at Shirt-Tail Bend?
+  gold_answer: Don Carlo appealed to Dan Carlo.
+  required_facts:
+  - Don Carlo appealed to Dan Carlo for help.
+  question_class: Fact Retrieval
+- id: Novel-076be3e2
+  question: What alternate name is used for Figheegh, according to the naming conventions
+    presented in the text?
+  gold_answer: Figuiq is another name for Figheegh.
+  required_facts:
+  - Figuiq is another name for Figheegh.
+  question_class: Fact Retrieval
+- id: Novel-e7d1cd1c
+  question: What position of authority or prominence did Mr. Alf Wolfe hold among
+    the green-goods men in the story?
+  gold_answer: Mr. Alf Wolfe was the chief of the green-goods men.
+  required_facts:
+  - Mr. Alf Wolfe was the chief of the green-goods men.
+  question_class: Complex Reasoning
+- id: Novel-9fdb8f3a
+  question: Within the narrative in which Van Bibber observes his surroundings, how
+    does the house—situated facing the avenue and serving as an object of Van Bibber's
+    attention—function as a central setting that connects the perspectives and potential
+    interactions of multiple characters?
+  gold_answer: The house is a focal point observed by Van Bibber and is positioned
+    facing the avenue, providing a common ground for character interactions and narrative
+    development.
+  required_facts:
+  - The house is a focal point observed by Van Bibber.
+  - The house is positioned facing the avenue.
+  - The house provides a common ground for character interactions.
+  question_class: Contextual Summarize
+- id: Novel-024819a8
+  question: In the context of the novel 'Pen Pictures,' what is the nature of the
+    relationship between Cole Conway and Steve Sharp, especially as depicted during
+    their time spent together playing cards, being in each other's company, and discovering
+    a steam carriage?
+  gold_answer: Cole Conway and Steve Sharp were in company with each other, found
+    a steam carriage together, and played cards.
+  required_facts:
+  - Cole Conway and Steve Sharp were in each other's company.
+  - Cole Conway and Steve Sharp found a steam carriage together.
+  - Cole Conway and Steve Sharp played cards together.
+  question_class: Contextual Summarize
+- id: Novel-952b2d9f
+  question: How is Schummel’s reputation reflected in the Hamburg press?
+  gold_answer: Schummel is hailed as a genius by Hamburgische Neue Zeitung.
+  required_facts:
+  - Schummel is hailed as a genius by Hamburgische Neue Zeitung.
+  question_class: Complex Reasoning
+- id: Novel-3984af4f
+  question: Imagine you are the editor. Write a first-person account of Colonel Starbottle
+    extending his hand to you and later talking to the foreman about Ramierez's shanty.
+  gold_answer: Today, Colonel Starbottle extended his hand to me—a gesture of camaraderie
+    as we discussed recent events. Afterwards, I spoke with the foreman about the
+    situation at Ramierez’s shanty. The foreman went in to investigate, hoping to
+    learn more about the rumored activities there.
+  required_facts:
+  - Colonel Starbottle extended his hand to me.
+  - The gesture was one of camaraderie.
+  - We discussed recent events.
+  - I spoke with the foreman about Ramierez’s shanty.
+  - The foreman went in to investigate.
+  - The foreman hoped to learn more about the rumored activities at Ramierez’s shanty.
+  question_class: Creative Generation
+- id: Novel-06ba718a
+  question: According to the system detailed for revivifying bone-black, how is bone-black
+    dried and what is the subsequent processing it undergoes within the furnace?
+  gold_answer: Bone-black is dried by a drier and processed in a furnace.
+  required_facts:
+  - Bone-black is dried by a drier.
+  - Bone-black is processed in a furnace.
+  question_class: Complex Reasoning
+- id: Novel-48cb4128
+  question: How is Governor Morock’s offer related to Roxie Daymon’s engagement to
+    Young Simon?
+  gold_answer: Governor Morock offered to arrange the testimony for Roxie Daymon,
+    who was engaged to be married to Young Simon.
+  required_facts:
+  - Governor Morock offered to arrange testimony for Roxie Daymon.
+  - Roxie Daymon was engaged to be married to Young Simon.
+  question_class: Complex Reasoning
+- id: Novel-f97ce566
+  question: How is the climate of Yucatan characterized in the text?
+  gold_answer: The climate of Yucatan is mild and healthy, with temperature variations
+    and occurrences of epidemics.
+  required_facts:
+  - The climate of Yucatan is mild.
+  - The climate of Yucatan is healthy.
+  - Yucatan experiences temperature variations.
+  - Yucatan has occurrences of epidemics.
+  question_class: Complex Reasoning
+- id: Novel-57cbe929
+  question: Who authored the discussion about Jersey fisheries, as described in the
+    context of authorship in the narrative?
+  gold_answer: Vorticella wrote about Jersey fisheries.
+  required_facts:
+  - Vorticella authored a discussion about Jersey fisheries.
+  question_class: Fact Retrieval
+- id: Novel-db4551ac
+  question: Imagine you are Dipsas. Write a diary entry about your knowledge of magic
+    arts and the charms of Ææa.
+  gold_answer: Diary Entry — My reputation as a mistress of the magic arts and the
+    charms of Ææa precedes me. These stories, told in Metamorphoses, travel far and
+    wide, even as Jupiter’s utter hatred of the Telchines echoes through Olympus.
+    Ovid’s words ensure my legend endures.
+  required_facts:
+  - Dipsas wrote a diary entry about her knowledge of magic arts.
+  - Dipsas is known as a mistress of the magic arts.
+  - Dipsas's reputation precedes her.
+  - The charms of Ææa are associated with Dipsas.
+  - Stories about Dipsas are told in Metamorphoses.
+  - Jupiter has utter hatred of the Telchines.
+  - Ovid's words ensure Dipsas's legend endures.
+  question_class: Creative Generation
+- id: Novel-459e0a03
+  question: Throughout the play 'Dandy Dick', by what other names is THE DEAN, who
+    is also referred to as Augustin and Gus, known by the characters?
+  gold_answer: THE DEAN is also known as Augustin and Gus.
+  required_facts:
+  - THE DEAN is also known as Augustin.
+  - THE DEAN is also known as Gus.
+  question_class: Fact Retrieval
+- id: Novel-4334e7fc
+  question: Rewrite the events surrounding Hippolytus as a news report, including
+    his mention in Metamorphoses and the idea that even Hippolytus would become a
+    Priapus.
+  gold_answer: Olympian Herald — The enigmatic Hippolytus, known for his tragic fate,
+    is once again in the spotlight as Metamorphoses recounts his story. Reports suggest
+    that even Hippolytus would become a Priapus, a transformation that has captured
+    the imagination of poets. The tale, preserved in the annals of myth, is discussed
+    alongside Jupiter’s utter hatred towards the Telchines and the poetic pursuits
+    of Naso.
+  required_facts:
+  - Hippolytus is known for his tragic fate.
+  - Metamorphoses recounts the story of Hippolytus.
+  - Reports suggest that Hippolytus would become a Priapus.
+  - The transformation of Hippolytus has captured the imagination of poets.
+  - The tale of Hippolytus is preserved in myth.
+  - Jupiter has utter hatred towards the Telchines.
+  - The poetic pursuits of Naso are discussed alongside Hippolytus's tale.
+  question_class: Creative Generation
+- id: Novel-5953d9c0
+  question: In the context of ancient Chinese music, who was the performer associated
+    with playing the instrument called the 'king'?
+  gold_answer: Kouei performed on the instrument called the king.
+  required_facts:
+  - Kouei performed on the instrument called the king.
+  question_class: Fact Retrieval
+- id: Novel-d0c0a859
+  question: At which location during the 1838 phase of the Lower Canada Rebellion
+    was Dr. Cyrile Cote, one of the insurgent leaders, defeated by loyalist forces?
+  gold_answer: Dr Cyrile Cote was defeated at Lacolle.
+  required_facts:
+  - Dr. Cyrile Cote was defeated by loyalist forces.
+  - Dr. Cyrile Cote was defeated at Lacolle.
+  - Lacolle was the location of Dr. Cyrile Cote's defeat.
+  question_class: Fact Retrieval

@@ -444,7 +444,10 @@ def judge(corpus: tuple[str, ...], budget_usd: float) -> None:
                 click.echo(f"No question set for {name}, skipping judge")
                 continue
 
-            qset = load_question_set(yaml_path)
+            try:
+                qset = load_question_set(yaml_path)
+            except Exception:
+                qset = load_question_set(yaml_path, strict=False)
             gold_by_id = {q.id: q for q in qset.questions}
 
             results = [
