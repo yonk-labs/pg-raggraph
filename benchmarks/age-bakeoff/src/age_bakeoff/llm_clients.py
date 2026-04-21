@@ -25,8 +25,18 @@ Role = Literal["answer", "judge", "extraction"]
 
 
 def _base_url_for(role: Role) -> str | None:
+    """Return configured base URL for ``role``, or None to use OpenAI default.
+
+    Treats empty-string env values as unset (so a launcher can force
+    BAKEOFF_ANSWER_BASE_URL="" to route answer-gen back to OpenAI while
+    keeping judge/extraction local via other envs).
+    """
     env_name = f"BAKEOFF_{role.upper()}_BASE_URL"
-    return os.environ.get(env_name) or os.environ.get("OPENAI_BASE_URL")
+    v = os.environ.get(env_name, "").strip()
+    if v:
+        return v
+    fallback = os.environ.get("OPENAI_BASE_URL", "").strip()
+    return fallback or None
 
 
 def model_for(role: Role, default: str = "gpt-5-mini") -> str:
