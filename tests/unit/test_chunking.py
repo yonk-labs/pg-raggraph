@@ -177,7 +177,8 @@ def test_default_strategy_is_not_hierarchy():
 
 
 def test_hierarchy_strategy_prefixes_heading():
-    """With chunk_strategy=hierarchy each section body is prefixed by its heading."""
+    """With chunk_strategy=hierarchy each section body is prefixed by its heading
+    in embedded_content (content stays body-only)."""
     content = (
         "# Miranda v. Arizona\n\n"
         + ("Intro paragraph. " * 20)
@@ -188,19 +189,19 @@ def test_hierarchy_strategy_prefixes_heading():
     )
     cfg = PGRGConfig(chunk_strategy="hierarchy")
     chunks = chunk_document(content, source_path="miranda.md", config=cfg)
-    texts = [c["content"] for c in chunks]
-    assert any(t.startswith("Miranda v. Arizona\n\n") for t in texts)
-    assert any(t.startswith("Holding\n\n") for t in texts)
-    assert any(t.startswith("Reasoning\n\n") for t in texts)
+    embedded = [c["embedded_content"] for c in chunks]
+    assert any(t.startswith("Miranda v. Arizona\n\n") for t in embedded)
+    assert any(t.startswith("Holding\n\n") for t in embedded)
+    assert any(t.startswith("Reasoning\n\n") for t in embedded)
 
 
 def test_hierarchy_fallback_prefixes_title_when_no_headings():
-    """No headings + long body => single chunk prefixed by derived title."""
+    """No headings + long body => single chunk with title prefix in embedded_content."""
     body = "Sentence one. " * 50
     cfg = PGRGConfig(chunk_strategy="hierarchy")
     chunks = chunk_document(body, source_path="project-update-2026.md", config=cfg)
     assert len(chunks) == 1
-    assert chunks[0]["content"].startswith("project-update-2026\n\n")
+    assert chunks[0]["embedded_content"].startswith("project-update-2026\n\n")
 
 
 def test_hierarchy_whole_doc_preserves_short_bodies():
@@ -208,7 +209,8 @@ def test_hierarchy_whole_doc_preserves_short_bodies():
     cfg = PGRGConfig(chunk_strategy="hierarchy")
     chunks = chunk_document("tiny body.", source_path="t.md", config=cfg)
     assert len(chunks) == 1
-    assert chunks[0]["content"] == "t\n\ntiny body."
+    assert chunks[0]["content"] == "tiny body."
+    assert chunks[0]["embedded_content"] == "t\n\ntiny body."
 
 
 def test_hierarchy_drops_short_sections_in_long_docs():
@@ -219,8 +221,11 @@ def test_hierarchy_drops_short_sections_in_long_docs():
     sections = _split_hierarchy(content, title="doc")
     # The pre-first-heading body is empty (0 chars), A's body is short (20),
     # B's body is long (200). Only B should survive.
+    # _split_hierarchy returns (heading, body) tuples; body has no prefix.
     assert len(sections) == 1
-    assert sections[0].startswith("B\n\n")
+    heading, body = sections[0]
+    assert heading == "B"
+    assert body.startswith("y")
 
 
 def test_derive_title_prefers_h1_over_filename():
@@ -244,12 +249,106 @@ def test_hierarchy_empty_content():
     assert chunk_document("", source_path="empty.md", config=cfg) == []
 
 
-def test_hierarchy_skips_token_budget_split():
-    """Hierarchy does not hard-split oversized sections — they go through as-is."""
-    big_body = "word " * 2000  # ~2000 tokens, well over default 512 budget
-    content = f"# Title\n\n{big_body}"
+def test_hierarchy_splits_oversized_sections():
+    """An oversized section body is hard-split into multiple chunks.
+
+    Each sub-chunk must:
+    - respect ``chunk_max_tokens`` (with sentence-boundary tolerance)
+    - retain the same heading prefix so the embedder sees ``heading + body``
+      as one unit on every sub-chunk
+    """
+    # ~2000 tokens of body, well over the 512 budget
+    big_body = "This is a sentence about the topic. " * 400
+    content = f"# Oncology overview\n\n{big_body}"
     cfg = PGRGConfig(chunk_strategy="hierarchy", chunk_max_tokens=512)
-    chunks = chunk_document(content, source_path="big.md", config=cfg)
-    # One chunk, because hierarchy does not enforce token budget.
-    assert len(chunks) == 1
-    assert chunks[0]["token_count"] > 512
+    chunks = chunk_document(content, source_path="med.md", config=cfg)
+    # Oversized section should produce multiple sub-chunks.
+    assert len(chunks) > 1
+    # Every sub-chunk respects the token budget (allow small sentence-boundary tolerance).
+    for c in chunks:
+        assert c["token_count"] <= 600, f"sub-chunk exceeds budget: {c['token_count']} tokens"
+    # Every sub-chunk is prefixed by the heading so the embedder sees heading+body.
+    for c in chunks:
+        assert c["embedded_content"].startswith("Oncology overview\n\n"), (
+            f"sub-chunk missing heading prefix: {c['embedded_content'][:60]!r}"
+        )
+
+
+def test_hierarchy_sub_chunks_carry_metadata():
+    """Each hierarchy sub-chunk carries metadata.heading + metadata.section_part."""
+    big_body = "This is a sentence about the topic. " * 400
+    content = f"# Oncology overview\n\n{big_body}"
+    cfg = PGRGConfig(chunk_strategy="hierarchy", chunk_max_tokens=512)
+    chunks = chunk_document(content, source_path="med.md", config=cfg)
+    assert len(chunks) > 1
+    # heading preserved on every sub-chunk
+    for c in chunks:
+        assert c["metadata"].get("heading") == "Oncology overview"
+    # section_part is 0-indexed and monotonically increasing
+    parts = [c["metadata"].get("section_part") for c in chunks]
+    assert parts == list(range(len(chunks)))
+
+
+def test_hierarchy_normal_section_has_section_part_zero():
+    """A single-chunk section gets section_part=0 and its heading in metadata."""
+    content = (
+        "# Miranda v. Arizona\n\n"
+        + ("Intro paragraph. " * 20)
+        + "\n\n## Holding\n\n"
+        + ("Holding body. " * 20)
+    )
+    cfg = PGRGConfig(chunk_strategy="hierarchy", chunk_max_tokens=512)
+    chunks = chunk_document(content, source_path="miranda.md", config=cfg)
+    # Find the "Holding" chunk (body-only content, heading is only in embedded_content)
+    holding = next(c for c in chunks if c["metadata"].get("heading") == "Holding")
+    assert holding["metadata"].get("section_part") == 0
+
+
+# --- dual content field (content vs embedded_content) ---
+
+
+def test_chunk_has_embedded_content_field():
+    """Every chunk dict carries both content (raw body) and embedded_content."""
+    chunks = chunk_document("# Hello\n\nWorld.", source_path="test.md")
+    assert len(chunks) >= 1
+    for c in chunks:
+        assert "content" in c
+        assert "embedded_content" in c
+
+
+def test_auto_strategy_content_equals_embedded_content():
+    """Non-hierarchy strategies do not transform embedded_content."""
+    content = "Just some plain text that fits one chunk."
+    chunks = chunk_document(content, source_path="plain.txt", config=PGRGConfig())
+    for c in chunks:
+        assert c["content"] == c["embedded_content"]
+
+
+def test_hierarchy_content_is_body_only():
+    """Hierarchy strategy: content is raw body (no heading), embedded_content prepends heading."""
+    content = "# Oncology overview\n\n" + ("A clinical paragraph. " * 20)
+    cfg = PGRGConfig(chunk_strategy="hierarchy", chunk_max_tokens=512)
+    chunks = chunk_document(content, source_path="med.md", config=cfg)
+    # Body-only content lets audit/grep find the clinical text without heading noise;
+    # embedded_content is what the embedder and FTS see.
+    for c in chunks:
+        assert not c["content"].startswith("Oncology overview"), (
+            f"content should be body only, got: {c['content'][:80]!r}"
+        )
+        assert c["embedded_content"].startswith("Oncology overview\n\n"), (
+            f"embedded_content should carry heading prefix, got: {c['embedded_content'][:80]!r}"
+        )
+
+
+def test_hierarchy_oversized_section_each_sub_chunk_has_dual_content():
+    """Oversized section: each sub-chunk's content=sub-body, embedded_content=heading+sub-body."""
+    big_body = "This is a sentence about the topic. " * 400
+    content = f"# Oncology overview\n\n{big_body}"
+    cfg = PGRGConfig(chunk_strategy="hierarchy", chunk_max_tokens=512)
+    chunks = chunk_document(content, source_path="med.md", config=cfg)
+    assert len(chunks) > 1
+    for c in chunks:
+        assert not c["content"].startswith("Oncology overview")
+        assert c["embedded_content"].startswith("Oncology overview\n\n")
+        # embedded_content must equal heading + content for each sub-chunk
+        assert c["embedded_content"] == f"Oncology overview\n\n{c['content']}"

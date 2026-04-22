@@ -22,6 +22,7 @@ class Chunk(BaseModel):
     id: int | None = None
     document_id: int
     content: str
+    embedded_content: str = ""
     embedding: list[float] | None = None
     token_count: int = 0
     metadata: dict = Field(default_factory=dict)

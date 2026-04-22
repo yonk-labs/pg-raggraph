@@ -33,7 +33,7 @@ def _to_or_tsquery(text: str) -> str:
 # --- SQL Templates ---
 
 NAIVE_QUERY = """
-SELECT c.id, c.content, c.metadata,
+SELECT c.id, COALESCE(c.embedded_content, c.content) AS content, c.metadata,
        d.source_path,
        1 - (c.embedding <=> %(embedding)s::vector) AS vec_score,
        ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score,
@@ -66,8 +66,9 @@ neighborhood AS (
       AND NOT (e2.id = ANY(n.path))
 ),
 relevant_chunks AS (
-    SELECT DISTINCT c.id, c.content, c.embedding, c.search_vector,
-           c.metadata, c.document_id
+    SELECT DISTINCT c.id,
+           COALESCE(c.embedded_content, c.content) AS content,
+           c.embedding, c.search_vector, c.metadata, c.document_id
     FROM chunks c
     JOIN entity_chunks ec ON ec.chunk_id = c.id
     WHERE ec.entity_id IN (SELECT DISTINCT id FROM neighborhood)
@@ -105,8 +106,9 @@ rel_entity_ids AS (
     SELECT dst_id AS id FROM rel_matches
 ),
 relevant_chunks AS (
-    SELECT DISTINCT c.id, c.content, c.embedding, c.search_vector,
-           c.metadata, c.document_id
+    SELECT DISTINCT c.id,
+           COALESCE(c.embedded_content, c.content) AS content,
+           c.embedding, c.search_vector, c.metadata, c.document_id
     FROM chunks c
     JOIN entity_chunks ec ON ec.chunk_id = c.id
     WHERE ec.entity_id IN (SELECT id FROM rel_entity_ids)

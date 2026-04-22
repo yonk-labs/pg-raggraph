@@ -79,7 +79,7 @@ async def test_ingest_directory():
 
 
 async def test_ingest_with_chunk_strategy_hierarchy_heading_path():
-    """chunk_strategy=hierarchy produces heading-prefixed chunks through the full ingest pipeline."""
+    """chunk_strategy=hierarchy produces heading-prefixed chunks end-to-end."""
     rag = GraphRAG(
         dsn="postgresql://postgres:postgres@localhost:5434/pg_raggraph",
         namespace="test_hier_headings",
@@ -91,28 +91,43 @@ async def test_ingest_with_chunk_strategy_hierarchy_heading_path():
     sample_path = os.path.join(FIXTURES_DIR, "sample.md")
     await rag.ingest([sample_path], namespace="test_hier_headings")
 
-    # Fetch chunks that landed. Every hierarchy chunk either starts with the
-    # H1 title prefix (pre-heading section) or a section-heading prefix.
+    # Fetch chunks that landed. With dual-content: content is body-only (clean
+    # audit), embedded_content carries the heading prefix (what the embedder
+    # and FTS see).
     rows = await rag.db.fetch_all(
-        "SELECT content FROM chunks c JOIN documents d ON c.document_id = d.id "
+        "SELECT content, embedded_content FROM chunks c "
+        "JOIN documents d ON c.document_id = d.id "
         "WHERE d.namespace = %s ORDER BY c.id",
         ("test_hier_headings",),
     )
     assert len(rows) >= 2
-    contents = [r["content"] for r in rows]
+    embedded = [r["embedded_content"] for r in rows]
     # sample.md starts with "# GraphRAG Overview" — hierarchy chunker strips
     # the leading hashes and uses the heading text as the prefix for each
-    # chunk. The pre-first-heading section (H1 body) lands somewhere in the
-    # chunk set with the H1 text as prefix.
-    assert any(c.startswith("GraphRAG Overview\n\n") for c in contents), (
-        f"Expected an H1-prefixed chunk; got: {[c[:60] for c in contents]}"
+    # embedded_content. The pre-first-heading section (H1 body) lands
+    # somewhere in the chunk set with the H1 text as prefix.
+    assert any(c.startswith("GraphRAG Overview\n\n") for c in embedded), (
+        f"Expected an H1-prefixed embedded_content; got: {[c[:60] for c in embedded]}"
     )
-    # At least one other chunk should start with an H2/H3 heading
-    # (hashes stripped, body follows after a blank line).
-    assert any(
-        len(c) > 20 and "\n\n" in c[:80] and not c.startswith("#") and not c.startswith("GraphRAG Overview")
-        for c in contents
-    ), f"Expected heading-prefixed inner chunks; got: {[c[:60] for c in contents]}"
+
+    # At least one other chunk's embedded_content should start with an H2/H3
+    # heading (hashes stripped, body follows after a blank line).
+    def _is_h2_prefixed(c: str) -> bool:
+        return (
+            len(c) > 20
+            and "\n\n" in c[:80]
+            and not c.startswith("#")
+            and not c.startswith("GraphRAG Overview")
+        )
+
+    assert any(_is_h2_prefixed(c) for c in embedded), (
+        f"Expected heading-prefixed inner chunks; got: {[c[:60] for c in embedded]}"
+    )
+    # And the content column should be body-only (no heading prefix).
+    contents = [r["content"] for r in rows]
+    assert not any(c.startswith("GraphRAG Overview\n\n") for c in contents), (
+        f"content should be body-only, got: {[c[:60] for c in contents]}"
+    )
 
     await rag.delete("test_hier_headings")
     await rag.close()
@@ -144,14 +159,20 @@ async def test_ingest_with_chunk_strategy_hierarchy_title_fallback():
         await rag.ingest([temp_path], namespace="test_hier_fallback")
 
         rows = await rag.db.fetch_all(
-            "SELECT content FROM chunks c JOIN documents d ON c.document_id = d.id "
+            "SELECT content, embedded_content FROM chunks c "
+            "JOIN documents d ON c.document_id = d.id "
             "WHERE d.namespace = %s",
             ("test_hier_fallback",),
         )
         assert len(rows) == 1  # single heading-less chunk
         expected_title = os.path.splitext(os.path.basename(temp_path))[0]
-        assert rows[0]["content"].startswith(f"{expected_title}\n\n"), (
-            f"Expected title-prefix fallback; got: {rows[0]['content'][:80]!r}"
+        # Title prefix lives in embedded_content; content stays body-only.
+        assert rows[0]["embedded_content"].startswith(f"{expected_title}\n\n"), (
+            f"Expected title-prefix fallback in embedded_content; "
+            f"got: {rows[0]['embedded_content'][:80]!r}"
+        )
+        assert not rows[0]["content"].startswith(f"{expected_title}\n\n"), (
+            f"content should be body-only; got: {rows[0]['content'][:80]!r}"
         )
     finally:
         os.unlink(temp_path)

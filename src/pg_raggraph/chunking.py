@@ -47,40 +47,72 @@ def chunk_document(
     max_tokens = config.chunk_max_tokens
     overlap_tokens = config.chunk_overlap_tokens
 
-    # Hierarchy strategy is a separate code path — heading-prefixed, char-sized,
-    # no token-budget split. Used when callers opt in for corpora with concrete
-    # per-doc titles (see config.chunk_strategy docstring).
+    # Hierarchy strategy: heading-prefixed, token-capped. Each section body is
+    # sub-split through _split_to_token_budget when it exceeds chunk_max_tokens;
+    # each sub-chunk re-prefixes the heading into embedded_content so the
+    # embedder always sees `heading + body` as one unit, while content stays
+    # body-only for clean audit/grep.
     if config.chunk_strategy == "hierarchy":
         title = _derive_title(content, source_path)
-        chunks = _split_hierarchy(content, title=title)
+        sections = _split_hierarchy(content, title=title)
+
+        result: list[dict] = []
+        for heading, body in sections:
+            if token_count(body) <= max_tokens:
+                sub_bodies = [body]
+            else:
+                sub_bodies = _split_to_token_budget(body, max_tokens, overlap_tokens)
+            for part_idx, sub_body in enumerate(sub_bodies):
+                body_text = sub_body.strip()
+                if not body_text:
+                    continue
+                embedded = f"{heading}\n\n{body_text}" if heading else body_text
+                result.append(
+                    {
+                        "content": body_text,
+                        "embedded_content": embedded,
+                        "token_count": token_count(embedded),
+                        "content_hash": content_hash(body_text),
+                        "metadata": {
+                            "source_path": source_path,
+                            "chunk_index": len(result),
+                            "heading": heading,
+                            "section_part": part_idx,
+                        },
+                    }
+                )
+        return result
+
+    # Auto strategy: detect type, split by structure, then by token budget.
+    # embedded_content == content on this path (no heading rewrite, no neighbor
+    # expansion) — the dual-field primitive is ready for future neighbor_expand
+    # / summary-embed integrations without touching this branch.
+    is_markdown = _is_markdown(content, source_path)
+    is_code = _is_code(source_path)
+
+    if is_code:
+        sections = _split_by_code_structure(content, source_path)
+    elif is_markdown:
+        sections = _split_by_headings(content)
     else:
-        # Detect type
-        is_markdown = _is_markdown(content, source_path)
-        is_code = _is_code(source_path)
+        sections = [content]
 
-        if is_code:
-            sections = _split_by_code_structure(content, source_path)
-        elif is_markdown:
-            sections = _split_by_headings(content)
-        else:
-            sections = [content]
+    chunks = []
+    for section in sections:
+        section_chunks = _split_to_token_budget(section, max_tokens, overlap_tokens)
+        chunks.extend(section_chunks)
 
-        chunks = []
-        for section in sections:
-            section_chunks = _split_to_token_budget(section, max_tokens, overlap_tokens)
-            chunks.extend(section_chunks)
-
-    # Build output with metadata
     result = []
     for i, chunk_text in enumerate(chunks):
-        if not chunk_text.strip():
+        stripped = chunk_text.strip()
+        if not stripped:
             continue
-        tc = token_count(chunk_text)
         result.append(
             {
-                "content": chunk_text.strip(),
-                "token_count": tc,
-                "content_hash": content_hash(chunk_text.strip()),
+                "content": stripped,
+                "embedded_content": stripped,
+                "token_count": token_count(stripped),
+                "content_hash": content_hash(stripped),
                 "metadata": {
                     "source_path": source_path,
                     "chunk_index": i,
@@ -207,16 +239,20 @@ def _derive_title(content: str, source_path: str | None) -> str:
     return ""
 
 
-def _split_hierarchy(text: str, title: str = "") -> list[str]:
-    """Heading-prefixed chunks (ported from age-bakeoff / chunkshop).
+def _split_hierarchy(text: str, title: str = "") -> list[tuple[str, str]]:
+    """Heading-aware section split. Returns list of (heading, body) pairs.
 
-    - One chunk per markdown heading (H1-H6); body prefixed with the heading
-      so the embedder sees ``heading + body`` as one unit.
-    - Pre-first-heading prefix becomes its own chunk with ``title`` prefix.
-    - No headings: single chunk = ``{title}\\n\\n{body}`` (body alone if title
-      is empty). This is the path that carried the +8 SCOTUS lift.
-    - Sections shorter than ``_HIER_MIN_SECTION_CHARS`` are dropped, matching
-      chunkshop so replication is faithful. Whole-doc case preserves short
+    Body text has NO heading prefix — the caller (``chunk_document``) is
+    responsible for prepending ``{heading}\\n\\n`` when producing final chunk
+    content, and for re-prefixing each sub-chunk when a section exceeds the
+    token budget.
+
+    - One pair per markdown heading (H1-H6); body is the section text beneath.
+    - Pre-first-heading prefix becomes its own pair with ``title`` as heading.
+    - No headings: single pair = ``(title, body)``; heading is "" if title is
+      empty. This is the path that carried the +8 SCOTUS lift.
+    - Sections shorter than ``_HIER_MIN_SECTION_CHARS`` are dropped in
+      multi-heading docs, matching chunkshop. Whole-doc case preserves short
       bodies (mirrors the heading-less single-chunk fall-through).
     """
     headings = list(_HIER_HEADING_RE.finditer(text))
@@ -226,15 +262,13 @@ def _split_hierarchy(text: str, title: str = "") -> list[str]:
         body = text.strip()
         if not body:
             return []
-        if title_prefix:
-            return [f"{title_prefix}\n\n{body}"]
-        return [body]
+        return [(title_prefix, body)]
 
-    result: list[str] = []
+    result: list[tuple[str, str]] = []
     if headings[0].start() > 0:
         body = text[: headings[0].start()].strip()
         if len(body) >= _HIER_MIN_SECTION_CHARS:
-            result.append(f"{title_prefix}\n\n{body}" if title_prefix else body)
+            result.append((title_prefix, body))
     for i, m in enumerate(headings):
         heading_text = m.group(2).strip()
         start = m.end()
@@ -242,7 +276,7 @@ def _split_hierarchy(text: str, title: str = "") -> list[str]:
         body = text[start:end].strip()
         if len(body) < _HIER_MIN_SECTION_CHARS:
             continue
-        result.append(f"{heading_text}\n\n{body}")
+        result.append((heading_text, body))
     return result
 
 

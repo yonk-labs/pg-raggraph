@@ -28,11 +28,16 @@ CREATE TABLE IF NOT EXISTS documents (
     UNIQUE(namespace, content_hash)
 );
 
--- Chunks: preserve source text + embeddings
+-- Chunks: preserve source text + embeddings.
+-- content          = raw chunk body (audit / grep / provenance).
+-- embedded_content = what the embedder + FTS see — may include heading prefix
+--                    (hierarchy strategy), glued neighbors, summary, etc.
+--                    Equals content on auto strategy. See migration 001.
 CREATE TABLE IF NOT EXISTS chunks (
     id BIGSERIAL PRIMARY KEY,
     document_id BIGINT REFERENCES documents(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
+    embedded_content TEXT,
     embedding vector({dim}),
     search_vector tsvector,
     token_count INTEGER DEFAULT 0,
@@ -119,15 +124,18 @@ CREATE INDEX IF NOT EXISTS idx_entity_name_trgm ON entities USING gin (name gin_
 -- Full-text search index
 CREATE INDEX IF NOT EXISTS idx_chunk_search ON chunks USING gin (search_vector);
 
--- Trigger to auto-update search_vector on chunk insert/update
+-- Trigger to auto-update search_vector on chunk insert/update. FTS indexes
+-- embedded_content so BM25 queries see heading text (hierarchy strategy) and
+-- any future neighbor/summary decoration. Falls back to content if
+-- embedded_content is NULL.
 CREATE OR REPLACE FUNCTION pgrg_update_search_vector() RETURNS trigger AS $$
 BEGIN
-    NEW.search_vector := to_tsvector('english', NEW.content);
+    NEW.search_vector := to_tsvector('english', COALESCE(NEW.embedded_content, NEW.content));
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_chunk_search_vector ON chunks;
 CREATE TRIGGER trg_chunk_search_vector
-    BEFORE INSERT OR UPDATE OF content ON chunks
+    BEFORE INSERT OR UPDATE OF content, embedded_content ON chunks
     FOR EACH ROW EXECUTE FUNCTION pgrg_update_search_vector();

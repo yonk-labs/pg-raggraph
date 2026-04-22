@@ -1,4 +1,5 @@
 """pg-raggraph engine adapter — bypasses built-in ingest to preserve parity."""
+
 from __future__ import annotations
 
 import json
@@ -62,9 +63,11 @@ class PgrgEngine:
 
         # Embed all chunks and entities
         chunk_embs = self._embed([c.content for c in extraction.chunks])
-        ent_embs = self._embed(
-            [e.name + " " + e.description for e in extraction.entities]
-        ) if extraction.entities else []
+        ent_embs = (
+            self._embed([e.name + " " + e.description for e in extraction.entities])
+            if extraction.entities
+            else []
+        )
 
         # Group chunks by document_id
         docs_by_id: dict[str, list[int]] = {}
@@ -81,16 +84,21 @@ class PgrgEngine:
             )
             doc_pk_by_id[doc_id] = row["id"]
 
-        # Insert chunks (no sequence column in schema — use metadata for ordering)
+        # Insert chunks (no sequence column in schema — use metadata for ordering).
+        # Bakeoff Chunk is single-content; embedded_content mirrors content so
+        # pg-raggraph's retrieval SELECT ``c.embedded_content AS content`` and
+        # the FTS trigger both find something to index.
         chunk_pk_by_idx: dict[int, int] = {}
         for idx, (chunk, emb) in enumerate(zip(extraction.chunks, chunk_embs)):
             meta = dict(chunk.metadata)
             meta["sequence"] = chunk.sequence
             row = await db.fetch_one(
-                "INSERT INTO chunks (document_id, content, embedding, token_count, metadata) "
-                "VALUES (%s, %s, %s::vector, %s, %s) RETURNING id",
+                "INSERT INTO chunks "
+                "(document_id, content, embedded_content, embedding, token_count, metadata) "
+                "VALUES (%s, %s, %s, %s::vector, %s, %s) RETURNING id",
                 (
                     doc_pk_by_id[chunk.document_id],
+                    chunk.content,
                     chunk.content,
                     emb,
                     len(chunk.content.split()),
@@ -188,9 +196,7 @@ class PgrgEngine:
         # more than top_k in some retrieval modes.
         top = chunks[: self._top_k]
         return RetrievalResponse(
-            retrieved_chunk_ids=[
-                f"{c.document_source or 'unknown'}::{c.chunk_id}" for c in top
-            ],
+            retrieved_chunk_ids=[f"{c.document_source or 'unknown'}::{c.chunk_id}" for c in top],
             retrieved_chunk_contents=[c.content for c in top],
             retrieval_ms=elapsed_ms,
         )

@@ -318,8 +318,10 @@ class GraphRAG:
         if not chunks:
             return {"entities": 0, "rels": 0}
 
-        # Batch embed all chunks (no DB writes)
-        texts = [c["content"] for c in chunks]
+        # Batch embed all chunks. Use embedded_content so the embedder sees
+        # heading prefix (hierarchy strategy) or any future neighbor/summary
+        # decoration; for auto strategy this equals content.
+        texts = [c["embedded_content"] for c in chunks]
         chunk_embeddings = await embedder.embed(texts)
 
         # Extract entities/relationships via LLM (cache reads OK outside txn).
@@ -415,11 +417,12 @@ class GraphRAG:
             for i, chunk in enumerate(chunks):
                 chunk_id = await tx.insert_returning_id(
                     "INSERT INTO chunks "
-                    "(document_id, content, embedding, token_count, metadata) "
-                    "VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                    "(document_id, content, embedded_content, embedding, token_count, metadata) "
+                    "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
                     (
                         doc_id,
                         chunk["content"],
+                        chunk["embedded_content"],
                         chunk_embeddings[i],
                         chunk["token_count"],
                         json.dumps(chunk["metadata"]),

@@ -4,7 +4,6 @@ import hashlib
 import json
 
 import pytest
-
 from age_bakeoff.chunker import chunk_file, chunk_text
 from age_bakeoff.models import Chunk
 
@@ -40,9 +39,7 @@ def test_chunker_produces_stable_hashes(fixtures_dir):
     # Strip source_path from metadata — it contains an absolute filesystem path
     # that varies by checkout location. We want the hash to pin content, not
     # machine state.
-    content_only = [
-        {**c.model_dump(), "metadata": {}} for c in chunks
-    ]
+    content_only = [{**c.model_dump(), "metadata": {}} for c in chunks]
     payload = json.dumps(content_only, sort_keys=True)
     digest = hashlib.sha256(payload.encode()).hexdigest()
     # Pinned snapshot — any chunker change that touches tiny_doc.md output
@@ -83,9 +80,7 @@ def test_hierarchy_prefixes_heading():
     body_a = "Alpha content. " * 10  # ~150 chars
     body_b = "Bravo content. " * 10
     text = f"## Section A\n\n{body_a}\n\n## Section B\n\n{body_b}"
-    chunks = chunk_text(
-        text, document_id="doc1", strategy="hierarchy", title="My Title"
-    )
+    chunks = chunk_text(text, document_id="doc1", strategy="hierarchy", title="My Title")
     assert len(chunks) == 2
     assert chunks[0].content.startswith("Section A\n\n")
     assert "Alpha content." in chunks[0].content
@@ -100,9 +95,7 @@ def test_hierarchy_title_fallback_when_no_headings():
     starts with the case name because 0/772 docs contain markdown headings.
     """
     body = "Plain prose about a SCOTUS case. " * 20
-    chunks = chunk_text(
-        body, document_id="d1", strategy="hierarchy", title="Air v. Devries"
-    )
+    chunks = chunk_text(body, document_id="d1", strategy="hierarchy", title="Air v. Devries")
     assert len(chunks) == 1
     assert chunks[0].content.startswith("Air v. Devries\n\n")
 
@@ -129,17 +122,62 @@ def test_sentence_aware_default_is_unchanged(fixtures_dir):
     If this test fails, the pinned hash in test_chunker_produces_stable_hashes
     will too — but this gives a sharper failure message: the default changed.
     """
-    explicit = chunk_text(
-        (fixtures_dir / "tiny_doc.md").read_text(), document_id="tiny_doc.md"
-    )
+    explicit = chunk_text((fixtures_dir / "tiny_doc.md").read_text(), document_id="tiny_doc.md")
     default = chunk_text(
         (fixtures_dir / "tiny_doc.md").read_text(),
         document_id="tiny_doc.md",
         strategy="sentence_aware",
     )
-    assert [c.model_dump() for c in explicit] == [
-        c.model_dump() for c in default
-    ]
+    assert [c.model_dump() for c in explicit] == [c.model_dump() for c in default]
+
+
+def test_hierarchy_splits_oversized_sections():
+    """An oversized section body must be split into multiple chunks.
+
+    Each sub-chunk respects ``max_chars`` and retains the same heading prefix
+    so the embedder sees ``heading + body`` as one unit on every sub-chunk.
+    """
+    # ~12KB section body, well over the 2000-char default cap.
+    big_body = "This is a sentence about the topic. " * 350
+    text = f"## Oncology overview\n\n{big_body}"
+    chunks = chunk_text(text, document_id="med1", strategy="hierarchy")
+    assert len(chunks) > 1, "oversized section must split"
+    for c in chunks:
+        assert len(c.content) <= 2400, f"sub-chunk exceeds cap: {len(c.content)} chars"
+        assert c.content.startswith("Oncology overview\n\n"), (
+            f"sub-chunk missing heading prefix: {c.content[:60]!r}"
+        )
+
+
+def test_hierarchy_sub_chunks_carry_metadata():
+    """Each sub-chunk from an oversized section carries heading + section_part."""
+    big_body = "This is a sentence about the topic. " * 350
+    text = f"## Oncology overview\n\n{big_body}"
+    chunks = chunk_text(text, document_id="med1", strategy="hierarchy")
+    assert len(chunks) > 1
+    for c in chunks:
+        assert c.metadata.get("heading") == "Oncology overview"
+    parts = [c.metadata.get("section_part") for c in chunks]
+    assert parts == list(range(len(chunks)))
+
+
+def test_hierarchy_small_section_has_section_part_zero():
+    """A single-chunk section gets section_part=0 and its heading in metadata."""
+    text = "## Brief\n\n" + ("Short content. " * 10)
+    chunks = chunk_text(text, document_id="d1", strategy="hierarchy")
+    assert len(chunks) == 1
+    assert chunks[0].metadata.get("heading") == "Brief"
+    assert chunks[0].metadata.get("section_part") == 0
+
+
+def test_hierarchy_max_chars_is_tunable():
+    """max_chars kwarg overrides the default 2000-char cap."""
+    big_body = "This is a sentence about the topic. " * 350
+    text = f"## Topic\n\n{big_body}"
+    # Tune way up — fewer sub-chunks expected.
+    loose = chunk_text(text, document_id="d1", strategy="hierarchy", max_chars=8000)
+    tight = chunk_text(text, document_id="d1", strategy="hierarchy", max_chars=1000)
+    assert len(tight) > len(loose), "tighter cap should produce more sub-chunks"
 
 
 def test_chunk_text_rejects_unknown_strategy():
@@ -151,5 +189,7 @@ def test_chunk_text_rejects_unknown_strategy():
         # env parser; here we just confirm the chunker doesn't silently
         # accept it.
         chunk_text(
-            "anything", document_id="d", strategy="bogus"  # type: ignore[arg-type]
+            "anything",
+            document_id="d",
+            strategy="bogus",  # type: ignore[arg-type]
         )  # noqa: S101

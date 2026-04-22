@@ -259,7 +259,11 @@ async def _extract_single(
     prompt_name: str = "default",
 ) -> ExtractionResult:
     """Extract entities/relationships from a single chunk (used in parallel)."""
-    content = chunk["content"]
+    # Use embedded_content so the LLM sees the heading prefix when in hierarchy
+    # strategy — the topic framing helps entity extraction. For auto strategy
+    # this equals content. Falls back to content for rows produced before the
+    # dual-field refactor.
+    content = chunk.get("embedded_content") or chunk["content"]
     cache_k = _cache_key(content, prompt_name)
 
     # Check cache first (no semaphore needed — DB call is cheap)
