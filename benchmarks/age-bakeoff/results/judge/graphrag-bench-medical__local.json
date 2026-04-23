@@ -42,9 +42,9 @@
   "pgrg::Medical-0dc6b940": {
     "engine": "pgrg",
     "question_id": "Medical-0dc6b940",
-    "verdict": "fully_correct",
+    "verdict": "hallucinated",
     "votes": [
-      "fully_correct"
+      "hallucinated"
     ]
   },
   "pgrg::Medical-14016ce3": {
@@ -98,9 +98,9 @@
   "pgrg::Medical-1f9a3a9d": {
     "engine": "pgrg",
     "question_id": "Medical-1f9a3a9d",
-    "verdict": "fully_correct",
+    "verdict": "partially_correct",
     "votes": [
-      "fully_correct"
+      "partially_correct"
     ]
   },
   "pgrg::Medical-2148aacc": {
@@ -234,9 +234,9 @@
   "pgrg::Medical-436b2db6": {
     "engine": "pgrg",
     "question_id": "Medical-436b2db6",
-    "verdict": "hallucinated",
+    "verdict": "fully_correct",
     "votes": [
-      "hallucinated"
+      "fully_correct"
     ]
   },
   "pgrg::Medical-47b62614": {
@@ -258,9 +258,9 @@
   "pgrg::Medical-4a4eaab8": {
     "engine": "pgrg",
     "question_id": "Medical-4a4eaab8",
-    "verdict": "fully_correct",
+    "verdict": "partially_correct",
     "votes": [
-      "fully_correct"
+      "partially_correct"
     ]
   },
   "pgrg::Medical-4a90fe75": {
@@ -330,9 +330,9 @@
   "pgrg::Medical-5d99d529": {
     "engine": "pgrg",
     "question_id": "Medical-5d99d529",
-    "verdict": "partially_correct",
+    "verdict": "hallucinated",
     "votes": [
-      "partially_correct"
+      "hallucinated"
     ]
   },
   "pgrg::Medical-611ac003": {
@@ -402,9 +402,9 @@
   "pgrg::Medical-7caf80a1": {
     "engine": "pgrg",
     "question_id": "Medical-7caf80a1",
-    "verdict": "hallucinated",
+    "verdict": "fully_correct",
     "votes": [
-      "hallucinated"
+      "fully_correct"
     ]
   },
   "pgrg::Medical-8270fb83": {
@@ -554,9 +554,9 @@
   "pgrg::Medical-b200a90c": {
     "engine": "pgrg",
     "question_id": "Medical-b200a90c",
-    "verdict": "partially_correct",
+    "verdict": "fully_correct",
     "votes": [
-      "partially_correct"
+      "fully_correct"
     ]
   },
   "pgrg::Medical-b2e840c7": {
@@ -634,9 +634,9 @@
   "pgrg::Medical-cdbc8593": {
     "engine": "pgrg",
     "question_id": "Medical-cdbc8593",
-    "verdict": "partially_correct",
+    "verdict": "fully_correct",
     "votes": [
-      "partially_correct"
+      "fully_correct"
     ]
   },
   "pgrg::Medical-cfc34fd6": {
@@ -690,9 +690,9 @@
   "pgrg::Medical-e14162c2": {
     "engine": "pgrg",
     "question_id": "Medical-e14162c2",
-    "verdict": "fully_correct",
+    "verdict": "hallucinated",
     "votes": [
-      "fully_correct"
+      "hallucinated"
     ]
   },
   "pgrg::Medical-e8a07389": {
@@ -738,9 +738,9 @@
   "pgrg::Medical-f657d12f": {
     "engine": "pgrg",
     "question_id": "Medical-f657d12f",
-    "verdict": "partially_correct",
+    "verdict": "hallucinated",
     "votes": [
-      "partially_correct"
+      "hallucinated"
     ]
   },
   "pgrg::Medical-f7ce6257": {

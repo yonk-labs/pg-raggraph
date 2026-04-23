@@ -10,9 +10,9 @@
   "age::Medical-0103d518": {
     "engine": "age",
     "question_id": "Medical-0103d518",
-    "verdict": "fully_correct",
+    "verdict": "hallucinated",
     "votes": [
-      "fully_correct"
+      "hallucinated"
     ]
   },
   "age::Medical-0bc96001": {
@@ -42,9 +42,9 @@
   "age::Medical-0dc6b940": {
     "engine": "age",
     "question_id": "Medical-0dc6b940",
-    "verdict": "hallucinated",
+    "verdict": "fully_correct",
     "votes": [
-      "hallucinated"
+      "fully_correct"
     ]
   },
   "age::Medical-14016ce3": {
@@ -122,9 +122,9 @@
   "age::Medical-22918f14": {
     "engine": "age",
     "question_id": "Medical-22918f14",
-    "verdict": "partially_correct",
+    "verdict": "wrong",
     "votes": [
-      "partially_correct"
+      "wrong"
     ]
   },
   "age::Medical-22b8a5ee": {
@@ -194,9 +194,9 @@
   "age::Medical-2c20babc": {
     "engine": "age",
     "question_id": "Medical-2c20babc",
-    "verdict": "hallucinated",
+    "verdict": "fully_correct",
     "votes": [
-      "hallucinated"
+      "fully_correct"
     ]
   },
   "age::Medical-30f4f09d": {
@@ -314,9 +314,9 @@
   "age::Medical-594504cc": {
     "engine": "age",
     "question_id": "Medical-594504cc",
-    "verdict": "wrong",
+    "verdict": "partially_correct",
     "votes": [
-      "wrong"
+      "partially_correct"
     ]
   },
   "age::Medical-5b2ade97": {
@@ -370,9 +370,9 @@
   "age::Medical-6e3f025e": {
     "engine": "age",
     "question_id": "Medical-6e3f025e",
-    "verdict": "wrong",
+    "verdict": "partially_correct",
     "votes": [
-      "wrong"
+      "partially_correct"
     ]
   },
   "age::Medical-6e4da4de": {
@@ -634,9 +634,9 @@
   "age::Medical-cdbc8593": {
     "engine": "age",
     "question_id": "Medical-cdbc8593",
-    "verdict": "partially_correct",
+    "verdict": "fully_correct",
     "votes": [
-      "partially_correct"
+      "fully_correct"
     ]
   },
   "age::Medical-cfc34fd6": {
@@ -698,9 +698,9 @@
   "age::Medical-e8a07389": {
     "engine": "age",
     "question_id": "Medical-e8a07389",
-    "verdict": "fully_correct",
+    "verdict": "hallucinated",
     "votes": [
-      "fully_correct"
+      "hallucinated"
     ]
   },
   "age::Medical-ec091b24": {

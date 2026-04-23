@@ -13,13 +13,13 @@
 
 On 100 stratified medical clinical-care questions answered by gpt-5-mini and judged by gpt-5-mini:
 
-**Neither engine dominates on medical.** pgrg modes range 59-66/100 fully_correct; AGE modes 63-66. The top pgrg mode is `naive_boost` at 66; the top AGE mode is `hybrid` at 66. pgrg/hybrid lands at 63 — **slightly behind** AGE/hybrid (66) and behind pgrg's own simpler modes.
+**Neither engine dominates on medical.** pgrg modes range 59-66/100 fully_correct; AGE modes 63-66. The top pgrg mode is `naive_boost` at 66 (n=3 majority); the top AGE mode is `hybrid` at 66 (n=3 majority). pgrg/hybrid lands at 63 (n=3 majority) — **slightly behind** AGE/hybrid (66) and behind pgrg's own simpler modes. n=3 majority-of-3 verdicts confirm the n=1 reads on all three tracked cells.
 
 **The v1 result (pgrg/hybrid 73 vs age/hybrid 66) has been retracted.** It was produced with a broken hierarchy chunker that silently truncated embeddings through fastembed's 512-token cap on 134 KB section bodies, combined with a Qwen-judge that was ~10 pp more lenient than gpt-5-mini. Under the fixed chunker + fair judge, the v1 spread collapses and AGE catches up 10 points — the chunker bug was disproportionately hurting AGE's retrieval (AGE had no strong BM25/graph fallback to compensate for broken vectors). See §7.1 for the full v1 retraction.
 
 **Retrieval mode matters less than expected on this corpus.** Cross-mode delta is 7 pp within pgrg (59 global → 66 naive_boost) and 3 pp within AGE (63 age_local → 66 age_hybrid). Cross-engine delta at the top of each is 0 (both at 66). On clinical medical Q&A with properly sized chunks, retrieval mode is a minor lever; answer-model quality is the dominant one.
 
-Total run cost: ~**$25 for answers + $0.50 for judge on work_key** — up from v1's $6.11 (which only paid for hybrid; v1's seven other runs used free local Qwen). v2 pays for apples-to-apples quality across every cell.
+Total run cost: ~**$27 for answers + ~$1.50 for judge on work_key** (v2 matrix + n=3 follow-ups for hybrid + naive_boost) — up from v1's $6.11 (which only paid for hybrid; v1's seven other runs used free local Qwen). v2 pays for apples-to-apples quality across every cell.
 
 ---
 
@@ -96,34 +96,38 @@ Total run cost: ~**$25 for answers + $0.50 for judge on work_key** — up from v
 
 All rows gpt-5-mini answer + gpt-5-mini judge. Sorted by fully_correct within engine.
 
-| engine | mode | fully_correct | partially | wrong | hallucinated |
-|---|---|---:|---:|---:|---:|
-| pgrg | naive_boost | **66** | 25 | 7 | 2 |
-| pgrg | naive | 65 | 22 | 9 | 4 |
-| pgrg | smart | 65 | 19 | 9 | 7 |
-| pgrg | local | 64 | 21 | 10 | 5 |
-| pgrg | hybrid | 63 | 25 | 7 | 5 |
-| pgrg | global | 59 | 24 | 12 | 5 |
-| age | hybrid | **66** | 24 | 8 | 2 |
-| age | global | 65 | 20 | 8 | 7 |
-| age | local | 63 | 23 | 8 | 6 |
+| engine | mode | n | fully_correct | partially | wrong | hallucinated |
+|---|---|:---:|---:|---:|---:|---:|
+| pgrg | naive_boost | 3 | **66** | 20 | 9 | 5 |
+| pgrg | naive | 1 | 65 | 22 | 9 | 4 |
+| pgrg | smart | 1 | 65 | 19 | 9 | 7 |
+| pgrg | local | 1 | 64 | 21 | 10 | 5 |
+| pgrg | hybrid | 3 | 63 | 22 | 8 | 7 |
+| pgrg | global | 1 | 59 | 24 | 12 | 5 |
+| age | hybrid | 3 | **66** | 21 | 9 | 4 |
+| age | global | 1 | 65 | 20 | 8 | 7 |
+| age | local | 1 | 63 | 23 | 8 | 6 |
+
+**`n` column** = runs per question (1 or 3). Hybrid (both engines) and pgrg/naive_boost re-run at n=3 with majority-of-3 verdicts after the initial matrix. n=3 cells confirm the n=1 totals — the three tracked cells moved 0 pp at the aggregate level under majority-of-3, validating the ±3pp confidence band claimed in §7.
 
 **Top of each engine ties at 66.** pgrg's best is `naive_boost` (graph boost on top of vector, cheap to apply); AGE's best is `hybrid`. pgrg's `hybrid` mode lands 3 pp behind its own `naive_boost` — hybrid was supposed to be the gold standard but gives up ground on this corpus. pgrg's `global` mode is the notable loser at 59.
 
 ### 5.2 By question class (fully_correct / 25)
 
-| class | pgrg/naive | pgrg/nb | pgrg/local | pgrg/global | pgrg/smart | pgrg/hyb | age/hyb | age/local | age/global |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Fact Retrieval | 22 | 22 | 21 | 22 | 22 | 20 | **23** | 22 | 20 |
-| Complex Reasoning | **22** | 21 | 21 | 17 | 21 | 18 | 21 | 20 | 20 |
-| Contextual Summarize | 18 | 18 | 18 | 16 | 19 | 20 | 17 | 18 | **20** |
-| Creative Generation | 3 | 5 | 4 | 4 | 3 | 5 | 5 | 3 | 5 |
+Columns for pgrg/nb, pgrg/hyb, age/hyb are n=3 majority-of-3; others n=1.
 
-**Per-class takeaways:**
-- **Fact Retrieval (92% upper bound):** AGE/hybrid edges pgrg by +1 (23 vs 22). The strongest class for both engines — this is where retrieval quality has the most room to deliver.
-- **Complex Reasoning (88% upper bound):** pgrg/naive leads at 22, pgrg/hybrid underperforms at 18. Graph-hybrid retrieval loses to cheap vector-only on this class. Unexpected.
-- **Contextual Summarize (80% upper bound):** AGE/global leads at 20, tied with pgrg/hybrid. pgrg/global is the worst at 16.
-- **Creative Generation (20% upper bound):** universally hard. Cross-engine delta is 2 pp (3-5 out of 25). Retrieval doesn't help here — these questions require generative synthesis beyond the retrieved context.
+| class | pgrg/naive | pgrg/nb⁽³⁾ | pgrg/local | pgrg/global | pgrg/smart | pgrg/hyb⁽³⁾ | age/hyb⁽³⁾ | age/local | age/global |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Fact Retrieval | 22 | 22 | 21 | 22 | 22 | **23** | 22 | 22 | 20 |
+| Complex Reasoning | 22 | 21 | 21 | 17 | 21 | 20 | 21 | 20 | 20 |
+| Contextual Summarize | 18 | 19 | 18 | 16 | 19 | 18 | 19 | 18 | 20 |
+| Creative Generation | 3 | 4 | 4 | 4 | 3 | 2 | 4 | 3 | 5 |
+
+**Per-class takeaways** (n=3 where available; within-class shuffling under majority-of-3 is up to ±3 pp while aggregates held):
+- **Fact Retrieval (92% upper bound):** pgrg/hybrid edges AGE by +1 (23 vs 22) under n=3; this flipped from the n=1 reading (AGE had led by +3). Within-noise, but consistent with pgrg's graph+BM25 legs helping on fact-shaped questions.
+- **Complex Reasoning (88% upper bound):** pgrg/naive leads at 22, pgrg/hybrid at 20 (up from 18 at n=1) and age/hybrid at 21. Graph-hybrid retrieval still doesn't clearly beat cheap vector-only on this class.
+- **Contextual Summarize (80% upper bound):** age/global leads at 20. pgrg/hybrid and age/hybrid tie at 18-19; pgrg/global is the worst at 16.
+- **Creative Generation (20% upper bound):** universally hard. Cross-engine delta is 3 pp (2-5 out of 25). Retrieval doesn't help — these questions require generative synthesis beyond the retrieved context.
 
 ### 5.3 Latency
 
@@ -203,6 +207,16 @@ Three findings from this measurement:
 
 **Cost context:** the full v2 judge run (1,100 calls × gpt-5-mini) cost **$0.50**. The Qwen-local option saves $0.50 per corpus. That's not a meaningful tradeoff for a reported benchmark — but it's a useful data point for anyone doing cheap iterative experimentation where ordinal agreement is what they care about. Keep the Qwen lane available, publish with the OpenAI lane.
 
+**Bonus: same-judge run-to-run variance.** The n=3 re-run accidentally re-judged the v2 n=1 hybrid + naive_boost raw files a second time (the second judge launcher iterated the whole corpus raw dir, not just its own mode). Same answers, same judge model, gpt-5-mini at temp=1:
+
+| mode | initial n=1 judge | re-judge (same answers, same judge) | Δ |
+|---|---:|---:|---:|
+| pgrg/hybrid | 63 | 66 | +3 |
+| age/hybrid | 66 | 67 | +1 |
+| pgrg/naive_boost | 66 | 64 | −2 |
+
+Run-to-run judge variance on the same inputs is ~±3 pp on this rubric/corpus. That matches the ±3 pp confidence band claimed in §7 and is a useful calibration for anyone interpreting a single-run score within a few points.
+
 ### 6.5 Comparison to GraphRAG-Bench paper leaderboard
 
 The Xiang paper reports graph methods winning on Complex Reasoning; our v2 shows pgrg/naive winning Complex Reasoning on our subset (22/25 = 88%). The winning mode is *not* a graph-retrieval mode — it's a vector-only mode. This pushes back on the paper's "graph methods dominate Complex Reasoning" framing, at least on this subset with gpt-5-mini answers. Caveat: the paper uses different answer models and a different rubric; direct numerical comparison is not meaningful.
@@ -223,7 +237,7 @@ The switch from Qwen-judge to gpt-5-mini-judge is the likely driver. Qwen-judge 
 
 ## 7. Limitations
 
-- **Single run per question (not majority-of-3).** This pass ran `-n 1` for cost reasons (v1 ran `-n 3` for hybrid only). Single-run noise is higher than majority-of-3. ±3 pp confidence band per cell is reasonable.
+- **Mixed n per cell.** hybrid (both engines) and pgrg/naive_boost re-run at `-n 3` with majority-of-3 verdicts; other six modes remain at `-n 1`. Aggregate totals did not move at n=3 for the three tracked cells (confirming the n=1 reads were stable), but within-class distribution shuffled by up to ±3 pp. Measured same-answer same-judge run-to-run variance is also ~±3 pp (§6.4). Treat single-run scores as having a ±3 pp confidence band; n=3 cells are tighter.
 - **100-question subset vs 2,060 upstream.** Stratified by class so distribution is preserved, but per-class counts at 25 give ±2-question (8 pp) noise on observed accuracy.
 - **Hybrid weight defaults.** pgrg/hybrid loses to pgrg/naive_boost on this corpus; the default weights were calibrated on SCOTUS, not medical. Before concluding "hybrid is broken on medical," tune weights per corpus.
 - **Rubric mismatch with upstream paper.** GraphRAG-Bench paper uses per-type Accuracy + ROUGE-L + Coverage + Factual Score; ours uses majority-of-N judge verdicts. Not directly comparable.
