@@ -160,6 +160,7 @@ CREATE INDEX IF NOT EXISTS idx_doc_version_label ON documents(version_label)
 
 CREATE TABLE IF NOT EXISTS document_versions (
     id                       BIGSERIAL PRIMARY KEY,
+    namespace                TEXT NOT NULL,
     document_id              BIGINT REFERENCES documents(id) ON DELETE CASCADE,
     version_label            TEXT,
     effective_from           TIMESTAMPTZ,

@@ -44,9 +44,22 @@ async def test_schema_has_evolution_tables_and_columns():
 
 
 async def test_migration_002_idempotent():
-    """Applying migration 002 twice is safe — IF NOT EXISTS + nullable columns."""
+    """Applying migration 002 twice is safe — IF NOT EXISTS + nullable columns.
+
+    Also asserts:
+      - pgrg_applied_migrations ends up with exactly one row for 002 (no dup).
+      - Column count on `documents` is stable across re-apply (no drift).
+    """
     rag = await _fresh("test_evo_idemp")
     try:
+        # Snapshot post-first-apply state
+        count_before = await rag.db.fetch_one(
+            "SELECT COUNT(*) AS n FROM information_schema.columns "
+            "WHERE table_schema='public' AND table_name='documents'"
+        )
+        assert count_before is not None
+        documents_cols_before = count_before["n"]
+
         # Simulate re-running migration by dropping the applied row and re-applying
         await rag.db.execute(
             "DELETE FROM pgrg_applied_migrations WHERE filename = '002_evolution_tracking.sql'"
@@ -62,5 +75,28 @@ async def test_migration_002_idempotent():
             "WHERE table_name='documents' AND column_name='effective_from'"
         )
         assert row is not None
+
+        # pgrg_applied_migrations must have exactly one row for 002 — no
+        # duplicates introduced by re-apply.
+        applied = await rag.db.fetch_one(
+            "SELECT COUNT(*) AS n FROM pgrg_applied_migrations "
+            "WHERE filename = '002_evolution_tracking.sql'"
+        )
+        assert applied is not None
+        assert applied["n"] == 1, (
+            f"expected exactly 1 applied-migrations row for 002, got {applied['n']}"
+        )
+
+        # documents column count must be stable — no drift (e.g. ADD COLUMN
+        # without IF NOT EXISTS sneaking in) after re-apply.
+        count_after = await rag.db.fetch_one(
+            "SELECT COUNT(*) AS n FROM information_schema.columns "
+            "WHERE table_schema='public' AND table_name='documents'"
+        )
+        assert count_after is not None
+        assert count_after["n"] == documents_cols_before, (
+            f"documents column count drifted across re-apply: "
+            f"{documents_cols_before} -> {count_after['n']}"
+        )
     finally:
         await rag.close()

@@ -24,6 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_doc_version_label ON documents(version_label)
 
 CREATE TABLE IF NOT EXISTS document_versions (
     id                       BIGSERIAL PRIMARY KEY,
+    namespace                TEXT NOT NULL,
     document_id              BIGINT REFERENCES documents(id) ON DELETE CASCADE,
     version_label            TEXT,
     effective_from           TIMESTAMPTZ,
@@ -34,6 +35,13 @@ CREATE TABLE IF NOT EXISTS document_versions (
     retraction_reason        TEXT,
     metadata                 JSONB DEFAULT '{}'
 );
+
+-- Rerun-safety: existing installs (Task 1 landed without namespace) need the
+-- column added idempotently. Empty-string default lets the NOT NULL succeed on
+-- any pre-existing rows; we keep the default since no code path relies on a
+-- sentinel here.
+ALTER TABLE document_versions
+    ADD COLUMN IF NOT EXISTS namespace TEXT NOT NULL DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS idx_docver_document ON document_versions(document_id);
 CREATE INDEX IF NOT EXISTS idx_docver_supersedes ON document_versions(supersedes_document_id);
