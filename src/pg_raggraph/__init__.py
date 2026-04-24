@@ -92,6 +92,8 @@ class GraphRAG:
         paths: list[str],
         namespace: str | None = None,
         on_progress=None,
+        *,
+        metadata: dict | None = None,
     ):
         """Ingest documents from file paths with parallel processing.
 
@@ -105,6 +107,13 @@ class GraphRAG:
             paths: File or directory paths to ingest.
             namespace: Namespace for data isolation.
             on_progress: Optional callback(message: str) for progress updates.
+            metadata: Per-ingest evolution hints applied to every file in this
+                call. Optional keys: ``effective_from``, ``effective_to``,
+                ``retracted``, ``retracted_at``, ``retraction_reason``,
+                ``version_label``, ``supersedes_document_id``. When
+                ``version_label``, ``supersedes_document_id``, or
+                ``retraction_reason`` is present, a ``document_versions`` row
+                is also created mirroring the document's evolution metadata.
         """
         import asyncio
 
@@ -220,6 +229,7 @@ class GraphRAG:
                             content_hash,
                             chunk_document,
                             extract_from_chunks,
+                            metadata=metadata,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -288,6 +298,8 @@ class GraphRAG:
         content_hash_fn,
         chunk_document_fn,
         extract_from_chunks_fn,
+        *,
+        metadata: dict | None = None,
     ):
         """Ingest a single file with all DB writes in a single transaction.
 
@@ -402,15 +414,47 @@ class GraphRAG:
                 await tx.execute("DELETE FROM documents WHERE id = %s", (stale["id"],))
                 logger.info(f"Replaced stale version of {file_path}")
 
-            # Insert document
+            # Insert document with any caller-supplied evolution metadata.
+            # ON CONFLICT uses COALESCE so a re-ingest without metadata doesn't
+            # clobber previously-stored evolution fields; an explicit retracted
+            # boolean is always applied so callers can un-retract on re-ingest.
+            meta = metadata or {}
+            eff_from = meta.get("effective_from")
+            eff_to = meta.get("effective_to")
+            retracted = bool(meta.get("retracted", False))
+            version_label = meta.get("version_label")
+            supersedes_doc = meta.get("supersedes_document_id")
+
             doc_id = await tx.insert_returning_id(
-                "INSERT INTO documents (namespace, content_hash, source_path) "
-                "VALUES (%s, %s, %s) "
+                "INSERT INTO documents "
+                "(namespace, content_hash, source_path, "
+                " effective_from, effective_to, retracted, version_label) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s) "
                 "ON CONFLICT (namespace, content_hash) DO UPDATE "
-                "SET source_path = EXCLUDED.source_path "
+                "SET source_path = EXCLUDED.source_path, "
+                "    effective_from = COALESCE("
+                "EXCLUDED.effective_from, documents.effective_from), "
+                "    effective_to = COALESCE("
+                "EXCLUDED.effective_to, documents.effective_to), "
+                "    retracted = EXCLUDED.retracted, "
+                "    version_label = COALESCE("
+                "EXCLUDED.version_label, documents.version_label) "
                 "RETURNING id",
-                (ns, c_hash, file_path),
+                (ns, c_hash, file_path,
+                 eff_from, eff_to, retracted, version_label),
             )
+
+            # If caller supplied version info or a supersession edge, create a
+            # document_versions row for authoritative multi-version tracking.
+            if version_label or supersedes_doc or meta.get("retraction_reason"):
+                await tx.execute(
+                    "INSERT INTO document_versions "
+                    "(namespace, document_id, version_label, effective_from, effective_to, "
+                    " supersedes_document_id, retracted, retracted_at, retraction_reason) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (ns, doc_id, version_label, eff_from, eff_to, supersedes_doc,
+                     retracted, meta.get("retracted_at"), meta.get("retraction_reason")),
+                )
 
             # Insert all chunks
             chunk_ids = []

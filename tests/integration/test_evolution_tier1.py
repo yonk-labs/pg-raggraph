@@ -1,6 +1,8 @@
 """Integration tests for evolving-knowledge-RAG Tier 1."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 
 from pg_raggraph import GraphRAG
@@ -98,5 +100,107 @@ async def test_migration_002_idempotent():
             f"documents column count drifted across re-apply: "
             f"{documents_cols_before} -> {count_after['n']}"
         )
+    finally:
+        await rag.close()
+
+
+async def test_ingest_stores_evolution_metadata_on_document():
+    """Caller-supplied evolution metadata flows through ingest to documents."""
+    import os
+    import tempfile
+    rag = await _fresh("test_evo_meta")
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("# Retracted Study\n\nA claim that was later retracted.\n")
+            path = f.name
+        try:
+            await rag.ingest(
+                [path],
+                namespace="test_evo_meta",
+                metadata={
+                    "effective_from": datetime(2001, 6, 1, tzinfo=timezone.utc),
+                    "retracted": True,
+                    "version_label": "HRT-2001-obs",
+                },
+            )
+            row = await rag.db.fetch_one(
+                "SELECT effective_from, retracted, version_label "
+                "FROM documents WHERE namespace = %s",
+                ("test_evo_meta",),
+            )
+            assert row is not None
+            assert row["effective_from"].year == 2001
+            assert row["retracted"] is True
+            assert row["version_label"] == "HRT-2001-obs"
+        finally:
+            os.unlink(path)
+    finally:
+        await rag.close()
+
+
+async def test_ingest_without_metadata_defaults():
+    """Ingest with no evolution metadata leaves columns at defaults."""
+    import os
+    import tempfile
+    rag = await _fresh("test_evo_nometa")
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("# Plain\n\nNo evolution metadata supplied.\n")
+            path = f.name
+        try:
+            await rag.ingest([path], namespace="test_evo_nometa")
+            row = await rag.db.fetch_one(
+                "SELECT effective_from, retracted, version_label "
+                "FROM documents WHERE namespace = %s",
+                ("test_evo_nometa",),
+            )
+            assert row is not None
+            assert row["effective_from"] is None
+            assert row["retracted"] is False
+            assert row["version_label"] is None
+        finally:
+            os.unlink(path)
+    finally:
+        await rag.close()
+
+
+async def test_ingest_creates_document_versions_row_when_version_supplied():
+    """When metadata carries version_label OR supersedes_document_id, a
+    document_versions row is created mirroring the document metadata."""
+    import os
+    import tempfile
+    rag = await _fresh("test_evo_docver")
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("# Python 3.12\n\nNew features in 3.12.\n")
+            path = f.name
+        try:
+            await rag.ingest(
+                [path],
+                namespace="test_evo_docver",
+                metadata={
+                    "effective_from": datetime(2024, 10, 1, tzinfo=timezone.utc),
+                    "version_label": "Python 3.12",
+                },
+            )
+            dv = await rag.db.fetch_one(
+                "SELECT version_label, effective_from, namespace "
+                "FROM document_versions "
+                "WHERE document_id IN (SELECT id FROM documents WHERE namespace = %s) "
+                "LIMIT 1",
+                ("test_evo_docver",),
+            )
+            assert dv is not None
+            assert dv["version_label"] == "Python 3.12"
+            assert dv["effective_from"].year == 2024
+            assert dv["namespace"] == "test_evo_docver"
+        finally:
+            os.unlink(path)
     finally:
         await rag.close()
