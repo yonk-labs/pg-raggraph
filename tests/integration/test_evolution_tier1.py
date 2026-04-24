@@ -168,6 +168,117 @@ async def test_ingest_without_metadata_defaults():
         await rag.close()
 
 
+async def test_reingest_without_metadata_preserves_retracted():
+    """Re-ingesting without metadata doesn't clobber prior retracted=True.
+
+    Covers the critical bug where a periodic re-sync that omitted the
+    `retracted` key silently flipped retracted back to False. The fix uses
+    a CASE WHEN <retracted_explicit> in the UPSERT SET clause so the value
+    is only applied when the caller passes it explicitly.
+
+    Two paths exercised:
+      1. Unchanged content (same hash) → ingest early-outs; prior row
+         (including retracted=True) is preserved by definition.
+      2. Direct UPSERT path — we simulate the ON CONFLICT case by inserting
+         a conflicting row via raw SQL and verifying the CASE WHEN gates
+         the update correctly for both an absent and an explicit retracted.
+    """
+    import os
+    import tempfile
+    rag = await _fresh("test_evo_reingest_retracted")
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("# Retracted Study\n\nOne claim.\n")
+            path = f.name
+        try:
+            # Path 1: first ingest marks retracted=True
+            await rag.ingest(
+                [path],
+                namespace="test_evo_reingest_retracted",
+                metadata={"retracted": True},
+            )
+            # Re-ingest same content without metadata (periodic re-sync).
+            # Content-hash early-out preserves the existing row.
+            await rag.ingest(
+                [path],
+                namespace="test_evo_reingest_retracted",
+            )
+            row = await rag.db.fetch_one(
+                "SELECT retracted FROM documents WHERE namespace = %s",
+                ("test_evo_reingest_retracted",),
+            )
+            assert row is not None
+            assert row["retracted"] is True, (
+                "retracted must be preserved on re-ingest without metadata"
+            )
+
+            # Path 2: exercise the UPSERT SQL directly. Re-running the exact
+            # statement with the same (namespace, content_hash) triggers
+            # ON CONFLICT DO UPDATE — which is the code path the fix changes.
+            # Absent retracted (retracted_explicit=False) MUST NOT clobber.
+            ns = "test_evo_reingest_retracted"
+            existing = await rag.db.fetch_one(
+                "SELECT content_hash, source_path FROM documents WHERE namespace = %s",
+                (ns,),
+            )
+            assert existing is not None
+            upsert_sql = (
+                "INSERT INTO documents "
+                "(namespace, content_hash, source_path, "
+                " effective_from, effective_to, retracted, version_label) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s) "
+                "ON CONFLICT (namespace, content_hash) DO UPDATE "
+                "SET source_path = EXCLUDED.source_path, "
+                "    effective_from = COALESCE("
+                "EXCLUDED.effective_from, documents.effective_from), "
+                "    effective_to = COALESCE("
+                "EXCLUDED.effective_to, documents.effective_to), "
+                "    retracted = CASE WHEN %s "
+                "THEN EXCLUDED.retracted ELSE documents.retracted END, "
+                "    version_label = COALESCE("
+                "EXCLUDED.version_label, documents.version_label) "
+            )
+            # Simulate "re-ingest with metadata but without retracted key":
+            # retracted_value=False, retracted_explicit=False. Prior True
+            # must be preserved.
+            await rag.db.execute(
+                upsert_sql,
+                (ns, existing["content_hash"], existing["source_path"],
+                 None, None, False, "v2", False),
+            )
+            row = await rag.db.fetch_one(
+                "SELECT retracted, version_label FROM documents WHERE namespace = %s",
+                (ns,),
+            )
+            assert row["retracted"] is True, (
+                "UPSERT without explicit retracted must preserve prior True"
+            )
+            assert row["version_label"] == "v2", (
+                "non-retracted fields still flow through COALESCE on re-ingest"
+            )
+
+            # Now simulate explicit retracted=False (un-retract).
+            # retracted_value=False, retracted_explicit=True → applied.
+            await rag.db.execute(
+                upsert_sql,
+                (ns, existing["content_hash"], existing["source_path"],
+                 None, None, False, "v2", True),
+            )
+            row = await rag.db.fetch_one(
+                "SELECT retracted FROM documents WHERE namespace = %s",
+                (ns,),
+            )
+            assert row["retracted"] is False, (
+                "explicit retracted=False must un-retract via CASE WHEN branch"
+            )
+        finally:
+            os.unlink(path)
+    finally:
+        await rag.close()
+
+
 async def test_ingest_creates_document_versions_row_when_version_supplied():
     """When metadata carries version_label OR supersedes_document_id, a
     document_versions row is created mirroring the document metadata."""

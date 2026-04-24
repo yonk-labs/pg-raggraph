@@ -416,12 +416,20 @@ class GraphRAG:
 
             # Insert document with any caller-supplied evolution metadata.
             # ON CONFLICT uses COALESCE so a re-ingest without metadata doesn't
-            # clobber previously-stored evolution fields; an explicit retracted
-            # boolean is always applied so callers can un-retract on re-ingest.
+            # clobber previously-stored evolution fields. For `retracted` we
+            # distinguish "absent from meta" (preserve prior value) from
+            # "explicitly True/False" (apply the caller's value, including
+            # un-retracting). COALESCE can't express this for booleans, so we
+            # pass a separate `retracted_explicit` flag and gate the SET on it
+            # via CASE WHEN.
             meta = metadata or {}
             eff_from = meta.get("effective_from")
             eff_to = meta.get("effective_to")
-            retracted = bool(meta.get("retracted", False))
+            retracted_explicit = "retracted" in meta and meta["retracted"] is not None
+            # Value for fresh INSERT: the caller's value if explicit, else
+            # False (matches the column DEFAULT). On UPDATE the CASE WHEN
+            # below decides whether to apply it at all.
+            retracted_value = bool(meta["retracted"]) if retracted_explicit else False
             version_label = meta.get("version_label")
             supersedes_doc = meta.get("supersedes_document_id")
 
@@ -436,12 +444,14 @@ class GraphRAG:
                 "EXCLUDED.effective_from, documents.effective_from), "
                 "    effective_to = COALESCE("
                 "EXCLUDED.effective_to, documents.effective_to), "
-                "    retracted = EXCLUDED.retracted, "
+                "    retracted = CASE WHEN %s "
+                "THEN EXCLUDED.retracted ELSE documents.retracted END, "
                 "    version_label = COALESCE("
                 "EXCLUDED.version_label, documents.version_label) "
                 "RETURNING id",
                 (ns, c_hash, file_path,
-                 eff_from, eff_to, retracted, version_label),
+                 eff_from, eff_to, retracted_value, version_label,
+                 retracted_explicit),
             )
 
             # If caller supplied version info or a supersession edge, create a
@@ -453,7 +463,8 @@ class GraphRAG:
                     " supersedes_document_id, retracted, retracted_at, retraction_reason) "
                     "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (ns, doc_id, version_label, eff_from, eff_to, supersedes_doc,
-                     retracted, meta.get("retracted_at"), meta.get("retraction_reason")),
+                     retracted_value, meta.get("retracted_at"),
+                     meta.get("retraction_reason")),
                 )
 
             # Insert all chunks
