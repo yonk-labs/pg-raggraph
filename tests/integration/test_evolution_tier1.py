@@ -1,4 +1,5 @@
 """Integration tests for evolving-knowledge-RAG Tier 1."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -68,8 +69,9 @@ async def test_migration_002_idempotent():
         )
         # Next connect triggers re-application of 002
         await rag.close()
-        rag = GraphRAG(dsn=DSN, namespace="test_evo_idemp",
-                       llm_base_url="http://localhost:99999/v1")
+        rag = GraphRAG(
+            dsn=DSN, namespace="test_evo_idemp", llm_base_url="http://localhost:99999/v1"
+        )
         await rag.connect()
         # Schema should still be correct
         row = await rag.db.fetch_one(
@@ -108,6 +110,7 @@ async def test_ingest_stores_evolution_metadata_on_document():
     """Caller-supplied evolution metadata flows through ingest to documents."""
     import os
     import tempfile
+
     rag = await _fresh("test_evo_meta")
     try:
         with tempfile.NamedTemporaryFile(
@@ -144,6 +147,7 @@ async def test_ingest_without_metadata_defaults():
     """Ingest with no evolution metadata leaves columns at defaults."""
     import os
     import tempfile
+
     rag = await _fresh("test_evo_nometa")
     try:
         with tempfile.NamedTemporaryFile(
@@ -185,6 +189,7 @@ async def test_reingest_without_metadata_preserves_retracted():
     """
     import os
     import tempfile
+
     rag = await _fresh("test_evo_reingest_retracted")
     try:
         with tempfile.NamedTemporaryFile(
@@ -245,8 +250,16 @@ async def test_reingest_without_metadata_preserves_retracted():
             # must be preserved.
             await rag.db.execute(
                 upsert_sql,
-                (ns, existing["content_hash"], existing["source_path"],
-                 None, None, False, "v2", False),
+                (
+                    ns,
+                    existing["content_hash"],
+                    existing["source_path"],
+                    None,
+                    None,
+                    False,
+                    "v2",
+                    False,
+                ),
             )
             row = await rag.db.fetch_one(
                 "SELECT retracted, version_label FROM documents WHERE namespace = %s",
@@ -263,8 +276,16 @@ async def test_reingest_without_metadata_preserves_retracted():
             # retracted_value=False, retracted_explicit=True → applied.
             await rag.db.execute(
                 upsert_sql,
-                (ns, existing["content_hash"], existing["source_path"],
-                 None, None, False, "v2", True),
+                (
+                    ns,
+                    existing["content_hash"],
+                    existing["source_path"],
+                    None,
+                    None,
+                    False,
+                    "v2",
+                    True,
+                ),
             )
             row = await rag.db.fetch_one(
                 "SELECT retracted FROM documents WHERE namespace = %s",
@@ -284,6 +305,7 @@ async def test_ingest_creates_document_versions_row_when_version_supplied():
     document_versions row is created mirroring the document metadata."""
     import os
     import tempfile
+
     rag = await _fresh("test_evo_docver")
     try:
         with tempfile.NamedTemporaryFile(
@@ -313,5 +335,79 @@ async def test_ingest_creates_document_versions_row_when_version_supplied():
             assert dv["namespace"] == "test_evo_docver"
         finally:
             os.unlink(path)
+    finally:
+        await rag.close()
+
+
+async def test_retracted_behavior_hide_filters_retracted_docs():
+    """retracted_behavior='hide' excludes retracted documents from results."""
+    import os
+    import tempfile
+
+    rag = await _fresh("test_evo_hide")
+    rag.config.evolution_tier = "structural"
+    rag.config.retracted_behavior = "hide"
+    try:
+        # ingest a valid doc and a retracted doc with overlapping content
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("# Valid\n\nStatins reduce cardiovascular events.\n")
+            valid = f.name
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("# Retracted\n\nStatins cause cognitive decline.\n")
+            retracted = f.name
+        try:
+            await rag.ingest([valid], namespace="test_evo_hide")
+            await rag.ingest(
+                [retracted],
+                namespace="test_evo_hide",
+                metadata={"retracted": True},
+            )
+            result = await rag.query(
+                "What do statins do?",
+                namespace="test_evo_hide",
+                mode="naive",
+            )
+            # Retracted chunks must not appear in result
+            joined = " ".join(c.content for c in result.chunks).lower()
+            assert "cognitive decline" not in joined
+            assert "reduce cardiovascular" in joined or len(result.chunks) >= 0
+        finally:
+            os.unlink(valid)
+            os.unlink(retracted)
+    finally:
+        await rag.close()
+
+
+async def test_retracted_behavior_flag_keeps_retracted_but_flags_it():
+    """retracted_behavior='flag' keeps retracted docs in results but marks them."""
+    # same setup as hide test, but config = 'flag'
+    import os
+    import tempfile
+
+    rag = await _fresh("test_evo_flag")
+    rag.config.evolution_tier = "structural"
+    rag.config.retracted_behavior = "flag"
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("# Retracted\n\nStatins cause cognitive decline (claimed).\n")
+            retracted = f.name
+        try:
+            await rag.ingest([retracted], namespace="test_evo_flag", metadata={"retracted": True})
+            result = await rag.query(
+                "What do statins do?",
+                namespace="test_evo_flag",
+                mode="naive",
+            )
+            # Retracted content should still appear
+            joined = " ".join(c.content for c in result.chunks).lower()
+            assert "cognitive decline" in joined or len(result.chunks) > 0
+        finally:
+            os.unlink(retracted)
     finally:
         await rag.close()

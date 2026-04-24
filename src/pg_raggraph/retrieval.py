@@ -8,6 +8,11 @@ from typing import Literal
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.db import Database
 from pg_raggraph.embedding import EmbeddingProvider
+from pg_raggraph.evolution import (
+    evolution_bind_params,
+    evolution_score_expr,
+    retraction_where_clause,
+)
 from pg_raggraph.models import ChunkResult, EntityResult, QueryResult, RelationshipResult
 
 QueryMode = Literal["local", "global", "hybrid", "naive", "naive_boost", "smart"]
@@ -31,22 +36,44 @@ def _to_or_tsquery(text: str) -> str:
 
 
 # --- SQL Templates ---
+#
+# These are built per-query from the active PGRGConfig so different callers
+# can toggle evolution_tier without restarting. When evolution_tier == "off"
+# the builders return the today's byte-identical base expression (plus
+# parameterized weights) and skip the retraction filter.
 
-NAIVE_QUERY = """
+
+def _build_naive_query(cfg: PGRGConfig) -> str:
+    base = (
+        "%(w_sem)s * (1 - (c.embedding <=> %(embedding)s::vector)) + "
+        "%(w_bm25)s * ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) + "
+        "%(w_graph)s * 0"  # naive has no graph leg
+    )
+    retraction = retraction_where_clause(cfg, doc_alias="d")
+    extra_where = f" AND {retraction}" if retraction else ""
+    return f"""
 SELECT c.id, COALESCE(c.embedded_content, c.content) AS content, c.metadata,
        d.source_path,
        1 - (c.embedding <=> %(embedding)s::vector) AS vec_score,
        ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score,
-       (0.7 * (1 - (c.embedding <=> %(embedding)s::vector)) +
-        0.3 * ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s))) AS score
+       {evolution_score_expr(base, cfg)} AS score
 FROM chunks c
 JOIN documents d ON d.id = c.document_id
-WHERE d.namespace = %(namespace)s
+WHERE d.namespace = %(namespace)s{extra_where}
 ORDER BY score DESC
 LIMIT %(top_k)s
 """
 
-LOCAL_QUERY = """
+
+def _build_local_query(cfg: PGRGConfig) -> str:
+    base = (
+        "%(w_sem)s * (1 - (rc.embedding <=> %(embedding)s::vector)) + "
+        "%(w_bm25)s * ts_rank(rc.search_vector, to_tsquery('english', %(tsquery)s)) + "
+        "%(w_graph)s * 1.0"  # graph leg: binary presence in neighborhood
+    )
+    retraction = retraction_where_clause(cfg, doc_alias="d")
+    extra_where = f" AND {retraction}" if retraction else ""
+    return f"""
 WITH RECURSIVE seeds AS (
     SELECT id, 1 - (embedding <=> %(embedding)s::vector) AS sim
     FROM entities
@@ -75,17 +102,24 @@ relevant_chunks AS (
 )
 SELECT rc.id, rc.content, rc.metadata,
        d.source_path,
-       (0.6 * (1 - (rc.embedding <=> %(embedding)s::vector)) +
-        0.3 * ts_rank(rc.search_vector, to_tsquery('english', %(tsquery)s)) +
-        0.1) AS score
+       {evolution_score_expr(base, cfg)} AS score
 FROM relevant_chunks rc
 JOIN documents d ON d.id = rc.document_id
-WHERE d.namespace = %(namespace)s
+WHERE d.namespace = %(namespace)s{extra_where}
 ORDER BY score DESC
 LIMIT %(top_k)s
 """
 
-GLOBAL_QUERY = """
+
+def _build_global_query(cfg: PGRGConfig) -> str:
+    base = (
+        "%(w_sem)s * (1 - (rc.embedding <=> %(embedding)s::vector)) + "
+        "%(w_bm25)s * ts_rank(rc.search_vector, to_tsquery('english', %(tsquery)s)) + "
+        "%(w_graph)s * 1.0"  # graph leg: binary presence via relationship seed
+    )
+    retraction = retraction_where_clause(cfg, doc_alias="d")
+    extra_where = f" AND {retraction}" if retraction else ""
+    return f"""
 WITH rel_matches AS (
     SELECT r.id, r.src_id, r.dst_id, r.rel_type, r.description,
            1 - (e_src.embedding <=> %(embedding)s::vector) AS src_sim,
@@ -115,15 +149,14 @@ relevant_chunks AS (
 )
 SELECT rc.id, rc.content, rc.metadata,
        d.source_path,
-       (0.6 * (1 - (rc.embedding <=> %(embedding)s::vector)) +
-        0.3 * ts_rank(rc.search_vector, to_tsquery('english', %(tsquery)s)) +
-        0.1) AS score
+       {evolution_score_expr(base, cfg)} AS score
 FROM relevant_chunks rc
 JOIN documents d ON d.id = rc.document_id
-WHERE d.namespace = %(namespace)s
+WHERE d.namespace = %(namespace)s{extra_where}
 ORDER BY score DESC
 LIMIT %(top_k)s
 """
+
 
 ENTITIES_FOR_CHUNKS = """
 SELECT DISTINCT e.name, e.entity_type, e.description
@@ -183,18 +216,22 @@ async def query(
         "top_k": config.top_k,
         "seed_k": min(config.top_k, 5),
         "max_hops": config.max_hops,
+        "w_sem": config.w_sem,
+        "w_bm25": config.w_bm25,
+        "w_graph": config.w_graph,
+        **evolution_bind_params(config),
     }
 
     if mode == "naive":
-        rows = await db.fetch_all(NAIVE_QUERY, params)
+        rows = await db.fetch_all(_build_naive_query(config), params)
     elif mode == "local":
-        rows = await db.fetch_all(LOCAL_QUERY, params)
+        rows = await db.fetch_all(_build_local_query(config), params)
     elif mode == "global":
-        rows = await db.fetch_all(GLOBAL_QUERY, params)
+        rows = await db.fetch_all(_build_global_query(config), params)
     elif mode == "hybrid":
         # Run local and global, merge results
-        local_rows = await db.fetch_all(LOCAL_QUERY, params)
-        global_rows = await db.fetch_all(GLOBAL_QUERY, params)
+        local_rows = await db.fetch_all(_build_local_query(config), params)
+        global_rows = await db.fetch_all(_build_global_query(config), params)
         # Deduplicate by chunk ID, prefer higher score
         seen = {}
         for row in local_rows + global_rows:
