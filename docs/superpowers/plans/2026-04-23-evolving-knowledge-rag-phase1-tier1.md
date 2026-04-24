@@ -522,7 +522,7 @@ def test_evolution_scoring_weight_defaults():
     assert c.w_bm25 == 0.20
     assert c.w_graph == 0.20
     assert c.w_recent == 0.10
-    assert c.w_super == 0.10
+    assert c.w_supersession == 0.10
     assert c.temporal_half_life_years == 5.0
     assert c.lambda_supersession == 0.5
 
@@ -585,7 +585,7 @@ Inside `class PGRGConfig(BaseSettings):`, after the existing fields and before a
     w_bm25:  float = 0.20
     w_graph: float = 0.20
     w_recent: float = 0.10
-    w_super:  float = 0.10
+    w_supersession:  float = 0.10
     temporal_half_life_years: float = 5.0
     lambda_supersession:      float = 0.5
 
@@ -627,7 +627,7 @@ git add src/pg_raggraph/config.py tests/unit/test_evolution_config.py
 git commit -m "feat(config): add evolution_tier + scoring weights to PGRGConfig
 
 Adds evolution_tier literal (off|structural|fact_aware|full), five
-scoring weights (w_sem/w_bm25/w_graph/w_recent/w_super), temporal
+scoring weights (w_sem/w_bm25/w_graph/w_recent/w_supersession), temporal
 half-life, supersession lambda, and behavior mode literals for
 retraction and supersession. Defaults leave Tier 0 behavior unchanged;
 PGRG_EVOLUTION_TIER env var switches on.  Fact-extraction fields are
@@ -1001,7 +1001,7 @@ def evolution_score_expr(base_score_sql: str, cfg: PGRGConfig) -> str:
         f"({retraction_filter_expr()} * ("
         f"  {base_score_sql}"
         f"  + %(w_recent)s * {temporal_boost_expr()}"
-        f"  + %(w_super)s  * {supersession_penalty_expr()}"
+        f"  + %(w_supersession)s  * {supersession_penalty_expr()}"
         f"))"
     )
 
@@ -1021,7 +1021,7 @@ def evolution_bind_params(cfg: PGRGConfig) -> dict:
     """Bind-param dict to merge into retrieval query params."""
     return {
         "w_recent": cfg.w_recent,
-        "w_super":  cfg.w_super,
+        "w_supersession":  cfg.w_supersession,
         "half_life_years": cfg.temporal_half_life_years,
         "lambda_supersession": cfg.lambda_supersession,
     }
@@ -1189,7 +1189,7 @@ async def test_supersession_prefer_new_penalizes_superseded_doc():
     rag.config.supersession_behavior = "prefer_new"
     # Give supersession a real penalty to amplify the test signal
     rag.config.lambda_supersession = 0.9
-    rag.config.w_super = 0.5
+    rag.config.w_supersession = 0.5
     try:
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".md", delete=False, encoding="utf-8"
@@ -1739,7 +1739,7 @@ async def tune_scoring_weights(
         Minimal shape for Tier 1 — Tier 3 swaps in an LLM-judge version.
     grid : dict[str, list[float]]
         Weight-name to list-of-values. Cartesian product is evaluated.
-        Supported weight names: w_sem, w_bm25, w_graph, w_recent, w_super.
+        Supported weight names: w_sem, w_bm25, w_graph, w_recent, w_supersession.
     mode : str
         Retrieval mode (naive | local | global | hybrid | smart).
     write_back : bool
@@ -2206,7 +2206,7 @@ recency / supersession weights. Grid-search against a gold QA set:
         grid={
             "w_sem":    [0.3, 0.5, 0.7],
             "w_recent": [0.0, 0.1, 0.3, 0.5],
-            "w_super":  [0.0, 0.1, 0.3],
+            "w_supersession":  [0.0, 0.1, 0.3],
         },
         mode="naive",
         write_back=True,  # updates rag.config
