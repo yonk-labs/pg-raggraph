@@ -57,17 +57,31 @@ def evolution_score_expr(base_score_sql: str, cfg: PGRGConfig) -> str:
     )
 
 
-def retraction_where_clause(cfg: PGRGConfig, doc_alias: str = "d") -> str:
-    """Returns a WHERE-clause fragment to filter retracted docs when
-    retracted_behavior='hide'. Empty string otherwise. Prepend 'AND ' if
-    non-empty when composing."""
+def evolution_where_clauses(cfg: PGRGConfig, doc_alias: str = "d") -> list[str]:
+    """Returns a list of WHERE-clause fragments to apply based on evolution
+    behavior modes. Caller joins with ' AND ' when composing. Empty list
+    when evolution_tier='off'.
+
+    Current fragments:
+      - retracted_behavior='hide' → filter out retracted documents.
+      - supersession_behavior='hide' → filter out documents that have been
+        superseded by a newer document (per document_versions pointer).
+
+    Other modes ('flag', 'prefer_new', 'surface_both') return no filter —
+    'flag' annotates results; 'prefer_new' relies on the SQL scoring penalty
+    in evolution_score_expr; 'surface_both' is deferred to Tier 3.
+    """
     if cfg.evolution_tier == "off":
-        return ""
+        return []
+    clauses: list[str] = []
     if cfg.retracted_behavior == "hide":
-        return f"NOT {doc_alias}.retracted"
-    # "flag" and "surface_both": no SQL filter. "surface_both" semantic
-    # separation (side-by-side retracted/live surfacing) is deferred to Tier 3.
-    return ""
+        clauses.append(f"NOT {doc_alias}.retracted")
+    if cfg.supersession_behavior == "hide":
+        clauses.append(
+            f"NOT EXISTS (SELECT 1 FROM document_versions dv "
+            f"            WHERE dv.supersedes_document_id = {doc_alias}.id)"
+        )
+    return clauses
 
 
 def evolution_bind_params(cfg: PGRGConfig) -> dict:

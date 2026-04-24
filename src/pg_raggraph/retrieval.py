@@ -11,7 +11,7 @@ from pg_raggraph.embedding import EmbeddingProvider
 from pg_raggraph.evolution import (
     evolution_bind_params,
     evolution_score_expr,
-    retraction_where_clause,
+    evolution_where_clauses,
 )
 from pg_raggraph.models import ChunkResult, EntityResult, QueryResult, RelationshipResult
 
@@ -49,8 +49,8 @@ def _build_naive_query(cfg: PGRGConfig) -> str:
         "%(w_bm25)s * ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) + "
         "%(w_graph)s * 0"  # naive has no graph leg
     )
-    retraction = retraction_where_clause(cfg, doc_alias="d")
-    extra_where = f" AND {retraction}" if retraction else ""
+    clauses = evolution_where_clauses(cfg, doc_alias="d")
+    extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     return f"""
 SELECT c.id, COALESCE(c.embedded_content, c.content) AS content, c.metadata,
        d.source_path,
@@ -71,8 +71,8 @@ def _build_local_query(cfg: PGRGConfig) -> str:
         "%(w_bm25)s * ts_rank(rc.search_vector, to_tsquery('english', %(tsquery)s)) + "
         "%(w_graph)s * 1.0"  # graph leg: binary presence in neighborhood
     )
-    retraction = retraction_where_clause(cfg, doc_alias="d")
-    extra_where = f" AND {retraction}" if retraction else ""
+    clauses = evolution_where_clauses(cfg, doc_alias="d")
+    extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     return f"""
 WITH RECURSIVE seeds AS (
     SELECT id, 1 - (embedding <=> %(embedding)s::vector) AS sim
@@ -117,8 +117,8 @@ def _build_global_query(cfg: PGRGConfig) -> str:
         "%(w_bm25)s * ts_rank(rc.search_vector, to_tsquery('english', %(tsquery)s)) + "
         "%(w_graph)s * 1.0"  # graph leg: binary presence via relationship seed
     )
-    retraction = retraction_where_clause(cfg, doc_alias="d")
-    extra_where = f" AND {retraction}" if retraction else ""
+    clauses = evolution_where_clauses(cfg, doc_alias="d")
+    extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     return f"""
 WITH rel_matches AS (
     SELECT r.id, r.src_id, r.dst_id, r.rel_type, r.description,
