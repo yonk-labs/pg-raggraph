@@ -15,6 +15,11 @@ class Document(BaseModel):
     content_hash: str
     source_path: str | None = None
     metadata: dict = Field(default_factory=dict)
+    # Evolution tracking (Tier 1+) — all optional. effective_to=None means "still effective".
+    effective_from: datetime | None = None
+    effective_to:   datetime | None = None
+    retracted:      bool = False
+    version_label:  str | None = None
     created_at: datetime | None = None
 
 
@@ -65,6 +70,54 @@ class RelationshipChunk(BaseModel):
     chunk_id: int
     confidence: float = 1.0
     provenance: str = "extracted"
+
+
+# --- Evolution tracking (Tier 1+) ---
+
+
+class DocumentVersion(BaseModel):
+    id: int | None = None
+    namespace: str                 # NOT NULL in schema — required
+    document_id: int
+    version_label: str | None = None
+    effective_from: datetime | None = None
+    effective_to: datetime | None = None
+    supersedes_document_id: int | None = None
+    retracted: bool = False
+    retracted_at: datetime | None = None
+    retraction_reason: str | None = None
+    metadata: dict = Field(default_factory=dict)
+
+
+class Fact(BaseModel):
+    id: int | None = None
+    namespace: str = "default"
+    source_chunk_id: int
+    subject: str
+    subject_entity_id: int | None = None
+    predicate: str
+    object: str
+    object_entity_id: int | None = None
+    support_span: str
+    confidence: float = 1.0
+    effective_from: datetime | None = None
+    effective_to: datetime | None = None
+    retracted: bool = False
+    retracted_at: datetime | None = None
+    retraction_reason: str | None = None
+    extractor: str = "unknown"
+    properties: dict = Field(default_factory=dict)
+    created_at: datetime | None = None
+
+
+class FactEdge(BaseModel):
+    id: int | None = None
+    src_fact_id: int
+    dst_fact_id: int
+    edge_type: str   # SUPERSEDES | CONTRADICTS | PRECEDES | SUPPORTS | REFINES
+    confidence: float = 1.0
+    inferred_by: str  # 'explicit' | 'llm' | 'temporal' | 'heuristic' | 'document_hint'
+    created_at: datetime | None = None
 
 
 # --- Extraction models (LLM output) ---
