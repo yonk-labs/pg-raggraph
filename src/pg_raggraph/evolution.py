@@ -65,6 +65,8 @@ def retraction_where_clause(cfg: PGRGConfig, doc_alias: str = "d") -> str:
         return ""
     if cfg.retracted_behavior == "hide":
         return f"NOT {doc_alias}.retracted"
+    # "flag" and "surface_both": no SQL filter. "surface_both" semantic
+    # separation (side-by-side retracted/live surfacing) is deferred to Tier 3.
     return ""
 
 

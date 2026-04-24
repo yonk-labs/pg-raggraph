@@ -406,7 +406,9 @@ async def test_retracted_behavior_flag_keeps_retracted_but_flags_it():
             )
             # Retracted content should still appear
             joined = " ".join(c.content for c in result.chunks).lower()
-            assert "cognitive decline" in joined or len(result.chunks) > 0
+            assert "cognitive decline" in joined, (
+                f"retracted content missing from flag-mode results; got: {joined!r}"
+            )
         finally:
             os.unlink(retracted)
     finally:
