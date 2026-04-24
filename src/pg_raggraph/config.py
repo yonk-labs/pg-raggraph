@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic_settings import BaseSettings
 
 # Ingestion throttle profiles — pick one based on your hardware and how much
@@ -130,3 +132,32 @@ class PGRGConfig(BaseSettings):
     trgm_weight: float = 0.4
     vec_weight: float = 0.6
     min_trgm_score: float = 0.3
+
+    # --- Evolving-knowledge RAG (Tier 1+) ---
+    # Zero cost when 'off'; ramp up per use case.
+    # See docs/superpowers/specs/2026-04-22-evolving-knowledge-rag-design.md.
+    evolution_tier: Literal["off", "structural", "fact_aware", "full"] = "off"
+
+    # Scoring weights (only active when evolution_tier != 'off'). Conservative
+    # defaults; run rag.tune_scoring_weights() per corpus for best results.
+    w_sem:   float = 0.50
+    w_bm25:  float = 0.20
+    w_graph: float = 0.20
+    w_recent: float = 0.10
+    w_super:  float = 0.10
+    temporal_half_life_years: float = 5.0
+    lambda_supersession:      float = 0.5
+
+    # Retrieval behavior modes
+    retracted_behavior:    Literal["hide", "flag", "surface_both"] = "flag"
+    supersession_behavior: Literal["hide", "prefer_new", "surface_both"] = "surface_both"
+    contradiction_detection: bool = True
+
+    # Context assembly (used when Tier 2+ populates facts)
+    fact_dedup_threshold: float = 0.8
+    diversity_backfill:   bool  = True
+
+    # Fact extraction (Tier 2+)
+    fact_extractor: Literal["llm", "skimr_spacy", "none"] = "none"
+    fact_similarity_threshold: float = 0.92
+    fact_edge_candidate_k:     int   = 8
