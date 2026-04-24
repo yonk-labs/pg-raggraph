@@ -169,7 +169,8 @@ CREATE TABLE IF NOT EXISTS document_versions (
     retracted                BOOLEAN DEFAULT FALSE,
     retracted_at             TIMESTAMPTZ,
     retraction_reason        TEXT,
-    metadata                 JSONB DEFAULT '{}'
+    metadata                 JSONB DEFAULT '{}',
+    created_at               TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_docver_document ON document_versions(document_id);

@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS document_versions (
     retracted                BOOLEAN DEFAULT FALSE,
     retracted_at             TIMESTAMPTZ,
     retraction_reason        TEXT,
-    metadata                 JSONB DEFAULT '{}'
+    metadata                 JSONB DEFAULT '{}',
+    created_at               TIMESTAMPTZ DEFAULT now()
 );
 
 -- Rerun-safety: existing installs (Task 1 landed without namespace) need the
@@ -42,6 +43,12 @@ CREATE TABLE IF NOT EXISTS document_versions (
 -- sentinel here.
 ALTER TABLE document_versions
     ADD COLUMN IF NOT EXISTS namespace TEXT NOT NULL DEFAULT '';
+
+-- Rerun-safety: existing installs (Task 1/2a landed without created_at) get it
+-- added idempotently. Audit signal — "when was this version row recorded" —
+-- matching every other pg-raggraph table.
+ALTER TABLE document_versions
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
 
 CREATE INDEX IF NOT EXISTS idx_docver_document ON document_versions(document_id);
 CREATE INDEX IF NOT EXISTS idx_docver_supersedes ON document_versions(supersedes_document_id);

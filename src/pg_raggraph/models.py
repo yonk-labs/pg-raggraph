@@ -101,6 +101,7 @@ class DocumentVersion(BaseModel):
     retracted_at: datetime | None = None
     retraction_reason: str | None = None
     metadata: dict = Field(default_factory=dict)
+    created_at: datetime | None = None
 
 
 class Fact(BaseModel):
