@@ -457,11 +457,10 @@ async def test_supersession_prefer_new_penalizes_superseded_doc():
                 mode="naive",
             )
             if result.chunks:
-                # Top chunk should be from new doc (treatment Z) not old (Y)
                 top = result.chunks[0].content.lower()
-                assert ("treatment z" in top and "treatment y" not in top) or result.chunks[
-                    0
-                ].score > 0  # score ordering sanity
+                assert "treatment z" in top, (
+                    f"expected new guidance top-ranked under prefer_new; got top chunk: {top!r}"
+                )
         finally:
             os.unlink(old)
             os.unlink(new)
@@ -508,7 +507,9 @@ async def test_supersession_hide_drops_superseded_doc():
             )
             joined = " ".join(c.content for c in result.chunks).lower()
             assert "drug alpha" not in joined, "old doc should be hidden"
-            assert "drug beta" in joined or len(result.chunks) >= 0
+            assert "drug beta" in joined, (
+                f"expected new doc chunks to remain visible; got: {joined!r}"
+            )
         finally:
             os.unlink(old)
             os.unlink(new)
