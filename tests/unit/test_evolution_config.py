@@ -1,4 +1,5 @@
 """Unit tests for evolution-related PGRGConfig fields."""
+
 from pg_raggraph.config import PGRGConfig
 
 
@@ -14,7 +15,7 @@ def test_evolution_scoring_weight_defaults():
     assert c.w_bm25 == 0.20
     assert c.w_graph == 0.20
     assert c.w_recent == 0.10
-    assert c.w_super == 0.10
+    assert c.w_supersession == 0.10
     assert c.temporal_half_life_years == 5.0
     assert c.lambda_supersession == 0.5
 
@@ -43,5 +44,6 @@ def test_invalid_evolution_tier_rejected(monkeypatch):
     monkeypatch.setenv("PGRG_EVOLUTION_TIER", "bogus")
     import pytest
     from pydantic import ValidationError
+
     with pytest.raises(ValidationError):
         PGRGConfig()
