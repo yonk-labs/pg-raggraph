@@ -46,6 +46,18 @@ def test_document_version_requires_namespace():
         DocumentVersion(document_id=1)  # no namespace
 
 
+def test_fact_requires_namespace():
+    """namespace is required on Fact — it's NOT NULL in the schema."""
+    with pytest.raises(ValidationError):
+        Fact(
+            source_chunk_id=1,
+            subject="x",
+            predicate="y",
+            object="z",
+            support_span="x y z",
+        )  # no namespace
+
+
 def test_fact_shape():
     f = Fact(
         namespace="ns",
@@ -75,3 +87,22 @@ def test_fact_edge_basic():
     )
     assert fe.edge_type == "SUPERSEDES"
     assert fe.confidence == 1.0
+
+
+def test_fact_edge_rejects_invalid_edge_type():
+    """Literal type rejects values outside the defined enum set."""
+    with pytest.raises(ValidationError):
+        FactEdge(
+            src_fact_id=1, dst_fact_id=2,
+            edge_type="BOGUS",         # not in FactEdgeType Literal
+            inferred_by="llm",
+        )
+
+
+def test_fact_edge_rejects_invalid_inferred_by():
+    with pytest.raises(ValidationError):
+        FactEdge(
+            src_fact_id=1, dst_fact_id=2,
+            edge_type="SUPERSEDES",
+            inferred_by="someone_guessed",
+        )
