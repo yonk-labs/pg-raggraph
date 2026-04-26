@@ -181,37 +181,56 @@ async def tune_scoring_weights(
         {"best": {"weights": {...}, "score": N}, "cells": [{"weights":.., "score":..}, ...]}
     """
     weight_names = list(grid.keys())
+    # PGRGConfig isn't frozen and doesn't validate_assignment, so a typo'd
+    # weight name would silently create a new attribute and leave the real
+    # weight unchanged. Fail loudly at the boundary instead.
+    known_fields = set(PGRGConfig.model_fields.keys())
+    unknown = [n for n in weight_names if n not in known_fields]
+    if unknown:
+        raise ValueError(
+            f"Unknown weight names in grid: {unknown}. "
+            f"Must be PGRGConfig field names (e.g., w_sem, w_bm25, w_graph, "
+            f"w_recent, w_supersession)."
+        )
+
     value_lists = [grid[n] for n in weight_names]
     cells: list[dict] = []
 
-    # Snapshot existing config so we can restore unless write_back
+    # Snapshot existing config so we can restore on exception or write_back=False.
     original = {n: getattr(rag.config, n) for n in weight_names}
 
-    for combo in itertools.product(*value_lists):
-        for name, val in zip(weight_names, combo):
-            setattr(rag.config, name, val)
+    try:
+        for combo in itertools.product(*value_lists):
+            for name, val in zip(weight_names, combo):
+                setattr(rag.config, name, val)
 
-        score = 0
-        for item in gold:
-            result = await rag.query(item["question"], namespace=namespace, mode=mode)
-            joined = " ".join(c.content.lower() for c in result.chunks)
-            if item["expected_substring"].lower() in joined:
-                score += 1
+            score = 0
+            for item in gold:
+                result = await rag.query(item["question"], namespace=namespace, mode=mode)
+                joined = " ".join(c.content.lower() for c in result.chunks)
+                if item["expected_substring"].lower() in joined:
+                    score += 1
 
-        cells.append(
-            {
-                "weights": {n: v for n, v in zip(weight_names, combo)},
-                "score": score,
-            }
-        )
+            cells.append(
+                {
+                    "weights": {n: v for n, v in zip(weight_names, combo)},
+                    "score": score,
+                }
+            )
 
-    best = max(cells, key=lambda c: c["score"])
+        best = max(cells, key=lambda c: c["score"])
 
-    if write_back:
-        for name, val in best["weights"].items():
-            setattr(rag.config, name, val)
-    else:
+        if write_back:
+            for name, val in best["weights"].items():
+                setattr(rag.config, name, val)
+        else:
+            for name, val in original.items():
+                setattr(rag.config, name, val)
+    except BaseException:
+        # On any failure mid-grid, restore the snapshot so the caller's
+        # config isn't left holding a partial combo.
         for name, val in original.items():
             setattr(rag.config, name, val)
+        raise
 
     return {"best": best, "cells": cells}
