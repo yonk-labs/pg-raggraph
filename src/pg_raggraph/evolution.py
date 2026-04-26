@@ -8,7 +8,16 @@ retrieval score reduces to today's three-leg hybrid.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from pg_raggraph.config import PGRGConfig
+
+
+def _effective_tier(cfg: PGRGConfig, evolution_aware: bool | None) -> str:
+    """Resolve tier after applying the per-query evolution_aware override."""
+    if evolution_aware is False:
+        return "off"
+    return cfg.evolution_tier
 
 
 def temporal_boost_expr(doc_alias: str = "d") -> str:
@@ -43,10 +52,16 @@ def supersession_penalty_expr(doc_alias: str = "d") -> str:
     )
 
 
-def evolution_score_expr(base_score_sql: str, cfg: PGRGConfig) -> str:
+def evolution_score_expr(
+    base_score_sql: str,
+    cfg: PGRGConfig,
+    evolution_aware: bool | None = None,
+) -> str:
     """Wrap a base score expression with retraction filter + temporal +
-    supersession terms. Gate: only applied when evolution_tier != 'off'."""
-    if cfg.evolution_tier == "off":
+    supersession terms. Gate: only applied when the effective tier (after
+    `evolution_aware` override) is not 'off'."""
+    tier = _effective_tier(cfg, evolution_aware)
+    if tier == "off":
         return base_score_sql
     return (
         f"({retraction_filter_expr()} * ("
@@ -57,23 +72,34 @@ def evolution_score_expr(base_score_sql: str, cfg: PGRGConfig) -> str:
     )
 
 
-def evolution_where_clauses(cfg: PGRGConfig, doc_alias: str = "d") -> list[str]:
-    """Returns a list of WHERE-clause fragments to apply based on evolution
-    behavior modes. Caller joins with ' AND ' when composing. Empty list
-    when evolution_tier='off'.
+def evolution_where_clauses(
+    cfg: PGRGConfig,
+    doc_alias: str = "d",
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
+) -> tuple[list[str], dict]:
+    """Returns (where_clauses, bind_params_for_clauses) based on evolution
+    behavior modes plus per-query overrides. Caller joins clauses with
+    ' AND ' when composing. Empty list when the effective tier is 'off'.
 
     Current fragments:
       - retracted_behavior='hide' → filter out retracted documents.
       - supersession_behavior='hide' → filter out documents that have been
         superseded by a newer document (per document_versions pointer).
+      - as_of=DATE → filter to documents whose effective window covers the
+        given timestamp.
+      - version_filter='X' → restrict to documents with version_label='X'.
 
     Other modes ('flag', 'prefer_new', 'surface_both') return no filter —
     'flag' annotates results; 'prefer_new' relies on the SQL scoring penalty
     in evolution_score_expr; 'surface_both' is deferred to Tier 3.
     """
-    if cfg.evolution_tier == "off":
-        return []
+    tier = _effective_tier(cfg, evolution_aware)
+    if tier == "off":
+        return [], {}
     clauses: list[str] = []
+    params: dict = {}
     if cfg.retracted_behavior == "hide":
         clauses.append(f"NOT {doc_alias}.retracted")
     if cfg.supersession_behavior == "hide":
@@ -81,7 +107,18 @@ def evolution_where_clauses(cfg: PGRGConfig, doc_alias: str = "d") -> list[str]:
             f"NOT EXISTS (SELECT 1 FROM document_versions dv "
             f"            WHERE dv.supersedes_document_id = {doc_alias}.id)"
         )
-    return clauses
+    if as_of is not None:
+        clauses.append(
+            f"(({doc_alias}.effective_from IS NULL "
+            f"  OR {doc_alias}.effective_from <= %(as_of)s) "
+            f" AND ({doc_alias}.effective_to IS NULL "
+            f"      OR {doc_alias}.effective_to > %(as_of)s))"
+        )
+        params["as_of"] = as_of
+    if version_filter is not None:
+        clauses.append(f"{doc_alias}.version_label = %(version_filter)s")
+        params["version_filter"] = version_filter
+    return clauses, params
 
 
 def evolution_bind_params(cfg: PGRGConfig) -> dict:

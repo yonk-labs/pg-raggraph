@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+from datetime import datetime
 
 __version__ = "0.3.0"
 
@@ -449,9 +450,16 @@ class GraphRAG:
                 "    version_label = COALESCE("
                 "EXCLUDED.version_label, documents.version_label) "
                 "RETURNING id",
-                (ns, c_hash, file_path,
-                 eff_from, eff_to, retracted_value, version_label,
-                 retracted_explicit),
+                (
+                    ns,
+                    c_hash,
+                    file_path,
+                    eff_from,
+                    eff_to,
+                    retracted_value,
+                    version_label,
+                    retracted_explicit,
+                ),
             )
 
             # If caller supplied version info or a supersession edge, create a
@@ -462,9 +470,17 @@ class GraphRAG:
                     "(namespace, document_id, version_label, effective_from, effective_to, "
                     " supersedes_document_id, retracted, retracted_at, retraction_reason) "
                     "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                    (ns, doc_id, version_label, eff_from, eff_to, supersedes_doc,
-                     retracted_value, meta.get("retracted_at"),
-                     meta.get("retraction_reason")),
+                    (
+                        ns,
+                        doc_id,
+                        version_label,
+                        eff_from,
+                        eff_to,
+                        supersedes_doc,
+                        retracted_value,
+                        meta.get("retracted_at"),
+                        meta.get("retraction_reason"),
+                    ),
                 )
 
             # Insert all chunks
@@ -549,7 +565,14 @@ class GraphRAG:
         }
 
     async def query(
-        self, question: str, mode: str = "smart", namespace: str | None = None
+        self,
+        question: str,
+        mode: str = "smart",
+        namespace: str | None = None,
+        *,
+        as_of: datetime | None = None,
+        version_filter: str | None = None,
+        evolution_aware: bool | None = None,
     ) -> QueryResult:
         """Query the knowledge graph.
 
@@ -560,6 +583,13 @@ class GraphRAG:
             local - vector seed → graph expansion via entity neighbors
             global - relationship-centric retrieval
             hybrid - local + global combined
+
+        Evolution-aware kwargs (keyword-only):
+            as_of: time-travel filter — restrict to documents whose effective
+                window contains this timestamp.
+            version_filter: restrict to documents with matching version_label.
+            evolution_aware: when False, ignore evolution_tier for this query
+                (forces classic retrieval). When None, honors config.
         """
         from pg_raggraph.retrieval import query as retrieval_query
 
@@ -573,10 +603,20 @@ class GraphRAG:
             config=self.config,
             mode=mode,
             namespace=ns,
+            as_of=as_of,
+            version_filter=version_filter,
+            evolution_aware=evolution_aware,
         )
 
     async def ask(
-        self, question: str, mode: str = "smart", namespace: str | None = None
+        self,
+        question: str,
+        mode: str = "smart",
+        namespace: str | None = None,
+        *,
+        as_of: datetime | None = None,
+        version_filter: str | None = None,
+        evolution_aware: bool | None = None,
     ) -> QueryResult:
         """Query + LLM answer synthesis.
 
@@ -586,7 +626,14 @@ class GraphRAG:
         """
         from pg_raggraph.answer import generate_answer
 
-        result = await self.query(question, mode=mode, namespace=namespace)
+        result = await self.query(
+            question,
+            mode=mode,
+            namespace=namespace,
+            as_of=as_of,
+            version_filter=version_filter,
+            evolution_aware=evolution_aware,
+        )
         # Reuse the shared LLM client (same pool as ingestion).
         llm = None
         if self.config.llm_base_url:

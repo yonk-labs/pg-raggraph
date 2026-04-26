@@ -515,3 +515,124 @@ async def test_supersession_hide_drops_superseded_doc():
             os.unlink(new)
     finally:
         await rag.close()
+
+
+async def test_query_as_of_returns_historically_effective_docs():
+    """as_of=DATE returns docs effective at that date, not later-supersededs."""
+    import os
+    import tempfile
+    from datetime import datetime, timezone
+
+    rag = await _fresh("test_evo_asof")
+    rag.config.evolution_tier = "structural"
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("# 2022 Policy\n\nRefund window is 30 days.\n")
+            p2022 = f.name
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("# 2024 Policy\n\nRefund window is 60 days.\n")
+            p2024 = f.name
+        try:
+            await rag.ingest(
+                [p2022],
+                namespace="test_evo_asof",
+                metadata={
+                    "effective_from": datetime(2022, 1, 1, tzinfo=timezone.utc),
+                    "effective_to": datetime(2024, 1, 1, tzinfo=timezone.utc),
+                },
+            )
+            await rag.ingest(
+                [p2024],
+                namespace="test_evo_asof",
+                metadata={"effective_from": datetime(2024, 1, 1, tzinfo=timezone.utc)},
+            )
+            # As of 2023, only the 2022 policy was effective
+            result = await rag.query(
+                "What is the refund window?",
+                namespace="test_evo_asof",
+                mode="naive",
+                as_of=datetime(2023, 6, 1, tzinfo=timezone.utc),
+            )
+            joined = " ".join(c.content for c in result.chunks).lower()
+            assert "30 days" in joined, "2022 policy must appear"
+            assert "60 days" not in joined, "2024 policy must not appear at as_of=2023"
+        finally:
+            os.unlink(p2022)
+            os.unlink(p2024)
+    finally:
+        await rag.close()
+
+
+async def test_query_version_filter_restricts_to_matching_version():
+    import os
+    import tempfile
+
+    rag = await _fresh("test_evo_vfilter")
+    rag.config.evolution_tier = "structural"
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("# Python 3.11\n\nUse typing.Self for method returns.\n")
+            p311 = f.name
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("# Python 3.12\n\nUse the new generic syntax for methods.\n")
+            p312 = f.name
+        try:
+            await rag.ingest(
+                [p311], namespace="test_evo_vfilter", metadata={"version_label": "Python 3.11"}
+            )
+            await rag.ingest(
+                [p312], namespace="test_evo_vfilter", metadata={"version_label": "Python 3.12"}
+            )
+            result = await rag.query(
+                "How to type a method return?",
+                namespace="test_evo_vfilter",
+                mode="naive",
+                version_filter="Python 3.12",
+            )
+            joined = " ".join(c.content for c in result.chunks).lower()
+            assert "generic syntax" in joined or len(result.chunks) > 0
+            assert "typing.self" not in joined
+        finally:
+            os.unlink(p311)
+            os.unlink(p312)
+    finally:
+        await rag.close()
+
+
+async def test_query_evolution_aware_false_forces_classic_retrieval():
+    """evolution_aware=False ignores retraction+supersession even when tier='structural'."""
+    import os
+    import tempfile
+
+    rag = await _fresh("test_evo_override")
+    rag.config.evolution_tier = "structural"
+    rag.config.retracted_behavior = "hide"
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("# Retracted\n\nRetracted claim about statins.\n")
+            r = f.name
+        try:
+            await rag.ingest([r], namespace="test_evo_override", metadata={"retracted": True})
+            result = await rag.query(
+                "What about statins?",
+                namespace="test_evo_override",
+                mode="naive",
+                evolution_aware=False,
+            )
+            # With evolution_aware=False the retracted doc should not be filtered
+            joined = " ".join(c.content for c in result.chunks).lower()
+            assert "retracted claim" in joined
+        finally:
+            os.unlink(r)
+    finally:
+        await rag.close()
