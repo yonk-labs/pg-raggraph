@@ -810,3 +810,10 @@ class GraphRAG:
             "entities_pruned": entities_pruned,
             "relationships_pruned": relationships_pruned,
         }
+
+    async def tune_scoring_weights(self, **kwargs):
+        """Grid-search scoring weights against a gold QA set.
+        See src/pg_raggraph/evolution.py:tune_scoring_weights for args."""
+        from pg_raggraph.evolution import tune_scoring_weights as _tune
+
+        return await _tune(self, **kwargs)

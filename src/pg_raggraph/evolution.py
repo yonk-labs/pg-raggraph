@@ -8,7 +8,9 @@ retrieval score reduces to today's three-leg hybrid.
 
 from __future__ import annotations
 
+import itertools
 from datetime import datetime
+from typing import Any
 
 from pg_raggraph.config import PGRGConfig
 
@@ -142,3 +144,74 @@ def evolution_bind_params(cfg: PGRGConfig) -> dict:
         "half_life_years": cfg.temporal_half_life_years,
         "lambda_supersession": cfg.lambda_supersession,
     }
+
+
+async def tune_scoring_weights(
+    rag,
+    *,
+    namespace: str,
+    gold: list[dict],
+    grid: dict[str, list[float]],
+    mode: str = "naive",
+    write_back: bool = True,
+) -> dict[str, Any]:
+    """Grid-search scoring weights against a gold QA set.
+
+    Parameters
+    ----------
+    rag : GraphRAG
+        Connected GraphRAG instance.
+    namespace : str
+        Corpus namespace to query.
+    gold : list[dict]
+        Each dict has keys 'question' and 'expected_substring' (case-
+        insensitive substring match on the top-K retrieved chunk contents).
+        Minimal shape for Tier 1 — Tier 3 swaps in an LLM-judge version.
+    grid : dict[str, list[float]]
+        Weight-name to list-of-values. Cartesian product is evaluated.
+        Supported weight names: w_sem, w_bm25, w_graph, w_recent, w_supersession.
+    mode : str
+        Retrieval mode (naive | local | global | hybrid | smart).
+    write_back : bool
+        If True, rag.config is updated to the best cell.
+
+    Returns
+    -------
+    dict
+        {"best": {"weights": {...}, "score": N}, "cells": [{"weights":.., "score":..}, ...]}
+    """
+    weight_names = list(grid.keys())
+    value_lists = [grid[n] for n in weight_names]
+    cells: list[dict] = []
+
+    # Snapshot existing config so we can restore unless write_back
+    original = {n: getattr(rag.config, n) for n in weight_names}
+
+    for combo in itertools.product(*value_lists):
+        for name, val in zip(weight_names, combo):
+            setattr(rag.config, name, val)
+
+        score = 0
+        for item in gold:
+            result = await rag.query(item["question"], namespace=namespace, mode=mode)
+            joined = " ".join(c.content.lower() for c in result.chunks)
+            if item["expected_substring"].lower() in joined:
+                score += 1
+
+        cells.append(
+            {
+                "weights": {n: v for n, v in zip(weight_names, combo)},
+                "score": score,
+            }
+        )
+
+    best = max(cells, key=lambda c: c["score"])
+
+    if write_back:
+        for name, val in best["weights"].items():
+            setattr(rag.config, name, val)
+    else:
+        for name, val in original.items():
+            setattr(rag.config, name, val)
+
+    return {"best": best, "cells": cells}
