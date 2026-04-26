@@ -1,2 +1,26 @@
-# Seed for Task 9 fixtures.
-[]
+corpora:
+  medical_retraction:
+    questions:
+      - question: "Is hormone replacement therapy cardioprotective?"
+        expected_substring: "does not prevent"
+      - question: "What does the 2002 WHI trial say about HRT?"
+        expected_substring: "increases"
+      - question: "When should HRT be used for cardiovascular prevention?"
+        expected_substring: "no longer indicated"
+
+  software_versioning:
+    questions:
+      - question: "How do I use StrEnum in Python 3.12?"
+        expected_substring: "3.12"
+        version_filter: "Python 3.12"
+      - question: "How do I use StrEnum in Python 3.11?"
+        expected_substring: "3.11"
+        version_filter: "Python 3.11"
+
+  policy_effective_dates:
+    questions:
+      - question: "What is the refund window?"
+        expected_substring: "60 days"      # current policy
+      - question: "What was the refund window in 2023?"
+        expected_substring: "30 days"
+        as_of: 2023-06-01

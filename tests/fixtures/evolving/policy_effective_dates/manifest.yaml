@@ -1,0 +1,9 @@
+docs:
+  - path: refund_2022.md
+    effective_from: 2022-01-01
+    effective_to: 2024-01-01
+    version_label: refund-2022
+  - path: refund_2024.md
+    effective_from: 2024-01-01
+    version_label: refund-2024
+    supersedes_version_label: refund-2022  # used by test harness to wire the supersedes_document_id at ingest time

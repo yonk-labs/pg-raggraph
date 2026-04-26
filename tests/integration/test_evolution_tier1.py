@@ -3,14 +3,56 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
+import yaml
 
 from pg_raggraph import GraphRAG
 
 pytestmark = pytest.mark.integration
 
 DSN = "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
+
+FIXTURES = Path(__file__).parent.parent / "fixtures" / "evolving"
+
+
+async def _ingest_fixture_corpus(rag: GraphRAG, corpus_dir: Path) -> None:
+    """Read a corpus manifest and ingest each doc with its metadata.
+
+    Notes:
+      - YAML date scalars (``2023-06-01``) parse to ``datetime.date``;
+        ISO strings parse to naive ``datetime``. The evolution-aware
+        as_of comparison requires timezone-aware datetimes (Task 7 fix),
+        so we coerce both forms to UTC before passing them through
+        ``ingest(metadata=...)``.
+      - ``supersedes_version_label`` is a manifest-level hint for future
+        Tier 3 wiring (resolve label -> document_id at ingest time). The
+        current ``ingest()`` API does not accept it, so we strip it here.
+        The Tier 1 tests do not depend on the supersedes link — the
+        ``effective_to`` / ``as_of`` boundary alone provides the historical
+        separation.
+    """
+    import datetime as _dt
+
+    manifest = yaml.safe_load((corpus_dir / "manifest.yaml").read_text())
+    for entry in manifest["docs"]:
+        path = str(corpus_dir / entry["path"])
+        metadata = {
+            k: v for k, v in entry.items() if k not in ("path", "supersedes_version_label")
+        }
+        # Coerce date / date-string values to timezone-aware UTC datetimes.
+        for k in ("effective_from", "effective_to", "retracted_at"):
+            v = metadata.get(k)
+            if isinstance(v, str):
+                parsed = datetime.fromisoformat(v)
+                metadata[k] = parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+            elif isinstance(v, datetime):
+                if v.tzinfo is None:
+                    metadata[k] = v.replace(tzinfo=timezone.utc)
+            elif isinstance(v, _dt.date):
+                metadata[k] = datetime(v.year, v.month, v.day, tzinfo=timezone.utc)
+        await rag.ingest([path], namespace=corpus_dir.name, metadata=metadata)
 
 
 async def _fresh(namespace: str) -> GraphRAG:
@@ -655,5 +697,48 @@ async def test_query_evolution_aware_false_forces_classic_retrieval():
             assert "retracted claim" in joined
         finally:
             os.unlink(r)
+    finally:
+        await rag.close()
+
+
+async def test_medical_retraction_fixture_endtoend():
+    rag = await _fresh("medical_retraction")
+    rag.config.evolution_tier = "structural"
+    rag.config.retracted_behavior = "hide"
+    try:
+        await _ingest_fixture_corpus(rag, FIXTURES / "medical_retraction")
+        result = await rag.query(
+            "Is hormone replacement therapy cardioprotective?",
+            namespace="medical_retraction",
+            mode="naive",
+        )
+        joined = " ".join(c.content for c in result.chunks).lower()
+        # Retracted observational studies filtered; current guidance visible
+        assert "40% lower" not in joined, "1992 retracted claim should be hidden"
+        assert "does not prevent" in joined or "no longer indicated" in joined
+    finally:
+        await rag.close()
+
+
+async def test_policy_as_of_fixture_endtoend():
+    rag = await _fresh("policy_effective_dates")
+    rag.config.evolution_tier = "structural"
+    try:
+        await _ingest_fixture_corpus(rag, FIXTURES / "policy_effective_dates")
+        # Current policy
+        now = await rag.query(
+            "What is the refund window?",
+            namespace="policy_effective_dates",
+            mode="naive",
+        )
+        assert "60 days" in " ".join(c.content for c in now.chunks).lower()
+        # Historical
+        historical = await rag.query(
+            "What was the refund window in 2023?",
+            namespace="policy_effective_dates",
+            mode="naive",
+            as_of=datetime(2023, 6, 1, tzinfo=timezone.utc),
+        )
+        assert "30 days" in " ".join(c.content for c in historical.chunks).lower()
     finally:
         await rag.close()
