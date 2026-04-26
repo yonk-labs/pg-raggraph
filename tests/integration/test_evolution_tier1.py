@@ -739,6 +739,11 @@ async def test_policy_as_of_fixture_endtoend():
             mode="naive",
             as_of=datetime(2023, 6, 1, tzinfo=timezone.utc),
         )
-        assert "30 days" in " ".join(c.content for c in historical.chunks).lower()
+        historical_joined = " ".join(c.content for c in historical.chunks).lower()
+        assert "30 days" in historical_joined, "2022 policy must appear at as_of=2023"
+        assert "60 days" not in historical_joined, (
+            "2024 policy must NOT appear at as_of=2023 — "
+            "filter is vacuous without this negative assertion"
+        )
     finally:
         await rag.close()
