@@ -383,8 +383,13 @@ async def test_retracted_behavior_hide_filters_retracted_docs():
 
 
 async def test_retracted_behavior_flag_keeps_retracted_but_flags_it():
-    """retracted_behavior='flag' keeps retracted docs in results but marks them."""
-    # same setup as hide test, but config = 'flag'
+    """retracted_behavior='flag' keeps retracted docs in results AND preserves rank.
+
+    Two-doc scenario forces the rank-preservation check: if the score expression
+    multiplied retracted docs by a hard 0 (the previous behavior), the retracted
+    chunk would always sort to the bottom regardless of relevance. Under 'flag'
+    the retracted doc must keep its natural ranking so the caller can decide.
+    """
     import os
     import tempfile
 
@@ -392,25 +397,41 @@ async def test_retracted_behavior_flag_keeps_retracted_but_flags_it():
     rag.config.evolution_tier = "structural"
     rag.config.retracted_behavior = "flag"
     try:
+        # Retracted doc is the more relevant match for the query.
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".md", delete=False, encoding="utf-8"
         ) as f:
             f.write("# Retracted\n\nStatins cause cognitive decline (claimed).\n")
             retracted = f.name
+        # Live doc is a weaker BM25/vec match for the same query.
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("# Unrelated\n\nAspirin reduces inflammation.\n")
+            live = f.name
         try:
             await rag.ingest([retracted], namespace="test_evo_flag", metadata={"retracted": True})
+            await rag.ingest([live], namespace="test_evo_flag")
             result = await rag.query(
-                "What do statins do?",
+                "Do statins cause cognitive decline?",
                 namespace="test_evo_flag",
                 mode="naive",
             )
-            # Retracted content should still appear
+            # Both docs surface
             joined = " ".join(c.content for c in result.chunks).lower()
             assert "cognitive decline" in joined, (
                 f"retracted content missing from flag-mode results; got: {joined!r}"
             )
+            # The retracted doc is the more relevant match — must rank at top,
+            # NOT be artificially demoted by a score-zeroing multiplier.
+            top_chunk = result.chunks[0].content.lower()
+            assert "cognitive decline" in top_chunk, (
+                "retracted doc must keep natural rank under flag mode; "
+                f"top chunk was: {top_chunk!r}"
+            )
         finally:
             os.unlink(retracted)
+            os.unlink(live)
     finally:
         await rag.close()
 

@@ -57,19 +57,26 @@ def evolution_score_expr(
     cfg: PGRGConfig,
     evolution_aware: bool | None = None,
 ) -> str:
-    """Wrap a base score expression with retraction filter + temporal +
-    supersession terms. Gate: only applied when the effective tier (after
-    `evolution_aware` override) is not 'off'."""
+    """Wrap a base score expression with temporal + supersession terms,
+    plus an optional hard retraction multiplier. Gate: only applied when
+    the effective tier (after `evolution_aware` override) is not 'off'.
+
+    The `retraction_filter_expr` multiplier is only applied under
+    `retracted_behavior == "hide"` — there as defense-in-depth alongside
+    the WHERE clause. Under `"flag"` and `"surface_both"`, retracted docs
+    keep their natural rank so the caller can decide what to do.
+    """
     tier = _effective_tier(cfg, evolution_aware)
     if tier == "off":
         return base_score_sql
-    return (
-        f"({retraction_filter_expr()} * ("
+    body = (
         f"  {base_score_sql}"
         f"  + %(w_recent)s * {temporal_boost_expr()}"
         f"  + %(w_supersession)s  * {supersession_penalty_expr()}"
-        f"))"
     )
+    if cfg.retracted_behavior == "hide":
+        return f"({retraction_filter_expr()} * ({body}))"
+    return f"({body})"
 
 
 def evolution_where_clauses(
