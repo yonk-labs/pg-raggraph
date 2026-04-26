@@ -19,6 +19,19 @@ from pg_raggraph.models import ChunkResult, EntityResult, QueryResult, Relations
 QueryMode = Literal["local", "global", "hybrid", "naive", "naive_boost", "smart"]
 
 
+def _merge_params(base: dict, extra: dict) -> dict:
+    """Merge two bind-param dicts, raising on key collision.
+
+    Guards against future edits where evolution_bind_params or builder
+    extra params start using overlapping keys — silent overrides would
+    cause subtle wrong-result bugs in retrieval.
+    """
+    overlap = set(base) & set(extra)
+    if overlap:
+        raise RuntimeError(f"Bind-param key collision in retrieval query: {sorted(overlap)}")
+    return {**base, **extra}
+
+
 def _to_or_tsquery(text: str) -> str:
     """Convert text to an OR-based tsquery string.
 
@@ -283,21 +296,21 @@ async def query(
 
     if mode == "naive":
         sql, extra = _build_naive_query(config, as_of, version_filter, evolution_aware)
-        rows = await db.fetch_all(sql, {**params, **extra})
+        rows = await db.fetch_all(sql, _merge_params(params, extra))
     elif mode == "local":
         sql, extra = _build_local_query(config, as_of, version_filter, evolution_aware)
-        rows = await db.fetch_all(sql, {**params, **extra})
+        rows = await db.fetch_all(sql, _merge_params(params, extra))
     elif mode == "global":
         sql, extra = _build_global_query(config, as_of, version_filter, evolution_aware)
-        rows = await db.fetch_all(sql, {**params, **extra})
+        rows = await db.fetch_all(sql, _merge_params(params, extra))
     elif mode == "hybrid":
         # Run local and global, merge results
         local_sql, local_extra = _build_local_query(config, as_of, version_filter, evolution_aware)
         global_sql, global_extra = _build_global_query(
             config, as_of, version_filter, evolution_aware
         )
-        local_rows = await db.fetch_all(local_sql, {**params, **local_extra})
-        global_rows = await db.fetch_all(global_sql, {**params, **global_extra})
+        local_rows = await db.fetch_all(local_sql, _merge_params(params, local_extra))
+        global_rows = await db.fetch_all(global_sql, _merge_params(params, global_extra))
         # Deduplicate by chunk ID, prefer higher score
         seen = {}
         for row in local_rows + global_rows:

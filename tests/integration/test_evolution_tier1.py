@@ -598,8 +598,8 @@ async def test_query_version_filter_restricts_to_matching_version():
                 version_filter="Python 3.12",
             )
             joined = " ".join(c.content for c in result.chunks).lower()
-            assert "generic syntax" in joined or len(result.chunks) > 0
-            assert "typing.self" not in joined
+            assert "generic syntax" in joined, "3.12 doc must surface"
+            assert "typing.self" not in joined, "3.11 doc must be filtered out"
         finally:
             os.unlink(p311)
             os.unlink(p312)

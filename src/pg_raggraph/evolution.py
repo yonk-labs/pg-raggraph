@@ -108,6 +108,12 @@ def evolution_where_clauses(
             f"            WHERE dv.supersedes_document_id = {doc_alias}.id)"
         )
     if as_of is not None:
+        if as_of.tzinfo is None:
+            raise ValueError(
+                "as_of must be timezone-aware "
+                "(e.g., datetime(..., tzinfo=timezone.utc)); "
+                "naive datetimes silently misbehave against timestamptz columns"
+            )
         clauses.append(
             f"(({doc_alias}.effective_from IS NULL "
             f"  OR {doc_alias}.effective_from <= %(as_of)s) "

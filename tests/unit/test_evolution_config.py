@@ -1,6 +1,11 @@
 """Unit tests for evolution-related PGRGConfig fields."""
 
+from datetime import datetime, timezone
+
+import pytest
+
 from pg_raggraph.config import PGRGConfig
+from pg_raggraph.evolution import evolution_where_clauses
 
 
 def test_evolution_tier_defaults_off():
@@ -47,3 +52,24 @@ def test_invalid_evolution_tier_rejected(monkeypatch):
 
     with pytest.raises(ValidationError):
         PGRGConfig()
+
+
+def test_as_of_naive_datetime_rejected():
+    """Naive datetimes silently mismatch timestamptz columns — must reject at boundary."""
+    cfg = PGRGConfig(evolution_tier="structural")
+    with pytest.raises(ValueError, match="timezone-aware"):
+        evolution_where_clauses(cfg, as_of=datetime(2023, 6, 1))
+
+
+def test_as_of_aware_datetime_accepted():
+    cfg = PGRGConfig(evolution_tier="structural")
+    clauses, params = evolution_where_clauses(cfg, as_of=datetime(2023, 6, 1, tzinfo=timezone.utc))
+    assert any("effective_from" in c for c in clauses)
+    assert params["as_of"].tzinfo is not None
+
+
+def test_as_of_off_tier_skips_validation():
+    """Off-tier short-circuits before guards run — naive datetime is harmless there."""
+    cfg = PGRGConfig(evolution_tier="off")
+    clauses, params = evolution_where_clauses(cfg, as_of=datetime(2023, 6, 1))
+    assert clauses == [] and params == {}
