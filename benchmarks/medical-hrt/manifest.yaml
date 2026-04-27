@@ -1,3 +1,9 @@
+# EDITORIAL retraction tagging — none of these papers are formally
+# journal-retracted. Pre-2002 HRT-CV-prevention endorsements are tagged
+# retracted=true (with retracted_at=2002-07-17) to model WHI's epistemic
+# supersession of the prior consensus. Full rationale + heuristic in
+# README.md "Editorial choice" section. Do not interpret retracted=true
+# as a formal retraction signal.
 abstracts:
 - pmid: '12227881'
   title: How progestins influence the cardiovascular effect of hormone replacement

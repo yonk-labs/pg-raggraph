@@ -110,6 +110,9 @@ Ask yourself:
 
 ## See also
 
+- `docs/EVOLUTION-API-QUICKREF.md` — common API gotchas (read before writing
+  Tier 1 code: which kwargs are per-query vs config-only, how to read
+  evolution columns, `as_of` + `retracted_at` semantics)
 - `docs/cookbook/evolution-tracking.md` — Tier 1 quickstart
 - `docs/blog/01-intro-classic-vs-evolving.md` — narrative version of this page
 - `docs/blog/02-path-a-versioned-python-docs.md` — versioned-docs walkthrough
