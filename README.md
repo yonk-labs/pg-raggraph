@@ -22,6 +22,17 @@ pgrg devmem ask "who owns the authentication service?"
 
 ---
 
+## Use cases
+
+pg-raggraph supports two retrieval workloads — **classic GraphRAG** for
+static corpora, and **evolving knowledge** for time/version/retraction-aware
+retrieval (medical literature, versioned docs, time-stamped policy archives).
+See [`docs/USE-CASES.md`](docs/USE-CASES.md) for the decision matrix and
+real benchmark numbers from both paths (Python 3.10/3.11/3.12 docs +
+PubMed HRT retractions).
+
+---
+
 ## How It Works
 
 ```mermaid
