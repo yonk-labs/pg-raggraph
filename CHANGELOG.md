@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.3.0-alpha — 2026-04-25
+
+### Added
+
+- **Evolving-knowledge RAG, Tier 1 (Structural).** Opt-in evolution tracking
+  that respects document effective-dates, retractions, and supersession at
+  the document level. Opt in via `PGRGConfig(evolution_tier="structural")`
+  or env `PGRG_EVOLUTION_TIER=structural`.
+- `rag.ingest(metadata={...})` now accepts `effective_from`, `effective_to`,
+  `retracted`, `retracted_at`, `retraction_reason`, `version_label`,
+  `supersedes_document_id`. Per-ingest scope (applies to every file in the
+  call).
+- `rag.query()` new kwargs: `as_of=datetime(...)` time-travel filter,
+  `version_filter="..."` version restriction, `evolution_aware=False`
+  per-call override to force classic retrieval.
+- `rag.tune_scoring_weights(namespace, gold, grid, ...)` grid-search
+  utility for per-corpus weight tuning. Writes the best cell back to
+  `rag.config`.
+- Schema: three new tables (`facts`, `fact_edges`, `document_versions`)
+  and four new columns on `documents` via migration
+  `002_evolution_tracking.sql`. All additive; fact-level tables stay empty
+  at Tier 1.
+- Behavior modes: `retracted_behavior` ∈ {hide, flag, surface_both};
+  `supersession_behavior` ∈ {hide, prefer_new, surface_both}.
+
+### Changed
+
+- `PGRGConfig` gains 15+ fields for evolution tracking. Defaults leave
+  Tier 0 behavior unchanged.
+- Retrieval SQL templates (`naive`, `local`, `global`) are now built
+  per-query from the config rather than stored as string constants. When
+  `evolution_tier="off"`, the generated SQL is semantically identical to
+  the prior version.
+
+### Deferred to future tiers
+
+- Fact-level extraction (Tier 2).
+- LLM-inferred fact edges and contradiction detection (Tier 3).
+- Async slow-path fact-edge inference (Tier 3).
+
+See `docs/cookbook/evolution-tracking.md` for the quickstart.
+
 ## 2026-04-20 — `chunk_strategy="hierarchy"` opt-in chunker
 
 ### Added
