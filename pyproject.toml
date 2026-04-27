@@ -44,6 +44,7 @@ dev = [
     "pytest-asyncio>=0.24",
     "ruff>=0.5",
     "coverage>=7.0",
+    "beautifulsoup4>=4.14.3",
 ]
 all = ["pg-raggraph[server,community,langchain,llamaindex,mcp]"]
 

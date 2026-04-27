@@ -27,3 +27,4 @@ benchmarks/kg-rag-eval/
 benchmarks/*.json
 benchmarks/*.log
 benchmarks/age-bakeoff/corpora/msgraph-work/
+benchmarks/python-versioned-docs/_tmp/
