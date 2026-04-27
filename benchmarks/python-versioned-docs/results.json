@@ -1,0 +1,298 @@
+{
+  "namespace": "python_docs",
+  "n_total": 15,
+  "n_overall_pass": 14,
+  "by_category": {
+    "whatsnew": {
+      "n": 2,
+      "n_passed": 2,
+      "rate": 1.0
+    },
+    "cross_version": {
+      "n": 6,
+      "n_passed": 6,
+      "rate": 1.0
+    },
+    "filtered_match": {
+      "n": 5,
+      "n_passed": 5,
+      "rate": 1.0
+    },
+    "unfiltered_target": {
+      "n": 2,
+      "n_passed": 1,
+      "rate": 0.5
+    }
+  },
+  "filtered": {
+    "n": 13,
+    "n_pass_filter": 13,
+    "filter_rate": 1.0
+  },
+  "target": {
+    "n": 2,
+    "n_pass_target": 1
+  },
+  "sc004_threshold_filter": "\u2265 0.80",
+  "sc004_filter_pass": true,
+  "sc004_threshold_target": "\u2265 1 of 2",
+  "sc004_target_pass": true,
+  "sc004_overall_pass": true,
+  "rows": [
+    {
+      "id": "pyver-q-001",
+      "category": "filtered_match",
+      "version_filter": "Python 3.12",
+      "expected_version_in_top3": null,
+      "top_versions": [
+        "Python 3.12",
+        "Python 3.12",
+        "Python 3.12",
+        "Python 3.12",
+        "Python 3.12"
+      ],
+      "n_chunks_returned": 10,
+      "pass_filter": true,
+      "pass_target": true,
+      "passed": true
+    },
+    {
+      "id": "pyver-q-002",
+      "category": "filtered_match",
+      "version_filter": "Python 3.11",
+      "expected_version_in_top3": null,
+      "top_versions": [
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11"
+      ],
+      "n_chunks_returned": 10,
+      "pass_filter": true,
+      "pass_target": true,
+      "passed": true
+    },
+    {
+      "id": "pyver-q-003",
+      "category": "filtered_match",
+      "version_filter": "Python 3.10",
+      "expected_version_in_top3": null,
+      "top_versions": [
+        "Python 3.10",
+        "Python 3.10",
+        "Python 3.10",
+        "Python 3.10",
+        "Python 3.10"
+      ],
+      "n_chunks_returned": 10,
+      "pass_filter": true,
+      "pass_target": true,
+      "passed": true
+    },
+    {
+      "id": "pyver-q-004",
+      "category": "filtered_match",
+      "version_filter": "Python 3.11",
+      "expected_version_in_top3": null,
+      "top_versions": [
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11"
+      ],
+      "n_chunks_returned": 10,
+      "pass_filter": true,
+      "pass_target": true,
+      "passed": true
+    },
+    {
+      "id": "pyver-q-005",
+      "category": "filtered_match",
+      "version_filter": "Python 3.10",
+      "expected_version_in_top3": null,
+      "top_versions": [
+        "Python 3.10",
+        "Python 3.10",
+        "Python 3.10",
+        "Python 3.10",
+        "Python 3.10"
+      ],
+      "n_chunks_returned": 10,
+      "pass_filter": true,
+      "pass_target": true,
+      "passed": true
+    },
+    {
+      "id": "pyver-q-006",
+      "category": "cross_version",
+      "version_filter": "Python 3.11",
+      "expected_version_in_top3": null,
+      "top_versions": [
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11"
+      ],
+      "n_chunks_returned": 10,
+      "pass_filter": true,
+      "pass_target": true,
+      "passed": true
+    },
+    {
+      "id": "pyver-q-007",
+      "category": "cross_version",
+      "version_filter": "Python 3.12",
+      "expected_version_in_top3": null,
+      "top_versions": [
+        "Python 3.12",
+        "Python 3.12",
+        "Python 3.12",
+        "Python 3.12",
+        "Python 3.12"
+      ],
+      "n_chunks_returned": 10,
+      "pass_filter": true,
+      "pass_target": true,
+      "passed": true
+    },
+    {
+      "id": "pyver-q-008",
+      "category": "cross_version",
+      "version_filter": "Python 3.10",
+      "expected_version_in_top3": null,
+      "top_versions": [
+        "Python 3.10",
+        "Python 3.10",
+        "Python 3.10",
+        "Python 3.10",
+        "Python 3.10"
+      ],
+      "n_chunks_returned": 10,
+      "pass_filter": true,
+      "pass_target": true,
+      "passed": true
+    },
+    {
+      "id": "pyver-q-009",
+      "category": "cross_version",
+      "version_filter": "Python 3.11",
+      "expected_version_in_top3": null,
+      "top_versions": [
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11"
+      ],
+      "n_chunks_returned": 10,
+      "pass_filter": true,
+      "pass_target": true,
+      "passed": true
+    },
+    {
+      "id": "pyver-q-010",
+      "category": "cross_version",
+      "version_filter": "Python 3.11",
+      "expected_version_in_top3": null,
+      "top_versions": [
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11"
+      ],
+      "n_chunks_returned": 10,
+      "pass_filter": true,
+      "pass_target": true,
+      "passed": true
+    },
+    {
+      "id": "pyver-q-011",
+      "category": "cross_version",
+      "version_filter": "Python 3.12",
+      "expected_version_in_top3": null,
+      "top_versions": [
+        "Python 3.12",
+        "Python 3.12",
+        "Python 3.12",
+        "Python 3.12",
+        "Python 3.12"
+      ],
+      "n_chunks_returned": 10,
+      "pass_filter": true,
+      "pass_target": true,
+      "passed": true
+    },
+    {
+      "id": "pyver-q-012",
+      "category": "unfiltered_target",
+      "version_filter": null,
+      "expected_version_in_top3": "Python 3.12",
+      "top_versions": [
+        "Python 3.11",
+        "Python 3.10",
+        "Python 3.10",
+        "Python 3.10",
+        "Python 3.10"
+      ],
+      "n_chunks_returned": 10,
+      "pass_filter": true,
+      "pass_target": false,
+      "passed": false
+    },
+    {
+      "id": "pyver-q-013",
+      "category": "unfiltered_target",
+      "version_filter": null,
+      "expected_version_in_top3": "Python 3.12",
+      "top_versions": [
+        "Python 3.10",
+        "Python 3.10",
+        "Python 3.12",
+        "Python 3.12",
+        "Python 3.12"
+      ],
+      "n_chunks_returned": 10,
+      "pass_filter": true,
+      "pass_target": true,
+      "passed": true
+    },
+    {
+      "id": "pyver-q-014",
+      "category": "whatsnew",
+      "version_filter": "Python 3.10",
+      "expected_version_in_top3": null,
+      "top_versions": [
+        "Python 3.10",
+        "Python 3.10",
+        "Python 3.10",
+        "Python 3.10",
+        "Python 3.10"
+      ],
+      "n_chunks_returned": 10,
+      "pass_filter": true,
+      "pass_target": true,
+      "passed": true
+    },
+    {
+      "id": "pyver-q-015",
+      "category": "whatsnew",
+      "version_filter": "Python 3.11",
+      "expected_version_in_top3": null,
+      "top_versions": [
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11",
+        "Python 3.11"
+      ],
+      "n_chunks_returned": 10,
+      "pass_filter": true,
+      "pass_target": true,
+      "passed": true
+    }
+  ]
+}
