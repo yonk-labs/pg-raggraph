@@ -1,0 +1,68 @@
+corpus: medical_hrt
+# 15 hand-written questions. Three categories:
+#   - retraction_aware: with retracted_behavior="hide", expect post-2002 guidance,
+#       NO retracted abstracts in top-5 (5 questions)
+#   - time_travel: with as_of=1995-01-01, expect ≥1 pre-2002 supportive paper in
+#       top-5 (questions paired conceptually with retraction_aware) (5 questions)
+#   - background: general HRT/CV questions, no retraction expectation (5)
+#
+# Background note: the corpus retraction tagging is editorial — pre-2002
+# papers endorsing HRT for CV prevention are retracted=true with
+# retracted_at=2002-07-17 (WHI publication date) and retraction_reason
+# pointing at WHI 2002. See README.md "Editorial choice" section.
+questions:
+  # retraction_aware (5)
+  - id: hrt-q-001
+    category: retraction_aware
+    question: "Is hormone replacement therapy cardioprotective?"
+  - id: hrt-q-002
+    category: retraction_aware
+    question: "Should women take HRT to prevent coronary heart disease?"
+  - id: hrt-q-003
+    category: retraction_aware
+    question: "Does estrogen plus progestin prevent cardiovascular events?"
+  - id: hrt-q-004
+    category: retraction_aware
+    question: "What did the WHI trial conclude about HRT and cardiovascular risk?"
+  - id: hrt-q-005
+    category: retraction_aware
+    question: "Is combined HRT recommended for primary prevention of cardiovascular disease?"
+
+  # time_travel (5; same questions but with as_of=1995-01-01)
+  - id: hrt-q-006
+    category: time_travel
+    question: "Is hormone replacement therapy cardioprotective?"
+    as_of: "2001-12-31T00:00:00+00:00"
+  - id: hrt-q-007
+    category: time_travel
+    question: "Should women take HRT to prevent coronary heart disease?"
+    as_of: "2001-12-31T00:00:00+00:00"
+  - id: hrt-q-008
+    category: time_travel
+    question: "What is the effect of estrogen on coronary disease?"
+    as_of: "2001-12-31T00:00:00+00:00"
+  - id: hrt-q-009
+    category: time_travel
+    question: "Does HRT reduce cardiovascular mortality in postmenopausal women?"
+    as_of: "2001-12-31T00:00:00+00:00"
+  - id: hrt-q-010
+    category: time_travel
+    question: "How does hormone replacement therapy affect serum lipids?"
+    as_of: "2001-12-31T00:00:00+00:00"
+
+  # background (5)
+  - id: hrt-q-011
+    category: background
+    question: "What is the Women's Health Initiative?"
+  - id: hrt-q-012
+    category: background
+    question: "What hormones are used in combined HRT?"
+  - id: hrt-q-013
+    category: background
+    question: "How did the WHI affect prescribing patterns for HRT?"
+  - id: hrt-q-014
+    category: background
+    question: "What are the breast cancer findings related to HRT?"
+  - id: hrt-q-015
+    category: background
+    question: "What is the timing hypothesis for HRT?"

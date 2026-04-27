@@ -1,0 +1,484 @@
+{
+  "namespace": "medical_hrt",
+  "n_total": 15,
+  "by_category": {
+    "retraction_aware": 5,
+    "time_travel": 5,
+    "background": 5
+  },
+  "retraction_pass": "5/5",
+  "sc006_threshold_retraction": "\u2265 4/5 (zero retracted in top-5)",
+  "sc006_retraction_pass": true,
+  "time_travel_pass": "5/5",
+  "sc006_threshold_time_travel": "\u2265 1/5 with pre-2002 paper in top-5",
+  "sc006_time_travel_pass": true,
+  "sc006_overall_pass": true,
+  "background_pass": "5/5",
+  "rows": [
+    {
+      "id": "hrt-q-001",
+      "category": "retraction_aware",
+      "as_of": null,
+      "n_chunks_returned": 10,
+      "top5_retracted_count": 0,
+      "top5_has_pre2002": false,
+      "top5_meta": [
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2024
+        },
+        {
+          "retracted": false,
+          "year": 2024
+        }
+      ],
+      "passed": true
+    },
+    {
+      "id": "hrt-q-002",
+      "category": "retraction_aware",
+      "as_of": null,
+      "n_chunks_returned": 10,
+      "top5_retracted_count": 0,
+      "top5_has_pre2002": false,
+      "top5_meta": [
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2024
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2002
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        }
+      ],
+      "passed": true
+    },
+    {
+      "id": "hrt-q-003",
+      "category": "retraction_aware",
+      "as_of": null,
+      "n_chunks_returned": 10,
+      "top5_retracted_count": 0,
+      "top5_has_pre2002": false,
+      "top5_meta": [
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2024
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        }
+      ],
+      "passed": true
+    },
+    {
+      "id": "hrt-q-004",
+      "category": "retraction_aware",
+      "as_of": null,
+      "n_chunks_returned": 10,
+      "top5_retracted_count": 0,
+      "top5_has_pre2002": false,
+      "top5_meta": [
+        {
+          "retracted": false,
+          "year": 2024
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2004
+        },
+        {
+          "retracted": false,
+          "year": 2024
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        }
+      ],
+      "passed": true
+    },
+    {
+      "id": "hrt-q-005",
+      "category": "retraction_aware",
+      "as_of": null,
+      "n_chunks_returned": 10,
+      "top5_retracted_count": 0,
+      "top5_has_pre2002": false,
+      "top5_meta": [
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2024
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2024
+        }
+      ],
+      "passed": true
+    },
+    {
+      "id": "hrt-q-006",
+      "category": "time_travel",
+      "as_of": "2001-12-31T00:00:00+00:00",
+      "n_chunks_returned": 10,
+      "top5_retracted_count": 5,
+      "top5_has_pre2002": true,
+      "top5_meta": [
+        {
+          "retracted": true,
+          "year": 2001
+        },
+        {
+          "retracted": true,
+          "year": 1999
+        },
+        {
+          "retracted": true,
+          "year": 2000
+        },
+        {
+          "retracted": true,
+          "year": 2000
+        },
+        {
+          "retracted": true,
+          "year": 2001
+        }
+      ],
+      "passed": true
+    },
+    {
+      "id": "hrt-q-007",
+      "category": "time_travel",
+      "as_of": "2001-12-31T00:00:00+00:00",
+      "n_chunks_returned": 10,
+      "top5_retracted_count": 5,
+      "top5_has_pre2002": true,
+      "top5_meta": [
+        {
+          "retracted": true,
+          "year": 2000
+        },
+        {
+          "retracted": true,
+          "year": 2000
+        },
+        {
+          "retracted": true,
+          "year": 1999
+        },
+        {
+          "retracted": true,
+          "year": 2001
+        },
+        {
+          "retracted": true,
+          "year": 2001
+        }
+      ],
+      "passed": true
+    },
+    {
+      "id": "hrt-q-008",
+      "category": "time_travel",
+      "as_of": "2001-12-31T00:00:00+00:00",
+      "n_chunks_returned": 10,
+      "top5_retracted_count": 4,
+      "top5_has_pre2002": true,
+      "top5_meta": [
+        {
+          "retracted": true,
+          "year": 2000
+        },
+        {
+          "retracted": true,
+          "year": 1999
+        },
+        {
+          "retracted": true,
+          "year": 2001
+        },
+        {
+          "retracted": true,
+          "year": 2000
+        },
+        {
+          "retracted": false,
+          "year": 1998
+        }
+      ],
+      "passed": true
+    },
+    {
+      "id": "hrt-q-009",
+      "category": "time_travel",
+      "as_of": "2001-12-31T00:00:00+00:00",
+      "n_chunks_returned": 10,
+      "top5_retracted_count": 5,
+      "top5_has_pre2002": true,
+      "top5_meta": [
+        {
+          "retracted": true,
+          "year": 2000
+        },
+        {
+          "retracted": true,
+          "year": 2000
+        },
+        {
+          "retracted": true,
+          "year": 2001
+        },
+        {
+          "retracted": true,
+          "year": 1999
+        },
+        {
+          "retracted": true,
+          "year": 2001
+        }
+      ],
+      "passed": true
+    },
+    {
+      "id": "hrt-q-010",
+      "category": "time_travel",
+      "as_of": "2001-12-31T00:00:00+00:00",
+      "n_chunks_returned": 10,
+      "top5_retracted_count": 4,
+      "top5_has_pre2002": true,
+      "top5_meta": [
+        {
+          "retracted": true,
+          "year": 1999
+        },
+        {
+          "retracted": true,
+          "year": 2001
+        },
+        {
+          "retracted": true,
+          "year": 2001
+        },
+        {
+          "retracted": false,
+          "year": 2001
+        },
+        {
+          "retracted": true,
+          "year": 2000
+        }
+      ],
+      "passed": true
+    },
+    {
+      "id": "hrt-q-011",
+      "category": "background",
+      "as_of": null,
+      "n_chunks_returned": 10,
+      "top5_retracted_count": 0,
+      "top5_has_pre2002": false,
+      "top5_meta": [
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2024
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        }
+      ],
+      "passed": true
+    },
+    {
+      "id": "hrt-q-012",
+      "category": "background",
+      "as_of": null,
+      "n_chunks_returned": 10,
+      "top5_retracted_count": 0,
+      "top5_has_pre2002": false,
+      "top5_meta": [
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2024
+        },
+        {
+          "retracted": false,
+          "year": 2024
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        }
+      ],
+      "passed": true
+    },
+    {
+      "id": "hrt-q-013",
+      "category": "background",
+      "as_of": null,
+      "n_chunks_returned": 10,
+      "top5_retracted_count": 0,
+      "top5_has_pre2002": false,
+      "top5_meta": [
+        {
+          "retracted": false,
+          "year": 2024
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2004
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        }
+      ],
+      "passed": true
+    },
+    {
+      "id": "hrt-q-014",
+      "category": "background",
+      "as_of": null,
+      "n_chunks_returned": 10,
+      "top5_retracted_count": 0,
+      "top5_has_pre2002": false,
+      "top5_meta": [
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2024
+        },
+        {
+          "retracted": false,
+          "year": 2024
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        }
+      ],
+      "passed": true
+    },
+    {
+      "id": "hrt-q-015",
+      "category": "background",
+      "as_of": null,
+      "n_chunks_returned": 10,
+      "top5_retracted_count": 0,
+      "top5_has_pre2002": false,
+      "top5_meta": [
+        {
+          "retracted": false,
+          "year": 2024
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        },
+        {
+          "retracted": false,
+          "year": 2024
+        },
+        {
+          "retracted": false,
+          "year": 2024
+        },
+        {
+          "retracted": false,
+          "year": 2025
+        }
+      ],
+      "passed": true
+    }
+  ]
+}
