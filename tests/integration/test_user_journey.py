@@ -18,7 +18,7 @@ from pg_raggraph import GraphRAG
 TEST_DSN = "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
 LLM_URL = os.environ.get("PGRG_TEST_LLM_URL", "http://192.168.1.193:8000/v1")
 LLM_MODEL = os.environ.get("PGRG_TEST_LLM_MODEL", "Intel/Qwen3-Coder-Next-int4-AutoRound")
-DEMO_CORPUS = os.path.join(os.path.dirname(__file__), "fixtures", "demo_corpus")
+DEMO_CORPUS = os.path.join(os.path.dirname(os.path.dirname(__file__)), "fixtures", "demo_corpus")
 
 
 def llm_reachable() -> bool:

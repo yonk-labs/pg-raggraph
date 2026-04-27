@@ -237,13 +237,45 @@ erDiagram
 - ✅ **Works on any managed PostgreSQL** (RDS, Supabase, Neon, Cloud SQL)
 - ✅ **Local embeddings by default** — no API keys to start
 - ✅ **Single SQL query hybrid retrieval** — vector + BM25 + graph in one round-trip
-- ✅ **115 passing tests** — unit + integration + real-LLM E2E + server
+- ✅ **141 passing tests** — unit + integration + real-LLM E2E + server + Tier 1 fixtures
 - ✅ **Throttle profiles** — `conservative`/`balanced`/`aggressive`/`max`
 - ✅ **`rag.ask()` + `/ask` endpoint** — grounded LLM answers with source citations
 - ✅ **MCP server** — `pgrg mcp-serve` for Claude Desktop, Cursor, Zed
 - ✅ **FastAPI server + web UI** — `pgrg serve` or `pgrg demo` _(local/demo use; put an auth proxy in front for public deployments — see [user-guide § Production deployment](docs/user-guide.md#production-deployment))_
 - ✅ **Schema migrations** — per-filename tracking, applied on every connect
 - ✅ **Incremental re-ingest** — changed files atomically replace stale docs
+- ✅ **Evolving-knowledge RAG (Tier 1, alpha)** — opt-in retraction, supersession, version-label, and effective-date filtering at zero LLM cost. See [cookbook](docs/cookbook/evolution-tracking.md).
+
+### Evolution Tracking — what changes when knowledge updates
+
+Most RAG systems treat documents as immutable. Real knowledge isn't:
+- A 1992 medical study gets retracted after a 2002 RCT contradicts it
+- Python 3.11 docs say one thing about `StrEnum`; 3.12 docs say more
+- A 2022 refund policy is replaced by a 2024 policy
+
+`v0.3.0a0` ships **Tier 1 (Structural)** — metadata-driven evolution tracking with no extra LLM cost:
+
+```python
+rag = GraphRAG(dsn=DSN, namespace="medical", evolution_tier="structural")
+
+# At ingest, supply evolution metadata
+await rag.ingest(
+    ["paper_1992.md"],
+    metadata={"retracted": True, "retracted_at": datetime(2002, 7, 17, tzinfo=timezone.utc)},
+)
+
+# Query — retracted docs are flagged by default; "hide" filters them out
+result = await rag.query("Is HRT cardioprotective?")  # current guidance surfaces
+
+# Time-travel
+result = await rag.query("...", as_of=datetime(2023, 6, 1, tzinfo=timezone.utc))
+
+# Version-scoped
+result = await rag.query("...", version_filter="Python 3.12")
+```
+
+Four tiers planned (Structural → Fact-aware → LLM-inferred → Async slow-path). Tier 1 covers
+the deployment-friendly metadata-driven case. See [the spec](docs/superpowers/specs/2026-04-22-evolving-knowledge-rag-design.md) for the full roadmap.
 
 ## What It Doesn't Do (yet)
 

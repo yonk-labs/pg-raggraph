@@ -31,9 +31,9 @@ class Document(BaseModel):
     metadata: dict = Field(default_factory=dict)
     # Evolution tracking (Tier 1+) — all optional. effective_to=None means "still effective".
     effective_from: datetime | None = None
-    effective_to:   datetime | None = None
-    retracted:      bool = False
-    version_label:  str | None = None
+    effective_to: datetime | None = None
+    retracted: bool = False
+    version_label: str | None = None
     created_at: datetime | None = None
 
 
@@ -91,7 +91,7 @@ class RelationshipChunk(BaseModel):
 
 class DocumentVersion(BaseModel):
     id: int | None = None
-    namespace: str                 # NOT NULL in schema — required
+    namespace: str  # NOT NULL in schema — required
     document_id: int
     version_label: str | None = None
     effective_from: datetime | None = None
@@ -106,7 +106,7 @@ class DocumentVersion(BaseModel):
 
 class Fact(BaseModel):
     id: int | None = None
-    namespace: str                 # NOT NULL in schema — required
+    namespace: str  # NOT NULL in schema — required
     source_chunk_id: int
     subject: str
     subject_entity_id: int | None = None
