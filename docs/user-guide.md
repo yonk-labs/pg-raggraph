@@ -95,6 +95,38 @@ export PGRG_LLM_MODEL=your-model-name
 
 **No LLM?** That's OK. pg-raggraph will still ingest documents and chunks (naive mode works), but you'll miss the graph features.
 
+### Logging
+
+Default Python logging is unstructured text. For log aggregators (Datadog, ELK, Loki, Splunk), set:
+
+```bash
+export PGRG_LOG_FORMAT=json
+export PGRG_LOG_LEVEL=INFO   # optional; default INFO
+```
+
+JSON lines are emitted on stderr with shape: `{"ts","level","logger","msg",...}`. The formatter is stdlib-only (no extra dep). Anything in `logger.info("...", extra={"x": 1})` is merged at the top level. If the caller has already attached handlers to the `pg_raggraph` logger, that wins — the env-driven formatter only kicks in when no handlers are present.
+
+### Graceful shutdown for long ingest jobs
+
+The `ingest()` loop checks a cooperative shutdown event at the per-file boundary. Wire your signal handler to `rag.request_shutdown()` to drain cleanly without aborting in-flight per-document transactions:
+
+```python
+import asyncio, signal
+from pg_raggraph import GraphRAG
+
+async def main():
+    rag = GraphRAG(...)
+    await rag.connect()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, rag.request_shutdown)
+    await rag.ingest(["./big_corpus/"])
+
+asyncio.run(main())
+```
+
+Already-running per-file transactions finish; queued files become no-ops counted as `skipped`. Re-running `ingest()` on the same paths picks up where it left off (content-hash dedup).
+
 ### Schema migrations
 
 pg-raggraph manages its own schema. On first connect, it bootstraps the base schema and applies any pending numbered migrations from

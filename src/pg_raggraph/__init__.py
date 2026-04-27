@@ -22,6 +22,100 @@ __all__ = ["GraphRAG", "PGRGConfig", "QueryResult", "__version__"]
 
 logger = logging.getLogger("pg_raggraph")
 
+
+class _JSONLogFormatter(logging.Formatter):
+    """Minimal stdlib-only JSON formatter for log aggregator pipelines.
+
+    No extra dep. Output shape matches the common Datadog / ELK / Loki
+    expectation: `ts`, `level`, `logger`, `msg`, plus `exc_info` when present.
+    Honors `extra={...}` on log calls — anything extra is merged at the top
+    level (keeping `ts`, `level`, `logger`, `msg` reserved).
+    """
+
+    _RESERVED = frozenset({"ts", "level", "logger", "msg", "exc_info"})
+
+    def format(self, record: logging.LogRecord) -> str:  # noqa: D401
+        payload: dict = {
+            "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info:
+            payload["exc_info"] = self.formatException(record.exc_info)
+        # Merge extras (logger.info("...", extra={"request_id": x}) patterns).
+        for k, v in record.__dict__.items():
+            if k in self._RESERVED:
+                continue
+            if k.startswith("_"):
+                continue
+            if k in (
+                "args",
+                "msg",
+                "name",
+                "exc_info",
+                "exc_text",
+                "stack_info",
+                "lineno",
+                "module",
+                "filename",
+                "pathname",
+                "funcName",
+                "process",
+                "processName",
+                "thread",
+                "threadName",
+                "created",
+                "msecs",
+                "relativeCreated",
+                "levelname",
+                "levelno",
+                "asctime",
+                "message",
+                "taskName",
+            ):
+                continue
+            try:
+                json.dumps(v)
+                payload[k] = v
+            except (TypeError, ValueError):
+                payload[k] = repr(v)
+        return json.dumps(payload, default=str)
+
+
+_logging_configured = False
+
+
+def _configure_logging() -> None:
+    """Idempotent root-logger configuration honoring PGRG_LOG_FORMAT.
+
+    Default (env unset or anything other than "json"): leave existing handlers
+    alone — caller's logging setup wins. When PGRG_LOG_FORMAT=json AND no
+    handlers are attached to the pg_raggraph logger yet, install a single
+    StreamHandler with the JSON formatter at PGRG_LOG_LEVEL (default INFO).
+    """
+    global _logging_configured
+    if _logging_configured:
+        return
+    fmt = os.environ.get("PGRG_LOG_FORMAT", "").strip().lower()
+    if fmt != "json":
+        _logging_configured = True
+        return
+    if logger.handlers:
+        # Caller already wired their own handler; respect it.
+        _logging_configured = True
+        return
+    handler = logging.StreamHandler()
+    handler.setFormatter(_JSONLogFormatter())
+    level_name = os.environ.get("PGRG_LOG_LEVEL", "INFO").upper()
+    handler.setLevel(getattr(logging, level_name, logging.INFO))
+    logger.addHandler(handler)
+    logger.setLevel(getattr(logging, level_name, logging.INFO))
+    _logging_configured = True
+
+
+_configure_logging()
+
 _NAMESPACE_RE = re.compile(r"^[a-zA-Z0-9_\-\.]{1,64}$")
 
 
@@ -51,6 +145,29 @@ class GraphRAG:
         self._db = None
         self._embedder = None
         self._llm = None  # Shared LLM provider; closed with the instance
+        # PR-209: cooperative shutdown signal for long-running ingest loops.
+        # Lazily initialized inside ingest() because it must be created on the
+        # running asyncio loop, not at __init__ time.
+        self._shutdown_event = None
+
+    def request_shutdown(self) -> None:
+        """Signal in-progress ingest loops to drain gracefully.
+
+        Already-running per-file transactions finish; queued files become
+        no-ops counted as skipped. Safe to call from a SIGTERM/SIGINT handler::
+
+            import asyncio, signal
+            from pg_raggraph import GraphRAG
+
+            rag = GraphRAG(...)
+            loop = asyncio.get_running_loop()
+            for sig in (signal.SIGTERM, signal.SIGINT):
+                loop.add_signal_handler(sig, rag.request_shutdown)
+
+        Idempotent. Safe to call before ingest() starts (no-op).
+        """
+        if self._shutdown_event is not None:
+            self._shutdown_event.set()
 
     async def connect(self):
         from pg_raggraph.db import Database
@@ -194,6 +311,12 @@ class GraphRAG:
 
         _progress(f"Found {len(file_paths)} files to process.")
 
+        # PR-209: lazily create the shutdown event on the running loop.
+        # request_shutdown() can be called before this without error (no-op);
+        # once an ingest is in flight, it observes the event and drains.
+        if self._shutdown_event is None:
+            self._shutdown_event = asyncio.Event()
+
         # Process documents in parallel batches
         doc_sem = asyncio.Semaphore(self.config.doc_concurrency)
         # LLM is optional — without it, ingest stores chunks+embeddings only
@@ -223,6 +346,13 @@ class GraphRAG:
             # Retry on transient serialization / deadlock errors from
             # concurrent ingestion. Exponential backoff, max 3 attempts.
             async with doc_sem:
+                # PR-209: drain gracefully on shutdown. Files queued behind
+                # the semaphore become no-ops once request_shutdown() is
+                # observed; in-flight files (already past this check) finish
+                # their transaction normally.
+                if self._shutdown_event is not None and self._shutdown_event.is_set():
+                    stats["skipped"] += 1
+                    return
                 attempt = 0
                 while True:
                     attempt += 1
