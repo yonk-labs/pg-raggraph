@@ -7,8 +7,13 @@ import logging
 import os
 import re
 from datetime import datetime
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
-__version__ = "0.3.0"
+try:
+    __version__ = _pkg_version("pg-raggraph")
+except PackageNotFoundError:
+    # Editable install without installed metadata (rare). Mirror pyproject.
+    __version__ = "0.3.0a0"
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.models import QueryResult

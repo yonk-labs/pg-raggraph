@@ -63,7 +63,10 @@ def create_app(**kwargs) -> FastAPI:
     @app.post("/query")
     async def query(
         question: str = Form(...),
-        mode: str = Form("hybrid"),
+        # PR-202: default `smart` matches /ask. `hybrid` was historically the
+        # slowest mode (~3 s vs ~80 ms for naive_boost) — wrong default for a
+        # public endpoint. See benchmarks/age-bakeoff/results/REPORT-VERDICT.md.
+        mode: str = Form("smart"),
         namespace: str = Form(None),
     ):
         result = await rag.query(question, mode=mode, namespace=namespace)

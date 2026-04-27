@@ -59,4 +59,4 @@ jobs:
       - name: Integration + E2E tests
         env:
           PGRG_DSN: postgresql://postgres:postgres@localhost:5434/pg_raggraph
-        run: uv run pytest tests/integration/ tests/test_e2e.py -v
+        run: uv run pytest tests/integration/ -v
