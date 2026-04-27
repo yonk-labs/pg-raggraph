@@ -3,8 +3,22 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+# --- Evolution tracking type aliases ---
+
+FactEdgeType = Literal["SUPERSEDES", "CONTRADICTS", "PRECEDES", "SUPPORTS", "REFINES"]
+"""Typed fact-edge relations. SUPERSEDES = src replaces dst (dst invalid forward);
+CONTRADICTS = src and dst incompatible, neither superseded; PRECEDES = temporal
+order only (weaker); SUPPORTS = src evidence for dst; REFINES = src is more specific."""
+
+FactEdgeInferredBy = Literal["explicit", "llm", "temporal", "heuristic", "document_hint"]
+"""How a fact edge was produced. explicit = caller-supplied; llm = slow-path
+LLM inference; temporal = derived from effective_from ordering; heuristic =
+rule-based (e.g., same entity, newer doc); document_hint = derived from
+document_versions.supersedes_document_id."""
 
 # --- Storage models (mirror DB tables) ---
 
@@ -15,6 +29,11 @@ class Document(BaseModel):
     content_hash: str
     source_path: str | None = None
     metadata: dict = Field(default_factory=dict)
+    # Evolution tracking (Tier 1+) — all optional. effective_to=None means "still effective".
+    effective_from: datetime | None = None
+    effective_to: datetime | None = None
+    retracted: bool = False
+    version_label: str | None = None
     created_at: datetime | None = None
 
 
@@ -65,6 +84,55 @@ class RelationshipChunk(BaseModel):
     chunk_id: int
     confidence: float = 1.0
     provenance: str = "extracted"
+
+
+# --- Evolution tracking (Tier 1+) ---
+
+
+class DocumentVersion(BaseModel):
+    id: int | None = None
+    namespace: str  # NOT NULL in schema — required
+    document_id: int
+    version_label: str | None = None
+    effective_from: datetime | None = None
+    effective_to: datetime | None = None
+    supersedes_document_id: int | None = None
+    retracted: bool = False
+    retracted_at: datetime | None = None
+    retraction_reason: str | None = None
+    metadata: dict = Field(default_factory=dict)
+    created_at: datetime | None = None
+
+
+class Fact(BaseModel):
+    id: int | None = None
+    namespace: str  # NOT NULL in schema — required
+    source_chunk_id: int
+    subject: str
+    subject_entity_id: int | None = None
+    predicate: str
+    object: str
+    object_entity_id: int | None = None
+    support_span: str
+    confidence: float = 1.0
+    effective_from: datetime | None = None
+    effective_to: datetime | None = None
+    retracted: bool = False
+    retracted_at: datetime | None = None
+    retraction_reason: str | None = None
+    extractor: str = "unknown"
+    properties: dict = Field(default_factory=dict)
+    created_at: datetime | None = None
+
+
+class FactEdge(BaseModel):
+    id: int | None = None
+    src_fact_id: int
+    dst_fact_id: int
+    edge_type: FactEdgeType
+    confidence: float = 1.0
+    inferred_by: FactEdgeInferredBy
+    created_at: datetime | None = None
 
 
 # --- Extraction models (LLM output) ---

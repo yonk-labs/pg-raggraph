@@ -409,3 +409,47 @@ export PGRG_TOP_K=10                          # chunks returned
 export PGRG_MAX_HOPS=2                        # max graph traversal depth
 export PGRG_SIMILARITY_THRESHOLD=0.3          # min vector similarity
 ```
+
+---
+
+## Evolution-Aware Retrieval (Tier 1, alpha)
+
+When `evolution_tier="structural"` is set, every mode above gains
+metadata-driven filtering and ranking on top of its base behavior:
+
+- **Retraction**: docs with `retracted=true` are penalized or filtered based on
+  `retracted_behavior` (`hide` / `flag` / `surface_both`).
+- **Supersession**: docs that have been superseded by a newer document (via
+  `document_versions.supersedes_document_id`) get a score penalty under
+  `supersession_behavior="prefer_new"` or are removed under `"hide"`.
+- **Temporal recency**: an exponential boost (`exp(-ln(2) · age_years / half_life)`)
+  rewards recent docs. Tunable via `temporal_half_life_years` and `w_recent`.
+- **Per-query overrides**:
+  - `as_of=datetime(..., tzinfo=...)` filters to docs effective at that timestamp.
+  - `version_filter="X"` restricts to docs with `version_label = X`.
+  - `evolution_aware=False` forces classic retrieval for a single call.
+
+Evolution scoring composes with the base mode. Score formula when
+`evolution_tier="structural"`:
+
+```
+score = w_sem · cosine + w_bm25 · ts_rank + w_graph · graph_signal
+        + w_recent · temporal_boost
+        + w_supersession · supersession_bonus
+```
+
+Under `retracted_behavior="hide"` the whole expression is multiplied by
+`(NOT retracted)` as defense-in-depth alongside the WHERE filter.
+
+See the [evolution-tracking cookbook](cookbook/evolution-tracking.md) for end-to-end usage.
+
+```bash
+# Tier 1 environment variables
+export PGRG_EVOLUTION_TIER=structural          # off | structural | fact_aware | full
+export PGRG_RETRACTED_BEHAVIOR=flag             # hide | flag | surface_both
+export PGRG_SUPERSESSION_BEHAVIOR=surface_both  # hide | prefer_new | surface_both
+export PGRG_TEMPORAL_HALF_LIFE_YEARS=5.0
+export PGRG_LAMBDA_SUPERSESSION=0.5
+export PGRG_W_RECENT=0.10
+export PGRG_W_SUPERSESSION=0.10
+```

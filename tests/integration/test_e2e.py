@@ -14,7 +14,7 @@ TEST_DSN = os.environ.get(
 pytestmark = pytest.mark.integration
 
 
-FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
+FIXTURES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "fixtures")
 
 
 async def test_e2e_sprint0_schema():

@@ -1,0 +1,17 @@
+docs:
+  - path: paper_1992_hrt_cardio.md
+    effective_from: 1992-06-01
+    retracted: true
+    retracted_at: 2002-07-17
+    retraction_reason: "WHI 2002 RCT invalidated observational findings."
+  - path: paper_1998_hrt_cardio_replication.md
+    effective_from: 1998-03-15
+    retracted: true
+    retracted_at: 2002-07-17
+    retraction_reason: "Replicated retracted 1992 methodology."
+  - path: guidance_2002_hrt_contraindicated.md
+    effective_from: 2002-07-17
+    version_label: WHI-2002
+  - path: meta_2008_hrt_no_cardio.md
+    effective_from: 2008-01-01
+    version_label: HRT-meta-2008

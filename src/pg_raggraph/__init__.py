@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+from datetime import datetime
 
 __version__ = "0.3.0"
 
@@ -92,6 +93,8 @@ class GraphRAG:
         paths: list[str],
         namespace: str | None = None,
         on_progress=None,
+        *,
+        metadata: dict | None = None,
     ):
         """Ingest documents from file paths with parallel processing.
 
@@ -105,6 +108,13 @@ class GraphRAG:
             paths: File or directory paths to ingest.
             namespace: Namespace for data isolation.
             on_progress: Optional callback(message: str) for progress updates.
+            metadata: Per-ingest evolution hints applied to every file in this
+                call. Optional keys: ``effective_from``, ``effective_to``,
+                ``retracted``, ``retracted_at``, ``retraction_reason``,
+                ``version_label``, ``supersedes_document_id``. When
+                ``version_label``, ``supersedes_document_id``, or
+                ``retraction_reason`` is present, a ``document_versions`` row
+                is also created mirroring the document's evolution metadata.
         """
         import asyncio
 
@@ -220,6 +230,7 @@ class GraphRAG:
                             content_hash,
                             chunk_document,
                             extract_from_chunks,
+                            metadata=metadata,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -288,6 +299,8 @@ class GraphRAG:
         content_hash_fn,
         chunk_document_fn,
         extract_from_chunks_fn,
+        *,
+        metadata: dict | None = None,
     ):
         """Ingest a single file with all DB writes in a single transaction.
 
@@ -402,15 +415,73 @@ class GraphRAG:
                 await tx.execute("DELETE FROM documents WHERE id = %s", (stale["id"],))
                 logger.info(f"Replaced stale version of {file_path}")
 
-            # Insert document
+            # Insert document with any caller-supplied evolution metadata.
+            # ON CONFLICT uses COALESCE so a re-ingest without metadata doesn't
+            # clobber previously-stored evolution fields. For `retracted` we
+            # distinguish "absent from meta" (preserve prior value) from
+            # "explicitly True/False" (apply the caller's value, including
+            # un-retracting). COALESCE can't express this for booleans, so we
+            # pass a separate `retracted_explicit` flag and gate the SET on it
+            # via CASE WHEN.
+            meta = metadata or {}
+            eff_from = meta.get("effective_from")
+            eff_to = meta.get("effective_to")
+            retracted_explicit = "retracted" in meta and meta["retracted"] is not None
+            # Value for fresh INSERT: the caller's value if explicit, else
+            # False (matches the column DEFAULT). On UPDATE the CASE WHEN
+            # below decides whether to apply it at all.
+            retracted_value = bool(meta["retracted"]) if retracted_explicit else False
+            version_label = meta.get("version_label")
+            supersedes_doc = meta.get("supersedes_document_id")
+
             doc_id = await tx.insert_returning_id(
-                "INSERT INTO documents (namespace, content_hash, source_path) "
-                "VALUES (%s, %s, %s) "
+                "INSERT INTO documents "
+                "(namespace, content_hash, source_path, "
+                " effective_from, effective_to, retracted, version_label) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s) "
                 "ON CONFLICT (namespace, content_hash) DO UPDATE "
-                "SET source_path = EXCLUDED.source_path "
+                "SET source_path = EXCLUDED.source_path, "
+                "    effective_from = COALESCE("
+                "EXCLUDED.effective_from, documents.effective_from), "
+                "    effective_to = COALESCE("
+                "EXCLUDED.effective_to, documents.effective_to), "
+                "    retracted = CASE WHEN %s "
+                "THEN EXCLUDED.retracted ELSE documents.retracted END, "
+                "    version_label = COALESCE("
+                "EXCLUDED.version_label, documents.version_label) "
                 "RETURNING id",
-                (ns, c_hash, file_path),
+                (
+                    ns,
+                    c_hash,
+                    file_path,
+                    eff_from,
+                    eff_to,
+                    retracted_value,
+                    version_label,
+                    retracted_explicit,
+                ),
             )
+
+            # If caller supplied version info or a supersession edge, create a
+            # document_versions row for authoritative multi-version tracking.
+            if version_label or supersedes_doc or meta.get("retraction_reason"):
+                await tx.execute(
+                    "INSERT INTO document_versions "
+                    "(namespace, document_id, version_label, effective_from, effective_to, "
+                    " supersedes_document_id, retracted, retracted_at, retraction_reason) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (
+                        ns,
+                        doc_id,
+                        version_label,
+                        eff_from,
+                        eff_to,
+                        supersedes_doc,
+                        retracted_value,
+                        meta.get("retracted_at"),
+                        meta.get("retraction_reason"),
+                    ),
+                )
 
             # Insert all chunks
             chunk_ids = []
@@ -494,7 +565,14 @@ class GraphRAG:
         }
 
     async def query(
-        self, question: str, mode: str = "smart", namespace: str | None = None
+        self,
+        question: str,
+        mode: str = "smart",
+        namespace: str | None = None,
+        *,
+        as_of: datetime | None = None,
+        version_filter: str | None = None,
+        evolution_aware: bool | None = None,
     ) -> QueryResult:
         """Query the knowledge graph.
 
@@ -505,6 +583,13 @@ class GraphRAG:
             local - vector seed → graph expansion via entity neighbors
             global - relationship-centric retrieval
             hybrid - local + global combined
+
+        Evolution-aware kwargs (keyword-only):
+            as_of: time-travel filter — restrict to documents whose effective
+                window contains this timestamp.
+            version_filter: restrict to documents with matching version_label.
+            evolution_aware: when False, ignore evolution_tier for this query
+                (forces classic retrieval). When None, honors config.
         """
         from pg_raggraph.retrieval import query as retrieval_query
 
@@ -518,10 +603,20 @@ class GraphRAG:
             config=self.config,
             mode=mode,
             namespace=ns,
+            as_of=as_of,
+            version_filter=version_filter,
+            evolution_aware=evolution_aware,
         )
 
     async def ask(
-        self, question: str, mode: str = "smart", namespace: str | None = None
+        self,
+        question: str,
+        mode: str = "smart",
+        namespace: str | None = None,
+        *,
+        as_of: datetime | None = None,
+        version_filter: str | None = None,
+        evolution_aware: bool | None = None,
     ) -> QueryResult:
         """Query + LLM answer synthesis.
 
@@ -531,7 +626,14 @@ class GraphRAG:
         """
         from pg_raggraph.answer import generate_answer
 
-        result = await self.query(question, mode=mode, namespace=namespace)
+        result = await self.query(
+            question,
+            mode=mode,
+            namespace=namespace,
+            as_of=as_of,
+            version_filter=version_filter,
+            evolution_aware=evolution_aware,
+        )
         # Reuse the shared LLM client (same pool as ingestion).
         llm = None
         if self.config.llm_base_url:
@@ -708,3 +810,10 @@ class GraphRAG:
             "entities_pruned": entities_pruned,
             "relationships_pruned": relationships_pruned,
         }
+
+    async def tune_scoring_weights(self, **kwargs):
+        """Grid-search scoring weights against a gold QA set.
+        See src/pg_raggraph/evolution.py:tune_scoring_weights for args."""
+        from pg_raggraph.evolution import tune_scoring_weights as _tune
+
+        return await _tune(self, **kwargs)

@@ -391,7 +391,7 @@ score = retraction_filter * (
     w_bm25   * ts_rank(c.search_vector, tsquery) +
     w_graph  * graph_boost_score +
     w_recent * temporal_boost +
-    w_super  * supersession_pen
+    w_supersession  * supersession_pen
 )
 ```
 
@@ -405,7 +405,7 @@ Effective dates resolve via `COALESCE(c.effective_from, d.effective_from, c.crea
 | `w_bm25` | 0.20 | FTS |
 | `w_graph` | 0.20 | graph boost (when applicable) |
 | `w_recent` | 0.10 | temporal decay |
-| `w_super` | 0.10 | supersession penalty |
+| `w_supersession` | 0.10 | supersession penalty |
 | `temporal_half_life_years` | 5.0 | chunks halve in weight every 5 years |
 | `λ_sup` | 0.5 | how heavily to penalize superseded content |
 
@@ -521,7 +521,7 @@ class PGRGConfig:
     w_bm25:  float = 0.20
     w_graph: float = 0.20
     w_recent: float = 0.10
-    w_super:  float = 0.10
+    w_supersession:  float = 0.10
     temporal_half_life_years: float = 5.0
     lambda_supersession: float = 0.5
 

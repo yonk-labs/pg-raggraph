@@ -3,14 +3,33 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime
 from typing import Literal
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.db import Database
 from pg_raggraph.embedding import EmbeddingProvider
+from pg_raggraph.evolution import (
+    evolution_bind_params,
+    evolution_score_expr,
+    evolution_where_clauses,
+)
 from pg_raggraph.models import ChunkResult, EntityResult, QueryResult, RelationshipResult
 
 QueryMode = Literal["local", "global", "hybrid", "naive", "naive_boost", "smart"]
+
+
+def _merge_params(base: dict, extra: dict) -> dict:
+    """Merge two bind-param dicts, raising on key collision.
+
+    Guards against future edits where evolution_bind_params or builder
+    extra params start using overlapping keys — silent overrides would
+    cause subtle wrong-result bugs in retrieval.
+    """
+    overlap = set(base) & set(extra)
+    if overlap:
+        raise RuntimeError(f"Bind-param key collision in retrieval query: {sorted(overlap)}")
+    return {**base, **extra}
 
 
 def _to_or_tsquery(text: str) -> str:
@@ -31,22 +50,67 @@ def _to_or_tsquery(text: str) -> str:
 
 
 # --- SQL Templates ---
+#
+# These are built per-query from the active PGRGConfig so different callers
+# can toggle evolution_tier without restarting. When evolution_tier == "off"
+# the builders return the today's byte-identical base expression (plus
+# parameterized weights) and skip the retraction filter.
 
-NAIVE_QUERY = """
+
+def _build_naive_query(
+    cfg: PGRGConfig,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
+) -> tuple[str, dict]:
+    base = (
+        "%(w_sem)s * (1 - (c.embedding <=> %(embedding)s::vector)) + "
+        "%(w_bm25)s * ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) + "
+        "%(w_graph)s * 0"  # naive has no graph leg
+    )
+    clauses, extra_params = evolution_where_clauses(
+        cfg,
+        doc_alias="d",
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
+    )
+    extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
+    sql = f"""
 SELECT c.id, COALESCE(c.embedded_content, c.content) AS content, c.metadata,
        d.source_path,
        1 - (c.embedding <=> %(embedding)s::vector) AS vec_score,
        ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score,
-       (0.7 * (1 - (c.embedding <=> %(embedding)s::vector)) +
-        0.3 * ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s))) AS score
+       {evolution_score_expr(base, cfg, evolution_aware)} AS score
 FROM chunks c
 JOIN documents d ON d.id = c.document_id
-WHERE d.namespace = %(namespace)s
+WHERE d.namespace = %(namespace)s{extra_where}
 ORDER BY score DESC
 LIMIT %(top_k)s
 """
+    return sql, extra_params
 
-LOCAL_QUERY = """
+
+def _build_local_query(
+    cfg: PGRGConfig,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
+) -> tuple[str, dict]:
+    base = (
+        "%(w_sem)s * (1 - (rc.embedding <=> %(embedding)s::vector)) + "
+        "%(w_bm25)s * ts_rank(rc.search_vector, to_tsquery('english', %(tsquery)s)) + "
+        "%(w_graph)s * 1.0"  # graph leg: binary presence in neighborhood
+    )
+    clauses, extra_params = evolution_where_clauses(
+        cfg,
+        doc_alias="d",
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
+    )
+    extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
+    sql = f"""
 WITH RECURSIVE seeds AS (
     SELECT id, 1 - (embedding <=> %(embedding)s::vector) AS sim
     FROM entities
@@ -75,17 +139,36 @@ relevant_chunks AS (
 )
 SELECT rc.id, rc.content, rc.metadata,
        d.source_path,
-       (0.6 * (1 - (rc.embedding <=> %(embedding)s::vector)) +
-        0.3 * ts_rank(rc.search_vector, to_tsquery('english', %(tsquery)s)) +
-        0.1) AS score
+       {evolution_score_expr(base, cfg, evolution_aware)} AS score
 FROM relevant_chunks rc
 JOIN documents d ON d.id = rc.document_id
-WHERE d.namespace = %(namespace)s
+WHERE d.namespace = %(namespace)s{extra_where}
 ORDER BY score DESC
 LIMIT %(top_k)s
 """
+    return sql, extra_params
 
-GLOBAL_QUERY = """
+
+def _build_global_query(
+    cfg: PGRGConfig,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
+) -> tuple[str, dict]:
+    base = (
+        "%(w_sem)s * (1 - (rc.embedding <=> %(embedding)s::vector)) + "
+        "%(w_bm25)s * ts_rank(rc.search_vector, to_tsquery('english', %(tsquery)s)) + "
+        "%(w_graph)s * 1.0"  # graph leg: binary presence via relationship seed
+    )
+    clauses, extra_params = evolution_where_clauses(
+        cfg,
+        doc_alias="d",
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
+    )
+    extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
+    sql = f"""
 WITH rel_matches AS (
     SELECT r.id, r.src_id, r.dst_id, r.rel_type, r.description,
            1 - (e_src.embedding <=> %(embedding)s::vector) AS src_sim,
@@ -115,15 +198,15 @@ relevant_chunks AS (
 )
 SELECT rc.id, rc.content, rc.metadata,
        d.source_path,
-       (0.6 * (1 - (rc.embedding <=> %(embedding)s::vector)) +
-        0.3 * ts_rank(rc.search_vector, to_tsquery('english', %(tsquery)s)) +
-        0.1) AS score
+       {evolution_score_expr(base, cfg, evolution_aware)} AS score
 FROM relevant_chunks rc
 JOIN documents d ON d.id = rc.document_id
-WHERE d.namespace = %(namespace)s
+WHERE d.namespace = %(namespace)s{extra_where}
 ORDER BY score DESC
 LIMIT %(top_k)s
 """
+    return sql, extra_params
+
 
 ENTITIES_FOR_CHUNKS = """
 SELECT DISTINCT e.name, e.entity_type, e.description
@@ -155,6 +238,10 @@ async def query(
     config: PGRGConfig,
     mode: QueryMode = "hybrid",
     namespace: str | None = None,
+    *,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
 ) -> QueryResult:
     """Execute a retrieval query against the knowledge graph."""
     valid_modes = ("naive", "local", "global", "hybrid", "naive_boost", "smart")
@@ -163,9 +250,27 @@ async def query(
 
     # Smart and naive_boost modes are handled in separate functions
     if mode == "smart":
-        return await _smart_query(question, db, embedder, config, namespace)
+        return await _smart_query(
+            question,
+            db,
+            embedder,
+            config,
+            namespace,
+            as_of=as_of,
+            version_filter=version_filter,
+            evolution_aware=evolution_aware,
+        )
     if mode == "naive_boost":
-        return await _naive_boost_query(question, db, embedder, config, namespace)
+        return await _naive_boost_query(
+            question,
+            db,
+            embedder,
+            config,
+            namespace,
+            as_of=as_of,
+            version_filter=version_filter,
+            evolution_aware=evolution_aware,
+        )
 
     start = time.perf_counter()
     ns = namespace or config.namespace
@@ -183,18 +288,29 @@ async def query(
         "top_k": config.top_k,
         "seed_k": min(config.top_k, 5),
         "max_hops": config.max_hops,
+        "w_sem": config.w_sem,
+        "w_bm25": config.w_bm25,
+        "w_graph": config.w_graph,
+        **evolution_bind_params(config),
     }
 
     if mode == "naive":
-        rows = await db.fetch_all(NAIVE_QUERY, params)
+        sql, extra = _build_naive_query(config, as_of, version_filter, evolution_aware)
+        rows = await db.fetch_all(sql, _merge_params(params, extra))
     elif mode == "local":
-        rows = await db.fetch_all(LOCAL_QUERY, params)
+        sql, extra = _build_local_query(config, as_of, version_filter, evolution_aware)
+        rows = await db.fetch_all(sql, _merge_params(params, extra))
     elif mode == "global":
-        rows = await db.fetch_all(GLOBAL_QUERY, params)
+        sql, extra = _build_global_query(config, as_of, version_filter, evolution_aware)
+        rows = await db.fetch_all(sql, _merge_params(params, extra))
     elif mode == "hybrid":
         # Run local and global, merge results
-        local_rows = await db.fetch_all(LOCAL_QUERY, params)
-        global_rows = await db.fetch_all(GLOBAL_QUERY, params)
+        local_sql, local_extra = _build_local_query(config, as_of, version_filter, evolution_aware)
+        global_sql, global_extra = _build_global_query(
+            config, as_of, version_filter, evolution_aware
+        )
+        local_rows = await db.fetch_all(local_sql, _merge_params(params, local_extra))
+        global_rows = await db.fetch_all(global_sql, _merge_params(params, global_extra))
         # Deduplicate by chunk ID, prefer higher score
         seen = {}
         for row in local_rows + global_rows:
@@ -333,6 +449,10 @@ async def _naive_boost_query(
     embedder: EmbeddingProvider,
     config: PGRGConfig,
     namespace: str | None = None,
+    *,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
 ) -> QueryResult:
     """Naive vector+BM25 retrieval followed by cheap 1-hop graph boost."""
     result = await query(
@@ -342,6 +462,9 @@ async def _naive_boost_query(
         config=config,
         mode="naive",
         namespace=namespace,
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
     )
     ns = namespace or config.namespace
     boosted = await _graph_boost(result, db, config, ns)
@@ -381,6 +504,10 @@ async def _smart_query(
     embedder: EmbeddingProvider,
     config: PGRGConfig,
     namespace: str | None = None,
+    *,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
 ) -> QueryResult:
     """Confidence-triggered routing that actually improves accuracy.
 
@@ -409,6 +536,9 @@ async def _smart_query(
         config=config,
         mode="naive",
         namespace=namespace,
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
     )
 
     # High confidence — ship it
@@ -426,6 +556,9 @@ async def _smart_query(
             config=config,
             mode="local",
             namespace=namespace,
+            as_of=as_of,
+            version_filter=version_filter,
+            evolution_aware=evolution_aware,
         )
         expanded.query_mode = "smart[expanded]"
         expanded.latency_ms = (time.perf_counter() - start) * 1000

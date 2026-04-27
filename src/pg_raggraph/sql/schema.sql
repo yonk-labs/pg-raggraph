@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS documents (
     content_hash TEXT NOT NULL,
     source_path TEXT,
     metadata JSONB DEFAULT '{}',
+    effective_from TIMESTAMPTZ,
+    effective_to   TIMESTAMPTZ,
+    retracted      BOOLEAN DEFAULT FALSE,
+    version_label  TEXT,
     created_at TIMESTAMPTZ DEFAULT now(),
     UNIQUE(namespace, content_hash)
 );
@@ -139,3 +143,76 @@ DROP TRIGGER IF EXISTS trg_chunk_search_vector ON chunks;
 CREATE TRIGGER trg_chunk_search_vector
     BEFORE INSERT OR UPDATE OF content, embedded_content ON chunks
     FOR EACH ROW EXECUTE FUNCTION pgrg_update_search_vector();
+
+-- ---------------------------------------------------------------------------
+-- Evolving-knowledge-RAG foundational DDL (mirrors migration 002).
+-- Tier 1 populates documents evolution columns + document_versions.
+-- Tier 2 populates facts (via skimr+spaCy).
+-- Tier 3 populates fact_edges (via async LLM slow path).
+-- All fact_* tables land here so fresh installs don't need a second schema
+-- change when tiers ramp up. They stay empty until the relevant tier runs.
+-- ---------------------------------------------------------------------------
+
+CREATE INDEX IF NOT EXISTS idx_doc_effective_from ON documents(effective_from);
+CREATE INDEX IF NOT EXISTS idx_doc_retracted ON documents(retracted) WHERE retracted;
+CREATE INDEX IF NOT EXISTS idx_doc_version_label ON documents(version_label)
+    WHERE version_label IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS document_versions (
+    id                       BIGSERIAL PRIMARY KEY,
+    namespace                TEXT NOT NULL,
+    document_id              BIGINT REFERENCES documents(id) ON DELETE CASCADE,
+    version_label            TEXT,
+    effective_from           TIMESTAMPTZ,
+    effective_to             TIMESTAMPTZ,
+    supersedes_document_id   BIGINT REFERENCES documents(id) ON DELETE SET NULL,
+    retracted                BOOLEAN DEFAULT FALSE,
+    retracted_at             TIMESTAMPTZ,
+    retraction_reason        TEXT,
+    metadata                 JSONB DEFAULT '{}',
+    created_at               TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_docver_document ON document_versions(document_id);
+CREATE INDEX IF NOT EXISTS idx_docver_supersedes ON document_versions(supersedes_document_id);
+
+CREATE TABLE IF NOT EXISTS facts (
+    id                 BIGSERIAL PRIMARY KEY,
+    namespace          TEXT NOT NULL,
+    source_chunk_id    BIGINT REFERENCES chunks(id) ON DELETE CASCADE,
+    subject            TEXT NOT NULL,
+    subject_entity_id  BIGINT REFERENCES entities(id) ON DELETE SET NULL,
+    predicate          TEXT NOT NULL,
+    object             TEXT NOT NULL,
+    object_entity_id   BIGINT REFERENCES entities(id) ON DELETE SET NULL,
+    support_span       TEXT NOT NULL,
+    confidence         FLOAT DEFAULT 1.0,
+    effective_from     TIMESTAMPTZ,
+    effective_to       TIMESTAMPTZ,
+    retracted          BOOLEAN DEFAULT FALSE,
+    retracted_at       TIMESTAMPTZ,
+    retraction_reason  TEXT,
+    extractor          TEXT NOT NULL DEFAULT 'unknown',
+    properties         JSONB DEFAULT '{}',
+    created_at         TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_facts_ns_source ON facts(namespace, source_chunk_id);
+CREATE INDEX IF NOT EXISTS idx_facts_subject_entity ON facts(subject_entity_id);
+CREATE INDEX IF NOT EXISTS idx_facts_object_entity ON facts(object_entity_id);
+CREATE INDEX IF NOT EXISTS idx_facts_effective ON facts(effective_from);
+CREATE INDEX IF NOT EXISTS idx_facts_retracted ON facts(retracted) WHERE retracted;
+
+CREATE TABLE IF NOT EXISTS fact_edges (
+    id            BIGSERIAL PRIMARY KEY,
+    src_fact_id   BIGINT REFERENCES facts(id) ON DELETE CASCADE,
+    dst_fact_id   BIGINT REFERENCES facts(id) ON DELETE CASCADE,
+    edge_type     TEXT NOT NULL,
+    confidence    FLOAT DEFAULT 1.0,
+    inferred_by   TEXT NOT NULL,
+    created_at    TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (src_fact_id, dst_fact_id, edge_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fact_edges_src ON fact_edges(src_fact_id, edge_type);
+CREATE INDEX IF NOT EXISTS idx_fact_edges_dst ON fact_edges(dst_fact_id, edge_type);

@@ -8,6 +8,7 @@
 - [First Steps](#first-steps)
 - [Query Modes Explained](#query-modes-explained)
 - [When to Use Each Mode](#when-to-use-each-mode)
+- [Evolution Tracking (Tier 1, alpha)](#evolution-tracking-tier-1-alpha)
 - [Configuration](#configuration)
 - [Ingesting Documents](#ingesting-documents)
 - [Python SDK](#python-sdk)
@@ -198,6 +199,121 @@ Based on our benchmarks across real corpora (technical docs, financial filings, 
 | "I need fastest response" | **naive** | ~2x faster than hybrid |
 
 **Important honest finding:** On technical documentation where concepts are self-contained (e.g., PostgreSQL docs), naive mode often ties or beats graph modes. Graph modes shine when answers require connecting information across multiple documents.
+
+---
+
+## Evolution Tracking (Tier 1, alpha)
+
+`v0.3.0a0` introduces **opt-in evolution tracking** — retrieval that respects when documents
+were effective, which were retracted, and which supersede earlier versions. Zero LLM cost
+at this tier; everything is metadata-driven.
+
+### Turn it on
+
+```python
+from datetime import datetime, timezone
+from pg_raggraph import GraphRAG
+
+rag = GraphRAG(
+    dsn=DSN,
+    namespace="medical",
+    evolution_tier="structural",   # off | structural | fact_aware | full
+)
+```
+
+### Supply evolution metadata at ingest
+
+```python
+await rag.ingest(
+    ["paper_1992_hrt.md"],
+    namespace="medical",
+    metadata={
+        "effective_from":     datetime(1992, 6, 1, tzinfo=timezone.utc),
+        "retracted":          True,
+        "retracted_at":       datetime(2002, 7, 17, tzinfo=timezone.utc),
+        "retraction_reason":  "WHI 2002 RCT invalidated findings",
+    },
+)
+```
+
+Supported metadata keys: `effective_from`, `effective_to`, `retracted`, `retracted_at`,
+`retraction_reason`, `version_label`, `supersedes_document_id`.
+
+### Query semantics
+
+```python
+# Default behavior (retracted_behavior="flag"): retracted docs returned + annotated
+result = await rag.query("Is HRT cardioprotective?", namespace="medical")
+
+# Filter retracted docs out
+rag.config.retracted_behavior = "hide"
+result = await rag.query("...", namespace="medical")
+
+# Time-travel — datetimes MUST be timezone-aware
+result = await rag.query(
+    "What was the refund window?",
+    namespace="policy",
+    as_of=datetime(2023, 6, 1, tzinfo=timezone.utc),
+)
+
+# Version-scoped
+result = await rag.query("How do I use StrEnum?", version_filter="Python 3.12")
+
+# Per-call override: classic retrieval ignoring evolution
+result = await rag.query("...", evolution_aware=False)
+```
+
+### Tune scoring weights per corpus
+
+```python
+report = await rag.tune_scoring_weights(
+    namespace="medical",
+    gold=[
+        {"question": "...", "expected_substring": "..."},
+        ...
+    ],
+    grid={
+        "w_sem":            [0.3, 0.5, 0.7],
+        "w_recent":         [0.0, 0.1, 0.3],
+        "w_supersession":   [0.0, 0.1, 0.3],
+    },
+    mode="naive",
+    write_back=True,  # updates rag.config to the best cell
+)
+print(report["best"])
+```
+
+`tune_scoring_weights` Cartesian-products the grid, scores each cell by case-insensitive
+substring match against gold, and snapshots/restores config so a mid-grid exception leaves
+your config untouched. Unknown weight names raise `ValueError`.
+
+### Behavior modes
+
+| Mode | `retracted_behavior` | `supersession_behavior` |
+|---|---|---|
+| `hide` | Filter out via WHERE clause + score multiplier | Filter out via NOT EXISTS |
+| `flag` (default for retraction) | Return at natural rank, caller marks them | n/a |
+| `prefer_new` | n/a | Score penalty (additive bonus to non-superseded docs) |
+| `surface_both` (default for supersession) | Return both | Return both |
+
+### What's NOT in Tier 1
+
+- Fact-level extraction (Tier 2 — `fact_extractor="skimr_spacy"` will populate `facts` table)
+- LLM-inferred supersession / contradiction (Tier 3)
+- Async slow-path fact-edge inference (Tier 3)
+
+See `docs/cookbook/evolution-tracking.md` for the quickstart and
+`docs/superpowers/specs/2026-04-22-evolving-knowledge-rag-design.md` for the full four-tier
+roadmap.
+
+### What's tested
+
+Tier 1 ships with **141 passing tests** including 13 evolution-specific integration tests
+and 3 synthetic-fixture corpora (medical retraction, software versioning, policy
+effective-dates). The fixtures are small (2–4 docs each), purpose-built to exercise the
+metadata code paths. **A real-world retraction-corpus benchmark (e.g., 1000+ medical
+papers with actual retractions) is not yet built — that lands with Tier 2 or as a separate
+benchmark effort.**
 
 ---
 

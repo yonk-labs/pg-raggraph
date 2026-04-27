@@ -1,0 +1,7 @@
+docs:
+  - path: python_311_strenum.md
+    effective_from: 2022-10-24
+    version_label: Python 3.11
+  - path: python_312_strenum.md
+    effective_from: 2023-10-02
+    version_label: Python 3.12

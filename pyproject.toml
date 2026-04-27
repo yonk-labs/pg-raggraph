@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pg-raggraph"
-version = "0.3.0"
+version = "0.3.0a0"
 description = "The fastest, simplest way to add knowledge-graph-powered RAG to any app — backed by PostgreSQL."
 readme = "README.md"
 license = "MIT"
@@ -69,8 +69,8 @@ select = ["E", "F", "I", "W"]
 
 [tool.ruff.lint.per-file-ignores]
 # Benchmark-style test files tolerate longer lines and legacy variable names
-"tests/test_graph_wins.py" = ["E501"]
-"tests/test_retrieval_comparison.py" = ["E501", "E741"]
+"tests/integration/test_graph_wins.py" = ["E501"]
+"tests/integration/test_retrieval_comparison.py" = ["E501", "E741"]
 # Benchmarks are scripts, not library code — relax rules
 "benchmarks/*.py" = ["E501", "E402", "E741", "F841"]
 
