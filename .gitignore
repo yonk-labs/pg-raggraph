@@ -26,3 +26,4 @@ benchmarks/scotus/
 benchmarks/kg-rag-eval/
 benchmarks/*.json
 benchmarks/*.log
+benchmarks/age-bakeoff/corpora/msgraph-work/
