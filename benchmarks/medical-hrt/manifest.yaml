@@ -1,0 +1,382 @@
+abstracts:
+- pmid: '12227881'
+  title: How progestins influence the cardiovascular effect of hormone replacement
+    therapy.
+  file: benchmarks/medical-hrt/abstracts/pre2002/12227881.json
+  bucket: pre2002
+  pub_year: 2001
+  effective_from: '2001-01-01T00:00:00+00:00'
+  retracted: true
+  retracted_at: '2002-07-17T00:00:00+00:00'
+  retraction_reason: WHI 2002 RCT invalidated HRT cardioprotection findings
+- pmid: '12398019'
+  title: Angiotensin-converting enzyme gene polymorphism, lipids, and apolipoproteins
+    in menopausal women on hormone replacement therapy.
+  file: benchmarks/medical-hrt/abstracts/pre2002/12398019.json
+  bucket: pre2002
+  pub_year: 2001
+  effective_from: '2001-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '12497775'
+  title: Risks and benefits of hormone replacement therapy for the prevention of cardiovascular
+    disease.
+  file: benchmarks/medical-hrt/abstracts/pre2002/12497775.json
+  bucket: pre2002
+  pub_year: 1999
+  effective_from: '1999-01-01T00:00:00+00:00'
+  retracted: true
+  retracted_at: '2002-07-17T00:00:00+00:00'
+  retraction_reason: WHI 2002 RCT invalidated HRT cardioprotection findings
+- pmid: '12521913'
+  title: Effects of hormone replacement therapy on the phospholipid composition of
+    high density lipoproteins in postmenopausal women.
+  file: benchmarks/medical-hrt/abstracts/pre2002/12521913.json
+  bucket: pre2002
+  pub_year: 2001
+  effective_from: '2001-01-01T00:00:00+00:00'
+  retracted: true
+  retracted_at: '2002-07-17T00:00:00+00:00'
+  retraction_reason: WHI 2002 RCT invalidated HRT cardioprotection findings
+- pmid: '12567451'
+  title: '[The effects of sex hormone on blood vessels].'
+  file: benchmarks/medical-hrt/abstracts/pre2002/12567451.json
+  bucket: pre2002
+  pub_year: 1999
+  effective_from: '1999-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '12609166'
+  title: Characterization and health risk assessment of postmenopausal women with
+    epilepsy.
+  file: benchmarks/medical-hrt/abstracts/pre2002/12609166.json
+  bucket: pre2002
+  pub_year: 2000
+  effective_from: '2000-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '12816555'
+  title: 'Hormone replacement therapy in prevention of morbidity and mortality in
+    the older woman. Part IV: HRT and the aging brain, overall mortality, and individual
+    decision-making.'
+  file: benchmarks/medical-hrt/abstracts/pre2002/12816555.json
+  bucket: pre2002
+  pub_year: 2000
+  effective_from: '2000-01-01T00:00:00+00:00'
+  retracted: true
+  retracted_at: '2002-07-17T00:00:00+00:00'
+  retraction_reason: WHI 2002 RCT invalidated HRT cardioprotection findings
+- pmid: '12818024'
+  title: 'Hormone replacement therapy in prevention of morbidity and mortality in
+    the older woman: part III: potential adverse effects of hormone replacement therapy.'
+  file: benchmarks/medical-hrt/abstracts/pre2002/12818024.json
+  bucket: pre2002
+  pub_year: 2000
+  effective_from: '2000-01-01T00:00:00+00:00'
+  retracted: true
+  retracted_at: '2002-07-17T00:00:00+00:00'
+  retraction_reason: WHI 2002 RCT invalidated HRT cardioprotection findings
+- pmid: '12933630'
+  title: Methodologic challenges in chronic disease population research.
+  file: benchmarks/medical-hrt/abstracts/pre2002/12933630.json
+  bucket: pre2002
+  pub_year: 2001
+  effective_from: '2001-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '12968768'
+  title: 'Hormone replacement therapy: primary and secondary prevention.'
+  file: benchmarks/medical-hrt/abstracts/pre2002/12968768.json
+  bucket: pre2002
+  pub_year: 2001
+  effective_from: '2001-01-01T00:00:00+00:00'
+  retracted: true
+  retracted_at: '2002-07-17T00:00:00+00:00'
+  retraction_reason: WHI 2002 RCT invalidated HRT cardioprotection findings
+- pmid: '15512266'
+  title: Effects of hormone replacement therapy on serum lipids and phospholipids
+    in postmenopausal women.
+  file: benchmarks/medical-hrt/abstracts/pre2002/15512266.json
+  bucket: pre2002
+  pub_year: 1999
+  effective_from: '1999-01-01T00:00:00+00:00'
+  retracted: true
+  retracted_at: '2002-07-17T00:00:00+00:00'
+  retraction_reason: WHI 2002 RCT invalidated HRT cardioprotection findings
+- pmid: '15706794'
+  title: Alcohol, hormones, and postmenopausal women.
+  file: benchmarks/medical-hrt/abstracts/pre2002/15706794.json
+  bucket: pre2002
+  pub_year: 1998
+  effective_from: '1998-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '15775494'
+  title: '[Expectations for alendronate in gynecology].'
+  file: benchmarks/medical-hrt/abstracts/pre2002/15775494.json
+  bucket: pre2002
+  pub_year: 2001
+  effective_from: '2001-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '12044587'
+  title: The choice of hormone replacement therapy or statin therapy in the treatment
+    of hyperlipidemic postmenopausal women.
+  file: benchmarks/medical-hrt/abstracts/whi/12044587.json
+  bucket: whi
+  pub_year: 2002
+  effective_from: '2002-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '12520726'
+  title: '[Hormone replacement and breast carcinoma].'
+  file: benchmarks/medical-hrt/abstracts/whi/12520726.json
+  bucket: whi
+  pub_year: 2002
+  effective_from: '2002-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '12826785'
+  title: 'Blood pressure, arterial function, structure, and aging: the role of hormonal
+    replacement therapy in postmenopausal women.'
+  file: benchmarks/medical-hrt/abstracts/whi/12826785.json
+  bucket: whi
+  pub_year: 2003
+  effective_from: '2003-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '14716361'
+  title: '[Treatment of postmenopausal osteoporosis].'
+  file: benchmarks/medical-hrt/abstracts/whi/14716361.json
+  bucket: whi
+  pub_year: 2003
+  effective_from: '2003-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '14716362'
+  title: '[Role of hormone replacement therapy in the prevention and treatment of
+    menopausal osteoporosis].'
+  file: benchmarks/medical-hrt/abstracts/whi/14716362.json
+  bucket: whi
+  pub_year: 2003
+  effective_from: '2003-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '15273921'
+  title: '[Postmenopausal hormone therapy].'
+  file: benchmarks/medical-hrt/abstracts/whi/15273921.json
+  bucket: whi
+  pub_year: 2004
+  effective_from: '2004-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '15615157'
+  title: 'Lessons learned from the WHI: HRT requires a cautious and individualized
+    approach.'
+  file: benchmarks/medical-hrt/abstracts/whi/15615157.json
+  bucket: whi
+  pub_year: 2004
+  effective_from: '2004-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '15665654'
+  title: 'The impact of the Women''s Health Initiative on discontinuation of postmenopausal
+    hormone therapy: the Minnesota Heart Survey (2000-2002).'
+  file: benchmarks/medical-hrt/abstracts/whi/15665654.json
+  bucket: whi
+  pub_year: 2004
+  effective_from: '2004-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '15665655'
+  title: The impact of the Women's Health Initiative on hormone replacement therapy
+    in a Medicaid program.
+  file: benchmarks/medical-hrt/abstracts/whi/15665655.json
+  bucket: whi
+  pub_year: 2004
+  effective_from: '2004-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '15669546'
+  title: 'The women''s health initiative reports in perspective: facts or fallacies?'
+  file: benchmarks/medical-hrt/abstracts/whi/15669546.json
+  bucket: whi
+  pub_year: 2004
+  effective_from: '2004-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '15669548'
+  title: Role of progestins with partial antiandrogenic effects.
+  file: benchmarks/medical-hrt/abstracts/whi/15669548.json
+  bucket: whi
+  pub_year: 2004
+  effective_from: '2004-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '15672962'
+  title: Effect of the WHI study on the attitude of Israeli gynecologists to hormonal
+    therapy during menopause.
+  file: benchmarks/medical-hrt/abstracts/whi/15672962.json
+  bucket: whi
+  pub_year: 2004
+  effective_from: '2004-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '15683960'
+  title: '[Hormonal replacement therapy and Alzheimer''s disease. All quiet on the
+    western front?].'
+  file: benchmarks/medical-hrt/abstracts/whi/15683960.json
+  bucket: whi
+  pub_year: 2003
+  effective_from: '2003-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '15724810'
+  title: 'Hormone therapy and risk for dementia: where do we go from here?'
+  file: benchmarks/medical-hrt/abstracts/whi/15724810.json
+  bucket: whi
+  pub_year: 2004
+  effective_from: '2004-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '15742988'
+  title: 'Reporting on post-menopausal hormone therapy: an analysis of gynaecologists''
+    web pages.'
+  file: benchmarks/medical-hrt/abstracts/whi/15742988.json
+  bucket: whi
+  pub_year: 2004
+  effective_from: '2004-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '15743110'
+  title: Estrogen therapy in systemic lupus erythematosus.
+  file: benchmarks/medical-hrt/abstracts/whi/15743110.json
+  bucket: whi
+  pub_year: 2004
+  effective_from: '2004-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '15751264'
+  title: A clinician's review of the WHI-related literature.
+  file: benchmarks/medical-hrt/abstracts/whi/15751264.json
+  bucket: whi
+  pub_year: 2004
+  effective_from: '2004-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '15775425'
+  title: '[Hormone replacement therapy and osteoporosis from the perspective of evidence-based
+    medicine].'
+  file: benchmarks/medical-hrt/abstracts/whi/15775425.json
+  bucket: whi
+  pub_year: 2002
+  effective_from: '2002-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '15841951'
+  title: '[Current role of hormone replacement therapy in the prevention of postmenopausal
+    osteoporosis: gynecologic point of view].'
+  file: benchmarks/medical-hrt/abstracts/whi/15841951.json
+  bucket: whi
+  pub_year: 2004
+  effective_from: '2004-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '16036077'
+  title: 'Hormone replacement therapy: review, update, and remaining questions after
+    the Women''s Health Initiative Study.'
+  file: benchmarks/medical-hrt/abstracts/whi/16036077.json
+  bucket: whi
+  pub_year: 2004
+  effective_from: '2004-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '16181093'
+  title: 'Phytoestrogens: implications in neurovascular research.'
+  file: benchmarks/medical-hrt/abstracts/whi/16181093.json
+  bucket: whi
+  pub_year: 2004
+  effective_from: '2004-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '16279282'
+  title: 'The Women''s Health Initiative Study of Cognitive Aging (WHISCA): a randomized
+    clinical trial of the effects of hormone therapy on age-associated cognitive decline.'
+  file: benchmarks/medical-hrt/abstracts/whi/16279282.json
+  bucket: whi
+  pub_year: 2004
+  effective_from: '2004-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '39448037'
+  title: Hormone Replacement Therapy in Patients with Gynecologic Cancer and Radiation-Induced
+    Premature Ovarian Insufficiency.
+  file: benchmarks/medical-hrt/abstracts/post2002/39448037.json
+  bucket: post2002
+  pub_year: 2025
+  effective_from: '2025-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '39497230'
+  title: 'Influence of therapy exposures on specific late morbidities, prescription
+    drug purchases, and mortality in aging male survivors of childhood cancer: A registry-based
+    study.'
+  file: benchmarks/medical-hrt/abstracts/post2002/39497230.json
+  bucket: post2002
+  pub_year: 2025
+  effective_from: '2025-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '39510737'
+  title: Primary Ovarian Insufficiency, Bone Health, and Other Outcomes in Adolescents.
+  file: benchmarks/medical-hrt/abstracts/post2002/39510737.json
+  bucket: post2002
+  pub_year: 2024
+  effective_from: '2024-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '39542236'
+  title: 'The effect of medroxyprogesterone acetate on apolipoproteins and lipoprotein(a)
+    concentrations in postmenopausal women: A meta-analysis of randomized controlled
+    trials.'
+  file: benchmarks/medical-hrt/abstracts/post2002/39542236.json
+  bucket: post2002
+  pub_year: 2025
+  effective_from: '2025-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '39586646'
+  title: 'Core Concepts in Pharmacoepidemiology: New-User Designs.'
+  file: benchmarks/medical-hrt/abstracts/post2002/39586646.json
+  bucket: post2002
+  pub_year: 2024
+  effective_from: '2024-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '39619127'
+  title: "A review on lipid and polymeric nano-based 17-\u03B2-estradiol delivery\
+    \ systems: advances and challenges."
+  file: benchmarks/medical-hrt/abstracts/post2002/39619127.json
+  bucket: post2002
+  pub_year: 2024
+  effective_from: '2024-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '39647506'
+  title: 'Evidence-based guideline: premature ovarian insufficiency'
+  file: benchmarks/medical-hrt/abstracts/post2002/39647506.json
+  bucket: post2002
+  pub_year: 2024
+  effective_from: '2024-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '39652037'
+  title: 'Evidence-based guideline: Premature Ovarian Insufficiency.'
+  file: benchmarks/medical-hrt/abstracts/post2002/39652037.json
+  bucket: post2002
+  pub_year: 2025
+  effective_from: '2025-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '39660328'
+  title: 'Evidence-based guideline: premature ovarian insufficiency'
+  file: benchmarks/medical-hrt/abstracts/post2002/39660328.json
+  bucket: post2002
+  pub_year: 2024
+  effective_from: '2024-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '39731655'
+  title: Utilizing a Combination of Supplements Comprising Boric Acid, Magnesium,
+    Vitamin D3, and Extra Virgin Olive Oil to Improve Metabolism in Menopausal Ovariectomized
+    Rats.
+  file: benchmarks/medical-hrt/abstracts/post2002/39731655.json
+  bucket: post2002
+  pub_year: 2025
+  effective_from: '2025-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '39777307'
+  title: Data analysis protocol for early autonomic dysfunction characterization after
+    severe traumatic brain injury.
+  file: benchmarks/medical-hrt/abstracts/post2002/39777307.json
+  bucket: post2002
+  pub_year: 2024
+  effective_from: '2024-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '39829189'
+  title: 'Evening Primrose Oil for Menopause Hot Flashes: Systematic Review and Meta-Analysis.'
+  file: benchmarks/medical-hrt/abstracts/post2002/39829189.json
+  bucket: post2002
+  pub_year: 2024
+  effective_from: '2024-01-01T00:00:00+00:00'
+  retracted: false
+- pmid: '39978846'
+  title: Benefits of Testosterone Replacement Therapy in Hypogonadal Males.
+  file: benchmarks/medical-hrt/abstracts/post2002/39978846.json
+  bucket: post2002
+  pub_year: 2024
+  effective_from: '2024-01-01T00:00:00+00:00'
+  retracted: false
