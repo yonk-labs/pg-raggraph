@@ -3,10 +3,24 @@
 > **PostgreSQL-native GraphRAG.** Knowledge-graph retrieval with vector search, BM25, and graph traversal — all in a single SQL query. No Neo4j. No Pinecone. No Apache AGE. Just the PostgreSQL you already run.
 
 ```bash
-pip install pg-raggraph
-pgrg devmem ingest ./my-repo/
-pgrg devmem ask "who owns the authentication service?"
+# pg-raggraph is currently 0.3.0a0 (alpha) and not yet on PyPI.
+# Install from source until the first stable PyPI release:
+git clone https://github.com/yonk-labs/pg_raggraph
+cd pg_raggraph
+uv sync
+docker compose up -d postgres
+
+uv run pgrg devmem ingest ./my-repo/
+uv run pgrg devmem ask "who owns the authentication service?"
 ```
+
+> **Heads-up — `pgrg serve` is for local development and demos.** The
+> built-in FastAPI server has no authentication, no rate limiting, and no
+> upload-size cap by default. **Do not expose it directly to the
+> internet.** For production, put it behind a reverse proxy that adds
+> authentication, TLS, and rate limiting. See
+> [Production deployment](docs/user-guide.md#production-deployment) for
+> the recommended setup.
 
 **Real benchmark on 909-doc real-world codebase:**
 
