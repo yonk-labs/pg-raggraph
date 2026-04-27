@@ -2,27 +2,84 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlparse
 
 from pg_raggraph import GraphRAG
 from pg_raggraph.config import PGRGConfig
 
 try:
-    from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
-    from fastapi.responses import HTMLResponse
+    from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+    from fastapi.responses import HTMLResponse, JSONResponse
 except ImportError as e:
     raise ImportError("Install server extras: pip install pg-raggraph[server]") from e
 
 
+_logger = logging.getLogger("pg_raggraph.server")
+
 STATIC_DIR = Path(__file__).parent / "static"
+
+# PR-104: extension allowlist for /ingest. Mirrors SUPPORTED_EXTS in
+# pg_raggraph.__init__.ingest so the server only accepts what the ingest
+# pipeline can actually consume.
+_INGEST_ALLOWED_EXTS = frozenset(
+    {".md", ".txt", ".py", ".ts", ".js", ".tsx", ".jsx", ".go", ".rs", ".java", ".rst"}
+)
+_DEFAULT_MAX_UPLOAD_MB = 100
+# PR-104: filename sanitization. Strip any character outside [A-Za-z0-9._-]
+# and collapse runs of underscores. Path components are stripped via
+# os.path.basename before this regex runs.
+_FILENAME_DISALLOWED_RE = re.compile(r"[^A-Za-z0-9._-]")
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
+def _sanitize_filename(name: str) -> str | None:
+    """Allowlist-based filename sanitization.
+
+    Returns the cleaned base name, or None if nothing acceptable remains.
+    Path separators are stripped via basename() first; remaining disallowed
+    chars become '_', repeated underscores collapse, leading/trailing
+    '_' or '.' are stripped to avoid hidden-file or empty-name edge cases.
+    """
+    if not name:
+        return None
+    base = os.path.basename(name)
+    if not base:
+        return None
+    cleaned = _FILENAME_DISALLOWED_RE.sub("_", base)
+    cleaned = re.sub(r"_+", "_", cleaned).strip("_.")
+    return cleaned or None
 
 
 def create_app(**kwargs) -> FastAPI:
     """Create the FastAPI application."""
     config = PGRGConfig(**kwargs)
     rag = GraphRAG(**kwargs)
+
+    # PR-104: optional Bearer-token auth. When PGRG_SERVER_API_KEY is unset
+    # the server runs unauthenticated and logs a startup WARN — we want the
+    # missing-auth state to be loud, not silent.
+    api_key = os.environ.get("PGRG_SERVER_API_KEY", "").strip()
+    if not api_key:
+        _logger.warning(
+            "pgrg server starting without PGRG_SERVER_API_KEY — running with "
+            "NO authentication. Do not expose this server to untrusted networks."
+        )
+
+    # PR-205: Origin allowlist for state-changing methods. When
+    # PGRG_SERVER_ALLOWED_ORIGINS is unset, only loopback Origin is accepted
+    # on POST/PUT/DELETE/PATCH (or no Origin header at all — non-browser
+    # clients still work). When set, only listed origins are accepted.
+    allowed_origins_env = os.environ.get("PGRG_SERVER_ALLOWED_ORIGINS", "").strip()
+    allowed_origins = (
+        [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+        if allowed_origins_env
+        else []
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -38,6 +95,50 @@ def create_app(**kwargs) -> FastAPI:
         version=__version__,
         lifespan=lifespan,
     )
+
+    @app.middleware("http")
+    async def _auth_and_origin_middleware(request: Request, call_next):
+        path = request.url.path
+        # Probes never need auth — k8s shouldn't have to ship a bearer.
+        is_probe = path in ("/health", "/ready")
+
+        if api_key and not is_probe:
+            bearer = request.headers.get("Authorization", "")
+            if not bearer.startswith("Bearer "):
+                return JSONResponse(
+                    {"detail": "missing Bearer token"}, status_code=401
+                )
+            if bearer[len("Bearer "):].strip() != api_key:
+                return JSONResponse(
+                    {"detail": "invalid API key"}, status_code=401
+                )
+
+        # Origin check on state-changing methods. Browsers always send Origin
+        # on cross-origin POST; same-origin POST omits it. Non-browser
+        # clients (curl, requests, httpx) typically don't send Origin and
+        # are unaffected.
+        if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+            origin = request.headers.get("Origin", "")
+            if origin:
+                if allowed_origins:
+                    if origin not in allowed_origins:
+                        return JSONResponse(
+                            {"detail": f"origin {origin!r} not in allowlist"},
+                            status_code=403,
+                        )
+                else:
+                    host = (urlparse(origin).hostname or "").lower()
+                    if host not in _LOOPBACK_HOSTS:
+                        return JSONResponse(
+                            {
+                                "detail": (
+                                    f"origin {origin!r} not allowed without "
+                                    "PGRG_SERVER_ALLOWED_ORIGINS set"
+                                )
+                            },
+                            status_code=403,
+                        )
+        return await call_next(request)
 
     @app.get("/", response_class=HTMLResponse)
     async def index():
@@ -239,31 +340,96 @@ def create_app(**kwargs) -> FastAPI:
         files: list[UploadFile] = File(...),
         namespace: str = Form(None),
     ):
-        """Upload and ingest files."""
+        """Upload and ingest files.
+
+        PR-104 hardening:
+          * 413 if any file exceeds PGRG_SERVER_MAX_UPLOAD_MB (default 100).
+          * 415 if any extension is outside the ingest allowlist.
+          * 400 if a filename sanitizes to nothing usable.
+          * Temp-file cleanup is always run via try/finally — leak-proof
+            even if rag.ingest() raises mid-batch.
+        """
         import tempfile
 
+        max_upload_mb = int(
+            os.environ.get("PGRG_SERVER_MAX_UPLOAD_MB", _DEFAULT_MAX_UPLOAD_MB)
+        )
+        max_bytes = max_upload_mb * 1024 * 1024
         ns = namespace or config.namespace
-        paths = []
+
+        # Pre-validate every file before writing anything to /tmp. Cheap to
+        # reject early; we keep the temp-write loop simple.
+        validated: list[tuple[UploadFile, str]] = []  # (file, sanitized_name)
         for f in files:
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f"_{f.filename}")
-            content = await f.read()
-            tmp.write(content)
-            tmp.close()
-            paths.append(tmp.name)
+            ext = os.path.splitext(f.filename or "")[1].lower()
+            if ext not in _INGEST_ALLOWED_EXTS:
+                raise HTTPException(
+                    status_code=415,
+                    detail=(
+                        f"file extension {ext or '(none)'} not allowed. "
+                        f"Allowed: {sorted(_INGEST_ALLOWED_EXTS)}"
+                    ),
+                )
+            # `f.size` is set by Starlette/FastAPI 0.110+ for multipart
+            # uploads. None means we'll have to size-check after read.
+            if f.size is not None and f.size > max_bytes:
+                raise HTTPException(
+                    status_code=413,
+                    detail=(
+                        f"upload {f.filename!r} is {f.size} bytes; "
+                        f"max is {max_bytes} ({max_upload_mb} MB). "
+                        "Set PGRG_SERVER_MAX_UPLOAD_MB to override."
+                    ),
+                )
+            sanitized = _sanitize_filename(f.filename or "")
+            if not sanitized:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"filename {f.filename!r} is empty after sanitization "
+                        "(allowed chars: A-Za-z0-9._-; path separators stripped)."
+                    ),
+                )
+            validated.append((f, sanitized))
 
-        await rag.ingest(paths, namespace=ns)
+        paths: list[str] = []
+        try:
+            for f, sanitized in validated:
+                tmp = tempfile.NamedTemporaryFile(
+                    delete=False, suffix=f"_{sanitized}"
+                )
+                try:
+                    content = await f.read()
+                    if len(content) > max_bytes:
+                        raise HTTPException(
+                            status_code=413,
+                            detail=(
+                                f"upload {f.filename!r} exceeds {max_upload_mb} MB "
+                                "after read. Set PGRG_SERVER_MAX_UPLOAD_MB to override."
+                            ),
+                        )
+                    tmp.write(content)
+                finally:
+                    tmp.close()
+                paths.append(tmp.name)
 
-        # Clean up temp files
-        for p in paths:
-            os.unlink(p)
+            await rag.ingest(paths, namespace=ns)
 
-        status = await rag.status(ns)
-        return {
-            "status": "ok",
-            "namespace": ns,
-            "documents": status["documents"],
-            "entities": status["entities"],
-            "relationships": status["relationships"],
-        }
+            status = await rag.status(ns)
+            return {
+                "status": "ok",
+                "namespace": ns,
+                "documents": status["documents"],
+                "entities": status["entities"],
+                "relationships": status["relationships"],
+            }
+        finally:
+            # Always clean up temp files — even if ingest() raised mid-batch
+            # (PR-104: prior code only cleaned on the success path).
+            for p in paths:
+                try:
+                    os.unlink(p)
+                except OSError as e:
+                    _logger.debug("Temp cleanup failed for %s: %s", p, e)
 
     return app
