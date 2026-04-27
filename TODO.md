@@ -102,6 +102,19 @@ Per user direction: **integrate chunkshop first** (T-07, T-08), then attack thes
 | T-17 | `docs/smart-mode-plan.md` — is this still the plan, or outdated by the bakeoff smart-mode finding? | 30 min | Review + either delete or mark as shipped. |
 | T-18 | `README.md` benchmark table — currently quotes pre-bakeoff 909-doc dev-KB numbers | 30 min | Decide whether the README headline stays "naive_boost +18.9%" or gets reshaped around the SCOTUS +8 hierarchy result. These measure different things (retrieval quality proxy vs end-to-end accuracy). |
 
+## P3 — competitive intelligence follow-ups (2026-04-23 turbopuffer read)
+
+Source: `skill-output/research-and-design/Research-turbopuffer-vs-evolving-kb.md`. Turbopuffer (hybrid retrieval engine on object storage) has zero graph / zero evolution semantics — confirms the evolving-KB whitespace and forces a positioning sharpen.
+
+| id | item | effort | notes |
+|---|---|---|---|
+| T-TP1 | **Positioning sharpen** — stop framing primarily against AGE (won). Add explicit "retrieval engine (turbopuffer, Pinecone, Qdrant, Weaviate) vs knowledge-evolution framework (us)" framing to README, `docs/modes.md`, and the evolving-KB alpha launch copy. Core line: *"They narrow millions to hundreds; we make sure those hundreds are current, non-retracted, version-correct, contradiction-aware."* | 2-3 hours | Coordinate with T-G3 (positioning rewrite) and T-P9 (README reconciliation) — ship as one pass. Gate on evolving-KB Phase 1 landing so the tagline has product behind it. |
+| T-TP2 | **Hot/cold tiering for superseded docs** — post-Phase-3 enhancement. Evict embeddings for `retracted=TRUE` or chunks whose `effective_to` is older than N; re-embed on demand for `as_of` queries. Lets evolving-KB accumulate history without HNSW bloat. | 3-5 days, scope-dependent | File after Tier 3 lands. Not Phase-1 work. Idea borrowed from turbopuffer's S3 tier; our mechanics are different (Postgres, not object store). |
+| T-TP3 | **Competitive watch — 2026-10-23 check-in.** Scan turbopuffer / Pinecone / Qdrant / Weaviate release notes for any "document versioning" / "time-travel" / "supersession" attribute features. If 2+ have shipped version filters, tighten Tier 1 software-docs pitch; Tier 2/3 semantics stay intact. | 1 hour | Calendar reminder. Don't pre-defend against hypothetical features. |
+| T-TP4 | **Docs: ingest consistency principle.** Document (short note in user guide) that pg-raggraph queries never block on index-build — Postgres rows are queryable immediately, HNSW/IVFFlat builds concurrently. Mirrors turbopuffer's "WAL queryable via exhaustive scan" story but gets it for free. Users ask. | 30 min | Tiny write-up. Pairs with any evolving-KB doc pass. |
+
+**Explicitly NOT doing** from this research: no SPFresh/centroid-ANN swap (pgvector IVFFlat already covers), no "scale to billions on object storage" push, no hosted-service pivot, no turbopuffer-as-retrieval-backend adapter (violates single-database principle in CLAUDE.md).
+
 ---
 
 ## Not doing (explicitly)
@@ -142,3 +155,4 @@ Per user direction (2026-04-20), the order is:
 - Prior prod-ready audit: `skill-output/prod-ready/ProdReady-{GapAnalysis,FixPlan}.md`
 - AAT audit: `skill-output/aat/AAT-*.md`
 - Research base: `skill-output/research-base/`
+- Turbopuffer comparative read (2026-04-23): `skill-output/research-and-design/Research-turbopuffer-vs-evolving-kb.md`
