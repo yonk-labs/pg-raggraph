@@ -12,6 +12,18 @@
 
 ---
 
+## Mid-execution amendments (live log)
+
+### 2026-04-27 — Phase 1 pivoted to pytest sanity (SC-001 reworded)
+
+Tasks 1.1–1.6 were originally a 20-Q SCOTUS + 10-Q acme accuracy regression via a custom harness. During execution we discovered the local Postgres state no longer contains the 772-doc bake-off corpus that produced the prior 18/30 reference baseline (the `bakeoff` namespace now holds 22 docs; the standard DB has `bench_scotus` 391 docs and no acme). Re-ingesting would have blown the 60-min SC-001 hard cap.
+
+User chose to pivot Phase 1 to running the unit + integration test suite on `feature/evolution-tier1` as the regression signal. Result: **175 passed + 1 xfailed in 3 min 4 s** (the xfail is a documented LLM-flake; not a regression). Brief SC-001 was amended in place — see `skill-output/mission-brief/Mission-Brief-tier1-real-bench-tutorial.md`. Real-corpus accuracy validation of Task 5's `0.50/0.20/0.20` base weights migrates to SC-004 (Path A version_filter purity) and SC-006 (Path B retraction filtering).
+
+The plan tasks 1.1–1.6 below are kept as historical context — they were not executed. Task 1.7 (merge to main) proceeds with the pytest-pass evidence in `benchmarks/regressions/results/2026-04-27-regression.md`.
+
+---
+
 ## File Structure
 
 **Phase 0 (created on `main`):**
