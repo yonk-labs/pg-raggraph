@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+import os
 from typing import Literal
 
 from pydantic_settings import BaseSettings
+
+_logger = logging.getLogger("pg_raggraph.config")
+_DEFAULT_DSN = "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
+_default_dsn_warned = False
 
 # Ingestion throttle profiles — pick one based on your hardware and how much
 # headroom you want to leave for other processes.
@@ -48,7 +54,7 @@ class PGRGConfig(BaseSettings):
     model_config = {"env_prefix": "PGRG_"}
 
     # Database
-    dsn: str = "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
+    dsn: str = _DEFAULT_DSN
     pool_min: int = 2
     pool_max: int = 10
 
@@ -93,7 +99,13 @@ class PGRGConfig(BaseSettings):
     nice_level: int = 0
 
     def model_post_init(self, __context):
-        """Apply profile defaults for any unset parallelism knobs."""
+        """Apply profile defaults for any unset parallelism knobs.
+
+        Also enforces the production-safety guard for default credentials
+        (PR-211): when ``PGRG_ENV=production`` and the DSN is the dev default,
+        refuse to start. In any other env, log a one-time warning so users
+        know they're running on the throw-away dev credentials.
+        """
         profile = INGEST_PROFILES.get(self.ingest_profile, INGEST_PROFILES["balanced"])
         if self.doc_concurrency == 0:
             self.doc_concurrency = profile["doc_concurrency"]
@@ -102,10 +114,29 @@ class PGRGConfig(BaseSettings):
         if self.embed_batch_size == 0:
             self.embed_batch_size = profile["embed_batch_size"]
 
+        # Default-DSN guard. The default DSN bakes in well-known credentials
+        # ("postgres:postgres") to keep first-run frictionless. Refusing in
+        # production is the right loud failure; warning everywhere else keeps
+        # the dev experience clean while making the choice visible.
+        if self.dsn == _DEFAULT_DSN:
+            env = os.environ.get("PGRG_ENV", "").lower()
+            if env == "production":
+                raise RuntimeError(
+                    "Refusing to start with default Postgres credentials in "
+                    "PGRG_ENV=production. Set PGRG_DSN to a production-safe "
+                    "DSN (with non-default user/password) before launching."
+                )
+            global _default_dsn_warned
+            if not _default_dsn_warned:
+                _logger.warning(
+                    "Using default DSN with well-known credentials "
+                    "(postgresql://postgres:postgres@localhost:5434/...). "
+                    "Override with PGRG_DSN before any non-local deployment."
+                )
+                _default_dsn_warned = True
+
         # Apply nice level if set
         if self.nice_level > 0:
-            import os
-
             try:
                 current = os.nice(0)
                 target = min(19, current + self.nice_level)

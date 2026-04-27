@@ -154,6 +154,7 @@ async def tune_scoring_weights(
     grid: dict[str, list[float]],
     mode: str = "naive",
     write_back: bool = True,
+    max_grid_size: int = 50,
 ) -> dict[str, Any]:
     """Grid-search scoring weights against a gold QA set.
 
@@ -174,6 +175,11 @@ async def tune_scoring_weights(
         Retrieval mode (naive | local | global | hybrid | smart).
     write_back : bool
         If True, rag.config is updated to the best cell.
+    max_grid_size : int
+        Cost-safety guard. Refuses to run if the cartesian product of the
+        grid exceeds this limit (default 50). Total LLM evaluations =
+        cartesian-size × len(gold). Pass a higher value explicitly when
+        you've costed it out.
 
     Returns
     -------
@@ -194,6 +200,20 @@ async def tune_scoring_weights(
         )
 
     value_lists = [grid[n] for n in weight_names]
+    # Cost guard: cartesian-product size × gold-question count = total queries.
+    # A 5×5×5×5 grid on 15 gold Qs = 9375 retrieval calls (and on Tier 3 with
+    # an LLM judge, 9375 LLM evaluations). Refuse big grids unless caller opts in.
+    grid_size = 1
+    for vs in value_lists:
+        grid_size *= len(vs)
+    if grid_size > max_grid_size:
+        raise ValueError(
+            f"Grid size {grid_size} exceeds max_grid_size={max_grid_size}. "
+            f"Estimated total retrievals: {grid_size} × {len(gold)} gold = "
+            f"{grid_size * len(gold)}. Pass max_grid_size={grid_size} (or "
+            f"higher) to override, or shrink the grid."
+        )
+
     cells: list[dict] = []
 
     # Snapshot existing config so we can restore on exception or write_back=False.
