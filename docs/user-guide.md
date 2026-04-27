@@ -53,7 +53,14 @@ If you don't already have one, use the included docker-compose:
 docker compose up -d
 ```
 
-This starts PostgreSQL 16 with pgvector + pg_trgm pre-installed on port 5434.
+This starts PostgreSQL 16 with pgvector + pg_trgm pre-installed on **port 5434**.
+
+> **Why port 5434?** The default Postgres port (5432) is frequently
+> already in use on developer machines (Homebrew Postgres, host Postgres,
+> a parallel Docker container, etc.). pg-raggraph picks 5434 to stay out
+> of the way. If you want a different port, override
+> `PGRG_DSN=postgresql://postgres:postgres@localhost:YOUR_PORT/pg_raggraph`
+> (or set the matching `ports:` mapping in `docker-compose.yml`).
 
 ### 2. Install pg-raggraph
 
@@ -87,6 +94,33 @@ export PGRG_LLM_MODEL=your-model-name
 ```
 
 **No LLM?** That's OK. pg-raggraph will still ingest documents and chunks (naive mode works), but you'll miss the graph features.
+
+### Schema migrations
+
+pg-raggraph manages its own schema. On first connect, it bootstraps the base schema and applies any pending numbered migrations from
+`src/pg_raggraph/sql/migrations/` automatically (under a per-project Postgres advisory lock so multiple workers don't race).
+
+> **Forward-only by design.** Migrations are append-only — there are no `down.sql` files. To roll back a schema change, restore from your Postgres backup or run manual SQL. The library will not undo a migration for you. If you maintain a multi-environment deployment, gate any version bump that introduces a migration on a backup-then-deploy procedure.
+
+If you need to apply migrations explicitly (rather than at first connect), run `pgrg init` against the target database; it's idempotent.
+
+### Concurrency / sizing
+
+pg-raggraph exposes three knobs that affect how hard it pushes the database, the embedder, and the LLM. Defaults are conservative and safe; raise them when you have headroom.
+
+| Knob | Default | What to raise to | Notes |
+|------|---------|------------------|-------|
+| `pool_max` (connection-pool ceiling) | 10 | 25–50 for the FastAPI server under sustained load | Each concurrent web request needs at least one DB connection; the ingest pipeline can need several. |
+| `doc_concurrency` (parallel docs during ingest) | 2 | 4 (`aggressive` profile) or 8 (`max`) on a dedicated machine | Higher values + many CPU-bound chunks → contention with the embedder; benchmark on your hardware. |
+| `extract_concurrency` (parallel LLM calls during ingest) | 8 | 16+ if your LLM endpoint is rate-tolerant | Bounded by `httpx.Limits(max_connections=20)` in `extraction.py`; raising both is what you want. |
+
+Quick recipes:
+
+- **Library inside a single web worker (typical SaaS sidecar):** stick with defaults; the in-process pool of 10 is plenty.
+- **`pgrg serve` behind a reverse proxy with N concurrent users:** set `PGRG_POOL_MAX=N+5` and add a few extras for ingest jobs.
+- **Batch ingest a large corpus on a dedicated host:** set `PGRG_INGEST_PROFILE=aggressive` (or `max`) and watch the LLM endpoint's throughput.
+
+You can override any single knob with `PGRG_<NAME>=...` even when an `INGEST_PROFILE` is set; explicit env wins over the profile.
 
 ---
 
