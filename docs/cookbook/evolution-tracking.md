@@ -58,8 +58,14 @@ result = await rag.query(
     "Is HRT cardioprotective?",
     namespace="medical",
 )
-# retracted docs filtered; current guidance surfaces
+# By default retracted_behavior="flag" — retracted docs are returned
+# alongside current guidance so the caller can decide. Set
+# retracted_behavior="hide" to filter them out, or "surface_both" for
+# explicit no-op semantics.
 ```
+
+`retracted_behavior` accepts `hide` / `flag` (default) / `surface_both`.
+`supersession_behavior` accepts `hide` / `prefer_new` / `surface_both` (default).
 
 ### Time-travel query
 
