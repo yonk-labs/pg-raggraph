@@ -1,0 +1,22 @@
+# Three searches used to seed the corpus (run via NCBI eutils esearch endpoint).
+
+# 1) Pre-2002 supportive HRT + cardiovascular literature
+("hormone replacement therapy"[Title/Abstract] OR "HRT"[Title/Abstract])
+AND ("cardiovascular"[Title/Abstract] OR "coronary"[Title/Abstract])
+AND ("1990"[Date - Publication] : "2001"[Date - Publication])
+
+# 2) WHI 2002 trial + immediate aftermath
+"Women's Health Initiative"[Title/Abstract]
+AND ("2002"[Date - Publication] : "2004"[Date - Publication])
+
+# 3) Post-2002 cautionary literature
+("hormone replacement therapy"[Title/Abstract] OR "HRT"[Title/Abstract])
+AND ("cardiovascular"[Title/Abstract] OR "coronary"[Title/Abstract])
+AND ("2003"[Date - Publication] : "2024"[Date - Publication])
+
+# Curation step: from each search, select abstracts whose titles +
+# abstracts are clearly on-topic. Reject editorials, letters, retraction
+# notices that have no scientific content of their own. Retracted papers
+# (PublicationType "Retracted Publication") are highly relevant — keep them
+# and tag retracted=true with retracted_at = WHI publication date (2002-07-17)
+# unless a more specific retraction date is available in the abstract.
