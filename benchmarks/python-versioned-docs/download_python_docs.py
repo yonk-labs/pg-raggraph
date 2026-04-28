@@ -3,6 +3,7 @@
 Saves as `pages/{version}/{slug}.html`. Idempotent — skips files that
 already exist on disk. No network call when re-run.
 """
+
 from __future__ import annotations
 
 import sys

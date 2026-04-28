@@ -1,6 +1,7 @@
 """Unit test: schema.sql column sets match pydantic DTO field sets for
 evolution tables. Catches drift when someone adds a column to the schema
 without a corresponding DTO field (or vice versa)."""
+
 from __future__ import annotations
 
 import re
@@ -42,8 +43,9 @@ def _extract_columns(sql: str, table: str) -> set[str]:
         line = line.strip()
         if not line:
             continue
-        if re.match(r"^(UNIQUE|FOREIGN\s+KEY|PRIMARY\s+KEY|CHECK|CONSTRAINT)\b",
-                    line, re.IGNORECASE):
+        if re.match(
+            r"^(UNIQUE|FOREIGN\s+KEY|PRIMARY\s+KEY|CHECK|CONSTRAINT)\b", line, re.IGNORECASE
+        ):
             continue
         m = re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*)\b", line)
         if m:
@@ -77,6 +79,4 @@ def test_evolution_tables_schema_matches_dto():
         assert not schema_only, (
             f"{table}: columns in schema.sql but no DTO field: {sorted(schema_only)}"
         )
-        assert not dto_only, (
-            f"{table}: DTO fields not in schema.sql: {sorted(dto_only)}"
-        )
+        assert not dto_only, f"{table}: DTO fields not in schema.sql: {sorted(dto_only)}"

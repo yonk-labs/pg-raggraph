@@ -15,12 +15,12 @@ Plan adaptations applied:
 - documents.version_label is a real column (promoted from metadata at ingest);
   the resolver SQL uses d.version_label, NOT d.metadata->>'version_label'.
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 import os
-from collections import Counter
 from pathlib import Path
 
 import yaml
@@ -28,9 +28,7 @@ import yaml
 from pg_raggraph import GraphRAG
 
 ROOT = Path(__file__).parent
-DSN = os.environ.get(
-    "PGRG_DSN", "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
-)
+DSN = os.environ.get("PGRG_DSN", "postgresql://postgres:postgres@localhost:5434/pg_raggraph")
 NAMESPACE = "python_docs"
 # rag.query() honors config.top_k (default 10); not exposed as a kwarg.
 TOP_FILTER_CHECK = 5  # top-N for filtered version_label purity check
@@ -55,18 +53,14 @@ async def run_question(rag: GraphRAG, q: dict) -> dict:
     if "version_filter" in q:
         kwargs["version_filter"] = q["version_filter"]
     result = await rag.query(q["question"], **kwargs)
-    top_versions = [
-        await chunk_version(rag, c.chunk_id) for c in result.chunks[:TOP_FILTER_CHECK]
-    ]
+    top_versions = [await chunk_version(rag, c.chunk_id) for c in result.chunks[:TOP_FILTER_CHECK]]
     top3_versions = top_versions[:TOP_TARGET_CHECK]
 
-    pass_filter = (
-        "version_filter" not in q
-        or all(v == q["version_filter"] for v in top_versions if v)
+    pass_filter = "version_filter" not in q or all(
+        v == q["version_filter"] for v in top_versions if v
     )
     pass_target = (
-        "expected_version_in_top3" not in q
-        or q["expected_version_in_top3"] in top3_versions
+        "expected_version_in_top3" not in q or q["expected_version_in_top3"] in top3_versions
     )
     return {
         "id": q["id"],
@@ -100,9 +94,7 @@ async def main() -> None:
 
     # Compute SC-004 metrics.
     filtered = [
-        r
-        for r in rows
-        if r["category"] in ("filtered_match", "cross_version", "whatsnew")
+        r for r in rows if r["category"] in ("filtered_match", "cross_version", "whatsnew")
     ]
     target = [r for r in rows if r["category"] == "unfiltered_target"]
     n_filt_pass = sum(1 for r in filtered if r["pass_filter"])

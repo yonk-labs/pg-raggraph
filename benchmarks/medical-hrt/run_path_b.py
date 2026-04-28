@@ -22,6 +22,7 @@ Plan adaptations applied:
 - ChunkResult.chunk_id is the DB id (Chunk.id).
 - rag.query() does not accept top_k; default top_k=10 from config.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -36,9 +37,7 @@ import yaml
 from pg_raggraph import GraphRAG
 
 ROOT = Path(__file__).parent
-DSN = os.environ.get(
-    "PGRG_DSN", "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
-)
+DSN = os.environ.get("PGRG_DSN", "postgresql://postgres:postgres@localhost:5434/pg_raggraph")
 NAMESPACE = "medical_hrt"
 TOP_FILTER_CHECK = 5  # top-N for retraction & time-travel checks
 
@@ -60,19 +59,13 @@ async def run_question(rag: GraphRAG, q: dict) -> dict:
     cat = q["category"]
     kwargs = {"namespace": NAMESPACE, "mode": "naive_boost"}
     # retracted_behavior is config-level (no per-call kwarg); toggle config.
-    rag.config.retracted_behavior = (
-        "hide" if cat == "retraction_aware" else "flag"
-    )
+    rag.config.retracted_behavior = "hide" if cat == "retraction_aware" else "flag"
     if cat == "time_travel":
         kwargs["as_of"] = datetime.fromisoformat(q["as_of"])
     result = await rag.query(q["question"], **kwargs)
-    metas = [
-        await chunk_meta(rag, c.chunk_id) for c in result.chunks[:TOP_FILTER_CHECK]
-    ]
+    metas = [await chunk_meta(rag, c.chunk_id) for c in result.chunks[:TOP_FILTER_CHECK]]
     n_retracted_top = sum(1 for m in metas if m.get("retracted"))
-    has_pre2002 = any(
-        m.get("year") is not None and m["year"] < 2002 for m in metas
-    )
+    has_pre2002 = any(m.get("year") is not None and m["year"] < 2002 for m in metas)
 
     if cat == "retraction_aware":
         passed = n_retracted_top == 0
@@ -115,25 +108,15 @@ async def main() -> None:
         await rag.close()
 
     n_retraction = sum(1 for r in rows if r["category"] == "retraction_aware")
-    n_retraction_pass = sum(
-        1
-        for r in rows
-        if r["category"] == "retraction_aware" and r["passed"]
-    )
+    n_retraction_pass = sum(1 for r in rows if r["category"] == "retraction_aware" and r["passed"])
     n_time = sum(1 for r in rows if r["category"] == "time_travel")
-    n_time_pass = sum(
-        1 for r in rows if r["category"] == "time_travel" and r["passed"]
-    )
-    n_background_pass = sum(
-        1 for r in rows if r["category"] == "background" and r["passed"]
-    )
+    n_time_pass = sum(1 for r in rows if r["category"] == "time_travel" and r["passed"])
+    n_background_pass = sum(1 for r in rows if r["category"] == "background" and r["passed"])
 
     summary = {
         "namespace": NAMESPACE,
         "n_total": len(rows),
-        "by_category": dict(
-            Counter(r["category"] for r in rows)
-        ),
+        "by_category": dict(Counter(r["category"] for r in rows)),
         "retraction_pass": f"{n_retraction_pass}/{n_retraction}",
         "sc006_threshold_retraction": "≥ 4/5 (zero retracted in top-5)",
         "sc006_retraction_pass": n_retraction_pass >= 4,

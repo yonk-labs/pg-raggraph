@@ -4,6 +4,7 @@ synthetic fixture untouched (SC-005 evidence).
 Skips if the corpus hasn't been ingested yet (this is a benchmark corpus,
 not a unit-test fixture). Run after `benchmarks/medical-hrt/ingest.py`.
 """
+
 from __future__ import annotations
 
 import os
@@ -44,8 +45,7 @@ async def test_min_30_docs_with_metadata(db):
     """SC-005: ≥30 docs with effective_from populated and ≥1 retracted."""
     if not await _has_corpus(db):
         pytest.skip(
-            "medical_hrt corpus not ingested. "
-            "Run `benchmarks/medical-hrt/ingest.py` first."
+            "medical_hrt corpus not ingested. Run `benchmarks/medical-hrt/ingest.py` first."
         )
     row = await db.fetch_one(
         "SELECT COUNT(*) AS n, COUNT(effective_from) AS ne, "

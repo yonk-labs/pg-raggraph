@@ -38,13 +38,10 @@ class FastEmbedProvider:
         # interleaved with other CLI output. We add explicit INFO bookends
         # so the user knows what's happening even when running with the
         # JSON formatter (PR-210) that strips the tqdm escape codes.
-        first_download = (
-            not _FASTEMBED_CACHE.exists() or not any(_FASTEMBED_CACHE.iterdir())
-        )
+        first_download = not _FASTEMBED_CACHE.exists() or not any(_FASTEMBED_CACHE.iterdir())
         if first_download:
             _logger.info(
-                "Downloading embedding model %s on first use "
-                "(~30 MB, one-time; cached at %s)",
+                "Downloading embedding model %s on first use (~30 MB, one-time; cached at %s)",
                 model_name,
                 _FASTEMBED_CACHE,
             )

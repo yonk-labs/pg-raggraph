@@ -1,4 +1,5 @@
 """Unit tests for evolution-related DTOs."""
+
 from datetime import datetime, timezone
 
 import pytest
@@ -23,7 +24,7 @@ def test_document_has_evolution_fields():
 def test_document_evolution_fields_optional():
     d = Document(namespace="ns", content_hash="abc")
     assert d.effective_from is None
-    assert d.retracted is False      # default
+    assert d.retracted is False  # default
     assert d.version_label is None
 
 
@@ -93,8 +94,9 @@ def test_fact_edge_rejects_invalid_edge_type():
     """Literal type rejects values outside the defined enum set."""
     with pytest.raises(ValidationError):
         FactEdge(
-            src_fact_id=1, dst_fact_id=2,
-            edge_type="BOGUS",         # not in FactEdgeType Literal
+            src_fact_id=1,
+            dst_fact_id=2,
+            edge_type="BOGUS",  # not in FactEdgeType Literal
             inferred_by="llm",
         )
 
@@ -102,7 +104,8 @@ def test_fact_edge_rejects_invalid_edge_type():
 def test_fact_edge_rejects_invalid_inferred_by():
     with pytest.raises(ValidationError):
         FactEdge(
-            src_fact_id=1, dst_fact_id=2,
+            src_fact_id=1,
+            dst_fact_id=2,
             edge_type="SUPERSEDES",
             inferred_by="someone_guessed",
         )

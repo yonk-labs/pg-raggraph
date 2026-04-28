@@ -62,6 +62,10 @@ exclude = [
     "benchmarks/scotus",
     "benchmarks/postgres-docs",
     "benchmarks/hotpotqa",
+    # age-bakeoff is a separate sub-project with its own pyproject.toml +
+    # ruff config. It maintains its own lint posture; the root config
+    # shouldn't police it (was masked by the broken-CI bug pre-PR-201).
+    "benchmarks/age-bakeoff",
     ".venv",
 ]
 

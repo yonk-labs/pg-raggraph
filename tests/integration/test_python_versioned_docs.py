@@ -5,6 +5,7 @@ Skips if the corpus hasn't been ingested yet (the corpus is benchmark
 infrastructure, not a unit-test fixture). Run after
 `benchmarks/python-versioned-docs/ingest.py`.
 """
+
 from __future__ import annotations
 
 import os
@@ -64,8 +65,7 @@ async def test_at_least_one_doc_per_version(db):
             "Run `benchmarks/python-versioned-docs/ingest.py` first."
         )
     rows = await db.fetch_all(
-        "SELECT version_label, COUNT(*) AS n "
-        "FROM documents WHERE namespace = %s GROUP BY 1",
+        "SELECT version_label, COUNT(*) AS n FROM documents WHERE namespace = %s GROUP BY 1",
         ("python_docs",),
     )
     counts = {r["version_label"]: r["n"] for r in rows}

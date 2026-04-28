@@ -6,6 +6,7 @@ under the same namespace, distinguished only by metadata.version_label.
 Re-runs are idempotent: the (namespace, content_hash) UNIQUE constraint on
 documents skips already-ingested docs.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,9 +20,7 @@ from pg_raggraph import GraphRAG
 ROOT = Path(__file__).parent
 PAGES = ROOT / "pages"
 NAMESPACE = "python_docs"
-DSN = os.environ.get(
-    "PGRG_DSN", "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
-)
+DSN = os.environ.get("PGRG_DSN", "postgresql://postgres:postgres@localhost:5434/pg_raggraph")
 
 
 def html_to_text(p: Path) -> str:

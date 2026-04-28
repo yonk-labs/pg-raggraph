@@ -6,9 +6,9 @@ just `pytest.raises(Exception)`. Read the docstring before adjusting any
 assertion: the audit's value is in the *specific* error contract, not the
 mere fact of an error.
 """
+
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from io import BytesIO
 

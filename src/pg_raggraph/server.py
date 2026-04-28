@@ -105,13 +105,9 @@ def create_app(**kwargs) -> FastAPI:
         if api_key and not is_probe:
             bearer = request.headers.get("Authorization", "")
             if not bearer.startswith("Bearer "):
-                return JSONResponse(
-                    {"detail": "missing Bearer token"}, status_code=401
-                )
-            if bearer[len("Bearer "):].strip() != api_key:
-                return JSONResponse(
-                    {"detail": "invalid API key"}, status_code=401
-                )
+                return JSONResponse({"detail": "missing Bearer token"}, status_code=401)
+            if bearer[len("Bearer ") :].strip() != api_key:
+                return JSONResponse({"detail": "invalid API key"}, status_code=401)
 
         # Origin check on state-changing methods. Browsers always send Origin
         # on cross-origin POST; same-origin POST omits it. Non-browser
@@ -177,9 +173,7 @@ def create_app(**kwargs) -> FastAPI:
 
         db_ok = await rag.db.health_check()
         if not db_ok:
-            return JSONResponse(
-                {"status": "unready", "reason": "db_unreachable"}, status_code=503
-            )
+            return JSONResponse({"status": "unready", "reason": "db_unreachable"}, status_code=503)
         try:
             applied = int(await rag.db.get_meta("schema_version") or 0)
         except Exception as e:
@@ -233,9 +227,7 @@ def create_app(**kwargs) -> FastAPI:
         response stays bounded even on long-document corpora. Set the env to
         `0` to disable truncation, or any positive integer to widen the window.
         """
-        preview_chars = int(
-            os.environ.get("PGRG_SERVER_ASK_CHUNK_PREVIEW_CHARS", "500")
-        )
+        preview_chars = int(os.environ.get("PGRG_SERVER_ASK_CHUNK_PREVIEW_CHARS", "500"))
         result = await rag.ask(question, mode=mode, namespace=namespace)
         return {
             "answer": result.answer,
@@ -290,10 +282,7 @@ def create_app(**kwargs) -> FastAPI:
             except ValueError as e:
                 raise HTTPException(
                     status_code=400,
-                    detail=(
-                        f"Invalid limit={limit!r}. Pass an integer (max 5000) "
-                        "or 'all'."
-                    ),
+                    detail=(f"Invalid limit={limit!r}. Pass an integer (max 5000) or 'all'."),
                 ) from e
             if row_cap < 1:
                 raise HTTPException(status_code=400, detail="limit must be >= 1.")
@@ -339,9 +328,7 @@ def create_app(**kwargs) -> FastAPI:
             "nodes": nodes,
             "edges": edges,
             "limit": "all" if row_cap is None else row_cap,
-            "truncated": row_cap is not None and (
-                len(nodes) >= row_cap or len(edges) >= row_cap
-            ),
+            "truncated": row_cap is not None and (len(nodes) >= row_cap or len(edges) >= row_cap),
         }
 
     @app.post("/ingest")
@@ -360,9 +347,7 @@ def create_app(**kwargs) -> FastAPI:
         """
         import tempfile
 
-        max_upload_mb = int(
-            os.environ.get("PGRG_SERVER_MAX_UPLOAD_MB", _DEFAULT_MAX_UPLOAD_MB)
-        )
+        max_upload_mb = int(os.environ.get("PGRG_SERVER_MAX_UPLOAD_MB", _DEFAULT_MAX_UPLOAD_MB))
         max_bytes = max_upload_mb * 1024 * 1024
         ns = namespace or config.namespace
 
@@ -404,9 +389,7 @@ def create_app(**kwargs) -> FastAPI:
         paths: list[str] = []
         try:
             for f, sanitized in validated:
-                tmp = tempfile.NamedTemporaryFile(
-                    delete=False, suffix=f"_{sanitized}"
-                )
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f"_{sanitized}")
                 try:
                     content = await f.read()
                     if len(content) > max_bytes:

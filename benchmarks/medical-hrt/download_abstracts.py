@@ -9,6 +9,7 @@ publication year, publication types, and retraction flag.
 
 Curation is a separate step (see manifest.yaml).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -42,14 +43,8 @@ def efetch(client: httpx.Client, pmid: str) -> dict[str, Any]:
     r.raise_for_status()
     root = ET.fromstring(r.text)
     article = root.find(".//Article")
-    title = (
-        (article.findtext("ArticleTitle") or "").strip()
-        if article is not None
-        else ""
-    )
-    abstract_parts = (
-        article.findall(".//AbstractText") if article is not None else []
-    )
+    title = (article.findtext("ArticleTitle") or "").strip() if article is not None else ""
+    abstract_parts = article.findall(".//AbstractText") if article is not None else []
     abstract = " ".join((e.text or "") for e in abstract_parts).strip()
     pub_year_text = root.findtext(".//PubDate/Year") or ""
     pub_types = [(e.text or "") for e in root.findall(".//PublicationType")]

@@ -241,8 +241,7 @@ async def test_07_bus_factor(rag):
     # expansion broke retrieval entirely" regressions without claiming a
     # directional preference between modes that LLM variance falsifies.
     assert naive_score >= 1, (
-        f"naive returned 0/{len(expected)} expected keywords — multi-doc "
-        "retrieval is broken"
+        f"naive returned 0/{len(expected)} expected keywords — multi-doc retrieval is broken"
     )
     assert hybrid_score >= 1, (
         f"hybrid returned 0/{len(expected)} expected keywords — graph "

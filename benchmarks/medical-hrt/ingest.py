@@ -7,6 +7,7 @@ version_label keys from `metadata` to dedicated columns on `documents`.
 Re-runs are idempotent (content_hash UNIQUE constraint). The synthetic
 fixture at tests/fixtures/evolving/medical_retraction/ is NOT touched.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -21,9 +22,7 @@ from pg_raggraph import GraphRAG
 
 ROOT = Path(__file__).parent
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DSN = os.environ.get(
-    "PGRG_DSN", "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
-)
+DSN = os.environ.get("PGRG_DSN", "postgresql://postgres:postgres@localhost:5434/pg_raggraph")
 NAMESPACE = "medical_hrt"
 
 
@@ -60,8 +59,7 @@ async def main() -> None:
             await rag.ingest([str(tmp)], namespace=NAMESPACE, metadata=md)
             n += 1
             print(
-                f"  + {entry['pmid']} ({entry['pub_year']}) "
-                f"retracted={entry['retracted']}",
+                f"  + {entry['pmid']} ({entry['pub_year']}) retracted={entry['retracted']}",
                 flush=True,
             )
         print(f"ingested {n} abstracts")

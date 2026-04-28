@@ -96,9 +96,7 @@ class PGRGConfig(BaseSettings):
     # Ingestion parallelism — default profile is "balanced". Typed Literal
     # so a typo in PGRG_INGEST_PROFILE raises ValidationError at init
     # instead of silently falling back to "balanced".
-    ingest_profile: Literal[
-        "conservative", "balanced", "aggressive", "max"
-    ] = "balanced"
+    ingest_profile: Literal["conservative", "balanced", "aggressive", "max"] = "balanced"
     # Individual knobs — if set, they override the profile
     extract_concurrency: int = 0  # 0 = use profile default
     embed_batch_size: int = 0  # 0 = use profile default

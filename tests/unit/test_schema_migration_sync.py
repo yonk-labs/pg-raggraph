@@ -3,6 +3,7 @@ post-migration schema for evolution tracking tables.
 
 This catches drift at Tier 2/3 when someone forgets to mirror a migration
 column into schema.sql."""
+
 from __future__ import annotations
 
 import re
@@ -35,8 +36,9 @@ def _extract_columns(sql: str, table: str) -> set[str]:
         if not line:
             continue
         # Skip constraint-only lines (UNIQUE, FOREIGN KEY, PRIMARY KEY, CHECK)
-        if re.match(r"^(UNIQUE|FOREIGN\s+KEY|PRIMARY\s+KEY|CHECK|CONSTRAINT)\b",
-                    line, re.IGNORECASE):
+        if re.match(
+            r"^(UNIQUE|FOREIGN\s+KEY|PRIMARY\s+KEY|CHECK|CONSTRAINT)\b", line, re.IGNORECASE
+        ):
             continue
         # First whitespace-delimited token is the column name
         m = re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*)\b", line)
