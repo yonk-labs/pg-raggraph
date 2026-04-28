@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pg-raggraph"
-version = "0.3.0a0"
+version = "0.3.0a1"
 description = "The fastest, simplest way to add knowledge-graph-powered RAG to any app — backed by PostgreSQL."
 readme = "README.md"
 license = "MIT"
@@ -53,6 +53,22 @@ pgrg = "pg_raggraph.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pg_raggraph"]
+
+[tool.hatch.build.targets.sdist]
+# Default hatchling sdist behavior bundles everything not gitignored — that
+# was producing an 87 MB tarball (benchmarks/age-bakeoff alone is sizeable).
+# Pin the sdist to source + project metadata; benchmarks, blog posts, and
+# specs live in the GitHub repo for anyone who wants to read them.
+include = [
+    "src/pg_raggraph",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "SECURITY.md",
+    "pyproject.toml",
+]
 
 [tool.ruff]
 line-length = 99

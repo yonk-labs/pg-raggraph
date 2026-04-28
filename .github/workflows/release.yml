@@ -1,0 +1,110 @@
+name: release
+
+# Triggered by pushing a `v*` tag (e.g., `git tag v0.3.0a2 && git push --tags`).
+# Builds the wheel + sdist with `uv build` and publishes to PyPI using a
+# long-lived API token stored as the `PYPI_TOKEN` secret.
+#
+# Long-term, prefer PyPI Trusted Publishing (OIDC) — no token in secrets,
+# repo registered as a publisher on PyPI side. See:
+#   https://docs.pypi.org/trusted-publishers/
+# Until that's set up, this token-based path is the lowest-friction option.
+#
+# Manual dry-run before tagging:
+#   uv build
+#   uv publish --publish-url https://test.pypi.org/legacy/ --token TESTPYPI_TOKEN
+#   pip install --index-url https://test.pypi.org/simple/ \
+#               --extra-index-url https://pypi.org/simple/ pg-raggraph
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Publish target"
+        required: true
+        default: "pypi"
+        type: choice
+        options:
+          - pypi
+          - testpypi
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build wheel + sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.12"
+      - name: Build distributions
+        run: uv build
+      - name: Inspect artifacts
+        run: |
+          ls -la dist/
+          # Sanity: wheel must contain SQL files (schema + migrations) so
+          # auto-bootstrap works after `pip install pg-raggraph`.
+          uv run python -c "
+          import zipfile, glob
+          (whl,) = glob.glob('dist/*.whl')
+          z = zipfile.ZipFile(whl)
+          names = z.namelist()
+          assert any('sql/schema.sql' in n for n in names), 'missing schema.sql'
+          assert any('sql/migrations/' in n for n in names), 'missing migrations'
+          assert any('static/index.html' in n for n in names), 'missing static UI'
+          print(f'wheel manifest sane: {len(names)} entries')
+          "
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # The job only publishes on real `v*` tag pushes, OR when explicitly
+    # dispatched. Workflow re-runs on the same tag are no-ops because PyPI
+    # rejects duplicate version uploads.
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch')
+    environment:
+      name: ${{ github.event.inputs.target == 'testpypi' && 'testpypi' || 'pypi' }}
+      url: ${{ github.event.inputs.target == 'testpypi' && 'https://test.pypi.org/project/pg-raggraph/' || 'https://pypi.org/project/pg-raggraph/' }}
+    steps:
+      - uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish (PyPI)
+        if: github.event.inputs.target != 'testpypi'
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          if [ -z "$UV_PUBLISH_TOKEN" ]; then
+            echo "::error::PYPI_TOKEN secret is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          uv publish dist/*
+      - name: Publish (TestPyPI)
+        if: github.event.inputs.target == 'testpypi'
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.TESTPYPI_TOKEN }}
+        run: |
+          if [ -z "$UV_PUBLISH_TOKEN" ]; then
+            echo "::error::TESTPYPI_TOKEN secret is not set."
+            exit 1
+          fi
+          uv publish --publish-url https://test.pypi.org/legacy/ dist/*

@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased — 2026-04-27 / 2026-04-28 (post-audit hardening)
+## 0.3.0a1 — 2026-04-28 (post-audit hardening)
 
-This is a polish + hardening pass on top of `0.3.0a0`. No public-API changes; all 23 production-readiness items from the prod-ready audit closed (22 fixed, 1 false positive). Library + server now ready for public release.
+First public PyPI release. Polish + hardening pass on top of `0.3.0a0`. No public-API changes; all 23 production-readiness items from the prod-ready audit closed (22 fixed, 1 false positive). Library + server ready for external use.
 
 ### Real-world Tier 1 benchmarks
 
