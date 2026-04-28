@@ -130,7 +130,7 @@ added to `documents`, all nullable. No existing data migrates.
 
 ## What's not in Tier 1
 
-- Fact-level extraction → Tier 2 (`fact_extractor="skimr_spacy"`)
+- Fact-level extraction → Tier 2 (`fact_extractor="lede_spacy"` — package is published as `lede` + `lede-spacy` on PyPI)
 - LLM-inferred supersession / contradiction → Tier 3
   (`fact_extractor="llm"` + slow-path edge inference)
 - Fact-aware context assembly (dedup, diversity backfill) → Tier 2

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import re
 
@@ -10,6 +11,7 @@ import tiktoken
 
 from pg_raggraph.config import PGRGConfig
 
+_logger = logging.getLogger("pg_raggraph.chunking")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 _SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
 _enc = tiktoken.get_encoding("cl100k_base")
@@ -177,7 +179,8 @@ def get_git_info(file_path: str) -> dict:
             "git_date": parts[3],
             "git_subject": parts[4],
         }
-    except Exception:
+    except Exception as e:
+        _logger.debug("git metadata lookup failed for %s: %s", file_path, e)
         return {}
 
 

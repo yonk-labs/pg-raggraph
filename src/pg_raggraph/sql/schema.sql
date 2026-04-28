@@ -147,7 +147,7 @@ CREATE TRIGGER trg_chunk_search_vector
 -- ---------------------------------------------------------------------------
 -- Evolving-knowledge-RAG foundational DDL (mirrors migration 002).
 -- Tier 1 populates documents evolution columns + document_versions.
--- Tier 2 populates facts (via skimr+spaCy).
+-- Tier 2 populates facts (via lede+spaCy).
 -- Tier 3 populates fact_edges (via async LLM slow path).
 -- All fact_* tables land here so fresh installs don't need a second schema
 -- change when tiers ramp up. They stay empty until the relevant tier runs.

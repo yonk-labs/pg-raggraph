@@ -78,7 +78,8 @@ class Database:
             async with self.pool.connection() as conn:
                 await conn.execute("SELECT 1")
             return True
-        except Exception:
+        except Exception as e:
+            logger.debug("health_check failed: %s", e)
             return False
 
     async def _ensure_schema(self, conn) -> None:

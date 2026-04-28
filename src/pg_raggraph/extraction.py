@@ -299,8 +299,8 @@ async def _extract_single(
                 "ON CONFLICT (key) DO NOTHING",
                 (cache_k, json.dumps(result.model_dump())),
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("LLM cache write failed: %s", e)
 
     return result
 

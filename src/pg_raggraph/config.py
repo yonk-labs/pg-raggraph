@@ -70,7 +70,11 @@ class PGRGConfig(BaseSettings):
     llm_base_url: str = "http://localhost:11434/v1"  # Ollama default
     llm_model: str = "llama3.2"
     llm_api_key: str = ""  # set for OpenAI, leave empty for Ollama
-    extraction_prompt: str = "default"  # default | dev
+    # `default` is the generic prompt; `dev` is the developer-KB-tuned prompt
+    # (entity types: person/service/library/file/commit/incident/ADR/etc.).
+    # Typed Literal so a typo in PGRG_EXTRACTION_PROMPT raises ValidationError
+    # at config init instead of silently falling back to "default".
+    extraction_prompt: Literal["default", "dev"] = "default"
     # Skip entity/relationship extraction during ingestion.
     # Set true for pure vector RAG mode — no LLM needed for ingest.
     skip_extraction: bool = False
@@ -89,8 +93,12 @@ class PGRGConfig(BaseSettings):
     chunk_max_tokens: int = 512
     chunk_overlap_tokens: int = 50
 
-    # Ingestion parallelism — default profile is "balanced"
-    ingest_profile: str = "balanced"  # conservative | balanced | aggressive | max
+    # Ingestion parallelism — default profile is "balanced". Typed Literal
+    # so a typo in PGRG_INGEST_PROFILE raises ValidationError at init
+    # instead of silently falling back to "balanced".
+    ingest_profile: Literal[
+        "conservative", "balanced", "aggressive", "max"
+    ] = "balanced"
     # Individual knobs — if set, they override the profile
     extract_concurrency: int = 0  # 0 = use profile default
     embed_batch_size: int = 0  # 0 = use profile default
@@ -135,14 +143,30 @@ class PGRGConfig(BaseSettings):
                 )
                 _default_dsn_warned = True
 
-        # Apply nice level if set
-        if self.nice_level > 0:
-            try:
-                current = os.nice(0)
-                target = min(19, current + self.nice_level)
-                os.nice(target - current)
-            except (OSError, AttributeError):
-                pass  # Windows or restricted env
+        # PR-215: nice_level is no longer applied at config-init time.
+        # Importing PGRGConfig must not mutate process priority (the prior
+        # behavior surprised callers who imported the package under tests
+        # or from a sidecar framework). Application moved into `ingest()`
+        # via `apply_nice_level()` below — that's the only path where
+        # CPU-yield behavior was actually wanted.
+
+    def apply_nice_level(self) -> None:
+        """Apply the configured `nice_level` to the current process.
+
+        Idempotent within reason — repeated calls move the priority by
+        `nice_level` again, capped at 19 by the OS. Silently no-ops on
+        platforms without `os.nice` (Windows) or in restricted sandboxes.
+        Call this once when starting a long-running CPU-heavy operation
+        (the ingest pipeline does this automatically).
+        """
+        if self.nice_level <= 0:
+            return
+        try:
+            current = os.nice(0)
+            target = min(19, current + self.nice_level)
+            os.nice(target - current)
+        except (OSError, AttributeError):
+            pass  # Windows or restricted env
 
     # Retrieval
     max_hops: int = 2
@@ -191,6 +215,10 @@ class PGRGConfig(BaseSettings):
     diversity_backfill: bool = True
 
     # Fact extraction (Tier 2+)
-    fact_extractor: Literal["llm", "skimr_spacy", "none"] = "none"
+    # Tier 2 fact extractor. `lede_spacy` is the supported non-LLM
+    # extractor (lede selects salient sentences; spaCy dep-parses them
+    # into SPO triples). Renamed from `skimr_spacy` 2026-04-28 — the
+    # underlying package shipped as `lede` / `lede-spacy` on PyPI.
+    fact_extractor: Literal["llm", "lede_spacy", "none"] = "none"
     fact_similarity_threshold: float = 0.92
     fact_edge_candidate_k: int = 8

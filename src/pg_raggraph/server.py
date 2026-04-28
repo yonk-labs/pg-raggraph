@@ -226,7 +226,16 @@ def create_app(**kwargs) -> FastAPI:
         mode: str = Form("smart"),
         namespace: str = Form(None),
     ):
-        """Query + grounded LLM answer. Falls back to top-chunk summary without LLM."""
+        """Query + grounded LLM answer. Falls back to top-chunk summary without LLM.
+
+        Each returned chunk's `content` is truncated to
+        `PGRG_SERVER_ASK_CHUNK_PREVIEW_CHARS` characters (default 500) so the
+        response stays bounded even on long-document corpora. Set the env to
+        `0` to disable truncation, or any positive integer to widen the window.
+        """
+        preview_chars = int(
+            os.environ.get("PGRG_SERVER_ASK_CHUNK_PREVIEW_CHARS", "500")
+        )
         result = await rag.ask(question, mode=mode, namespace=namespace)
         return {
             "answer": result.answer,
@@ -235,7 +244,7 @@ def create_app(**kwargs) -> FastAPI:
             "query_mode": result.query_mode,
             "chunks": [
                 {
-                    "content": c.content[:500],
+                    "content": c.content if preview_chars <= 0 else c.content[:preview_chars],
                     "score": c.score,
                     "source": c.document_source,
                 }

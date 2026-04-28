@@ -367,7 +367,7 @@ your config untouched. Unknown weight names raise `ValueError`.
 
 ### What's NOT in Tier 1
 
-- Fact-level extraction (Tier 2 — `fact_extractor="skimr_spacy"` will populate `facts` table)
+- Fact-level extraction (Tier 2 — `fact_extractor="lede_spacy"` will populate `facts` table)
 - LLM-inferred supersession / contradiction (Tier 3)
 - Async slow-path fact-edge inference (Tier 3)
 

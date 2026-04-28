@@ -245,6 +245,9 @@ class GraphRAG:
 
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        # PR-215: apply nice_level here (was previously in config init,
+        # which surprised callers by mutating process priority on import).
+        self.config.apply_nice_level()
         embedder = self._get_embedder()
 
         def _progress(msg: str):
