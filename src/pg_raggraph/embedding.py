@@ -2,9 +2,18 @@
 
 from __future__ import annotations
 
+import logging
+import time
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from pg_raggraph.config import PGRGConfig
+
+_logger = logging.getLogger("pg_raggraph.embedding")
+# fastembed caches models under ~/.cache/fastembed by default. We use the
+# cache_dir presence as a "is the model already on disk" signal so we know
+# whether to surface a progress hint.
+_FASTEMBED_CACHE = Path.home() / ".cache" / "fastembed"
 
 
 @runtime_checkable
@@ -23,10 +32,33 @@ class FastEmbedProvider:
     def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5"):
         from fastembed import TextEmbedding
 
+        # PR-111: surface the first-run model download instead of silently
+        # blocking for ~30 s while ~30 MB is fetched. fastembed has a
+        # tqdm-based progress bar internally, but it's easy to miss when
+        # interleaved with other CLI output. We add explicit INFO bookends
+        # so the user knows what's happening even when running with the
+        # JSON formatter (PR-210) that strips the tqdm escape codes.
+        first_download = (
+            not _FASTEMBED_CACHE.exists() or not any(_FASTEMBED_CACHE.iterdir())
+        )
+        if first_download:
+            _logger.info(
+                "Downloading embedding model %s on first use "
+                "(~30 MB, one-time; cached at %s)",
+                model_name,
+                _FASTEMBED_CACHE,
+            )
+        t0 = time.perf_counter()
         self._model = TextEmbedding(model_name=model_name)
         # Infer dimension from a test embedding
         test = list(self._model.embed(["test"]))[0]
         self._dim = len(test)
+        if first_download:
+            _logger.info(
+                "Embedding model ready (loaded in %.1f s, dimension=%d)",
+                time.perf_counter() - t0,
+                self._dim,
+            )
 
     @property
     def dimension(self) -> int:

@@ -211,22 +211,19 @@ async def test_06_risk_assessment(rag):
 
 
 @skip_no_llm
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Bus-factor question is LLM-extraction-sensitive — the four expected "
-        "keywords (kong, maria, jake, database) span multiple docs, and naive "
-        "BM25 sometimes retrieves all four directly while hybrid's graph "
-        "expansion rotates one out of the top_k. Both outcomes are valid; "
-        "the test asserts a property (hybrid >= naive on this question) that "
-        "is empirically inconsistent across LLM runs. Kept as a flaky signal."
-    ),
-)
 async def test_07_bus_factor(rag):
     """What critical systems have a bus factor of 1?
 
     Requires: Finding sole owners/experts across multiple documents
     Maria → sole Kong expert, Jake → sole DBA, etc.
+
+    Property under test: BOTH modes find at least one of the expected
+    keywords (retrieval is functioning on this multi-doc query). The
+    earlier directional claim "hybrid_score >= naive_score" was
+    empirically flaky — naive's BM25 sometimes retrieves all four
+    keywords directly while hybrid's graph expansion rotates some out
+    of top_k. Both outcomes are legitimate for the underlying retrieval
+    contract; the directional comparison was the bug, not the system.
     """
     q = "What systems have a bus factor of 1 - only one person knows them?"
     expected = ["kong", "maria", "jake", "database"]
@@ -240,7 +237,17 @@ async def test_07_bus_factor(rag):
     print("\n  Q7: Bus factor analysis")
     print(f"    Naive:  {naive_score}/{len(expected)}")
     print(f"    Hybrid: {hybrid_score}/{len(expected)}")
-    assert hybrid_score >= naive_score
+    # Both modes must find at least one expected keyword — catches "graph
+    # expansion broke retrieval entirely" regressions without claiming a
+    # directional preference between modes that LLM variance falsifies.
+    assert naive_score >= 1, (
+        f"naive returned 0/{len(expected)} expected keywords — multi-doc "
+        "retrieval is broken"
+    )
+    assert hybrid_score >= 1, (
+        f"hybrid returned 0/{len(expected)} expected keywords — graph "
+        "expansion may be filtering everything out"
+    )
 
 
 @skip_no_llm
