@@ -37,13 +37,9 @@ import httpx
 
 from pg_raggraph import GraphRAG
 
-DSN = os.environ.get(
-    "PGRG_DSN", "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
-)
+DSN = os.environ.get("PGRG_DSN", "postgresql://postgres:postgres@localhost:5434/pg_raggraph")
 LLM_URL = os.environ.get("PGRG_TEST_LLM_URL", "http://192.168.1.193:8000/v1")
-LLM_MODEL = os.environ.get(
-    "PGRG_TEST_LLM_MODEL", "Intel/Qwen3-Coder-Next-int4-AutoRound"
-)
+LLM_MODEL = os.environ.get("PGRG_TEST_LLM_MODEL", "Intel/Qwen3-Coder-Next-int4-AutoRound")
 
 BENCH_DIR = Path(__file__).parent
 
@@ -147,9 +143,7 @@ async def llm_judge(
 # ---------------------------------------------------------------------------
 
 
-async def run_corpus(
-    corpus_key: str, namespace: str, questions: list[str]
-) -> dict:
+async def run_corpus(corpus_key: str, namespace: str, questions: list[str]) -> dict:
     """Run all modes × all questions; LLM-judge each answer."""
     rag = GraphRAG(
         dsn=DSN,
@@ -161,8 +155,10 @@ async def run_corpus(
 
     modes = ["naive", "naive_boost", "smart", "local", "global", "hybrid"]
     rows: list[dict] = []
-    print(f"\n  Corpus: {corpus_key}  ({len(questions)} Qs × {len(modes)} modes "
-          f"= {len(questions) * len(modes)} answers + judges)")
+    print(
+        f"\n  Corpus: {corpus_key}  ({len(questions)} Qs × {len(modes)} modes "
+        f"= {len(questions) * len(modes)} answers + judges)"
+    )
 
     async with httpx.AsyncClient() as client:
         for qi, question in enumerate(questions, 1):
@@ -174,41 +170,45 @@ async def run_corpus(
                     chunk_excerpts = [c.content for c in result.chunks[:3]]
                     latency_ms = (time.perf_counter() - t0) * 1000
                 except Exception as e:
-                    rows.append({
-                        "corpus": corpus_key,
-                        "question": question,
-                        "mode": mode,
-                        "answer": "",
-                        "score": 0,
-                        "rationale": f"ask() failed: {e}",
-                        "latency_ms": 0,
-                    })
+                    rows.append(
+                        {
+                            "corpus": corpus_key,
+                            "question": question,
+                            "mode": mode,
+                            "answer": "",
+                            "score": 0,
+                            "rationale": f"ask() failed: {e}",
+                            "latency_ms": 0,
+                        }
+                    )
                     continue
 
                 if not answer:
-                    rows.append({
+                    rows.append(
+                        {
+                            "corpus": corpus_key,
+                            "question": question,
+                            "mode": mode,
+                            "answer": "",
+                            "score": 0,
+                            "rationale": "empty answer",
+                            "latency_ms": latency_ms,
+                        }
+                    )
+                    continue
+
+                score, rationale = await llm_judge(client, question, answer, chunk_excerpts)
+                rows.append(
+                    {
                         "corpus": corpus_key,
                         "question": question,
                         "mode": mode,
-                        "answer": "",
-                        "score": 0,
-                        "rationale": "empty answer",
+                        "answer": answer[:500],
+                        "score": score,
+                        "rationale": rationale,
                         "latency_ms": latency_ms,
-                    })
-                    continue
-
-                score, rationale = await llm_judge(
-                    client, question, answer, chunk_excerpts
+                    }
                 )
-                rows.append({
-                    "corpus": corpus_key,
-                    "question": question,
-                    "mode": mode,
-                    "answer": answer[:500],
-                    "score": score,
-                    "rationale": rationale,
-                    "latency_ms": latency_ms,
-                })
             print(f"    Q{qi}/{len(questions)} done")
 
     await rag.close()
@@ -227,17 +227,11 @@ async def run_corpus(
         "by_mode": {
             m: {
                 # avg_score / 3 = normalized accuracy proxy on 0-1
-                "avg_score_0_3": round(
-                    sum(d["scores"]) / max(len(d["scores"]), 1), 2
-                ),
-                "accuracy_pct": round(
-                    sum(d["scores"]) / max(len(d["scores"]) * 3, 1) * 100, 1
-                ),
+                "avg_score_0_3": round(sum(d["scores"]) / max(len(d["scores"]), 1), 2),
+                "accuracy_pct": round(sum(d["scores"]) / max(len(d["scores"]) * 3, 1) * 100, 1),
                 "fully_correct": sum(1 for s in d["scores"] if s == 3),
                 "wrong_or_empty": sum(1 for s in d["scores"] if s == 0),
-                "avg_latency_ms": round(
-                    sum(d["lats"]) / max(len(d["lats"]), 1), 0
-                )
+                "avg_latency_ms": round(sum(d["lats"]) / max(len(d["lats"]), 1), 0)
                 if d["lats"]
                 else 0,
             }
@@ -249,8 +243,9 @@ async def run_corpus(
 
 def print_summary(corpus_key: str, summary: dict):
     print(f"\n  ======= {corpus_key} (LLM-judge, n={summary['n_questions']}) =======")
-    print(f"  {'Mode':<13} {'Score (0-3)':>12} {'Acc %':>8} "
-          f"{'Fully':>6} {'Wrong':>6} {'Lat ms':>8}")
+    print(
+        f"  {'Mode':<13} {'Score (0-3)':>12} {'Acc %':>8} {'Fully':>6} {'Wrong':>6} {'Lat ms':>8}"
+    )
     print("  " + "-" * 60)
     for mode in ["naive", "naive_boost", "smart", "local", "global", "hybrid"]:
         s = summary["by_mode"][mode]
@@ -281,17 +276,19 @@ async def main():
     # Persist
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     out = BENCH_DIR / f"llm-judge-results-{ts}.json"
-    out.write_text(json.dumps(
-        {
-            "generated_at": datetime.now().isoformat(),
-            "judge_model": LLM_MODEL,
-            "judge_url": LLM_URL,
-            "results": [r["summary"] for r in all_results],
-            "rows": [row for r in all_results for row in r["rows"]],
-        },
-        indent=2,
-        default=str,
-    ))
+    out.write_text(
+        json.dumps(
+            {
+                "generated_at": datetime.now().isoformat(),
+                "judge_model": LLM_MODEL,
+                "judge_url": LLM_URL,
+                "results": [r["summary"] for r in all_results],
+                "rows": [row for r in all_results for row in r["rows"]],
+            },
+            indent=2,
+            default=str,
+        )
+    )
     print(f"\n  Wrote {out}")
 
 
