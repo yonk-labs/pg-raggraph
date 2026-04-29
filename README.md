@@ -2,7 +2,7 @@
 
 > **PostgreSQL-native GraphRAG.** Vector search, full-text search, and knowledge-graph traversal — all in a single SQL query. No Neo4j. No Pinecone. No Apache AGE. Just the Postgres you already run.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Tests](https://img.shields.io/badge/tests-195%20passing-brightgreen)](#tests-and-benchmarks) [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](pyproject.toml) [![Status: alpha](https://img.shields.io/badge/status-alpha%20(0.3.0a0)-orange)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Tests](https://img.shields.io/badge/tests-195%20passing-brightgreen)](#tests-and-benchmarks) [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](pyproject.toml) [![Status: alpha](https://img.shields.io/badge/status-alpha%20(0.3.0a1)-orange)]()
 
 ---
 
@@ -164,9 +164,9 @@ Full bake-off report: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](bench
 | Document | What's inside |
 |---|---|
 | [`docs/USE-CASES.md`](docs/USE-CASES.md) | Decision matrix: classic GraphRAG vs evolving knowledge. Corpus shape → recommended config. |
-| [`docs/blog/01-intro-classic-vs-evolving.md`](docs/blog/01-intro-classic-vs-evolving.md) | Series intro: two workloads, one Postgres database, when each one applies. |
-| [`docs/blog/02-path-a-versioned-python-docs.md`](docs/blog/02-path-a-versioned-python-docs.md) | Walkthrough: ingest Python 3.10/3.11/3.12 docs, query with `version_filter`. |
-| [`docs/blog/03-path-b-medical-retractions.md`](docs/blog/03-path-b-medical-retractions.md) | Walkthrough: ingest PubMed HRT abstracts, demonstrate `retracted_behavior` and `as_of`. |
+| [`docs/blogs/01-intro-classic-vs-evolving.md`](docs/blogs/01-intro-classic-vs-evolving.md) | Series intro: two workloads, one Postgres database, when each one applies. |
+| [`docs/blogs/02-path-a-versioned-python-docs.md`](docs/blogs/02-path-a-versioned-python-docs.md) | Walkthrough: ingest Python 3.10/3.11/3.12 docs, query with `version_filter`. |
+| [`docs/blogs/03-path-b-medical-retractions.md`](docs/blogs/03-path-b-medical-retractions.md) | Walkthrough: ingest PubMed HRT abstracts, demonstrate `retracted_behavior` and `as_of`. |
 | [`docs/cookbook/evolution-tracking.md`](docs/cookbook/evolution-tracking.md) | Tier 1 quickstart — `effective_from`, `retracted`, `version_label` ingest + query patterns. |
 | [`docs/EVOLUTION-API-QUICKREF.md`](docs/EVOLUTION-API-QUICKREF.md) | Common assumptions vs reality for the Tier 1 API (which kwargs are per-query vs config-only, schema column locations, semantics of `as_of` × `retracted_at`). |
 | [`docs/user-guide.md`](docs/user-guide.md) | Full user guide. Installation, all 6 modes, configuration, REST API, production deployment, troubleshooting. |

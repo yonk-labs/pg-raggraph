@@ -114,7 +114,7 @@ Ask yourself:
   Tier 1 code: which kwargs are per-query vs config-only, how to read
   evolution columns, `as_of` + `retracted_at` semantics)
 - `docs/cookbook/evolution-tracking.md` — Tier 1 quickstart
-- `docs/blog/01-intro-classic-vs-evolving.md` — narrative version of this page
-- `docs/blog/02-path-a-versioned-python-docs.md` — versioned-docs walkthrough
-- `docs/blog/03-path-b-medical-retractions.md` — medical-retractions walkthrough
+- `docs/blogs/01-intro-classic-vs-evolving.md` — narrative version of this page
+- `docs/blogs/02-path-a-versioned-python-docs.md` — versioned-docs walkthrough
+- `docs/blogs/03-path-b-medical-retractions.md` — medical-retractions walkthrough
 - `docs/user-guide.md` — full API reference

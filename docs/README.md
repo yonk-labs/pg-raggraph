@@ -14,12 +14,12 @@
 - **[devmem-guide.md](devmem-guide.md)** — Developer knowledge base walkthrough (`pgrg devmem`).
 - **[cookbook/evolution-tracking.md](cookbook/evolution-tracking.md)** — Tier 1 quickstart for `effective_from` / `retracted` / `version_label`.
 
-## Worked walkthroughs (3-part blog series)
+## Worked walkthroughs (blog series — `blogs/`)
 
-- **[blog/00-what-we-learned-building-graphrag.md](blog/00-what-we-learned-building-graphrag.md)** — Project-overview narrative: what surprised us building a PG-native GraphRAG, why "graph wins on everything" turns out to be wrong, where graph actually pays.
-- **[blog/01-intro-classic-vs-evolving.md](blog/01-intro-classic-vs-evolving.md)** — Series intro: two retrieval workloads, one Postgres database, when each one applies.
-- **[blog/02-path-a-versioned-python-docs.md](blog/02-path-a-versioned-python-docs.md)** — Walkthrough: ingest Python 3.10/3.11/3.12 docs, query with `version_filter`, see the 13/13 perfect filter purity.
-- **[blog/03-path-b-medical-retractions.md](blog/03-path-b-medical-retractions.md)** — Walkthrough: ingest PubMed HRT abstracts, demonstrate `retracted_behavior="hide"` and `as_of` time-travel.
+- **[blogs/00-what-we-learned-building-graphrag.md](blogs/00-what-we-learned-building-graphrag.md)** — Project-overview narrative: what surprised us building a PG-native GraphRAG, why "graph wins on everything" turns out to be wrong, where graph actually pays.
+- **[blogs/01-intro-classic-vs-evolving.md](blogs/01-intro-classic-vs-evolving.md)** — Series intro: two retrieval workloads, one Postgres database, when each one applies.
+- **[blogs/02-path-a-versioned-python-docs.md](blogs/02-path-a-versioned-python-docs.md)** — Walkthrough: ingest Python 3.10/3.11/3.12 docs, query with `version_filter`, see the 13/13 perfect filter purity.
+- **[blogs/03-path-b-medical-retractions.md](blogs/03-path-b-medical-retractions.md)** — Walkthrough: ingest PubMed HRT abstracts, demonstrate `retracted_behavior="hide"` and `as_of` time-travel.
 
 ## Engineering deep-dive
 
@@ -65,13 +65,13 @@
 | Install and run in 5 minutes | [README — Quickstart](../README.md#quickstart--5-minutes-works-cold) |
 | Understand the 6 query modes | [modes.md](modes.md) |
 | Pick the right workload (classic vs evolving) | [USE-CASES.md](USE-CASES.md) |
-| Walk a versioned-docs example | [blog/02-path-a-versioned-python-docs.md](blog/02-path-a-versioned-python-docs.md) |
-| Walk a retraction-aware example | [blog/03-path-b-medical-retractions.md](blog/03-path-b-medical-retractions.md) |
+| Walk a versioned-docs example | [blogs/02-path-a-versioned-python-docs.md](blogs/02-path-a-versioned-python-docs.md) |
+| Walk a retraction-aware example | [blogs/03-path-b-medical-retractions.md](blogs/03-path-b-medical-retractions.md) |
 | Avoid common Tier 1 API gotchas | [EVOLUTION-API-QUICKREF.md](EVOLUTION-API-QUICKREF.md) |
 | Build a developer knowledge base | [devmem-guide.md](devmem-guide.md) |
 | Read the unvarnished assessment | [../ASSESSMENT.md](../ASSESSMENT.md) |
 | Compare vs LightRAG / Neo4j / Zep | [../research/competition-comparison.md](../research/competition-comparison.md) |
 | Understand why we rejected Apache AGE | [../research/apache-age-evaluation.md](../research/apache-age-evaluation.md) |
-| Read the project-overview narrative | [blog/00-what-we-learned-building-graphrag.md](blog/00-what-we-learned-building-graphrag.md) |
+| Read the project-overview narrative | [blogs/00-what-we-learned-building-graphrag.md](blogs/00-what-we-learned-building-graphrag.md) |
 | See the schema ERD | [user-guide.md → Schema overview](user-guide.md#schema-overview) |
 | Reproduce the bake-off vs Apache AGE | [../benchmarks/age-bakeoff/results/REPORT-VERDICT.md](../benchmarks/age-bakeoff/results/REPORT-VERDICT.md) |

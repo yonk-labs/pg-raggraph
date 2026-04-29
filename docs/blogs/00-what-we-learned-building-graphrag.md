@@ -2,6 +2,14 @@
 
 *Or: why the "graph wins on everything" narrative is wrong, and what actually works.*
 
+> **Note:** This is the original retrospective from the project's early benchmarking, dated 2026-04. The headline lessons here all still hold, but the project has evolved since:
+>
+> - **+18.9% accuracy lift** measured on a real 909-doc developer codebase ([`benchmarks/pg-agents-results.md`](../../benchmarks/pg-agents-results.md)).
+> - **Apache AGE bake-off completed**, with the [methodology / fairness disclosure](../../research/apache-age-evaluation.md) documenting exactly what AGE was and wasn't tuned with. AGE retrieval ran 42–111× slower in fair-defaults mode.
+> - **Tier 1 evolving-knowledge** features shipped (`retracted`, `as_of`, `version_filter`) — see [`01-intro-classic-vs-evolving.md`](01-intro-classic-vs-evolving.md), [`02-path-a-versioned-python-docs.md`](02-path-a-versioned-python-docs.md), and [`03-path-b-medical-retractions.md`](03-path-b-medical-retractions.md) for worked examples.
+>
+> The numbers below are from the early 2026-04 benchmarks (PG docs, NTSB, SEC 10-Q, SCOTUS). They reflect what graph mode does and doesn't do on classic technical-doc corpora, which is the lens this post is written through. For current-state measurements on the larger pg-agents corpus and the new evolving-knowledge workloads, follow the links above.
+
 ---
 
 GraphRAG is having a moment. Microsoft open-sourced theirs in 2024, LightRAG hit 33K stars with an EMNLP 2025 paper, Zep ships production-ready temporal knowledge graphs. Every vendor promises multi-hop reasoning, cross-document insight, and dramatic accuracy improvements over "naive" vector RAG.
@@ -183,25 +191,31 @@ Our happy-path suite had 55 passing tests before edge case testing. None of them
 
 ## The Code
 
-pg-raggraph is MIT-licensed, <1,500 LOC core, 9 core dependencies, works on every managed PostgreSQL provider. If you're already running PostgreSQL and want to add GraphRAG to an app, it's the simplest path:
+pg-raggraph is MIT-licensed, ~4K LOC core (grew with the Tier 1 evolution layer), 9 core dependencies, works on every managed PostgreSQL provider. If you're already running PostgreSQL and want to add GraphRAG to an app, it's the simplest path:
 
 ```bash
-pip install pg-raggraph
+# Until the first stable PyPI release, install from source:
+git clone https://github.com/yonk-labs/pg_raggraph
+cd pg_raggraph
+uv sync
 docker compose up -d postgres
-pgrg init
-pgrg ingest ./your-docs/
-pgrg query "your question"
+
+uv run pgrg ingest ./your-docs/
+uv run pgrg query "your question"
 ```
 
 Or from Python:
 ```python
 from pg_raggraph import GraphRAG
 
-async with GraphRAG("postgresql://localhost/mydb") as rag:
+async with GraphRAG("postgresql://localhost:5434/pg_raggraph") as rag:
     await rag.ingest(["./docs/"])
-    result = await rag.query("How does auth work?", mode="hybrid")
+    # `smart` (the default) routes between naive / boost / expand based on
+    # confidence. Pin to `mode="hybrid"` only when you know your corpus
+    # benefits from it.
+    result = await rag.query("How does auth work?")
     for chunk in result.chunks:
         print(chunk.content)
 ```
 
-No Neo4j. No Pinecone. No config files. No Apache AGE. Just PostgreSQL, pgvector, and ~1,500 lines of async Python.
+No Neo4j. No Pinecone. No Apache AGE. Just PostgreSQL, pgvector, and async Python.

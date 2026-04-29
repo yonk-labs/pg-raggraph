@@ -131,7 +131,7 @@ and pass `as_of=...`.
   the canonical Tier 1 quickstart
 - [`docs/USE-CASES.md`](USE-CASES.md) — when to reach for evolving-knowledge
   vs classic GraphRAG
-- [`docs/blog/03-path-b-medical-retractions.md`](blog/03-path-b-medical-retractions.md) —
+- [`docs/blogs/03-path-b-medical-retractions.md`](blogs/03-path-b-medical-retractions.md) —
   worked example of `retracted_behavior` + `as_of` semantics on real
   PubMed literature
 - [`benchmarks/python-versioned-docs/run_path_a.py`](../benchmarks/python-versioned-docs/run_path_a.py) and
