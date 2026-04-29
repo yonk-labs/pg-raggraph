@@ -39,15 +39,21 @@ Mission: prove (or disprove) that pgrg's graph modes beat naive vector retrieval
 
 ---
 
-## P1 — PropRAG-on-Postgres (proposal stage, blocked on MuSiQue baseline)
+## P1 — Accuracy roadmap (consolidated, performance-respecting)
 
-Forward-looking design + phase plan in `docs/proposals/PropRAG-on-Postgres.md`. Goal: port PropRAG's two algorithmic ideas (propositions + PPR) into pg-raggraph using only Postgres + scipy. Three phases; Phase D (beam search) deferred. Targets MuSiQue F1 of ≥45 (target) / ≥50 (stretch) at end of Phase C, vs PropRAG SOTA of ~54.
+Six-step plan in [`docs/proposals/Accuracy-Improvements-Roadmap.md`](docs/proposals/Accuracy-Improvements-Roadmap.md). Constraint: no substantial sacrifice in latency or per-query cost. Total expected lift ~+10-15 pp on MuSiQue with ~+100-150 ms p50 latency and zero added per-query LLM cost.
 
-Decision branch on current MuSiQue baseline:
-- If `naive` lands in the 30-40 F1 range, embedder is the likely bottleneck — Phase A-prime (embedder swap from bge-small-en-v1.5) becomes the prerequisite.
-- If `naive` lands in the 40-45 range, propositions + PPR are the right next step.
+Order:
+1. `short_answer` mode for `rag.ask()` — fixes MuSiQue EM/F1 measurement (1-2 days)
+2. Cross-encoder reranker (`bge-reranker-base`, CPU) — +3-7 pp, +50-80 ms (3-5 days)
+3. PPR over `relationships` (Phase B from PropRAG proposal) — +3-5 pp on multi-hop, +30-50 ms (1 week)
+4. Smart routing tunes — encode "right amount of graph is a little" finding (2-3 days)
+5. Propositions (Phase A from PropRAG proposal) — +3-5 pp standalone (1 week)
+6. PPR over proposition cliques (Phase C) — +5-10 pp combined (1 week)
 
-Status: not yet committed for execution. Awaiting numbers.
+Decision branches captured in the roadmap; Tier 3 ideas (HyDE, multi-query) explicitly deferred as `smart`-mode escalations only.
+
+Sub-proposal: [`docs/proposals/PropRAG-on-Postgres.md`](docs/proposals/PropRAG-on-Postgres.md) covers Steps 3, 5, 6 in depth. Steps 1, 2, 4 are the additional Tier-1 wins surfaced by the consolidation.
 
 ---
 
