@@ -1,0 +1,18 @@
+# MuSiQue benchmark — regenerable artifacts excluded from git.
+#
+# What's regenerable:
+#   raw/          downloaded dataset (~30 MB jsonl)
+#   docs/         1,700 paragraph .md files written by prepare.py
+#   _logs/        ingest + run logs
+#
+# What stays in git:
+#   prepare.py, ingest.py, run.py    — runners
+#   README.md, results.md            — docs
+#   manifest.json, questions.json    — sampled question set + provenance
+#   _results/*.json                  — actual measurement output
+#
+# To reproduce: run `prepare.py` → `ingest.py` → `run.py`. See README.md.
+
+raw/
+docs/
+_logs/

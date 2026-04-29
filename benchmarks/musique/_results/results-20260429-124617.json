@@ -1,0 +1,89 @@
+{
+  "summary": {
+    "by_mode": {
+      "naive": {
+        "n": 3,
+        "em_pct": 0.0,
+        "f1_pct": 0.6,
+        "support_recall_pct": 27.8,
+        "avg_latency_ms": 21156.0
+      }
+    },
+    "by_mode_hop": {
+      "naive": {
+        "2hop": {
+          "n": 1,
+          "em_pct": 0.0,
+          "f1_pct": 0.0,
+          "support_recall_pct": 50.0,
+          "avg_latency_ms": 3073.0
+        },
+        "3hop": {
+          "n": 1,
+          "em_pct": 0.0,
+          "f1_pct": 1.9,
+          "support_recall_pct": 33.3,
+          "avg_latency_ms": 21413.0
+        },
+        "4hop": {
+          "n": 1,
+          "em_pct": 0.0,
+          "f1_pct": 0.0,
+          "support_recall_pct": 0.0,
+          "avg_latency_ms": 38981.0
+        }
+      }
+    }
+  },
+  "rows": [
+    {
+      "qid": "3hop1__632623_160713_77246",
+      "hop_class": "3hop",
+      "mode": "naive",
+      "question": "In the arabic dictionary what is the meaning of the word that also refers to the majority religion in India during the creation of the country where Rabwah is located?",
+      "gold": "the country of India",
+      "gold_aliases": [
+        "IND",
+        "IN",
+        "India",
+        "in",
+        "Republic of India"
+      ],
+      "answer": "The question asks for the Arabic dictionary meaning of a word that also refers to the **majority religion in India during the creation of the country where Rabwah is located**.\n\nFirst, identify the country where Rabwah is located:  \n- Rabwah (now called Chenab Nagar) is a town in Pakistan, established in the 1940s as a refuge for Ahmadiyya Muslims after partition.\n\nHowever, the question says \u201cthe majority religion in India **during the creation of the country where Rabwah is located**.\u201d Since Ra",
+      "em": 0,
+      "f1": 0.019,
+      "support_recall": 0.333,
+      "latency_ms": 21413.0
+    },
+    {
+      "qid": "4hop1__93601_46196_497223_15840",
+      "hop_class": "4hop",
+      "mode": "naive",
+      "question": "What is the abbreviated name of the exclusive platform of the video game named for the league with a halftime event just before the publishers clearing house sweepstakes drawing.",
+      "gold": "NES",
+      "gold_aliases": [
+        "Family Computer",
+        "Famicom",
+        "Nintendo Entertainment System"
+      ],
+      "answer": "The question asks for the abbreviated name of the exclusive platform of a video game named for a league that has a halftime event just before the \u201cpublishers clearing house sweepstakes drawing.\u201d\n\nLet\u2019s break this down:\n\n- \u201cPublishers clearing house sweepstakes drawing\u201d is a reference to the **NBA Draft Lottery**, which is administered by the **Publishers Clearing House** (a well-known fact in NBA lore \u2014 PCH has historically conducted the NBA Draft Lottery drawing).\n- The NBA Draft Lottery occurs",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 0.0,
+      "latency_ms": 38981.0
+    },
+    {
+      "qid": "2hop__58939_189318",
+      "hop_class": "2hop",
+      "mode": "naive",
+      "question": "Where was Obama's opponent in his first election educated?",
+      "gold": "National War College",
+      "gold_aliases": [],
+      "answer": "Barack Obama's opponent in the 2008 presidential election was John McCain. According to Chunk 1, McCain was a Senator from Arizona. However, the provided context does not specify where McCain was educated.\n\nTo answer the question, additional information about John McCain\u2019s education is required, which is not present in the given chunks.",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 0.5,
+      "latency_ms": 3073.0
+    }
+  ]
+}

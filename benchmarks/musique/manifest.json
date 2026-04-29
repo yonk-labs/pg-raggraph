@@ -1,0 +1,13 @@
+{
+  "source": "MuSiQue-Ans dev split (Trivedi et al. 2022)",
+  "source_url": "https://huggingface.co/datasets/dgslibisey/MuSiQue",
+  "sample_size": {
+    "2hop": 33,
+    "3hop": 33,
+    "4hop": 34,
+    "total": 100
+  },
+  "seed": 20260429,
+  "unique_paragraphs": 1700,
+  "doc_count": 1700
+}

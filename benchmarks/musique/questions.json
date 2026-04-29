@@ -1,0 +1,4177 @@
+[
+  {
+    "id": "3hop1__632623_160713_77246",
+    "hop_class": "3hop",
+    "question": "In the arabic dictionary what is the meaning of the word that also refers to the majority religion in India during the creation of the country where Rabwah is located?",
+    "answer": "the country of India",
+    "answer_aliases": [
+      "IND",
+      "IN",
+      "India",
+      "in",
+      "Republic of India"
+    ],
+    "supporting": [
+      {
+        "title": "Bashir Rafiq",
+        "filename": "Bashir-Rafiq.md"
+      },
+      {
+        "title": "Hindus",
+        "filename": "Hindus.md"
+      },
+      {
+        "title": "Partition of India",
+        "filename": "Partition-of-India--2.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 632623,
+        "question": "Rabwah >> country",
+        "answer": "Pakistan",
+        "paragraph_support_idx": 5
+      },
+      {
+        "id": 160713,
+        "question": "What was the majority religion in the area of British India that become India when #1 was created?",
+        "answer": "Hindu",
+        "paragraph_support_idx": 13
+      },
+      {
+        "id": 77246,
+        "question": "what is the meaning of #2 in arabic dictionary",
+        "answer": "the country of India",
+        "paragraph_support_idx": 9
+      }
+    ]
+  },
+  {
+    "id": "4hop1__93601_46196_497223_15840",
+    "hop_class": "4hop",
+    "question": "What is the abbreviated name of the exclusive platform of the video game named for the league with a halftime event just before the publishers clearing house sweepstakes drawing.",
+    "answer": "NES",
+    "answer_aliases": [
+      "Family Computer",
+      "Famicom",
+      "Nintendo Entertainment System"
+    ],
+    "supporting": [
+      {
+        "title": "Publishers Clearing House",
+        "filename": "Publishers-Clearing-House.md"
+      },
+      {
+        "title": "List of Super Bowl halftime shows",
+        "filename": "List-of-Super-Bowl-halftime-shows.md"
+      },
+      {
+        "title": "Nintendo Entertainment System",
+        "filename": "Nintendo-Entertainment-System.md"
+      },
+      {
+        "title": "NFL (video game)",
+        "filename": "NFL-video-game.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 93601,
+        "question": "when is the publishers clearing house sweepstakes drawing",
+        "answer": "just after the Super Bowl",
+        "paragraph_support_idx": 5
+      },
+      {
+        "id": 46196,
+        "question": "who is in charge of #1 halftime show",
+        "answer": "The NFL",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 497223,
+        "question": "#2 >> platform",
+        "answer": "Nintendo Entertainment System",
+        "paragraph_support_idx": 16
+      },
+      {
+        "id": 15840,
+        "question": "What is the abbreviation of #3 ?",
+        "answer": "NES",
+        "paragraph_support_idx": 15
+      }
+    ]
+  },
+  {
+    "id": "2hop__58939_189318",
+    "hop_class": "2hop",
+    "question": "Where was Obama's opponent in his first election educated?",
+    "answer": "National War College",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "The Code of Conduct and the Vietnam Prisoners of War",
+        "filename": "The-Code-of-Conduct-and-the-Vietnam-Prisoners-of-War.md"
+      },
+      {
+        "title": "2008 United States presidential election",
+        "filename": "2008-United-States-presidential-election.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 58939,
+        "question": "who ran against obama in his first election",
+        "answer": "John McCain",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 189318,
+        "question": "#1 >> educated at",
+        "answer": "National War College",
+        "paragraph_support_idx": 1
+      }
+    ]
+  },
+  {
+    "id": "3hop1__30240_740597_41132",
+    "hop_class": "3hop",
+    "question": "How many times did plague occur in the birthplace of the person who used the spice route that the Ottoman Empire controlled?",
+    "answer": "22",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Ottoman Empire",
+        "filename": "Ottoman-Empire--1.md"
+      },
+      {
+        "title": "In the Footsteps of Marco Polo",
+        "filename": "In-the-Footsteps-of-Marco-Polo.md"
+      },
+      {
+        "title": "Black Death",
+        "filename": "Black-Death.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 30240,
+        "question": "Who once used the spice route that the Ottoman Empire controlled?",
+        "answer": "Marco Polo",
+        "paragraph_support_idx": 4
+      },
+      {
+        "id": 740597,
+        "question": "#1 >> place of birth",
+        "answer": "Venice",
+        "paragraph_support_idx": 13
+      },
+      {
+        "id": 41132,
+        "question": "How many times did plague occur in #2 ?",
+        "answer": "22",
+        "paragraph_support_idx": 17
+      }
+    ]
+  },
+  {
+    "id": "3hop1__254856_400692_51423",
+    "hop_class": "3hop",
+    "question": "What is the name of the castle found in the birthplace of the performer of Falling Out?",
+    "answer": "Casa Loma",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Casa Loma",
+        "filename": "Casa-Loma.md"
+      },
+      {
+        "title": "Falling Out (Serena Ryder album)",
+        "filename": "Falling-Out-Serena-Ryder-album.md"
+      },
+      {
+        "title": "Sekou Lumumba",
+        "filename": "Sekou-Lumumba.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 254856,
+        "question": "Falling Out >> performer",
+        "answer": "Serena Ryder",
+        "paragraph_support_idx": 5
+      },
+      {
+        "id": 400692,
+        "question": "#1 >> place of birth",
+        "answer": "Toronto",
+        "paragraph_support_idx": 13
+      },
+      {
+        "id": 51423,
+        "question": "what is the name of the castle in #2",
+        "answer": "Casa Loma",
+        "paragraph_support_idx": 3
+      }
+    ]
+  },
+  {
+    "id": "3hop1__145290_443779_52195",
+    "hop_class": "3hop",
+    "question": "Who is the president of the new country who has jointly established a Commission on Truth and Friendship with the birth country of Satyo Husodo?",
+    "answer": "Francisco Guterres",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Indonesia\u2013Timor Leste Commission of Truth and Friendship",
+        "filename": "IndonesiaTimor-Leste-Commission-of-Truth-and-Friendship.md"
+      },
+      {
+        "title": "Satyo Husodo",
+        "filename": "Satyo-Husodo.md"
+      },
+      {
+        "title": "East Timor",
+        "filename": "East-Timor.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 145290,
+        "question": "Where was Satyo Husodo born?",
+        "answer": "Indonesia",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 443779,
+        "question": "#1 \u2013Timor Leste Commission of Truth and Friendship >> country",
+        "answer": "East Timor",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 52195,
+        "question": "who is the president of newly declared independent country #2",
+        "answer": "Francisco Guterres",
+        "paragraph_support_idx": 16
+      }
+    ]
+  },
+  {
+    "id": "3hop1__160324_131905_41948",
+    "hop_class": "3hop",
+    "question": "What body of water was dry land during the last ice age, besides the Irish Channel and the sea near the former Atlantic Hotel?",
+    "answer": "English Channel",
+    "answer_aliases": [
+      "The Channel"
+    ],
+    "supporting": [
+      {
+        "title": "Rhine",
+        "filename": "Rhine.md"
+      },
+      {
+        "title": "Islamic Centre Hamburg",
+        "filename": "Islamic-Centre-Hamburg.md"
+      },
+      {
+        "title": "Hamburg",
+        "filename": "Hamburg.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 160324,
+        "question": "Where was the Atlantic Hotel located at?",
+        "answer": "Hamburg",
+        "paragraph_support_idx": 9
+      },
+      {
+        "id": 131905,
+        "question": "Which is the body of water by #1 ?",
+        "answer": "North Sea",
+        "paragraph_support_idx": 19
+      },
+      {
+        "id": 41948,
+        "question": "Besides #2 and the Irish Channel, what else was lowered in the last cold phase?",
+        "answer": "English Channel",
+        "paragraph_support_idx": 5
+      }
+    ]
+  },
+  {
+    "id": "2hop__283_574195",
+    "hop_class": "2hop",
+    "question": "Where was the person who said she is the reigning national voice educated?",
+    "answer": "National Institute of Dramatic Art",
+    "answer_aliases": [
+      "NIDA"
+    ],
+    "supporting": [
+      {
+        "title": "Beyonc\u00e9",
+        "filename": "Beyonc\u00e9.md"
+      },
+      {
+        "title": "Jason Keng-Kwin Chan",
+        "filename": "Jason-Keng-Kwin-Chan.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 283,
+        "question": "Who said that she is the reigning national voice?",
+        "answer": "Baz Luhrmann",
+        "paragraph_support_idx": 0
+      },
+      {
+        "id": 574195,
+        "question": "#1 >> educated at",
+        "answer": "National Institute of Dramatic Art",
+        "paragraph_support_idx": 7
+      }
+    ]
+  },
+  {
+    "id": "3hop2__222979_380281_40768",
+    "hop_class": "3hop",
+    "question": "When did the team that John Surtees is a member of, the owner of Scion, and Nissan open US assembly plants?",
+    "answer": "1981",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "1973 oil crisis",
+        "filename": "1973-oil-crisis.md"
+      },
+      {
+        "title": "Scion (automobile)",
+        "filename": "Scion-automobile.md"
+      },
+      {
+        "title": "1967 Italian Grand Prix",
+        "filename": "1967-Italian-Grand-Prix.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 222979,
+        "question": "Scion >> owned by",
+        "answer": "Toyota",
+        "paragraph_support_idx": 10
+      },
+      {
+        "id": 380281,
+        "question": "John Surtees >> member of sports team",
+        "answer": "Honda",
+        "paragraph_support_idx": 15
+      },
+      {
+        "id": 40768,
+        "question": "When did #2 , #1 and Nissan open US assembly plants?",
+        "answer": "1981",
+        "paragraph_support_idx": 2
+      }
+    ]
+  },
+  {
+    "id": "2hop__31124_31122",
+    "hop_class": "2hop",
+    "question": "What century did a notable subjective idealist live in?",
+    "answer": "18th",
+    "answer_aliases": [
+      "18th-century",
+      "18th century"
+    ],
+    "supporting": [
+      {
+        "title": "Idealism",
+        "filename": "Idealism.md"
+      },
+      {
+        "title": "Idealism",
+        "filename": "Idealism--1.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 31124,
+        "question": "Who is a notable subjective idealist?",
+        "answer": "George Berkeley",
+        "paragraph_support_idx": 9
+      },
+      {
+        "id": 31122,
+        "question": "What century did #1 live in?",
+        "answer": "18th",
+        "paragraph_support_idx": 15
+      }
+    ]
+  },
+  {
+    "id": "3hop1__609479_503371_21711",
+    "hop_class": "3hop",
+    "question": "When was the Palau de la Generalitat built in the city in which died the man called Martin of the region of Spain where Bijuesca is located?",
+    "answer": "built in the 15th century",
+    "answer_aliases": [
+      "15th century"
+    ],
+    "supporting": [
+      {
+        "title": "Martin of Aragon",
+        "filename": "Martin-of-Aragon.md"
+      },
+      {
+        "title": "Bijuesca",
+        "filename": "Bijuesca.md"
+      },
+      {
+        "title": "Gothic architecture",
+        "filename": "Gothic-architecture.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 609479,
+        "question": "Bijuesca >> located in the administrative territorial entity",
+        "answer": "Aragon",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 503371,
+        "question": "Martin of #1 >> place of death",
+        "answer": "Barcelona",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 21711,
+        "question": "When was the Palau de la Generalitat in #2 constructed?",
+        "answer": "built in the 15th century",
+        "paragraph_support_idx": 19
+      }
+    ]
+  },
+  {
+    "id": "4hop3__193820_466199_128875_72134",
+    "hop_class": "4hop",
+    "question": "When did the town WLUJ is licensed in become capitol of the state where Brantley York was born?",
+    "answer": "1839",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Randolph County, Illinois",
+        "filename": "Randolph-County-Illinois.md"
+      },
+      {
+        "title": "Brantley York",
+        "filename": "Brantley-York.md"
+      },
+      {
+        "title": "WLUJ",
+        "filename": "WLUJ.md"
+      },
+      {
+        "title": "Springfield, Illinois",
+        "filename": "Springfield-Illinois.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 193820,
+        "question": "Brantley York >> place of birth",
+        "answer": "Randolph County",
+        "paragraph_support_idx": 3
+      },
+      {
+        "id": 466199,
+        "question": "#1 >> located in the administrative territorial entity",
+        "answer": "Illinois",
+        "paragraph_support_idx": 1
+      },
+      {
+        "id": 128875,
+        "question": "What town is WLUJ liscensed in?",
+        "answer": "Springfield",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 72134,
+        "question": "when did #3 become the capital of #2",
+        "answer": "1839",
+        "paragraph_support_idx": 8
+      }
+    ]
+  },
+  {
+    "id": "4hop2__105527_39078_8987_8974",
+    "hop_class": "4hop",
+    "question": "A country's military branch, the equivalent of which in the US helped the Old West's local police, was unprepared for the invasion of the country that developed the ZH-29. The unprepared country was the only communist country to have an embassy where?",
+    "answer": "Alfredo Stroessner's Paraguay",
+    "answer_aliases": [
+      "Alfredo Stroessner"
+    ],
+    "supporting": [
+      {
+        "title": "ZH-29",
+        "filename": "ZH-29.md"
+      },
+      {
+        "title": "Police",
+        "filename": "Police.md"
+      },
+      {
+        "title": "Josip Broz Tito",
+        "filename": "Josip-Broz-Tito--1.md"
+      },
+      {
+        "title": "Josip Broz Tito",
+        "filename": "Josip-Broz-Tito--2.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 105527,
+        "question": "The country for ZH-29 was what?",
+        "answer": "Czechoslovakia",
+        "paragraph_support_idx": 0
+      },
+      {
+        "id": 39078,
+        "question": "Which military branch helped the Old West's inadequate local police?",
+        "answer": "The Army",
+        "paragraph_support_idx": 9
+      },
+      {
+        "id": 8987,
+        "question": "What #2 was unprepared for the invasion of #1 ?",
+        "answer": "Yugoslavia",
+        "paragraph_support_idx": 16
+      },
+      {
+        "id": 8974,
+        "question": "#3 was the only communist country to have an embassy where?",
+        "answer": "Alfredo Stroessner's Paraguay",
+        "paragraph_support_idx": 18
+      }
+    ]
+  },
+  {
+    "id": "4hop2__103790_14670_8987_8529",
+    "hop_class": "4hop",
+    "question": "A country's military branch, the equivalent of which in the US contains the Air Defense Artillery, was unprepared for the invasion of Ivo Werner's country. When was the word \"Slavs\" used in the national anthem of the unprepared country?",
+    "answer": "1943\u20131992",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Slavs",
+        "filename": "Slavs--1.md"
+      },
+      {
+        "title": "Josip Broz Tito",
+        "filename": "Josip-Broz-Tito--1.md"
+      },
+      {
+        "title": "United States Army",
+        "filename": "United-States-Army.md"
+      },
+      {
+        "title": "Ivo Werner",
+        "filename": "Ivo-Werner.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 103790,
+        "question": "Where was Ivo Werner from?",
+        "answer": "Czechoslovakia",
+        "paragraph_support_idx": 17
+      },
+      {
+        "id": 14670,
+        "question": "The Air Defense Artillery is a branch of what?",
+        "answer": "the Army",
+        "paragraph_support_idx": 16
+      },
+      {
+        "id": 8987,
+        "question": "What #2 was unprepared for the invasion of #1 ?",
+        "answer": "Yugoslavia",
+        "paragraph_support_idx": 14
+      },
+      {
+        "id": 8529,
+        "question": "When was the word \"Slavs\" used in the national anthem of #3 ?",
+        "answer": "1943\u20131992",
+        "paragraph_support_idx": 6
+      }
+    ]
+  },
+  {
+    "id": "4hop1__88342_75218_128008_87812",
+    "hop_class": "4hop",
+    "question": "When is the opening day of the league in which the team with the most games in the series after which the MLB MVP is awarded plays?",
+    "answer": "Thursday, March 29",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "New York Yankees",
+        "filename": "New-York-Yankees.md"
+      },
+      {
+        "title": "Opening Day",
+        "filename": "Opening-Day.md"
+      },
+      {
+        "title": "World Series",
+        "filename": "World-Series.md"
+      },
+      {
+        "title": "Major League Baseball Most Valuable Player Award",
+        "filename": "Major-League-Baseball-Most-Valuable-Player-Award.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 88342,
+        "question": "when do they give out the mlb mvp award",
+        "answer": "after the World Series",
+        "paragraph_support_idx": 19
+      },
+      {
+        "id": 75218,
+        "question": "who played in the most #1 games",
+        "answer": "the New York Yankees",
+        "paragraph_support_idx": 18
+      },
+      {
+        "id": 128008,
+        "question": "Which is the league of #2 ?",
+        "answer": "Major League Baseball",
+        "paragraph_support_idx": 3
+      },
+      {
+        "id": 87812,
+        "question": "when is opening day of #3",
+        "answer": "Thursday, March 29",
+        "paragraph_support_idx": 16
+      }
+    ]
+  },
+  {
+    "id": "3hop2__89854_92991_76291",
+    "hop_class": "3hop",
+    "question": "When did the majority party in the House of Representatives gain control of the body which determines rules of the US House and US Senate?",
+    "answer": "January 2015",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "2014 United States Senate elections",
+        "filename": "2014-United-States-Senate-elections.md"
+      },
+      {
+        "title": "114th United States Congress",
+        "filename": "114th-United-States-Congress.md"
+      },
+      {
+        "title": "Standing Rules of the United States Senate",
+        "filename": "Standing-Rules-of-the-United-States-Senate.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 89854,
+        "question": "who hold the majority in the house of representatives",
+        "answer": "the Republicans",
+        "paragraph_support_idx": 17
+      },
+      {
+        "id": 92991,
+        "question": "who determines the rules of the us house and us senate",
+        "answer": "The Senate",
+        "paragraph_support_idx": 19
+      },
+      {
+        "id": 76291,
+        "question": "when did #1 take control of the #2",
+        "answer": "January 2015",
+        "paragraph_support_idx": 4
+      }
+    ]
+  },
+  {
+    "id": "2hop__29367_29376",
+    "hop_class": "2hop",
+    "question": "What event caused the Liberal Party of Australia's longest-serving leader to become Prime Minister?",
+    "answer": "Lyons' death in 1939",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Liberal Party of Australia",
+        "filename": "Liberal-Party-of-Australia.md"
+      },
+      {
+        "title": "Liberal Party of Australia",
+        "filename": "Liberal-Party-of-Australia--1.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 29367,
+        "question": "Who was the Liberal Party of Australia's longest-serving leader?",
+        "answer": "Robert Menzies",
+        "paragraph_support_idx": 10
+      },
+      {
+        "id": 29376,
+        "question": "What event caused #1 to become Prime Minister?",
+        "answer": "Lyons' death in 1939",
+        "paragraph_support_idx": 17
+      }
+    ]
+  },
+  {
+    "id": "3hop1__358853_339990_54675",
+    "hop_class": "3hop",
+    "question": "What mountain can you see from Portland, in the state that Raven Creek is located in?",
+    "answer": "Tualatin Mountains",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Socialist Party of Oregon (Columbia County, Oregon)",
+        "filename": "Socialist-Party-of-Oregon-Columbia-County-Oregon.md"
+      },
+      {
+        "title": "Portland, Oregon",
+        "filename": "Portland-Oregon.md"
+      },
+      {
+        "title": "Raven Creek",
+        "filename": "Raven-Creek.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 358853,
+        "question": "Raven Creek >> located in the administrative territorial entity",
+        "answer": "Columbia County",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 339990,
+        "question": "#1 >> located in the administrative territorial entity",
+        "answer": "Oregon",
+        "paragraph_support_idx": 0
+      },
+      {
+        "id": 54675,
+        "question": "what mountain can you see from portland #2",
+        "answer": "Tualatin Mountains",
+        "paragraph_support_idx": 3
+      }
+    ]
+  },
+  {
+    "id": "3hop1__145411_443779_52195",
+    "hop_class": "3hop",
+    "question": "Who is the president of the newly declared independent country that is part of the Commission of Truth and Friendship with the country where Sumardi was born?",
+    "answer": "Francisco Guterres",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Indonesia\u2013Timor Leste Commission of Truth and Friendship",
+        "filename": "IndonesiaTimor-Leste-Commission-of-Truth-and-Friendship.md"
+      },
+      {
+        "title": "Sumardi",
+        "filename": "Sumardi.md"
+      },
+      {
+        "title": "East Timor",
+        "filename": "East-Timor.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 145411,
+        "question": "Which city was the birthplace of Sumardi?",
+        "answer": "Indonesia",
+        "paragraph_support_idx": 5
+      },
+      {
+        "id": 443779,
+        "question": "#1 \u2013Timor Leste Commission of Truth and Friendship >> country",
+        "answer": "East Timor",
+        "paragraph_support_idx": 2
+      },
+      {
+        "id": 52195,
+        "question": "who is the president of newly declared independent country #2",
+        "answer": "Francisco Guterres",
+        "paragraph_support_idx": 18
+      }
+    ]
+  },
+  {
+    "id": "4hop3__638064_88460_30152_20999",
+    "hop_class": "4hop",
+    "question": "How were people from whom new coins were a proclamation of independence by the Somali Muslim Ajuran Empire expelled from the natural boundary between Thailand and Hiam district's country?",
+    "answer": "The dynasty regrouped and defeated the Portuguese",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Ottoman Empire",
+        "filename": "Ottoman-Empire.md"
+      },
+      {
+        "title": "Myanmar",
+        "filename": "Myanmar.md"
+      },
+      {
+        "title": "Geography of Myanmar",
+        "filename": "Geography-of-Myanmar.md"
+      },
+      {
+        "title": "Viengthong District, Houaphanh",
+        "filename": "Viengthong-District-Houaphanh.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 638064,
+        "question": "Hiam District >> country",
+        "answer": "Laos",
+        "paragraph_support_idx": 17
+      },
+      {
+        "id": 88460,
+        "question": "what natural boundary lies between thailand and #1",
+        "answer": "Myanmar",
+        "paragraph_support_idx": 12
+      },
+      {
+        "id": 30152,
+        "question": "New coins were a proclamation of independence by the Somali Muslim Ajuran Empire from whom?",
+        "answer": "the Portuguese",
+        "paragraph_support_idx": 4
+      },
+      {
+        "id": 20999,
+        "question": "How were the #3 expelled from #2 ?",
+        "answer": "The dynasty regrouped and defeated the Portuguese",
+        "paragraph_support_idx": 9
+      }
+    ]
+  },
+  {
+    "id": "2hop__132469_533882",
+    "hop_class": "2hop",
+    "question": "Which company followed the company that made AAM-N-4 Oriole?",
+    "answer": "Martin Marietta",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Martin Marietta",
+        "filename": "Martin-Marietta.md"
+      },
+      {
+        "title": "AAM-N-4 Oriole",
+        "filename": "AAM-N-4-Oriole.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 132469,
+        "question": "Who made AAM-N-4 Oriole?",
+        "answer": "Glenn L. Martin Company",
+        "paragraph_support_idx": 17
+      },
+      {
+        "id": 533882,
+        "question": "#1 >> followed by",
+        "answer": "Martin Marietta",
+        "paragraph_support_idx": 9
+      }
+    ]
+  },
+  {
+    "id": "3hop1__857_846_7791",
+    "hop_class": "3hop",
+    "question": "How many parties rule the city where the Yongle emperor greeted the person to whom the edict was addressed?",
+    "answer": "one-party",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Sino-Tibetan relations during the Ming dynasty",
+        "filename": "Sino-Tibetan-relations-during-the-Ming-dynasty--2.md"
+      },
+      {
+        "title": "Sino-Tibetan relations during the Ming dynasty",
+        "filename": "Sino-Tibetan-relations-during-the-Ming-dynasty--3.md"
+      },
+      {
+        "title": "Nanjing",
+        "filename": "Nanjing--1.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 857,
+        "question": "Who was the edict addressed to?",
+        "answer": "the Karmapa",
+        "paragraph_support_idx": 3
+      },
+      {
+        "id": 846,
+        "question": "Where did the Yongle Emperor greet the #1 ?",
+        "answer": "Nanjing",
+        "paragraph_support_idx": 4
+      },
+      {
+        "id": 7791,
+        "question": "How many parties rule #2 ?",
+        "answer": "one-party",
+        "paragraph_support_idx": 8
+      }
+    ]
+  },
+  {
+    "id": "2hop__695432_18803",
+    "hop_class": "2hop",
+    "question": "The operator of Brent field announced it was in the process of doing what in April 2010?",
+    "answer": "trying to find a potential buyer for all of its operations in Finland",
+    "answer_aliases": [
+      "FIN",
+      "fi",
+      "Finland"
+    ],
+    "supporting": [
+      {
+        "title": "Brent Spar",
+        "filename": "Brent-Spar.md"
+      },
+      {
+        "title": "Royal Dutch Shell",
+        "filename": "Royal-Dutch-Shell--1.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 695432,
+        "question": "Brent field >> operator",
+        "answer": "Shell",
+        "paragraph_support_idx": 1
+      },
+      {
+        "id": 18803,
+        "question": "#1 announced it was in the process of doing what in April 2010?",
+        "answer": "trying to find a potential buyer for all of its operations in Finland",
+        "paragraph_support_idx": 17
+      }
+    ]
+  },
+  {
+    "id": "3hop1__673934_831637_91775",
+    "hop_class": "3hop",
+    "question": "What does seal stand for in the operator of list of destroyer classes of the operator of the USS Kajeruna seals?",
+    "answer": "Sea, Air, and Land",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "United States Navy SEALs",
+        "filename": "United-States-Navy-SEALs.md"
+      },
+      {
+        "title": "List of destroyer classes of the United States Navy",
+        "filename": "List-of-destroyer-classes-of-the-United-States-Navy.md"
+      },
+      {
+        "title": "USS Kajeruna (SP-389)",
+        "filename": "USS-Kajeruna-SP-389.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 673934,
+        "question": "USS Kajeruna >> operator",
+        "answer": "United States Navy",
+        "paragraph_support_idx": 19
+      },
+      {
+        "id": 831637,
+        "question": "list of destroyer classes of #1 >> operator",
+        "answer": "U.S. Navy",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 91775,
+        "question": "what does seal stand for in #2 seals",
+        "answer": "Sea, Air, and Land",
+        "paragraph_support_idx": 4
+      }
+    ]
+  },
+  {
+    "id": "2hop__857493_17335",
+    "hop_class": "2hop",
+    "question": "When did the spouse of Parysatis II die?",
+    "answer": "323 BC",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Hellenistic period",
+        "filename": "Hellenistic-period.md"
+      },
+      {
+        "title": "Parysatis II",
+        "filename": "Parysatis-II.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 857493,
+        "question": "Parysatis II >> spouse",
+        "answer": "Alexander the Great",
+        "paragraph_support_idx": 11
+      },
+      {
+        "id": 17335,
+        "question": "When did #1 die?",
+        "answer": "323 BC",
+        "paragraph_support_idx": 5
+      }
+    ]
+  },
+  {
+    "id": "4hop1__726152_153080_33897_81096",
+    "hop_class": "4hop",
+    "question": "Who won the Indy Car Race in the largest populated city of the state where the performer of Tijuana Moods is from?",
+    "answer": "Mario Andretti",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Charles Mingus",
+        "filename": "Charles-Mingus.md"
+      },
+      {
+        "title": "Tijuana Moods",
+        "filename": "Tijuana-Moods.md"
+      },
+      {
+        "title": "Tucson, Arizona",
+        "filename": "Tucson-Arizona.md"
+      },
+      {
+        "title": "Desert Diamond West Valley Phoenix Grand Prix",
+        "filename": "Desert-Diamond-West-Valley-Phoenix-Grand-Prix.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 726152,
+        "question": "Tijuana Moods >> performer",
+        "answer": "Charles Mingus",
+        "paragraph_support_idx": 9
+      },
+      {
+        "id": 153080,
+        "question": "What city is #1 from?",
+        "answer": "Arizona",
+        "paragraph_support_idx": 5
+      },
+      {
+        "id": 33897,
+        "question": "What is the largest populated city in #2 ?",
+        "answer": "Phoenix",
+        "paragraph_support_idx": 10
+      },
+      {
+        "id": 81096,
+        "question": "who won the indy car race in #3",
+        "answer": "Mario Andretti",
+        "paragraph_support_idx": 14
+      }
+    ]
+  },
+  {
+    "id": "4hop2__567956_14670_8987_8974",
+    "hop_class": "4hop",
+    "question": "A country's military branch, which in the US contains the Air Defense Artillery, was unprepared for the invasion of the country that experienced a normalization period. The unprepared country was the only communist country to have an embassy where?",
+    "answer": "Alfredo Stroessner's Paraguay",
+    "answer_aliases": [
+      "Alfredo Stroessner"
+    ],
+    "supporting": [
+      {
+        "title": "Josip Broz Tito",
+        "filename": "Josip-Broz-Tito--1.md"
+      },
+      {
+        "title": "United States Army",
+        "filename": "United-States-Army.md"
+      },
+      {
+        "title": "Prague underground (culture)",
+        "filename": "Prague-underground-culture.md"
+      },
+      {
+        "title": "Josip Broz Tito",
+        "filename": "Josip-Broz-Tito--2.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 567956,
+        "question": "Normalization >> country",
+        "answer": "Czechoslovakia",
+        "paragraph_support_idx": 17
+      },
+      {
+        "id": 14670,
+        "question": "The Air Defense Artillery is a branch of what?",
+        "answer": "the Army",
+        "paragraph_support_idx": 11
+      },
+      {
+        "id": 8987,
+        "question": "What #2 was unprepared for the invasion of #1 ?",
+        "answer": "Yugoslavia",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 8974,
+        "question": "#3 was the only communist country to have an embassy where?",
+        "answer": "Alfredo Stroessner's Paraguay",
+        "paragraph_support_idx": 19
+      }
+    ]
+  },
+  {
+    "id": "4hop1__21282_692112_214799_259594",
+    "hop_class": "4hop",
+    "question": "What is the abbreviation for Angela Merkel's original home country that once had border troops called the Deutsche Grenzpolizei?",
+    "answer": "GDR",
+    "answer_aliases": [
+      "German Democratic Republic",
+      "East Germany"
+    ],
+    "supporting": [
+      {
+        "title": "Literature of East Germany",
+        "filename": "Literature-of-East-Germany.md"
+      },
+      {
+        "title": "Angela Merkel",
+        "filename": "Angela-Merkel.md"
+      },
+      {
+        "title": "The Sun (United Kingdom)",
+        "filename": "The-Sun-United-Kingdom.md"
+      },
+      {
+        "title": "Heinz-Josef Gro\u00dfe",
+        "filename": "Heinz-Josef-Gro\u00dfe.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 21282,
+        "question": "Which German chancellor was criticized by The Sun?",
+        "answer": "Angela Merkel",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 692112,
+        "question": "#1 >> country of citizenship",
+        "answer": "East Germany",
+        "paragraph_support_idx": 6
+      },
+      {
+        "id": 214799,
+        "question": "Literature of #2 >> country",
+        "answer": "German Democratic Republic",
+        "paragraph_support_idx": 3
+      },
+      {
+        "id": 259594,
+        "question": "Border Troops of #3 >> country",
+        "answer": "GDR",
+        "paragraph_support_idx": 14
+      }
+    ]
+  },
+  {
+    "id": "3hop1__6362_14336_21111",
+    "hop_class": "3hop",
+    "question": "The population of the country that worked with the outfit behind Man in Space Soonest numbers how much?",
+    "answer": "6 million",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Jews",
+        "filename": "Jews.md"
+      },
+      {
+        "title": "Anti-aircraft warfare",
+        "filename": "Anti-aircraft-warfare--3.md"
+      },
+      {
+        "title": "Space Race",
+        "filename": "Space-Race--1.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 6362,
+        "question": "Man in Space Soonest was a program by which organization?",
+        "answer": "US Air Force",
+        "paragraph_support_idx": 17
+      },
+      {
+        "id": 14336,
+        "question": "In agreement with NATO members, #1 and which country has created tactics for air defence suppression?",
+        "answer": "Israel",
+        "paragraph_support_idx": 9
+      },
+      {
+        "id": 21111,
+        "question": "What is the population of #2 ?",
+        "answer": "6 million",
+        "paragraph_support_idx": 7
+      }
+    ]
+  },
+  {
+    "id": "2hop__75207_53316",
+    "hop_class": "2hop",
+    "question": "Before the military coup was staged, who was the president of the country where Fuser and Alberto met the indigenous couple who were traveling to look for work?",
+    "answer": "Salvador Allende",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "1973 Chilean coup d'\u00e9tat",
+        "filename": "1973-Chilean-coup-d\u00e9tat.md"
+      },
+      {
+        "title": "The Motorcycle Diaries (film)",
+        "filename": "The-Motorcycle-Diaries-film.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 75207,
+        "question": "where do fuser and alberto meet the indigenous couple who were traveling to look for work",
+        "answer": "In Chile",
+        "paragraph_support_idx": 14
+      },
+      {
+        "id": 53316,
+        "question": "who was the president of #1 before the military coup was staged",
+        "answer": "Salvador Allende",
+        "paragraph_support_idx": 2
+      }
+    ]
+  },
+  {
+    "id": "2hop__258940_135844",
+    "hop_class": "2hop",
+    "question": "Who is the city where Lesnoye Sanatorium is located named after?",
+    "answer": "Palmiro Togliatti",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Tolyatti",
+        "filename": "Tolyatti.md"
+      },
+      {
+        "title": "Lesnoye Sanatorium",
+        "filename": "Lesnoye-Sanatorium.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 258940,
+        "question": "Lesnoye Sanatorium >> located in the administrative territorial entity",
+        "answer": "Tolyatti",
+        "paragraph_support_idx": 16
+      },
+      {
+        "id": 135844,
+        "question": "Whom is #1 named after?",
+        "answer": "Palmiro Togliatti",
+        "paragraph_support_idx": 7
+      }
+    ]
+  },
+  {
+    "id": "4hop1__3496_5274_458768_33677",
+    "hop_class": "4hop",
+    "question": "When was the most recent Bicycle Friendly Community Award given to the city where the headquarters of the only group larger than the company BMG partnered with in 2005-07?",
+    "answer": "2013",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "American Idol",
+        "filename": "American-Idol.md"
+      },
+      {
+        "title": "Santa Monica, California",
+        "filename": "Santa-Monica-California.md"
+      },
+      {
+        "title": "The Right Stuff Records",
+        "filename": "The-Right-Stuff-Records.md"
+      },
+      {
+        "title": "Sony Music",
+        "filename": "Sony-Music--1.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 3496,
+        "question": "Who did BMG partner with in 2005-2007?",
+        "answer": "Sony Music Entertainment",
+        "paragraph_support_idx": 2
+      },
+      {
+        "id": 5274,
+        "question": "What company is the only group larger than #1 ?",
+        "answer": "Universal Music Group.",
+        "paragraph_support_idx": 18
+      },
+      {
+        "id": 458768,
+        "question": "#2 >> headquarters location",
+        "answer": "Santa Monica",
+        "paragraph_support_idx": 13
+      },
+      {
+        "id": 33677,
+        "question": "When was the most recent Bicycle Friendly Community Award given to #3 ?",
+        "answer": "2013",
+        "paragraph_support_idx": 4
+      }
+    ]
+  },
+  {
+    "id": "3hop1__285585_538202_84283",
+    "hop_class": "3hop",
+    "question": "Who is the owner of the record label of the performer of Groovy Little Summer Song?",
+    "answer": "Warner Music Group",
+    "answer_aliases": [
+      "Warner Music"
+    ],
+    "supporting": [
+      {
+        "title": "Groovy Little Summer Song",
+        "filename": "Groovy-Little-Summer-Song.md"
+      },
+      {
+        "title": "Sunset Man",
+        "filename": "Sunset-Man.md"
+      },
+      {
+        "title": "Warner Records",
+        "filename": "Warner-Records.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 285585,
+        "question": "Groovy Little Summer Song >> performer",
+        "answer": "James Otto",
+        "paragraph_support_idx": 5
+      },
+      {
+        "id": 538202,
+        "question": "#1 >> record label",
+        "answer": "Warner Bros. Records",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 84283,
+        "question": "who is the owner of #2",
+        "answer": "Warner Music Group",
+        "paragraph_support_idx": 19
+      }
+    ]
+  },
+  {
+    "id": "2hop__539184_119915",
+    "hop_class": "2hop",
+    "question": "In what year did Taifa, of the birthplace of Ibn Abbad al-Rundi, cease to exist?",
+    "answer": "1065",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Taifa of Ronda",
+        "filename": "Taifa-of-Ronda.md"
+      },
+      {
+        "title": "Ibn Abbad al-Rundi",
+        "filename": "Ibn-Abbad-al-Rundi.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 539184,
+        "question": "Ibn Abbad al-Rundi >> place of birth",
+        "answer": "Ronda",
+        "paragraph_support_idx": 14
+      },
+      {
+        "id": 119915,
+        "question": "In which year Taifa of #1 ceased to exist?",
+        "answer": "1065",
+        "paragraph_support_idx": 10
+      }
+    ]
+  },
+  {
+    "id": "4hop1__152562_5274_458768_33633",
+    "hop_class": "4hop",
+    "question": "When did the explorer reach the city where the headquarters of the only group larger than Vilaiyaadu Mankatha's record label is located?",
+    "answer": "August 3, 1769",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Sony Music",
+        "filename": "Sony-Music--1.md"
+      },
+      {
+        "title": "Vilaiyaadu Mankatha",
+        "filename": "Vilaiyaadu-Mankatha.md"
+      },
+      {
+        "title": "The Right Stuff Records",
+        "filename": "The-Right-Stuff-Records.md"
+      },
+      {
+        "title": "Santa Monica, California",
+        "filename": "Santa-Monica-California--1.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 152562,
+        "question": "What was the record label of Vilaiyaadu Mankatha?",
+        "answer": "Sony Music Entertainment",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 5274,
+        "question": "What company is the only group larger than #1 ?",
+        "answer": "Universal Music Group.",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 458768,
+        "question": "#2 >> headquarters location",
+        "answer": "Santa Monica",
+        "paragraph_support_idx": 9
+      },
+      {
+        "id": 33633,
+        "question": "What date did the explorer reach #3 ?",
+        "answer": "August 3, 1769",
+        "paragraph_support_idx": 19
+      }
+    ]
+  },
+  {
+    "id": "3hop1__848113_15840_36014",
+    "hop_class": "3hop",
+    "question": "What was Nintendo's limit on games per developer per year on the abbreviation of the platform of Star Voyager?",
+    "answer": "five",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Nintendo Entertainment System",
+        "filename": "Nintendo-Entertainment-System.md"
+      },
+      {
+        "title": "Super Nintendo Entertainment System",
+        "filename": "Super-Nintendo-Entertainment-System.md"
+      },
+      {
+        "title": "Star Voyager",
+        "filename": "Star-Voyager.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 848113,
+        "question": "Star Voyager >> platform",
+        "answer": "Nintendo Entertainment System",
+        "paragraph_support_idx": 11
+      },
+      {
+        "id": 15840,
+        "question": "What is the abbreviation of #1 ?",
+        "answer": "NES",
+        "paragraph_support_idx": 6
+      },
+      {
+        "id": 36014,
+        "question": "What was Nintendo's limit on games per developer per year on the #2 ?",
+        "answer": "five",
+        "paragraph_support_idx": 7
+      }
+    ]
+  },
+  {
+    "id": "2hop__644898_64046",
+    "hop_class": "2hop",
+    "question": "Who plays the prison warden in the second movie in the series with the same name as the place where James Trainer died?",
+    "answer": "Simon Farnaby",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "James Trainer",
+        "filename": "James-Trainer.md"
+      },
+      {
+        "title": "Paddington 2",
+        "filename": "Paddington-2.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 644898,
+        "question": "James Trainer >> place of death",
+        "answer": "Paddington",
+        "paragraph_support_idx": 11
+      },
+      {
+        "id": 64046,
+        "question": "who plays the prison warden in #1 2",
+        "answer": "Simon Farnaby",
+        "paragraph_support_idx": 12
+      }
+    ]
+  },
+  {
+    "id": "2hop__66167_615257",
+    "hop_class": "2hop",
+    "question": "What team does the player with the most points in a NBA season play for?",
+    "answer": "Oklahoma City Thunder",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "2009\u201310 Oklahoma City Thunder season",
+        "filename": "200910-Oklahoma-City-Thunder-season.md"
+      },
+      {
+        "title": "List of National Basketball Association annual scoring leaders",
+        "filename": "List-of-National-Basketball-Association-annual-scoring-leaders--1.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 66167,
+        "question": "who has the most points in a nba season",
+        "answer": "Kevin Durant",
+        "paragraph_support_idx": 12
+      },
+      {
+        "id": 615257,
+        "question": "#1 >> member of sports team",
+        "answer": "Oklahoma City Thunder",
+        "paragraph_support_idx": 5
+      }
+    ]
+  },
+  {
+    "id": "2hop__121145_561444",
+    "hop_class": "2hop",
+    "question": "Who did the creator of Derech Mitzvosecha follow?",
+    "answer": "Dovber Schneuri",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Chaya Mushka Schneersohn",
+        "filename": "Chaya-Mushka-Schneersohn.md"
+      },
+      {
+        "title": "Derech Mitzvosecha",
+        "filename": "Derech-Mitzvosecha.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 121145,
+        "question": "Who created Derech Mitzvosecha?",
+        "answer": "Menachem Mendel Schneersohn",
+        "paragraph_support_idx": 17
+      },
+      {
+        "id": 561444,
+        "question": "#1 >> follows",
+        "answer": "Dovber Schneuri",
+        "paragraph_support_idx": 8
+      }
+    ]
+  },
+  {
+    "id": "4hop1__130276_59747_211319_557671",
+    "hop_class": "4hop",
+    "question": "Which county shares a border with the county where the most populous city in the state where Redan High School is located?",
+    "answer": "Presque Isle County",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Alpena Power Company",
+        "filename": "Alpena-Power-Company.md"
+      },
+      {
+        "title": "List of municipalities in Georgia (U.S. state)",
+        "filename": "List-of-municipalities-in-Georgia-US-state.md"
+      },
+      {
+        "title": "Redan High School",
+        "filename": "Redan-High-School.md"
+      },
+      {
+        "title": "Sno*Drift",
+        "filename": "SnoDrift.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 130276,
+        "question": "What is the name of the state where Redan High School is located?",
+        "answer": "Georgia",
+        "paragraph_support_idx": 11
+      },
+      {
+        "id": 59747,
+        "question": "what is the largest city in #1 by population",
+        "answer": "Atlanta",
+        "paragraph_support_idx": 5
+      },
+      {
+        "id": 211319,
+        "question": "#2 >> located in the administrative territorial entity",
+        "answer": "Montmorency County",
+        "paragraph_support_idx": 16
+      },
+      {
+        "id": 557671,
+        "question": "#3 >> shares border with",
+        "answer": "Presque Isle County",
+        "paragraph_support_idx": 0
+      }
+    ]
+  },
+  {
+    "id": "2hop__94507_654855",
+    "hop_class": "2hop",
+    "question": "What political party does the person that Adversary in the House is based on a member of?",
+    "answer": "Socialist Party of America",
+    "answer_aliases": [
+      "Democrat",
+      "Democratic Party"
+    ],
+    "supporting": [
+      {
+        "title": "Adversary in the House",
+        "filename": "Adversary-in-the-House.md"
+      },
+      {
+        "title": "Eugene V. Debs",
+        "filename": "Eugene-V-Debs.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 94507,
+        "question": "Which is the basis of Adversary in the House?",
+        "answer": "Eugene V. Debs",
+        "paragraph_support_idx": 5
+      },
+      {
+        "id": 654855,
+        "question": "#1 >> member of political party",
+        "answer": "Socialist Party of America",
+        "paragraph_support_idx": 12
+      }
+    ]
+  },
+  {
+    "id": "3hop1__139862_2053_52946",
+    "hop_class": "3hop",
+    "question": "When is Celebrity Big Brother coming to the network which, along with ABC and the network which broadcasted Highway to Heaven, is the other major broadcaster based in NY?",
+    "answer": "February 7, 2018",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Highway to Heaven",
+        "filename": "Highway-to-Heaven.md"
+      },
+      {
+        "title": "New York City",
+        "filename": "New-York-City.md"
+      },
+      {
+        "title": "Celebrity Big Brother (American TV series)",
+        "filename": "Celebrity-Big-Brother-American-TV-series.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 139862,
+        "question": "Who broadcasted Highway to Heaven?",
+        "answer": "NBC",
+        "paragraph_support_idx": 9
+      },
+      {
+        "id": 2053,
+        "question": "Along with ABC and #1 , what other major broadcaster is based in New York?",
+        "answer": "CBS",
+        "paragraph_support_idx": 12
+      },
+      {
+        "id": 52946,
+        "question": "when is celebrity big brother coming to #2",
+        "answer": "February 7, 2018",
+        "paragraph_support_idx": 14
+      }
+    ]
+  },
+  {
+    "id": "2hop__81379_84616",
+    "hop_class": "2hop",
+    "question": "For what did the singer of the original version of Moon River win a Tony award?",
+    "answer": "for Best Performance by a Leading Actress in a Play in Ondine",
+    "answer_aliases": [
+      "leading role",
+      "star",
+      "leading actress",
+      "lead"
+    ],
+    "supporting": [
+      {
+        "title": "List of awards and honours received by Audrey Hepburn",
+        "filename": "List-of-awards-and-honours-received-by-Audrey-Hepburn.md"
+      },
+      {
+        "title": "Moon River",
+        "filename": "Moon-River.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 81379,
+        "question": "who sang the original version of moon river",
+        "answer": "Audrey Hepburn",
+        "paragraph_support_idx": 10
+      },
+      {
+        "id": 84616,
+        "question": "what did #1 won a tony for",
+        "answer": "for Best Performance by a Leading Actress in a Play in Ondine",
+        "paragraph_support_idx": 0
+      }
+    ]
+  },
+  {
+    "id": "2hop__611178_131968",
+    "hop_class": "2hop",
+    "question": "Which is the body of water by the village which borders Long Ditton?",
+    "answer": "River Thames",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "The Rythe",
+        "filename": "The-Rythe.md"
+      },
+      {
+        "title": "Thames Ditton",
+        "filename": "Thames-Ditton.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 611178,
+        "question": "Long Ditton >> shares border with",
+        "answer": "Thames Ditton",
+        "paragraph_support_idx": 13
+      },
+      {
+        "id": 131968,
+        "question": "Which is the body of water by #1 ?",
+        "answer": "River Thames",
+        "paragraph_support_idx": 15
+      }
+    ]
+  },
+  {
+    "id": "4hop3__310746_88460_30152_20999",
+    "hop_class": "4hop",
+    "question": "There exists a country A that forms a boundary between Thailand and the country containing the Khong District. How were the people that the Ajuran Empire declared independence from by minting coins expelled from country A?",
+    "answer": "The dynasty regrouped and defeated the Portuguese",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Ottoman Empire",
+        "filename": "Ottoman-Empire.md"
+      },
+      {
+        "title": "Myanmar",
+        "filename": "Myanmar.md"
+      },
+      {
+        "title": "Khong District, Laos",
+        "filename": "Khong-District-Laos.md"
+      },
+      {
+        "title": "Geography of Myanmar",
+        "filename": "Geography-of-Myanmar.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 310746,
+        "question": "Khong District >> country",
+        "answer": "Laos",
+        "paragraph_support_idx": 9
+      },
+      {
+        "id": 88460,
+        "question": "what natural boundary lies between thailand and #1",
+        "answer": "Myanmar",
+        "paragraph_support_idx": 15
+      },
+      {
+        "id": 30152,
+        "question": "New coins were a proclamation of independence by the Somali Muslim Ajuran Empire from whom?",
+        "answer": "the Portuguese",
+        "paragraph_support_idx": 3
+      },
+      {
+        "id": 20999,
+        "question": "How were the #3 expelled from #2 ?",
+        "answer": "The dynasty regrouped and defeated the Portuguese",
+        "paragraph_support_idx": 7
+      }
+    ]
+  },
+  {
+    "id": "2hop__92051_827343",
+    "hop_class": "2hop",
+    "question": "Who is the sibling of the actress who played Susan Walker in Miracle on 34th street?",
+    "answer": "Lana Wood",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Five Finger Exercise",
+        "filename": "Five-Finger-Exercise.md"
+      },
+      {
+        "title": "Miracle on 34th Street",
+        "filename": "Miracle-on-34th-Street--3.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 92051,
+        "question": "who played susan walker in miracle on 34th street",
+        "answer": "Natalie Wood",
+        "paragraph_support_idx": 19
+      },
+      {
+        "id": 827343,
+        "question": "#1 >> sibling",
+        "answer": "Lana Wood",
+        "paragraph_support_idx": 1
+      }
+    ]
+  },
+  {
+    "id": "4hop1__310029_153080_159767_81096",
+    "hop_class": "4hop",
+    "question": "Who won the Indy Car Race in the largest city and capital of the state where the performer of Jazz Portraits: Mingus in Wonderland is from?",
+    "answer": "Mario Andretti",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Jazz Portraits: Mingus in Wonderland",
+        "filename": "Jazz-Portraits-Mingus-in-Wonderland.md"
+      },
+      {
+        "title": "Desert Diamond West Valley Phoenix Grand Prix",
+        "filename": "Desert-Diamond-West-Valley-Phoenix-Grand-Prix.md"
+      },
+      {
+        "title": "Charles Mingus",
+        "filename": "Charles-Mingus.md"
+      },
+      {
+        "title": "Arizona",
+        "filename": "Arizona.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 310029,
+        "question": "Jazz Portraits: Mingus in Wonderland >> performer",
+        "answer": "Charles Mingus",
+        "paragraph_support_idx": 3
+      },
+      {
+        "id": 153080,
+        "question": "What city is #1 from?",
+        "answer": "Arizona",
+        "paragraph_support_idx": 9
+      },
+      {
+        "id": 159767,
+        "question": "what city is both the largest city and the state capital of #2 ?",
+        "answer": "Phoenix",
+        "paragraph_support_idx": 14
+      },
+      {
+        "id": 81096,
+        "question": "who won the indy car race in #3",
+        "answer": "Mario Andretti",
+        "paragraph_support_idx": 5
+      }
+    ]
+  },
+  {
+    "id": "2hop__71016_75184",
+    "hop_class": "2hop",
+    "question": "Who played the girlfriend of who plays marty mcfly's daughter in back to the future 2?",
+    "answer": "Claudia Wells",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "List of Back to the Future characters",
+        "filename": "List-of-Back-to-the-Future-characters.md"
+      },
+      {
+        "title": "List of Back to the Future characters",
+        "filename": "List-of-Back-to-the-Future-characters--1.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 71016,
+        "question": "who plays marty mcfly's daughter in back to the future 2",
+        "answer": "Michael J. Fox",
+        "paragraph_support_idx": 11
+      },
+      {
+        "id": 75184,
+        "question": "who played #1 girlfriend in back to the future",
+        "answer": "Claudia Wells",
+        "paragraph_support_idx": 6
+      }
+    ]
+  },
+  {
+    "id": "3hop1__320697_547811_41132",
+    "hop_class": "3hop",
+    "question": "How many times did plague occur in the birth city of the composer of Nulla in mundo pax sincera?",
+    "answer": "22",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Nulla in mundo pax sincera",
+        "filename": "Nulla-in-mundo-pax-sincera.md"
+      },
+      {
+        "title": "Orlando furioso (Vivaldi, 1714)",
+        "filename": "Orlando-furioso-Vivaldi-1714.md"
+      },
+      {
+        "title": "Black Death",
+        "filename": "Black-Death.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 320697,
+        "question": "Nulla in mundo pax sincera >> composer",
+        "answer": "Antonio Vivaldi",
+        "paragraph_support_idx": 1
+      },
+      {
+        "id": 547811,
+        "question": "#1 >> place of birth",
+        "answer": "Venice",
+        "paragraph_support_idx": 3
+      },
+      {
+        "id": 41132,
+        "question": "How many times did plague occur in #2 ?",
+        "answer": "22",
+        "paragraph_support_idx": 11
+      }
+    ]
+  },
+  {
+    "id": "2hop__84172_198548",
+    "hop_class": "2hop",
+    "question": "Who is the spouse of the person who does the voice for Smokey the Bear?",
+    "answer": "Katharine Ross",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Murder in Texas",
+        "filename": "Murder-in-Texas.md"
+      },
+      {
+        "title": "Smokey Bear",
+        "filename": "Smokey-Bear--2.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 84172,
+        "question": "who does the voice for smokey the bear",
+        "answer": "Sam Elliott",
+        "paragraph_support_idx": 19
+      },
+      {
+        "id": 198548,
+        "question": "#1 >> spouse",
+        "answer": "Katharine Ross",
+        "paragraph_support_idx": 16
+      }
+    ]
+  },
+  {
+    "id": "4hop1__73810_32392_823060_610794",
+    "hop_class": "4hop",
+    "question": "In what county is located the city that shares a border with the capital of the state that won the 2017 NCAA Basketball Tournament?",
+    "answer": "Richland County",
+    "answer_aliases": [
+      "Richland County, South Carolina"
+    ],
+    "supporting": [
+      {
+        "title": "2017 NCAA Division I Women's Basketball Tournament",
+        "filename": "2017-NCAA-Division-I-Womens-Basketball-Tournament.md"
+      },
+      {
+        "title": "WWNQ",
+        "filename": "WWNQ.md"
+      },
+      {
+        "title": "Forest Acres, South Carolina",
+        "filename": "Forest-Acres-South-Carolina.md"
+      },
+      {
+        "title": "Charleston, South Carolina",
+        "filename": "Charleston-South-Carolina.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 73810,
+        "question": "who won the womens 2017 ncaa basketball tournament",
+        "answer": "South Carolina",
+        "paragraph_support_idx": 0
+      },
+      {
+        "id": 32392,
+        "question": "What city became the state capital of #1 ?",
+        "answer": "Columbia",
+        "paragraph_support_idx": 13
+      },
+      {
+        "id": 823060,
+        "question": "#2 >> shares border with",
+        "answer": "Forest Acres",
+        "paragraph_support_idx": 4
+      },
+      {
+        "id": 610794,
+        "question": "#3 >> located in the administrative territorial entity",
+        "answer": "Richland County",
+        "paragraph_support_idx": 6
+      }
+    ]
+  },
+  {
+    "id": "3hop1__624901_42197_18397",
+    "hop_class": "3hop",
+    "question": "Where did who argued the country of citizenship of Maya Kopitseva had itself become an imperialist power declare that he would intervene in the Korean conflict?",
+    "answer": "the Politburo",
+    "answer_aliases": [
+      "Politburo"
+    ],
+    "supporting": [
+      {
+        "title": "Maya Kopitseva",
+        "filename": "Maya-Kopitseva.md"
+      },
+      {
+        "title": "Imperialism",
+        "filename": "Imperialism--1.md"
+      },
+      {
+        "title": "Korean War",
+        "filename": "Korean-War--4.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 624901,
+        "question": "Maya Kopitseva >> country of citizenship",
+        "answer": "USSR",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 42197,
+        "question": "Who argued that the #1 had itself become an imperialist power?",
+        "answer": "Mao Zedong",
+        "paragraph_support_idx": 9
+      },
+      {
+        "id": 18397,
+        "question": "Where did #2 declare that he would intervene in the Korean conflict?",
+        "answer": "the Politburo",
+        "paragraph_support_idx": 16
+      }
+    ]
+  },
+  {
+    "id": "4hop1__726152_153080_159767_81096",
+    "hop_class": "4hop",
+    "question": "Who won the Indy car race in the largest city and capital of the state where the performer of Tijuana Moods was born?",
+    "answer": "Mario Andretti",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Arizona",
+        "filename": "Arizona.md"
+      },
+      {
+        "title": "Desert Diamond West Valley Phoenix Grand Prix",
+        "filename": "Desert-Diamond-West-Valley-Phoenix-Grand-Prix.md"
+      },
+      {
+        "title": "Tijuana Moods",
+        "filename": "Tijuana-Moods.md"
+      },
+      {
+        "title": "Charles Mingus",
+        "filename": "Charles-Mingus.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 726152,
+        "question": "Tijuana Moods >> performer",
+        "answer": "Charles Mingus",
+        "paragraph_support_idx": 12
+      },
+      {
+        "id": 153080,
+        "question": "What city is #1 from?",
+        "answer": "Arizona",
+        "paragraph_support_idx": 13
+      },
+      {
+        "id": 159767,
+        "question": "what city is both the largest city and the state capital of #2 ?",
+        "answer": "Phoenix",
+        "paragraph_support_idx": 0
+      },
+      {
+        "id": 81096,
+        "question": "who won the indy car race in #3",
+        "answer": "Mario Andretti",
+        "paragraph_support_idx": 5
+      }
+    ]
+  },
+  {
+    "id": "4hop1__88342_75218_128008_86588",
+    "hop_class": "4hop",
+    "question": "What is the longest home run in the history of the league of the team that has played the most games in the competition they give out MVP awards after?",
+    "answer": "582 feet (177 m)",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Major League Baseball Most Valuable Player Award",
+        "filename": "Major-League-Baseball-Most-Valuable-Player-Award.md"
+      },
+      {
+        "title": "New York Yankees",
+        "filename": "New-York-Yankees.md"
+      },
+      {
+        "title": "World Series",
+        "filename": "World-Series.md"
+      },
+      {
+        "title": "Home run",
+        "filename": "Home-run.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 88342,
+        "question": "when do they give out the mlb mvp award",
+        "answer": "after the World Series",
+        "paragraph_support_idx": 2
+      },
+      {
+        "id": 75218,
+        "question": "who played in the most #1 games",
+        "answer": "the New York Yankees",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 128008,
+        "question": "Which is the league of #2 ?",
+        "answer": "Major League Baseball",
+        "paragraph_support_idx": 6
+      },
+      {
+        "id": 86588,
+        "question": "longest home runs in #3 history",
+        "answer": "582 feet (177 m)",
+        "paragraph_support_idx": 13
+      }
+    ]
+  },
+  {
+    "id": "3hop1__816887_127905_80286",
+    "hop_class": "3hop",
+    "question": "Who has the most hits in the league of the team that Dick Aylward plays for?",
+    "answer": "Pete Rose",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Dick Aylward",
+        "filename": "Dick-Aylward.md"
+      },
+      {
+        "title": "List of Major League Baseball career hits leaders",
+        "filename": "List-of-Major-League-Baseball-career-hits-leaders.md"
+      },
+      {
+        "title": "Cleveland Indians",
+        "filename": "Cleveland-Indians.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 816887,
+        "question": "Dick Aylward >> member of sports team",
+        "answer": "Indians",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 127905,
+        "question": "What league was Cleveland #1 ?",
+        "answer": "Major League Baseball",
+        "paragraph_support_idx": 12
+      },
+      {
+        "id": 80286,
+        "question": "who has the most hits in #2 history",
+        "answer": "Pete Rose",
+        "paragraph_support_idx": 10
+      }
+    ]
+  },
+  {
+    "id": "3hop2__90327_87184_76291",
+    "hop_class": "3hop",
+    "question": "When did the party that controls the House of Representatives take control of the branch that approves the appointees to the american cabinet?",
+    "answer": "January 2015",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "2014 United States Senate elections",
+        "filename": "2014-United-States-Senate-elections.md"
+      },
+      {
+        "title": "114th United States Congress",
+        "filename": "114th-United-States-Congress.md"
+      },
+      {
+        "title": "Cabinet of the United States",
+        "filename": "Cabinet-of-the-United-States.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 90327,
+        "question": "the members of american cabinet are appointed after the approval of",
+        "answer": "Senate",
+        "paragraph_support_idx": 16
+      },
+      {
+        "id": 87184,
+        "question": "who controls the house of representatives right now",
+        "answer": "the Republicans",
+        "paragraph_support_idx": 11
+      },
+      {
+        "id": 76291,
+        "question": "when did #2 take control of the #1",
+        "answer": "January 2015",
+        "paragraph_support_idx": 9
+      }
+    ]
+  },
+  {
+    "id": "2hop__635187_861533",
+    "hop_class": "2hop",
+    "question": "What province shares a border with the province where Lago District is located?",
+    "answer": "Cabo Delgado Province",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Niassa Reserve",
+        "filename": "Niassa-Reserve.md"
+      },
+      {
+        "title": "Lago District",
+        "filename": "Lago-District.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 635187,
+        "question": "Lago District >> located in the administrative territorial entity",
+        "answer": "Niassa Province",
+        "paragraph_support_idx": 16
+      },
+      {
+        "id": 861533,
+        "question": "#1 >> shares border with",
+        "answer": "Cabo Delgado Province",
+        "paragraph_support_idx": 0
+      }
+    ]
+  },
+  {
+    "id": "4hop3__270458_88460_30152_20999",
+    "hop_class": "4hop",
+    "question": "How were the same people who the Somali Muslim Ajuran Empire declared independence from expelled from the natural boundary between Thailand and the country where Nam Khan is found?",
+    "answer": "The dynasty regrouped and defeated the Portuguese",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Geography of Myanmar",
+        "filename": "Geography-of-Myanmar.md"
+      },
+      {
+        "title": "Nam Khan",
+        "filename": "Nam-Khan.md"
+      },
+      {
+        "title": "Ottoman Empire",
+        "filename": "Ottoman-Empire.md"
+      },
+      {
+        "title": "Myanmar",
+        "filename": "Myanmar.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 270458,
+        "question": "Nam Khan >> country",
+        "answer": "Laos",
+        "paragraph_support_idx": 6
+      },
+      {
+        "id": 88460,
+        "question": "what natural boundary lies between thailand and #1",
+        "answer": "Myanmar",
+        "paragraph_support_idx": 2
+      },
+      {
+        "id": 30152,
+        "question": "New coins were a proclamation of independence by the Somali Muslim Ajuran Empire from whom?",
+        "answer": "the Portuguese",
+        "paragraph_support_idx": 18
+      },
+      {
+        "id": 20999,
+        "question": "How were the #3 expelled from #2 ?",
+        "answer": "The dynasty regrouped and defeated the Portuguese",
+        "paragraph_support_idx": 19
+      }
+    ]
+  },
+  {
+    "id": "4hop3__661103_698586_91248_54362",
+    "hop_class": "4hop",
+    "question": "Who burned down the city where Dunn Dunn's recording artist died during the conflict after which the government got involved in healthcare?",
+    "answer": "Confederate Gen. John Bell Hood",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Atlanta in the American Civil War",
+        "filename": "Atlanta-in-the-American-Civil-War.md"
+      },
+      {
+        "title": "Dunn Dunn",
+        "filename": "Dunn-Dunn.md"
+      },
+      {
+        "title": "History of health care reform in the United States",
+        "filename": "History-of-health-care-reform-in-the-United-States.md"
+      },
+      {
+        "title": "Shawty Lo discography",
+        "filename": "Shawty-Lo-discography.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 661103,
+        "question": "Dunn Dunn >> record label",
+        "answer": "Shawty Lo",
+        "paragraph_support_idx": 10
+      },
+      {
+        "id": 698586,
+        "question": "#1 >> place of death",
+        "answer": "Atlanta",
+        "paragraph_support_idx": 15
+      },
+      {
+        "id": 91248,
+        "question": "when did the government get involved in healthcare",
+        "answer": "After the Civil War",
+        "paragraph_support_idx": 11
+      },
+      {
+        "id": 54362,
+        "question": "who burned down #2 in #3",
+        "answer": "Confederate Gen. John Bell Hood",
+        "paragraph_support_idx": 9
+      }
+    ]
+  },
+  {
+    "id": "4hop1__567737_141375_458768_33677",
+    "hop_class": "4hop",
+    "question": "When was the most recent Bicycle Friendly Community Award given to the city where the company Study in Brown's record label is part of is headquartered?",
+    "answer": "2013",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "EmArcy Records",
+        "filename": "EmArcy-Records.md"
+      },
+      {
+        "title": "Santa Monica, California",
+        "filename": "Santa-Monica-California.md"
+      },
+      {
+        "title": "Study in Brown",
+        "filename": "Study-in-Brown.md"
+      },
+      {
+        "title": "The Right Stuff Records",
+        "filename": "The-Right-Stuff-Records.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 567737,
+        "question": "Study in Brown >> record label",
+        "answer": "EmArcy Records",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 141375,
+        "question": "What company is #1 part of?",
+        "answer": "Universal Music Group",
+        "paragraph_support_idx": 1
+      },
+      {
+        "id": 458768,
+        "question": "#2 >> headquarters location",
+        "answer": "Santa Monica",
+        "paragraph_support_idx": 11
+      },
+      {
+        "id": 33677,
+        "question": "When was the most recent Bicycle Friendly Community Award given to #3 ?",
+        "answer": "2013",
+        "paragraph_support_idx": 5
+      }
+    ]
+  },
+  {
+    "id": "4hop3__316459_41402_146223_13584",
+    "hop_class": "4hop",
+    "question": "Besides areas of the country gaining control of Florida after the conflict Charles Edmund Nugent participated in, what other differences exist between where Simon Sabiani died and Real Madrid?",
+    "answer": "two cities",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Jacksonville, Florida",
+        "filename": "Jacksonville-Florida.md"
+      },
+      {
+        "title": "FC Barcelona",
+        "filename": "FC-Barcelona.md"
+      },
+      {
+        "title": "Simon Sabiani",
+        "filename": "Simon-Sabiani.md"
+      },
+      {
+        "title": "Charles Edmund Nugent",
+        "filename": "Charles-Edmund-Nugent.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 316459,
+        "question": "Charles Edmund Nugent >> conflict",
+        "answer": "Revolutionary War",
+        "paragraph_support_idx": 13
+      },
+      {
+        "id": 41402,
+        "question": "Who gained control of Florida after the conclusion of #1 ?",
+        "answer": "Spain",
+        "paragraph_support_idx": 0
+      },
+      {
+        "id": 146223,
+        "question": "In what city did Simon Sabiani die?",
+        "answer": "Barcelona",
+        "paragraph_support_idx": 10
+      },
+      {
+        "id": 13584,
+        "question": "Besides the areas of #2 , what other differences are there between #3 and Real Madrid?",
+        "answer": "two cities",
+        "paragraph_support_idx": 9
+      }
+    ]
+  },
+  {
+    "id": "4hop3__710473_354093_254885_76356",
+    "hop_class": "4hop",
+    "question": "Who pushed for a canal crossing across the continent El Valle is located linking the Pacific Ocean and the ocean Sampit River leads to?",
+    "answer": "Ferdinand de Lesseps",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Hobcaw Barony",
+        "filename": "Hobcaw-Barony.md"
+      },
+      {
+        "title": "Winyah Bay",
+        "filename": "Winyah-Bay.md"
+      },
+      {
+        "title": "El Valle (volcano)",
+        "filename": "El-Valle-volcano.md"
+      },
+      {
+        "title": "History of the Panama Canal",
+        "filename": "History-of-the-Panama-Canal.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 710473,
+        "question": "Sampit River >> mouth of the watercourse",
+        "answer": "Winyah Bay",
+        "paragraph_support_idx": 3
+      },
+      {
+        "id": 354093,
+        "question": "#1 >> mouth of the watercourse",
+        "answer": "Atlantic Ocean",
+        "paragraph_support_idx": 1
+      },
+      {
+        "id": 254885,
+        "question": "El Valle >> continent",
+        "answer": "Central America",
+        "paragraph_support_idx": 6
+      },
+      {
+        "id": 76356,
+        "question": "who pushed for a canal across #3 linking #2 and the pacific ocean",
+        "answer": "Ferdinand de Lesseps",
+        "paragraph_support_idx": 18
+      }
+    ]
+  },
+  {
+    "id": "2hop__13353_17738",
+    "hop_class": "2hop",
+    "question": "What area that abuts the country where the Prunus spinosa leaf much sooner still has some older people who speak West Flemish?",
+    "answer": "French Flanders",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Dutch language",
+        "filename": "Dutch-language.md"
+      },
+      {
+        "title": "Biodiversity",
+        "filename": "Biodiversity.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 13353,
+        "question": "Where does the Prunus spinosa leaf much sooner?",
+        "answer": "In Belgium",
+        "paragraph_support_idx": 12
+      },
+      {
+        "id": 17738,
+        "question": "What area that abuts #1 still has some older people who speak West Flemish?",
+        "answer": "French Flanders",
+        "paragraph_support_idx": 0
+      }
+    ]
+  },
+  {
+    "id": "4hop1__161810_583746_457883_650651",
+    "hop_class": "4hop",
+    "question": "Country A has an embassy from the country that contains the bay where the city of General Santos is located. What network created country A's version of The Biggest Loser?",
+    "answer": "NBC",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "The Biggest Loser Brunei: Lose It All",
+        "filename": "The-Biggest-Loser-Brunei-Lose-It-All.md"
+      },
+      {
+        "title": "Embassy of the Philippines, Bandar Seri Begawan",
+        "filename": "Embassy-of-the-Philippines-Bandar-Seri-Begawan.md"
+      },
+      {
+        "title": "Sarangani Bay",
+        "filename": "Sarangani-Bay.md"
+      },
+      {
+        "title": "South Cotabato",
+        "filename": "South-Cotabato.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 161810,
+        "question": "On what shores is General Santos located?",
+        "answer": "Sarangani Bay",
+        "paragraph_support_idx": 18
+      },
+      {
+        "id": 583746,
+        "question": "#1 >> country",
+        "answer": "Philippines",
+        "paragraph_support_idx": 11
+      },
+      {
+        "id": 457883,
+        "question": "Embassy of the #2 , Bandar Seri Begawan >> country",
+        "answer": "Brunei",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 650651,
+        "question": "The Biggest Loser #3 (season 3): The Final Chance >> creator",
+        "answer": "NBC",
+        "paragraph_support_idx": 5
+      }
+    ]
+  },
+  {
+    "id": "3hop2__782397_223623_162182",
+    "hop_class": "3hop",
+    "question": "In what region of Phu Luong's country is John Phan's birthplace located?",
+    "answer": "South Central Coast",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Ph\u00fa L\u01b0\u01a1ng (mountain)",
+        "filename": "Ph\u00fa-L\u01b0\u01a1ng-mountain.md"
+      },
+      {
+        "title": "John Phan",
+        "filename": "John-Phan.md"
+      },
+      {
+        "title": "South Central Coast",
+        "filename": "South-Central-Coast.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 782397,
+        "question": "Phu Luong >> country",
+        "answer": "Vietnam",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 223623,
+        "question": "John Phan >> place of birth",
+        "answer": "Da Nang",
+        "paragraph_support_idx": 12
+      },
+      {
+        "id": 162182,
+        "question": "In what region of #1 is #2 located?",
+        "answer": "South Central Coast",
+        "paragraph_support_idx": 18
+      }
+    ]
+  },
+  {
+    "id": "2hop__24697_634490",
+    "hop_class": "2hop",
+    "question": "Who is the sibling of Shu Yu from the Chinese capital that Kanmu modeled his government after?",
+    "answer": "King Cheng of Zhou",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Heian period",
+        "filename": "Heian-period.md"
+      },
+      {
+        "title": "Shu Yu of Tang",
+        "filename": "Shu-Yu-of-Tang.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 24697,
+        "question": "Kanmu modeled his government after what Chinese capital?",
+        "answer": "Tang",
+        "paragraph_support_idx": 17
+      },
+      {
+        "id": 634490,
+        "question": "Shu Yu of #1 >> sibling",
+        "answer": "King Cheng of Zhou",
+        "paragraph_support_idx": 18
+      }
+    ]
+  },
+  {
+    "id": "2hop__603598_25719",
+    "hop_class": "2hop",
+    "question": "At the end of what year did the tribes from the place where the Rossen culture is located invade the Roman Empire?",
+    "answer": "406",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "R\u00f6ssen culture",
+        "filename": "R\u00f6ssen-culture.md"
+      },
+      {
+        "title": "Galicia (Spain)",
+        "filename": "Galicia-Spain--1.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 603598,
+        "question": "R\u00f6ssen culture >> located on terrain feature",
+        "answer": "Central Europe",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 25719,
+        "question": "At the end of which year did #1 tribes invade the Roman Empire?",
+        "answer": "406",
+        "paragraph_support_idx": 19
+      }
+    ]
+  },
+  {
+    "id": "2hop__329591_91104",
+    "hop_class": "2hop",
+    "question": "What is the experimental satellite being forerunner to communication satellite of INSAT-4CR's manufacturer called?",
+    "answer": "ATS - 6 (Applications Technology Satellite - 6)",
+    "answer_aliases": [
+      "ATS-6"
+    ],
+    "supporting": [
+      {
+        "title": "ATS-6",
+        "filename": "ATS-6.md"
+      },
+      {
+        "title": "INSAT-4CR",
+        "filename": "INSAT-4CR.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 329591,
+        "question": "INSAT-4CR >> manufacturer",
+        "answer": "ISRO",
+        "paragraph_support_idx": 5
+      },
+      {
+        "id": 91104,
+        "question": "the experimental satellite which was forerunner to communication satellite of #1 is called",
+        "answer": "ATS - 6 (Applications Technology Satellite - 6)",
+        "paragraph_support_idx": 2
+      }
+    ]
+  },
+  {
+    "id": "2hop__86689_728109",
+    "hop_class": "2hop",
+    "question": "What team drafted the winner of the NBA scoring title this year?",
+    "answer": "Oklahoma City Thunder",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "2012\u201313 Houston Rockets season",
+        "filename": "201213-Houston-Rockets-season.md"
+      },
+      {
+        "title": "List of National Basketball Association annual scoring leaders",
+        "filename": "List-of-National-Basketball-Association-annual-scoring-leaders.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 86689,
+        "question": "who won the nba scoring title this year",
+        "answer": "James Harden",
+        "paragraph_support_idx": 18
+      },
+      {
+        "id": 728109,
+        "question": "#1 >> drafted by",
+        "answer": "Oklahoma City Thunder",
+        "paragraph_support_idx": 3
+      }
+    ]
+  },
+  {
+    "id": "2hop__108336_772156",
+    "hop_class": "2hop",
+    "question": "Where did the creator of the Allegory of Isabella d'Este's Coronation die?",
+    "answer": "Mantua",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Allegory of Isabella d'Este's Coronation",
+        "filename": "Allegory-of-Isabella-dEstes-Coronation.md"
+      },
+      {
+        "title": "Lorenzo Costa the Younger",
+        "filename": "Lorenzo-Costa-the-Younger.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 108336,
+        "question": "Which was the creator of Allegory of Isabella d'Este's Coronation?",
+        "answer": "Lorenzo Costa",
+        "paragraph_support_idx": 0
+      },
+      {
+        "id": 772156,
+        "question": "#1 >> place of death",
+        "answer": "Mantua",
+        "paragraph_support_idx": 16
+      }
+    ]
+  },
+  {
+    "id": "4hop3__601548_836463_161616_77103",
+    "hop_class": "4hop",
+    "question": "When did the birthplace of the Live and Beyond performer become the capitol of the state Knowles was from?",
+    "answer": "1839",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Suga Mama",
+        "filename": "Suga-Mama.md"
+      },
+      {
+        "title": "Live from Austin, TX (Eric Johnson album)",
+        "filename": "Live-from-Austin-TX-Eric-Johnson-album.md"
+      },
+      {
+        "title": "History of Austin, Texas",
+        "filename": "History-of-Austin-Texas.md"
+      },
+      {
+        "title": "Live and Beyond",
+        "filename": "Live-and-Beyond.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 601548,
+        "question": "Live and Beyond >> performer",
+        "answer": "Eric Johnson",
+        "paragraph_support_idx": 17
+      },
+      {
+        "id": 836463,
+        "question": "#1 >> place of birth",
+        "answer": "Austin",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 161616,
+        "question": "what state was Knowles from?",
+        "answer": "Texas,",
+        "paragraph_support_idx": 3
+      },
+      {
+        "id": 77103,
+        "question": "when did #2 become the capital of #3",
+        "answer": "1839",
+        "paragraph_support_idx": 10
+      }
+    ]
+  },
+  {
+    "id": "3hop1__222497_309482_27537",
+    "hop_class": "3hop",
+    "question": "Why did Roncalli leave the place where the composer of Al gran sole carico d'amore worked?",
+    "answer": "for the conclave in Rome",
+    "answer_aliases": [
+      "Rome"
+    ],
+    "supporting": [
+      {
+        "title": "Al gran sole carico d'amore",
+        "filename": "Al-gran-sole-carico-damore.md"
+      },
+      {
+        "title": "Pope John XXIII",
+        "filename": "Pope-John-XXIII--1.md"
+      },
+      {
+        "title": "Alessandro Zezzos",
+        "filename": "Alessandro-Zezzos.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 222497,
+        "question": "Al gran sole carico d'amore >> composer",
+        "answer": "Luigi Nono",
+        "paragraph_support_idx": 0
+      },
+      {
+        "id": 309482,
+        "question": "#1 >> work location",
+        "answer": "Venice",
+        "paragraph_support_idx": 17
+      },
+      {
+        "id": 27537,
+        "question": "Why did Roncalli leave #2 ?",
+        "answer": "for the conclave in Rome",
+        "paragraph_support_idx": 12
+      }
+    ]
+  },
+  {
+    "id": "4hop3__312119_132409_371500_35031",
+    "hop_class": "4hop",
+    "question": "Among the top five largest urban areas in the state where Getting Away with Murder's performer was formed, where does Veoh's headquarters city rank?",
+    "answer": "third-largest",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Papa Roach",
+        "filename": "Papa-Roach.md"
+      },
+      {
+        "title": "San Diego",
+        "filename": "San-Diego--1.md"
+      },
+      {
+        "title": "Getting Away with Murder (song)",
+        "filename": "Getting-Away-with-Murder-song.md"
+      },
+      {
+        "title": "Veoh",
+        "filename": "Veoh.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 312119,
+        "question": "Getting Away with Murder >> performer",
+        "answer": "Papa Roach",
+        "paragraph_support_idx": 12
+      },
+      {
+        "id": 132409,
+        "question": "What city was #1 formed in?",
+        "answer": "California",
+        "paragraph_support_idx": 2
+      },
+      {
+        "id": 371500,
+        "question": "Veoh >> headquarters location",
+        "answer": "San Diego",
+        "paragraph_support_idx": 14
+      },
+      {
+        "id": 35031,
+        "question": "In the top five largest urban areas in #2 , where does #3 rank?",
+        "answer": "third-largest",
+        "paragraph_support_idx": 7
+      }
+    ]
+  },
+  {
+    "id": "3hop2__132957_800948_40768",
+    "hop_class": "3hop",
+    "question": "When did the maker of the Acura Legend, the employer of Katsuaki Watanabe, and Nissan open US assembly plants?",
+    "answer": "1981",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Acura Legend",
+        "filename": "Acura-Legend.md"
+      },
+      {
+        "title": "1973 oil crisis",
+        "filename": "1973-oil-crisis.md"
+      },
+      {
+        "title": "Katsuaki Watanabe",
+        "filename": "Katsuaki-Watanabe.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 132957,
+        "question": "Who made Acura Legend?",
+        "answer": "Honda",
+        "paragraph_support_idx": 9
+      },
+      {
+        "id": 800948,
+        "question": "Katsuaki Watanabe >> employer",
+        "answer": "Toyota",
+        "paragraph_support_idx": 17
+      },
+      {
+        "id": 40768,
+        "question": "When did #1 , #2 and Nissan open US assembly plants?",
+        "answer": "1981",
+        "paragraph_support_idx": 11
+      }
+    ]
+  },
+  {
+    "id": "3hop1__446612_160545_60577",
+    "hop_class": "3hop",
+    "question": "Where did they film The Beach in the country where Ercole Manfredi died?",
+    "answer": "Ko Phi Phi Leh",
+    "answer_aliases": [
+      "Ko Phi Phi Le"
+    ],
+    "supporting": [
+      {
+        "title": "Bang Bon District",
+        "filename": "Bang-Bon-District.md"
+      },
+      {
+        "title": "Ercole Manfredi",
+        "filename": "Ercole-Manfredi.md"
+      },
+      {
+        "title": "The Beach (film)",
+        "filename": "The-Beach-film.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 446612,
+        "question": "Ercole Manfredi >> place of death",
+        "answer": "Bangkok",
+        "paragraph_support_idx": 14
+      },
+      {
+        "id": 160545,
+        "question": "Where is #1 located?",
+        "answer": "Thailand",
+        "paragraph_support_idx": 0
+      },
+      {
+        "id": 60577,
+        "question": "where did they film the beach in #2",
+        "answer": "Ko Phi Phi Leh",
+        "paragraph_support_idx": 16
+      }
+    ]
+  },
+  {
+    "id": "4hop2__9988_685934_70784_61381",
+    "hop_class": "4hop",
+    "question": "When was the country established that lies north of the region that prevailed with the disgrace of the \"Near East\" and the body of water containing The World islands?",
+    "answer": "1932",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Saudi Arabia",
+        "filename": "Saudi-Arabia.md"
+      },
+      {
+        "title": "The World (archipelago)",
+        "filename": "The-World-archipelago.md"
+      },
+      {
+        "title": "Near East",
+        "filename": "Near-East.md"
+      },
+      {
+        "title": "Geography of Saudi Arabia",
+        "filename": "Geography-of-Saudi-Arabia.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 9988,
+        "question": "What prevailed with the disgrace of \"Near East\"?",
+        "answer": "\"Middle East\"",
+        "paragraph_support_idx": 15
+      },
+      {
+        "id": 685934,
+        "question": "The World >> located in or next to body of water",
+        "answer": "Persian Gulf",
+        "paragraph_support_idx": 13
+      },
+      {
+        "id": 70784,
+        "question": "what region lies immediately to the north of #1 and #2",
+        "answer": "Kingdom of Saudi Arabia",
+        "paragraph_support_idx": 19
+      },
+      {
+        "id": 61381,
+        "question": "when was #3 established",
+        "answer": "1932",
+        "paragraph_support_idx": 3
+      }
+    ]
+  },
+  {
+    "id": "3hop1__21282_692112_236857",
+    "hop_class": "3hop",
+    "question": "In what country is women's football played in the country where the German chancellor criticized by The Sun held citizenship?",
+    "answer": "GDR",
+    "answer_aliases": [
+      "East Germany"
+    ],
+    "supporting": [
+      {
+        "title": "The Sun (United Kingdom)",
+        "filename": "The-Sun-United-Kingdom.md"
+      },
+      {
+        "title": "Angela Merkel",
+        "filename": "Angela-Merkel.md"
+      },
+      {
+        "title": "Women's football in East Germany",
+        "filename": "Womens-football-in-East-Germany.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 21282,
+        "question": "Which German chancellor was criticized by The Sun?",
+        "answer": "Angela Merkel",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 692112,
+        "question": "#1 >> country of citizenship",
+        "answer": "East Germany",
+        "paragraph_support_idx": 15
+      },
+      {
+        "id": 236857,
+        "question": "Women's football in #2 >> country",
+        "answer": "GDR",
+        "paragraph_support_idx": 19
+      }
+    ]
+  },
+  {
+    "id": "2hop__34495_85544",
+    "hop_class": "2hop",
+    "question": "How many games does the team play that had the most champion league wins between 1992 and 2013?",
+    "answer": "38",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Premier League",
+        "filename": "Premier-League--1.md"
+      },
+      {
+        "title": "La Liga",
+        "filename": "La-Liga--2.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 34495,
+        "question": "Which league had the most Champions League wins between 1992 and 2013?",
+        "answer": "La Liga",
+        "paragraph_support_idx": 15
+      },
+      {
+        "id": 85544,
+        "question": "how many games do #1 teams play",
+        "answer": "38",
+        "paragraph_support_idx": 16
+      }
+    ]
+  },
+  {
+    "id": "4hop3__661103_698586_89595_54362",
+    "hop_class": "4hop",
+    "question": "Who burned down the city where Dunn Dunn's recording artist died during the conflict after which occurred the historical period of A Rose for Emily?",
+    "answer": "Confederate Gen. John Bell Hood",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Dunn Dunn",
+        "filename": "Dunn-Dunn.md"
+      },
+      {
+        "title": "Atlanta in the American Civil War",
+        "filename": "Atlanta-in-the-American-Civil-War.md"
+      },
+      {
+        "title": "A Rose for Emily",
+        "filename": "A-Rose-for-Emily.md"
+      },
+      {
+        "title": "Shawty Lo discography",
+        "filename": "Shawty-Lo-discography.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 661103,
+        "question": "Dunn Dunn >> record label",
+        "answer": "Shawty Lo",
+        "paragraph_support_idx": 5
+      },
+      {
+        "id": 698586,
+        "question": "#1 >> place of death",
+        "answer": "Atlanta",
+        "paragraph_support_idx": 12
+      },
+      {
+        "id": 89595,
+        "question": "historical time period of a rose for emily",
+        "answer": "After the Civil War",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 54362,
+        "question": "who burned down #2 in #3",
+        "answer": "Confederate Gen. John Bell Hood",
+        "paragraph_support_idx": 6
+      }
+    ]
+  },
+  {
+    "id": "3hop2__30152_101802_20999",
+    "hop_class": "3hop",
+    "question": "How were the people that the Somali Muslim Ajuran Empire made coins to proclaim independence from, expelled from the country that Minyekyawdin lived in?",
+    "answer": "The dynasty regrouped and defeated the Portuguese",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Ottoman Empire",
+        "filename": "Ottoman-Empire.md"
+      },
+      {
+        "title": "Myanmar",
+        "filename": "Myanmar.md"
+      },
+      {
+        "title": "Minyekyawdin",
+        "filename": "Minyekyawdin.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 30152,
+        "question": "New coins were a proclamation of independence by the Somali Muslim Ajuran Empire from whom?",
+        "answer": "the Portuguese",
+        "paragraph_support_idx": 4
+      },
+      {
+        "id": 101802,
+        "question": "In which country did Minyekyawdin live?",
+        "answer": "Myanmar",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 20999,
+        "question": "How were the #1 expelled from #2 ?",
+        "answer": "The dynasty regrouped and defeated the Portuguese",
+        "paragraph_support_idx": 6
+      }
+    ]
+  },
+  {
+    "id": "3hop1__765565_326948_86925",
+    "hop_class": "3hop",
+    "question": "What is the symbols of the Saints from the place where Here Come the Girl's performer was born called?",
+    "answer": "fleur - de-lis",
+    "answer_aliases": [
+      "Fleur-de-lis",
+      "fleur-de-lis"
+    ],
+    "supporting": [
+      {
+        "title": "Here Come the Girls (song)",
+        "filename": "Here-Come-the-Girls-song.md"
+      },
+      {
+        "title": "Fleur-de-lis",
+        "filename": "Fleur-de-lis.md"
+      },
+      {
+        "title": "Mother-in-Law Lounge",
+        "filename": "Mother-in-Law-Lounge.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 765565,
+        "question": "Here Come the Girls >> performer",
+        "answer": "Ernie K-Doe",
+        "paragraph_support_idx": 1
+      },
+      {
+        "id": 326948,
+        "question": "#1 >> place of birth",
+        "answer": "New Orleans",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 86925,
+        "question": "what is the #2 saints symbol called",
+        "answer": "fleur - de-lis",
+        "paragraph_support_idx": 3
+      }
+    ]
+  },
+  {
+    "id": "4hop1__391525_49925_13759_736921",
+    "hop_class": "4hop",
+    "question": "Where is the district that the person who wanted to reform and address John Kodwo Amissah's religion preached a sermon on Marian devotion before his death located?",
+    "answer": "Saxony-Anhalt",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Mary, mother of Jesus",
+        "filename": "Mary-mother-of-Jesus--2.md"
+      },
+      {
+        "title": "John Kodwo Amissah",
+        "filename": "John-Kodwo-Amissah.md"
+      },
+      {
+        "title": "Reformation",
+        "filename": "Reformation.md"
+      },
+      {
+        "title": "Wittenberg (district)",
+        "filename": "Wittenberg-district.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 391525,
+        "question": "John Kodwo Amissah >> religion",
+        "answer": "Catholic Church",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 49925,
+        "question": "who wanted #1 to reform and address",
+        "answer": "Martin Luther",
+        "paragraph_support_idx": 14
+      },
+      {
+        "id": 13759,
+        "question": "Where did #2 preach a sermon on Marian devotion a month before his death?",
+        "answer": "Wittenberg",
+        "paragraph_support_idx": 3
+      },
+      {
+        "id": 736921,
+        "question": "#3 >> located in the administrative territorial entity",
+        "answer": "Saxony-Anhalt",
+        "paragraph_support_idx": 15
+      }
+    ]
+  },
+  {
+    "id": "3hop1__558449_503371_21711",
+    "hop_class": "3hop",
+    "question": "When was the Palau de la Generalitat built in the city in which died the man called Martin of the region of Spain where Malanquilla is located?",
+    "answer": "built in the 15th century",
+    "answer_aliases": [
+      "15th century"
+    ],
+    "supporting": [
+      {
+        "title": "Malanquilla",
+        "filename": "Malanquilla.md"
+      },
+      {
+        "title": "Gothic architecture",
+        "filename": "Gothic-architecture.md"
+      },
+      {
+        "title": "Martin of Aragon",
+        "filename": "Martin-of-Aragon.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 558449,
+        "question": "Malanquilla >> located in the administrative territorial entity",
+        "answer": "Aragon",
+        "paragraph_support_idx": 5
+      },
+      {
+        "id": 503371,
+        "question": "Martin of #1 >> place of death",
+        "answer": "Barcelona",
+        "paragraph_support_idx": 14
+      },
+      {
+        "id": 21711,
+        "question": "When was the Palau de la Generalitat in #2 constructed?",
+        "answer": "built in the 15th century",
+        "paragraph_support_idx": 7
+      }
+    ]
+  },
+  {
+    "id": "2hop__865961_159109",
+    "hop_class": "2hop",
+    "question": "Where is the country with ISO code ISO 3166-2:CV located?",
+    "answer": "central Atlantic Ocean",
+    "answer_aliases": [
+      "Atlantic Ocean",
+      "Atlantic"
+    ],
+    "supporting": [
+      {
+        "title": "Cape Verde",
+        "filename": "Cape-Verde.md"
+      },
+      {
+        "title": "ISO 3166-2:CV",
+        "filename": "ISO-3166-2CV.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 865961,
+        "question": "ISO 3166-2:CV >> country",
+        "answer": "Cabo Verde",
+        "paragraph_support_idx": 13
+      },
+      {
+        "id": 159109,
+        "question": "Where is #1 located?",
+        "answer": "central Atlantic Ocean",
+        "paragraph_support_idx": 11
+      }
+    ]
+  },
+  {
+    "id": "2hop__538412_126089",
+    "hop_class": "2hop",
+    "question": "Who was in charge of the province where Schermer is located?",
+    "answer": "Johan Remkes",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "North Holland",
+        "filename": "North-Holland.md"
+      },
+      {
+        "title": "Schermer",
+        "filename": "Schermer.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 538412,
+        "question": "Schermer >> located in the administrative territorial entity",
+        "answer": "North Holland",
+        "paragraph_support_idx": 10
+      },
+      {
+        "id": 126089,
+        "question": "Who was in charge of #1 ?",
+        "answer": "Johan Remkes",
+        "paragraph_support_idx": 2
+      }
+    ]
+  },
+  {
+    "id": "3hop1__337705_132457_51423",
+    "hop_class": "3hop",
+    "question": "What is the name of the castle in the city where the performer of Never Too Loud was formed?",
+    "answer": "Casa Loma",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Never Too Loud",
+        "filename": "Never-Too-Loud.md"
+      },
+      {
+        "title": "Danko Jones",
+        "filename": "Danko-Jones.md"
+      },
+      {
+        "title": "Casa Loma",
+        "filename": "Casa-Loma.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 337705,
+        "question": "Never Too Loud >> performer",
+        "answer": "Danko Jones",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 132457,
+        "question": "What city was #1 formed in?",
+        "answer": "Toronto",
+        "paragraph_support_idx": 15
+      },
+      {
+        "id": 51423,
+        "question": "what is the name of the castle in #2",
+        "answer": "Casa Loma",
+        "paragraph_support_idx": 19
+      }
+    ]
+  },
+  {
+    "id": "4hop3__373573_132409_223216_35031",
+    "hop_class": "4hop",
+    "question": "The band Pathology formed in a city whose urban area ranks where by size among the urban areas of the state where the Still Swingin' song's band formed?",
+    "answer": "third-largest",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "San Diego",
+        "filename": "San-Diego--1.md"
+      },
+      {
+        "title": "Papa Roach",
+        "filename": "Papa-Roach.md"
+      },
+      {
+        "title": "Still Swingin'",
+        "filename": "Still-Swingin.md"
+      },
+      {
+        "title": "Pathology (band)",
+        "filename": "Pathology-band.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 373573,
+        "question": "Still Swingin' >> performer",
+        "answer": "Papa Roach",
+        "paragraph_support_idx": 15
+      },
+      {
+        "id": 132409,
+        "question": "What city was #1 formed in?",
+        "answer": "California",
+        "paragraph_support_idx": 11
+      },
+      {
+        "id": 223216,
+        "question": "Pathology >> location of formation",
+        "answer": "San Diego",
+        "paragraph_support_idx": 16
+      },
+      {
+        "id": 35031,
+        "question": "In the top five largest urban areas in #2 , where does #3 rank?",
+        "answer": "third-largest",
+        "paragraph_support_idx": 9
+      }
+    ]
+  },
+  {
+    "id": "4hop2__9988_729371_70784_61381",
+    "hop_class": "4hop",
+    "question": "When was the region that lies to the north of what used to be known as the \"Near East\" and the location of Operation Earnest Will established?",
+    "answer": "1932",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Saudi Arabia",
+        "filename": "Saudi-Arabia.md"
+      },
+      {
+        "title": "Operation Praying Mantis",
+        "filename": "Operation-Praying-Mantis.md"
+      },
+      {
+        "title": "Geography of Saudi Arabia",
+        "filename": "Geography-of-Saudi-Arabia.md"
+      },
+      {
+        "title": "Near East",
+        "filename": "Near-East.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 9988,
+        "question": "What prevailed with the disgrace of \"Near East\"?",
+        "answer": "\"Middle East\"",
+        "paragraph_support_idx": 19
+      },
+      {
+        "id": 729371,
+        "question": "Operation Earnest Will >> location",
+        "answer": "Persian Gulf",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 70784,
+        "question": "what region lies immediately to the north of #1 and #2",
+        "answer": "Kingdom of Saudi Arabia",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 61381,
+        "question": "when was #3 established",
+        "answer": "1932",
+        "paragraph_support_idx": 1
+      }
+    ]
+  },
+  {
+    "id": "4hop1__3496_5274_458768_33637",
+    "hop_class": "4hop",
+    "question": "How many ethnic minorities were looked at differently where the only group larger than BMG's partner from 2005 to 2007 is headquartered?",
+    "answer": "two",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "The Right Stuff Records",
+        "filename": "The-Right-Stuff-Records.md"
+      },
+      {
+        "title": "Santa Monica, California",
+        "filename": "Santa-Monica-California--2.md"
+      },
+      {
+        "title": "Sony Music",
+        "filename": "Sony-Music--1.md"
+      },
+      {
+        "title": "American Idol",
+        "filename": "American-Idol.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 3496,
+        "question": "Who did BMG partner with in 2005-2007?",
+        "answer": "Sony Music Entertainment",
+        "paragraph_support_idx": 17
+      },
+      {
+        "id": 5274,
+        "question": "What company is the only group larger than #1 ?",
+        "answer": "Universal Music Group.",
+        "paragraph_support_idx": 11
+      },
+      {
+        "id": 458768,
+        "question": "#2 >> headquarters location",
+        "answer": "Santa Monica",
+        "paragraph_support_idx": 9
+      },
+      {
+        "id": 33637,
+        "question": "How many ethnic minorities were looked at differently in #3 ?",
+        "answer": "two",
+        "paragraph_support_idx": 10
+      }
+    ]
+  },
+  {
+    "id": "2hop__135336_461854",
+    "hop_class": "2hop",
+    "question": "Who was Suzanne Farrington's mother's spouse?",
+    "answer": "Laurence Olivier",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Suzanne Farrington",
+        "filename": "Suzanne-Farrington.md"
+      },
+      {
+        "title": "Darlings of the Gods",
+        "filename": "Darlings-of-the-Gods.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 135336,
+        "question": "Who was the mother of Suzanne Farrington?",
+        "answer": "Vivien Leigh",
+        "paragraph_support_idx": 15
+      },
+      {
+        "id": 461854,
+        "question": "#1 >> spouse",
+        "answer": "Laurence Olivier",
+        "paragraph_support_idx": 17
+      }
+    ]
+  },
+  {
+    "id": "4hop1__105773_457883_650651_7262",
+    "hop_class": "4hop",
+    "question": "Country A has an embassy from the country that produces the show Krystala. Who was a prominent figure in the radio division of the network that created a version of the Biggest Loser for country A?",
+    "answer": "Walter Sabo",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Embassy of the Philippines, Bandar Seri Begawan",
+        "filename": "Embassy-of-the-Philippines-Bandar-Seri-Begawan.md"
+      },
+      {
+        "title": "Adult contemporary music",
+        "filename": "Adult-contemporary-music.md"
+      },
+      {
+        "title": "The Biggest Loser Brunei: Lose It All",
+        "filename": "The-Biggest-Loser-Brunei-Lose-It-All.md"
+      },
+      {
+        "title": "Krystala",
+        "filename": "Krystala.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 105773,
+        "question": "Which was the country for Krystala?",
+        "answer": "Philippines",
+        "paragraph_support_idx": 9
+      },
+      {
+        "id": 457883,
+        "question": "Embassy of the #1 , Bandar Seri Begawan >> country",
+        "answer": "Brunei",
+        "paragraph_support_idx": 1
+      },
+      {
+        "id": 650651,
+        "question": "The Biggest Loser #2 (season 3): The Final Chance >> creator",
+        "answer": "NBC",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 7262,
+        "question": "Who was a prominent figure at #3 's radio division?",
+        "answer": "Walter Sabo",
+        "paragraph_support_idx": 7
+      }
+    ]
+  },
+  {
+    "id": "2hop__293131_110222",
+    "hop_class": "2hop",
+    "question": "What is the date of birth of the 'Woman with a Parrot' creator?",
+    "answer": "10 June 1819",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Gustave Courbet",
+        "filename": "Gustave-Courbet.md"
+      },
+      {
+        "title": "Woman with a Parrot",
+        "filename": "Woman-with-a-Parrot.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 293131,
+        "question": "Woman with a Parrot >> creator",
+        "answer": "Gustave Courbet",
+        "paragraph_support_idx": 19
+      },
+      {
+        "id": 110222,
+        "question": "The date of birth of #1 is?",
+        "answer": "10 June 1819",
+        "paragraph_support_idx": 15
+      }
+    ]
+  },
+  {
+    "id": "2hop__67660_81007",
+    "hop_class": "2hop",
+    "question": "Who does the narrator on How I Met Your Mother end up with?",
+    "answer": "Tracy McConnell",
+    "answer_aliases": [
+      "The Mother (How I Met Your Mother)",
+      "The Mother"
+    ],
+    "supporting": [
+      {
+        "title": "The Mother (How I Met Your Mother)",
+        "filename": "The-Mother-How-I-Met-Your-Mother.md"
+      },
+      {
+        "title": "How I Met Your Mother",
+        "filename": "How-I-Met-Your-Mother--1.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 67660,
+        "question": "who is the narrator on how i met your mother",
+        "answer": "Ted Mosby",
+        "paragraph_support_idx": 16
+      },
+      {
+        "id": 81007,
+        "question": "who does #1 end up with in how i met your mother",
+        "answer": "Tracy McConnell",
+        "paragraph_support_idx": 2
+      }
+    ]
+  },
+  {
+    "id": "3hop1__847684_339990_54675",
+    "hop_class": "3hop",
+    "question": "What mountains can you see from Portland, in the state containing the county where Lorenz Park is located?",
+    "answer": "Tualatin Mountains",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Portland, Oregon",
+        "filename": "Portland-Oregon.md"
+      },
+      {
+        "title": "Lorenz Park, New York",
+        "filename": "Lorenz-Park-New-York.md"
+      },
+      {
+        "title": "Socialist Party of Oregon (Columbia County, Oregon)",
+        "filename": "Socialist-Party-of-Oregon-Columbia-County-Oregon.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 847684,
+        "question": "Lorenz Park >> located in the administrative territorial entity",
+        "answer": "Columbia County",
+        "paragraph_support_idx": 1
+      },
+      {
+        "id": 339990,
+        "question": "#1 >> located in the administrative territorial entity",
+        "answer": "Oregon",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 54675,
+        "question": "what mountain can you see from portland #2",
+        "answer": "Tualatin Mountains",
+        "paragraph_support_idx": 0
+      }
+    ]
+  },
+  {
+    "id": "3hop1__131110_39743_24526",
+    "hop_class": "3hop",
+    "question": "In the state that includes Walnut Spring, what's the typical winter daytime temperature range in the region of Richmond?",
+    "answer": "upper 40s\u2013lower 50s \u00b0F",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "North Carolina",
+        "filename": "North-Carolina.md"
+      },
+      {
+        "title": "Richmond, Virginia",
+        "filename": "Richmond-Virginia--2.md"
+      },
+      {
+        "title": "Walnut Spring",
+        "filename": "Walnut-Spring.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 131110,
+        "question": "What state is Walnut Spring located?",
+        "answer": "Virginia",
+        "paragraph_support_idx": 16
+      },
+      {
+        "id": 39743,
+        "question": "In which of #1 's regions is Richmond?",
+        "answer": "Piedmont",
+        "paragraph_support_idx": 13
+      },
+      {
+        "id": 24526,
+        "question": "What is the average winter daytime temperature in the #2 ?",
+        "answer": "upper 40s\u2013lower 50s \u00b0F",
+        "paragraph_support_idx": 3
+      }
+    ]
+  },
+  {
+    "id": "4hop2__161602_426860_88460_21074",
+    "hop_class": "4hop",
+    "question": "Who runs the school system in the country that is the natural boundary between the country that hosted the tournament and the country where That Dam is located?",
+    "answer": "the Ministry of Education",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "That Dam",
+        "filename": "That-Dam.md"
+      },
+      {
+        "title": "Myanmar",
+        "filename": "Myanmar--3.md"
+      },
+      {
+        "title": "Geography of Myanmar",
+        "filename": "Geography-of-Myanmar.md"
+      },
+      {
+        "title": "2020 AFC U-23 Championship qualification",
+        "filename": "2020-AFC-U-23-Championship-qualification.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 161602,
+        "question": "Who hosted the tournament?",
+        "answer": "Thailand",
+        "paragraph_support_idx": 19
+      },
+      {
+        "id": 426860,
+        "question": "That Dam >> country",
+        "answer": "Laos",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 88460,
+        "question": "what natural boundary lies between #1 and #2",
+        "answer": "Myanmar",
+        "paragraph_support_idx": 17
+      },
+      {
+        "id": 21074,
+        "question": "Who runs the school system in #3 ?",
+        "answer": "the Ministry of Education",
+        "paragraph_support_idx": 14
+      }
+    ]
+  },
+  {
+    "id": "2hop__814856_110882",
+    "hop_class": "2hop",
+    "question": "What is the Smile performer's birthday?",
+    "answer": "1 January 1986",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "James Cottriall",
+        "filename": "James-Cottriall.md"
+      },
+      {
+        "title": "Smile (James Cottriall song)",
+        "filename": "Smile-James-Cottriall-song.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 814856,
+        "question": "Smile >> performer",
+        "answer": "James Cottriall",
+        "paragraph_support_idx": 6
+      },
+      {
+        "id": 110882,
+        "question": "What is the date of birth for #1 ?",
+        "answer": "1 January 1986",
+        "paragraph_support_idx": 4
+      }
+    ]
+  },
+  {
+    "id": "3hop2__304722_590317_63959",
+    "hop_class": "3hop",
+    "question": "When was the last time the team that Terry Twell was a member of beat the 194-95 winner of the FA Cup?",
+    "answer": "1 December 2010",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Second City derby",
+        "filename": "Second-City-derby.md"
+      },
+      {
+        "title": "1894\u201395 FA Cup",
+        "filename": "189495-FA-Cup.md"
+      },
+      {
+        "title": "Terry Twell",
+        "filename": "Terry-Twell.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 304722,
+        "question": "1894\u201395 FA Cup >> winner",
+        "answer": "Aston Villa",
+        "paragraph_support_idx": 8
+      },
+      {
+        "id": 590317,
+        "question": "Terry Twell >> member of sports team",
+        "answer": "Birmingham City",
+        "paragraph_support_idx": 19
+      },
+      {
+        "id": 63959,
+        "question": "when was the last time #2 beat #1",
+        "answer": "1 December 2010",
+        "paragraph_support_idx": 3
+      }
+    ]
+  },
+  {
+    "id": "4hop1__236903_153080_159767_81096",
+    "hop_class": "4hop",
+    "question": "Who won the Indy Car Race in the largest city and state of the state where the performer of East Coasting is from?",
+    "answer": "Mario Andretti",
+    "answer_aliases": [],
+    "supporting": [
+      {
+        "title": "Arizona",
+        "filename": "Arizona.md"
+      },
+      {
+        "title": "East Coasting",
+        "filename": "East-Coasting.md"
+      },
+      {
+        "title": "Desert Diamond West Valley Phoenix Grand Prix",
+        "filename": "Desert-Diamond-West-Valley-Phoenix-Grand-Prix.md"
+      },
+      {
+        "title": "Charles Mingus",
+        "filename": "Charles-Mingus.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 236903,
+        "question": "East Coasting >> performer",
+        "answer": "Charles Mingus",
+        "paragraph_support_idx": 5
+      },
+      {
+        "id": 153080,
+        "question": "What city is #1 from?",
+        "answer": "Arizona",
+        "paragraph_support_idx": 17
+      },
+      {
+        "id": 159767,
+        "question": "what city is both the largest city and the state capital of #2 ?",
+        "answer": "Phoenix",
+        "paragraph_support_idx": 2
+      },
+      {
+        "id": 81096,
+        "question": "who won the indy car race in #3",
+        "answer": "Mario Andretti",
+        "paragraph_support_idx": 12
+      }
+    ]
+  },
+  {
+    "id": "3hop1__169494_42197_18397",
+    "hop_class": "3hop",
+    "question": "Where did the arguer that Dmitry Okhotsimsky's country of citizenship had become an imperialist power declare he would intervene in the Korean conflict?",
+    "answer": "the Politburo",
+    "answer_aliases": [
+      "Politburo"
+    ],
+    "supporting": [
+      {
+        "title": "Dmitry Okhotsimsky",
+        "filename": "Dmitry-Okhotsimsky.md"
+      },
+      {
+        "title": "Korean War",
+        "filename": "Korean-War--4.md"
+      },
+      {
+        "title": "Imperialism",
+        "filename": "Imperialism--1.md"
+      }
+    ],
+    "decomposition": [
+      {
+        "id": 169494,
+        "question": "Dmitry Okhotsimsky >> country of citizenship",
+        "answer": "USSR",
+        "paragraph_support_idx": 0
+      },
+      {
+        "id": 42197,
+        "question": "Who argued that the #1 had itself become an imperialist power?",
+        "answer": "Mao Zedong",
+        "paragraph_support_idx": 7
+      },
+      {
+        "id": 18397,
+        "question": "Where did #2 declare that he would intervene in the Korean conflict?",
+        "answer": "the Politburo",
+        "paragraph_support_idx": 2
+      }
+    ]
+  }
+]
