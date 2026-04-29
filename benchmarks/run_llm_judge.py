@@ -7,20 +7,30 @@ Why this script exists alongside `run_benchmark.py`:
     wrong context", no measurement of answer quality.
   * `run_llm_judge.py` (this script) measures *answer quality* via LLM
     judge — generates a grounded answer with `rag.ask()`, then scores
-    it 0-3 against the question using a separate LLM call. This matches
-    the methodology used in `benchmarks/age-bakeoff/` for the SCOTUS
-    head-to-head. More credible; uses the local vLLM as both the
-    answer-generator and judge so cost stays at $0.
+    it 0-3 against the question using a separate LLM call. Matches the
+    methodology `benchmarks/age-bakeoff/` uses for the SCOTUS head-to-
+    head; more credible than keyword recall.
+
+Two judges are supported (selected via `--judge`):
+  * `local` (default) — local vLLM at PGRG_TEST_LLM_URL. $0 cost. Used
+    in the 2026-04-29 baseline run with Intel/Qwen3-Coder-Next-int4.
+  * `openai` — OpenAI gpt-4o-mini. Reads OPENAI_API_KEY from env. ~$0.50
+    for 60 judge calls (10 Qs × 6 modes). More authoritative judge for
+    publishable claims.
+
+The answer generator (the LLM that `rag.ask()` calls inside pgrg) is
+ALWAYS the local vLLM regardless of judge — so we're comparing how the
+same answers are scored by different judges, not benchmarking different
+answer-generators.
 
 Outputs:
-  * `benchmarks/llm-judge-results-<timestamp>.json` — full per-question
-    rows with answer text, judge score, and rationale.
-  * Console summary table printed at the end.
+  * `benchmarks/llm-judge-results-<corpus>-<judge>-<ts>.json` — per-Q rows.
+  * Console summary table at the end.
 
 Usage:
-  uv run python benchmarks/run_llm_judge.py --corpus postgres
-  uv run python benchmarks/run_llm_judge.py --corpus ntsb
-  uv run python benchmarks/run_llm_judge.py --corpus both
+  uv run python benchmarks/run_llm_judge.py --corpus postgres --judge local
+  uv run python benchmarks/run_llm_judge.py --corpus ntsb --judge openai
+  uv run python benchmarks/run_llm_judge.py --corpus both --judge openai
 """
 
 from __future__ import annotations
@@ -29,6 +39,7 @@ import argparse
 import asyncio
 import json
 import os
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -38,8 +49,13 @@ import httpx
 from pg_raggraph import GraphRAG
 
 DSN = os.environ.get("PGRG_DSN", "postgresql://postgres:postgres@localhost:5434/pg_raggraph")
-LLM_URL = os.environ.get("PGRG_TEST_LLM_URL", "http://192.168.1.193:8000/v1")
-LLM_MODEL = os.environ.get("PGRG_TEST_LLM_MODEL", "Intel/Qwen3-Coder-Next-int4-AutoRound")
+
+# Answer-generator (local vLLM, used by rag.ask()).
+ANSWER_URL = os.environ.get("PGRG_TEST_LLM_URL", "http://192.168.1.193:8000/v1")
+ANSWER_MODEL = os.environ.get("PGRG_TEST_LLM_MODEL", "Intel/Qwen3-Coder-Next-int4-AutoRound")
+# Back-compat aliases (the prior version of this script used these names).
+LLM_URL = ANSWER_URL
+LLM_MODEL = ANSWER_MODEL
 
 BENCH_DIR = Path(__file__).parent
 
@@ -99,23 +115,60 @@ makes claims unsupported by the retrieved chunks.
 Return ONLY a JSON object: {"score": 0|1|2|3, "rationale": "brief reason"}"""
 
 
+class JudgeConfig:
+    """Endpoint + model + auth for whichever judge LLM is configured.
+
+    The choice between `local` and `openai` is the only methodology
+    knob — answer generation always uses the local vLLM so we compare
+    judges, not generators.
+    """
+
+    def __init__(self, kind: str):
+        if kind == "local":
+            self.url = ANSWER_URL
+            self.model = ANSWER_MODEL
+            self.api_key = ""
+            self.label = f"local ({ANSWER_MODEL.split('/')[-1]})"
+        elif kind == "openai":
+            self.url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+            self.model = os.environ.get("OPENAI_JUDGE_MODEL", "gpt-4o-mini")
+            self.api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+            if not self.api_key:
+                print(
+                    "ERROR: --judge openai requires OPENAI_API_KEY in env. "
+                    "Get a key at https://platform.openai.com/api-keys and "
+                    "`export OPENAI_API_KEY=sk-...` then re-run.",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+            self.label = f"openai ({self.model})"
+        else:
+            raise ValueError(f"Unknown judge kind: {kind!r}")
+        self.kind = kind
+
+
 async def llm_judge(
     client: httpx.AsyncClient,
+    judge: JudgeConfig,
     question: str,
     answer: str,
     chunk_excerpts: list[str],
 ) -> tuple[int, str]:
-    """Score one (question, answer, chunks) triple via the local vLLM judge."""
+    """Score one (question, answer, chunks) triple via the configured judge."""
     user_content = (
         f"QUESTION:\n{question}\n\n"
         f"SYSTEM ANSWER:\n{answer}\n\n"
         f"RETRIEVED CHUNKS (top {len(chunk_excerpts)}):\n"
         + "\n\n---\n\n".join(c[:600] for c in chunk_excerpts)
     )
+    headers = {"Content-Type": "application/json"}
+    if judge.api_key:
+        headers["Authorization"] = f"Bearer {judge.api_key}"
     resp = await client.post(
-        f"{LLM_URL}/chat/completions",
+        f"{judge.url}/chat/completions",
+        headers=headers,
         json={
-            "model": LLM_MODEL,
+            "model": judge.model,
             "messages": [
                 {"role": "system", "content": JUDGE_PROMPT},
                 {"role": "user", "content": user_content},
@@ -143,13 +196,15 @@ async def llm_judge(
 # ---------------------------------------------------------------------------
 
 
-async def run_corpus(corpus_key: str, namespace: str, questions: list[str]) -> dict:
+async def run_corpus(
+    corpus_key: str, namespace: str, questions: list[str], judge: JudgeConfig
+) -> dict:
     """Run all modes × all questions; LLM-judge each answer."""
     rag = GraphRAG(
         dsn=DSN,
         namespace=namespace,
-        llm_base_url=LLM_URL,
-        llm_model=LLM_MODEL,
+        llm_base_url=ANSWER_URL,
+        llm_model=ANSWER_MODEL,
     )
     await rag.connect()
 
@@ -157,7 +212,7 @@ async def run_corpus(corpus_key: str, namespace: str, questions: list[str]) -> d
     rows: list[dict] = []
     print(
         f"\n  Corpus: {corpus_key}  ({len(questions)} Qs × {len(modes)} modes "
-        f"= {len(questions) * len(modes)} answers + judges)"
+        f"= {len(questions) * len(modes)} answers + judges)  judge={judge.label}"
     )
 
     async with httpx.AsyncClient() as client:
@@ -197,7 +252,7 @@ async def run_corpus(corpus_key: str, namespace: str, questions: list[str]) -> d
                     )
                     continue
 
-                score, rationale = await llm_judge(client, question, answer, chunk_excerpts)
+                score, rationale = await llm_judge(client, judge, question, answer, chunk_excerpts)
                 rows.append(
                     {
                         "corpus": corpus_key,
@@ -259,7 +314,18 @@ def print_summary(corpus_key: str, summary: dict):
 async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--corpus", default="both", choices=["postgres", "ntsb", "both"])
+    ap.add_argument(
+        "--judge",
+        default="local",
+        choices=["local", "openai"],
+        help="Judge LLM. `local` uses PGRG_TEST_LLM_URL (free); `openai` "
+        "uses OPENAI_API_KEY + gpt-4o-mini (~$0.50 per full run).",
+    )
     args = ap.parse_args()
+
+    judge = JudgeConfig(args.judge)
+    print(f"Judge: {judge.label}")
+    print(f"Answer generator: local ({ANSWER_MODEL}) at {ANSWER_URL}")
 
     plan = []
     if args.corpus in ("postgres", "both"):
@@ -269,19 +335,22 @@ async def main():
 
     all_results: list[dict] = []
     for corpus_key, namespace, questions in plan:
-        result = await run_corpus(corpus_key, namespace, questions)
+        result = await run_corpus(corpus_key, namespace, questions, judge)
         all_results.append(result)
         print_summary(corpus_key, result["summary"])
 
-    # Persist
+    # Persist — filename includes judge kind so consecutive runs don't overwrite.
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-    out = BENCH_DIR / f"llm-judge-results-{ts}.json"
+    out = BENCH_DIR / f"llm-judge-results-{args.judge}-{ts}.json"
     out.write_text(
         json.dumps(
             {
                 "generated_at": datetime.now().isoformat(),
-                "judge_model": LLM_MODEL,
-                "judge_url": LLM_URL,
+                "judge_kind": judge.kind,
+                "judge_model": judge.model,
+                "judge_url": judge.url,
+                "answer_generator_url": ANSWER_URL,
+                "answer_generator_model": ANSWER_MODEL,
                 "results": [r["summary"] for r in all_results],
                 "rows": [row for r in all_results for row in r["rows"]],
             },
