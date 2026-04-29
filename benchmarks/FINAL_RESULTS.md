@@ -2,35 +2,77 @@
 
 ## Re-verification — 2026-04-29
 
-Re-ran PG-docs and NTSB corpora against current `main` (post Tier-1 merge + audit hardening) using two methodologies in parallel: **keyword-recall** (`benchmarks/run_benchmark.py` — deterministic, no LLM cost) and **LLM-judge** (`benchmarks/run_llm_judge.py` — `rag.ask()` answers graded 0–3 by the local vLLM at `192.168.1.193:8000`, Intel/Qwen3-Coder-Next-int4-AutoRound, same model the AGE bake-off used).
+Re-ran PG-docs and NTSB corpora against current `main` (post Tier-1 merge + audit hardening) using **three methodologies side-by-side**:
 
-### PostgreSQL docs (31 docs, 248 chunks, 1,332 entities, 1,793 rels — re-ingested 2026-04-29 in 1252 s on `balanced` profile)
+1. **Keyword-recall** — `benchmarks/run_benchmark.py`. Deterministic, $0 cost. Measures `% of expected keywords found in retrieved chunks`. Same proxy the original 2026-04-12 blog 00 numbers used. Blind to synonyms / right-keyword-wrong-context.
+2. **Qwen judge (local vLLM)** — `benchmarks/run_llm_judge.py --judge local`. Same Intel/Qwen3-Coder-Next-int4-AutoRound model the AGE bake-off uses. $0 cost. Grades `rag.ask()` answers 0–3 against question + retrieved chunks.
+3. **OpenAI judge** — `benchmarks/run_llm_judge.py --judge openai`. gpt-4o-mini. ~$0.50 for 60 calls. Independent grader for cross-judge robustness check.
 
-| Mode | Keyword-recall | LLM-judge | Fully correct | Wrong / empty |
+The answer generator (the LLM `rag.ask()` calls) is **always** the local vLLM. We're comparing how the same answers get scored by different judges, not benchmarking different answer-generators.
+
+### PostgreSQL docs — 31 docs, 248 chunks, 1,332 entities, 1,793 rels (re-ingested 2026-04-29 in 1,252 s on `balanced` profile)
+
+| Mode | Keyword-recall | Qwen judge | OpenAI judge | Δ judge |
 |---|:-:|:-:|:-:|:-:|
-| naive | 82.0% | 73.3% | 5/10 | 1/10 |
-| `naive_boost` ⭐ | n/a (runner predates mode) | **80.0%** | **6/10** | **0/10** |
-| smart | n/a (runner predates mode) | 76.7% | 6/10 | 1/10 |
-| local | 82.0% | 76.7% | 6/10 | 1/10 |
-| global | 78.0% | 73.3% | 5/10 | 1/10 |
-| hybrid | 82.0% | 73.3% | 5/10 | 1/10 |
+| naive | 82.0% | 73.3% | 86.7% | **+13.4** |
+| `naive_boost` ⭐ | n/a* | 80.0% | 83.3% | +3.3 |
+| smart | n/a* | 76.7% | 86.7% | +10.0 |
+| local | 82.0% | 76.7% | 86.7% | +10.0 |
+| global | 78.0% | 73.3% | 86.7% | +13.4 |
+| hybrid | 82.0% | 73.3% | 86.7% | +13.4 |
 
-### NTSB aviation reports (20 docs, 82 chunks, 344 entities, 438 rels — re-ingested 2026-04-29 in 309 s, 15.5 s/doc)
+*`run_benchmark.py` predates `naive_boost` and `smart` modes.
 
-| Mode | LLM-judge | Fully correct | Wrong / empty |
+OpenAI judge "fully-correct" / "wrong-or-empty" per mode (out of 10 questions): naive 8/1, naive_boost 8/1, smart 8/1, local 8/1, global 8/1, hybrid 8/1.
+
+### NTSB aviation reports — 20 docs, 82 chunks, 344 entities, 438 rels (re-ingested 2026-04-29 in 309 s, 15.5 s/doc — **3× faster** than the 45 s/doc 2026-04-12 sequential baseline)
+
+| Mode | Qwen judge | OpenAI judge | Δ judge |
 |---|:-:|:-:|:-:|
-| naive | 86.7% | 6/10 | 0/10 |
-| **`naive_boost`** ⭐ | **93.3%** | **8/10** | **0/10** |
-| smart | 86.7% | 6/10 | 0/10 |
-| **local** ⭐ | **93.3%** | **8/10** | **0/10** |
-| global | 80.0% | 6/10 | 0/10 |
-| hybrid | 86.7% | 6/10 | 0/10 |
+| naive | 86.7% | **100.0%** | +13.3 |
+| `naive_boost` | 93.3% | 96.7% | +3.4 |
+| smart | 86.7% | 90.0% | +3.3 |
+| local | 93.3% | **100.0%** | +6.7 |
+| global | 80.0% | **100.0%** | +20.0 |
+| hybrid | 86.7% | **100.0%** | +13.3 |
+
+OpenAI judge "fully-correct" / "wrong-or-empty" (n=10): naive 10/0, naive_boost 9/0, smart 9/1, local 10/0, global 10/0, hybrid 10/0.
 
 ### Reading the 2026-04-29 numbers
 
-- **PG-docs:** keyword-recall and LLM-judge both reproduce the directional finding — graph mode doesn't dominate on technical-doc corpora. The original blog 00 claim "graph lost by 8 points" is no longer accurate; the gap is gone (naive ≈ hybrid at the same accuracy). `naive_boost` is the standout at 80% LLM-judge with zero wrong answers — same +18.9% lift pattern found on the 909-doc pg-agents corpus.
-- **NTSB:** graph DOES earn its keep. `naive_boost` and `local` both hit 93.3% with zero wrong, beating naive by 6.6 points. The corpus is exactly the cross-incident pattern where graph traversal helps.
-- **Latency: ingest is 3× faster per document** vs the original sequential baseline (15.5 s/doc vs 45 s/doc). The `asyncio.gather` parallel-extract refactor delivered.
+**Judge choice matters more than retrieval mode does on these corpora.** Same 60 PG-docs + 60 NTSB answers, scored 0–3 by two different judges, produce 3.3 to 20.0-pp swings between the Qwen and OpenAI columns. Within a single judge column, mode-to-mode variance is much smaller (0–6.6 pp on PG-docs under either judge; 6.6–13.3 pp on NTSB under Qwen). Methodology disclosure for any retrieval claim should always include which judge graded it.
+
+**PG-docs:** under both judges, modes converge to the same accuracy band — the original blog 00 claim "hybrid lost by 8 points" is **no longer reproducible**. Qwen judge crowns `naive_boost` (80%); OpenAI judge says all modes tie at 86.7% except `naive_boost` which dips slightly. Both views support the same directional finding — *graph doesn't dominate on technical-doc corpora* — but neither replicates the original 8-pp negative gap. The keyword-recall column is stable across the cluster (82% for naive/local/hybrid).
+
+**NTSB:** Qwen judge cleanly shows `naive_boost` and `local` ahead of naive (93.3% vs 86.7%) — the cross-incident-question signal graph mode is supposed to deliver. **OpenAI judge basically saturates** at 100% for naive/local/global/hybrid — the gap collapses because OpenAI grades these answers as fully-correct regardless of mode. That's a separate finding: gpt-4o-mini may be too generous on multi-incident questions where any plausible synthesis gets credit. The robustness check raises the bar for "graph wins on NTSB" — the win is real under Qwen, but vanishes under a more lenient grader.
+
+**Ingest performance:** `asyncio.gather` parallel-extract delivered the **3× speedup** the original blog claimed it would. NTSB 20 docs in 309 s = 15.5 s/doc vs the 45 s/doc sequential baseline.
+
+### How do these numbers compare to Apache AGE?
+
+**Honest answer: PG-docs and NTSB were never directly measured against Apache AGE.** Our pgrg-vs-AGE head-to-head ran on SCOTUS only (`benchmarks/age-bakeoff/`). Adapting the bake-off harness to PG-docs / NTSB is its own effort (~30–60 min wall time, ~$1–2 LLM cost). What we have today, applied to **SCOTUS** with the same `gpt-5-mini` majority-of-3 judge methodology:
+
+| Mode | pgrg accuracy (n=30) | AGE accuracy (n=30) | pgrg p50 latency | AGE p50 latency | pgrg speedup |
+|---|:-:|:-:|:-:|:-:|:-:|
+| naive | 18/30 | 18/30 | 35 ms | 3,873 ms | **111×** |
+| `naive_boost` | 17/30 | 18/30 | 40 ms | 3,895 ms | **98×** |
+| smart | 17/30 | 18/30 | 32 ms | 3,226 ms | **101×** |
+| local | 18/30 | 17/30 | 65 ms | 3,079 ms | **47×** |
+| global | 18/30 | 18/30 | 43 ms | 3,906 ms | **91×** |
+| hybrid | 18/30 | 17/30 | 73 ms | 3,088 ms | **42×** |
+
+Source: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](age-bakeoff/results/REPORT-VERDICT.md). Same extraction JSON, same chunker, same embedder, same LLM judge — fair-defaults vs fair-defaults disclosed in [`research/apache-age-evaluation.md`](../research/apache-age-evaluation.md).
+
+**What this means for PG-docs and NTSB:** if you transposed the architecture (recursive CTEs vs Cypher subqueries calling pgvector via two round-trips), the latency story is consistent — AGE would be 40–110× slower on retrieval, regardless of the corpus, because the architectural blocker is *Cypher and pgvector can't combine in one query*. The accuracy story is harder to predict from SCOTUS alone — both engines tied at 17–18/30 there because they share the same upstream extraction; the same parity probably holds on PG-docs / NTSB but we haven't confirmed.
+
+**If you want a direct measurement on these corpora**, the bake-off harness supports adding new corpora — see `benchmarks/age-bakeoff/README.md`. Not blocked, just a separate run.
+
+### Methodology recommendation
+
+For publishable accuracy claims:
+- **Always show keyword-recall + at least one LLM-judge column** so readers see the spread.
+- **Prefer cross-judge agreement over single-judge maxima.** `naive_boost` clears 80%+ on PG-docs under both judges; that's a more robust win than its 93.3% on NTSB-under-Qwen which softens to 96.7% under OpenAI.
+- **Use multiple judges with different strictness profiles** when reporting a head-to-head between modes. Single-judge can be biased low (Qwen) or high (gpt-4o-mini); the bake-off's `gpt-5-mini` majority-of-3 is the gold standard but expensive.
 
 The earlier (pre-2026-04-29) sections below are kept as history for prior cross-corpus runs; treat the 2026-04-29 numbers as canonical for current `main`.
 

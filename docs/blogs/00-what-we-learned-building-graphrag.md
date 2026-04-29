@@ -26,37 +26,39 @@ On **PostgreSQL documentation** (31 docs, 1,140 entities; measured 2026-04-12), 
 
 On **NTSB aviation incident reports** (20 docs, 314 entities; measured 2026-04-12), hybrid scored 79% vs naive's 75% — a modest 4-point improvement on cross-incident questions. Graph won exactly **one of five test questions**: "How does pilot experience affect incident outcomes?" — which required correlating pilot certifications across multiple reports.
 
-> **Re-verification — 2026-04-29.** Re-ran both corpora against current `main` (post Tier-1 merge + audit hardening) using two methodologies side-by-side: keyword-recall (deterministic, % of expected keywords found in retrieved chunks — same as the 2026-04-12 method) AND LLM-judge (gpt-style 0–3 grading of `rag.ask()` answers using the local vLLM at `192.168.1.193:8000`, Intel/Qwen3-Coder-Next-int4-AutoRound, as judge — same model the bake-off harness uses).
+> **Re-verification — 2026-04-29.** Re-ran both corpora against current `main` using **three methodologies side-by-side**: (1) keyword-recall (the original 2026-04-12 method), (2) Qwen judge — local vLLM Intel/Qwen3-Coder-Next-int4-AutoRound grading `rag.ask()` answers 0–3 (same model the AGE bake-off uses), (3) OpenAI judge — gpt-4o-mini doing the same. Showing all three because **judge choice matters more than retrieval mode does on these corpora.** ~3–20 pp swings between Qwen and OpenAI on the same 60 answers.
 >
 > **PostgreSQL docs (31 docs, 248 chunks, 1,332 entities, 1,793 rels):**
 >
-> | Mode | Keyword-recall (current) | LLM-judge accuracy (current) |
-> |---|:-:|:-:|
-> | naive | 82.0% | 73.3% (5 fully correct, 1 wrong) |
-> | `naive_boost` ⭐ | n/a* | **80.0% (6 fully correct, 0 wrong)** |
-> | smart | n/a* | 76.7% |
-> | local | 82.0% | 76.7% |
-> | global | 78.0% | 73.3% |
-> | hybrid | 82.0% | 73.3% |
+> | Mode | Keyword-recall | Qwen judge | OpenAI judge | Δ judge |
+> |---|:-:|:-:|:-:|:-:|
+> | naive | 82.0% | 73.3% | 86.7% | +13.4 |
+> | `naive_boost` ⭐ | n/a* | 80.0% | 83.3% | +3.3 |
+> | smart | n/a* | 76.7% | 86.7% | +10.0 |
+> | local | 82.0% | 76.7% | 86.7% | +10.0 |
+> | global | 78.0% | 73.3% | 86.7% | +13.4 |
+> | hybrid | 82.0% | 73.3% | 86.7% | +13.4 |
 >
-> *The original `run_benchmark.py` predates the `naive_boost` and `smart` modes — comparison is across modes the runner supports.
+> *`run_benchmark.py` predates `naive_boost` / `smart`.
 >
-> Reading: the 2026-04-12 post said "naive 80% / hybrid 72%, graph lost by 8 points." On a re-run, **the negative gap is gone** — naive and hybrid both clock 82% on keyword-recall, 73.3% on LLM-judge. **`naive_boost` is the new standout** at 80% LLM-judge accuracy with zero wrong answers — exactly the +18.9% lift pattern reproduced on the 909-doc pg-agents corpus.
+> Reading: the 2026-04-12 post said "naive 80% / hybrid 72%, graph lost by 8 points." **The negative gap is gone under both judges and under keyword-recall.** Qwen judge crowns `naive_boost` at 80% with zero wrong answers; OpenAI judge says all modes tie at 86.7% with `naive_boost` slightly behind. Both views support the same directional finding — graph doesn't dominate on technical-doc corpora — but neither reproduces the original 8-pp negative gap.
 >
 > **NTSB aviation reports (20 docs, 82 chunks, 344 entities, 438 rels):**
 >
-> | Mode | LLM-judge accuracy (current) |
-> |---|:-:|
-> | naive | 86.7% (6 fully correct, 0 wrong) |
-> | **`naive_boost`** ⭐ | **93.3% (8 fully correct, 0 wrong)** |
-> | smart | 86.7% |
-> | **local** ⭐ | **93.3% (8 fully correct, 0 wrong)** |
-> | global | 80.0% |
-> | hybrid | 86.7% |
+> | Mode | Qwen judge | OpenAI judge | Δ judge |
+> |---|:-:|:-:|:-:|
+> | naive | 86.7% | **100.0%** | +13.3 |
+> | `naive_boost` | 93.3% | 96.7% | +3.4 |
+> | smart | 86.7% | 90.0% | +3.3 |
+> | local | 93.3% | **100.0%** | +6.7 |
+> | global | 80.0% | **100.0%** | +20.0 |
+> | hybrid | 86.7% | **100.0%** | +13.3 |
 >
-> Reading: NTSB is exactly where graph mode is supposed to earn its keep — cross-incident questions ("how does pilot experience correlate with outcomes?", "what patterns emerge across engine failure incidents?"). Both `naive_boost` and `local` hit **93.3% with zero wrong** out of 10 questions. The original 4-point gap (75% → 79%) becomes a **6.6-point gap** (86.7% → 93.3%) under the more rigorous LLM-judge methodology. **The directional finding is sharper than the original blog suggested**, not weaker.
+> Reading: under Qwen, `naive_boost` and `local` win (93.3% vs naive's 86.7%) — the cross-incident-question signal blog 00 originally hinted at. Under OpenAI, the field saturates at 100% for naive/local/global/hybrid — the win **vanishes** because gpt-4o-mini is too generous on this corpus. The "graph wins on NTSB" claim is real under Qwen, weaker under OpenAI; the honest summary is *"graph helps but the size of the win depends on the grader."* That's why we now show both columns.
 >
-> The ingestion-time claim below also tightened: 20-doc NTSB now ingests in **309 s (~15.5 s/doc)** with the post-parallelization pipeline, versus the **45 s/doc sequential baseline** quoted later in this post. Three times faster per document. Re-runner: [`benchmarks/run_benchmark.py`](../../benchmarks/run_benchmark.py) (keyword-recall) and [`benchmarks/run_llm_judge.py`](../../benchmarks/run_llm_judge.py) (LLM-judge). Both produce JSON artifacts in `benchmarks/`.
+> **Ingest:** 20-doc NTSB ingests in **309 s (15.5 s/doc)** with the post-parallel `asyncio.gather` pipeline — exactly the 3× speedup blog 00 claimed it would deliver vs the **45 s/doc** sequential baseline. The pre-optimization claim is reproducible.
+>
+> **Methodology takeaway:** any retrieval-accuracy claim should disclose its judge. Cross-judge agreement is more credible than single-judge maxima. `naive_boost` clears 80%+ on PG-docs under both judges; that's more robust than its 93.3% on NTSB-under-Qwen which softens to 96.7% under OpenAI. Re-runners: [`benchmarks/run_benchmark.py`](../../benchmarks/run_benchmark.py) (keyword) and [`benchmarks/run_llm_judge.py`](../../benchmarks/run_llm_judge.py) (`--judge local|openai`). Full numbers + commentary in [`benchmarks/FINAL_RESULTS.md`](../../benchmarks/FINAL_RESULTS.md).
 
 This matches the academic literature more honestly than the marketing does:
 - **GraphRAG-Bench (ICLR 2026)**: Graph advantage only on relational QA requiring multi-hop reasoning
