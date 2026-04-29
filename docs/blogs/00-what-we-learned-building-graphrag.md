@@ -20,9 +20,11 @@ We built pg-raggraph — a PostgreSQL-native GraphRAG library — and benchmarke
 
 We expected graph modes to dominate on multi-hop questions. They didn't — at least not on the corpora we tested.
 
-On **PostgreSQL documentation** (31 docs, 1,140 entities), plain vector+BM25 hit **80% accuracy** on technical questions. Our hybrid graph mode? **72%**. Graph lost by 8 percentage points on the very technical-doc queries we expected it to excel at.
+> **All numbers in this section** are from the **2026-04-12 benchmark run** against the original PG-docs and NTSB corpora (`benchmarks/postgres-docs/` and `benchmarks/kg-rag-eval/ntsb/`). They reflect what graph mode did and didn't do on those specific runs. They have **not been re-verified** against `main` since the post-audit hardening + Tier 1 merge — a re-run would land in a separate session. The directional finding ("graph doesn't dominate on technical-doc corpora") was reproduced later on the 909-doc pg-agents corpus, where graph boost adds **+18.9%** at the same latency — see [`pg-agents-results.md`](../../benchmarks/pg-agents-results.md). Treat the percentages below as period data; treat the lesson as still load-bearing.
 
-On **NTSB aviation incident reports** (20 docs, 314 entities), hybrid scored 79% vs naive's 75% — a modest 4-point improvement on cross-incident questions. Graph won exactly **one of five test questions**: "How does pilot experience affect incident outcomes?" — which required correlating pilot certifications across multiple reports.
+On **PostgreSQL documentation** (31 docs, 1,140 entities; measured 2026-04-12), plain vector+BM25 hit **80% accuracy** on technical questions. Our hybrid graph mode? **72%**. Graph lost by 8 percentage points on the very technical-doc queries we expected it to excel at.
+
+On **NTSB aviation incident reports** (20 docs, 314 entities; measured 2026-04-12), hybrid scored 79% vs naive's 75% — a modest 4-point improvement on cross-incident questions. Graph won exactly **one of five test questions**: "How does pilot experience affect incident outcomes?" — which required correlating pilot certifications across multiple reports.
 
 This matches the academic literature more honestly than the marketing does:
 - **GraphRAG-Bench (ICLR 2026)**: Graph advantage only on relational QA requiring multi-hop reasoning
@@ -97,7 +99,7 @@ async with httpx.AsyncClient() as client:
 
 ## Ingestion Speed Was the Real Problem
 
-Our first ingestion of an NTSB incident report — a 6KB document — took **45 seconds**. For a 20-document corpus, that's 15 minutes. For 200 docs? 2.5 hours. Benchmarking was impractical.
+Our first ingestion of an NTSB incident report — a 6 KB document — took **45 seconds** (sequential single-doc baseline measured 2026-04-12; pre-`asyncio.gather` parallel-extract refactor). For a 20-document corpus, that's 15 minutes. For 200 docs? 2.5 hours. Benchmarking was impractical.
 
 We profiled and found the culprit: LLM extraction was running one chunk at a time, sequentially. Each LLM call took 3-5 seconds, and with 10 chunks per document, we were waiting 30-50 seconds per file.
 
