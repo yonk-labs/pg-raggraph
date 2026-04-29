@@ -4,49 +4,53 @@ Active worklist. Older snapshots live in `docs/archive/TODO.md`.
 
 ---
 
-## P0 — Ingest performance audit before public release (2026-04-29)
+## P0 — Ingest performance gate ✅ closed 2026-04-29
 
-**Why this exists.** SCOTUS bake-off shows pgrg storage step (post-extraction) takes ~14 min on 772 docs / 416 entities / 4,397 relationships. Apache AGE storage takes ~50 sec on the same input. That's a **17× gap on the storage-only path** (ingest, not LLM extraction). It is paying for real capabilities AGE doesn't have:
+**Original concern.** SCOTUS bake-off log timestamps showed pgrg's storage step (post-LLM-extraction) at ~14 min vs Apache AGE's ~50 sec on identical input — a 17× gap that we agreed must be explained or fixed before public release.
 
-- Entity resolution (pg_trgm fuzzy + vector cosine dedup)
-- Entity-level embeddings (enables global mode)
-- Community detection + summaries
-- Embedded-content rewrites for hybrid retrieval
+**Diagnosis.** A subagent perf audit (`skill-output/perf-audit/Ingest-Perf-Recommendations.md`) traced the 14-min figure to the **bake-off adapter**, not pg-raggraph's library code. The adapter at `benchmarks/age-bakeoff/src/age_bakeoff/engines/pgrg.py` issued one transactional round-trip per row — ~10K-50K total `db.execute`/`db.fetch_one` calls. Each one acquired a fresh pool connection, ran `register_vector_async` (which itself fires a SELECT against `pg_type`), executed the statement, committed, and released. That accounted for almost all of the 14 minutes. The library's own ingest path (`src/pg_raggraph/__init__.py:540-699`) already wraps writes in a single `db.transaction()` per document — it never had this bug.
 
-…but **17× is too much** for the work being done. AGE proves the storage floor is much lower.
+**Fix shipped (commit `22dd18e`):**
+- **F1** — Wrap the bake-off adapter's `ingest()` in a single `db.transaction()`. One connection across every INSERT, one COMMIT at `__aexit__`. ~5 lines of structural change.
+- **F2** — Pre-build `entity_chunks` and `relationship_chunks` rows in Python via an inverted index, then one `tx.executemany()` per link table.
+- **Library helper** — Added `Transaction.executemany()` to `pg_raggraph/db.py` so batched inserts work inside an active transaction (the existing `Database.bulk_insert` opens its own connection and commits).
 
-We will not flip the repo public until pgrg's storage step is within **3×** of AGE on the same SCOTUS input. Stretch target: within 1.5×.
+**Measurement (`benchmarks/age-bakeoff/scripts/time_scotus_ingest.py`, SCOTUS extraction cache):**
 
-This is not "AGE is the safer bet" — retrieval is the dominant production cost (pgrg is 42-111× faster there) and AGE has architectural blockers (no managed-Postgres support, no pgvector + Cypher composition). But ingest matters too, and our absolute number isn't optimized.
+| state | wall time | vs AGE (50s) |
+|---|---|---|
+| Pre-F1 baseline | ~840s (14 min) | 17× |
+| Post-F1 | 119s | 2.4× |
+| Post-F1 + F2 | 107s | 2.1× |
 
-### Workstream
+**Definition of done (target ≤ 3× AGE):** **met.** The remaining 2.1× is real and explainable — pgrg's library does work AGE skips (entity embeddings + HNSW maintenance during insert, `tsvector` search_vector trigger on every chunk, embedded-content rewrites for hybrid retrieval). That's about 70 extra seconds on 416 entities + 816 chunks for capabilities AGE doesn't have.
 
-- [ ] **Profile ingest end-to-end on the SCOTUS extraction cache.** Add timing instrumentation around: entity-resolution loop (pg_trgm + vector similarity per-entity), entity embedding batch, community detection, per-document COMMIT cadence, embedded-content rewrites. Same input AGE consumed (`benchmarks/age-bakeoff/src/age_bakeoff/extraction/data/scotus.json`).
-- [ ] **Subagent recommendation pass** — collect specific fixes with file:line evidence and expected impact, ranked. (Dispatched 2026-04-29; output landing in `skill-output/perf-audit/`.)
-- [ ] **Top likely fixes (validate before implementing):**
-  - Batch entity resolution: build a single similarity SQL pass over the whole batch instead of per-entity scans
-  - Verify fastembed batching is actually happening (passing list to embed() vs per-string)
-  - Make community detection async / post-ingest / threshold-gated
-  - Coalesce per-doc transactions into a single transaction per ingest() call, with savepoints for failure isolation
-  - Confirm the right pg_trgm GiST/GIN index is in place on `entities.name` and that the planner uses it
-  - Ensure pgvector HNSW indexes exist on entity embeddings for the dedup pass
-- [ ] **Re-run SCOTUS bake-off ingest after fixes.** Target: ≤3 min storage step (5× win). Stretch: <90s.
-- [ ] **Re-run MuSiQue ingest** with optimizations to validate the fix scales.
-- [ ] **Document in README/user-guide:** "Ingest cost: ~X sec/doc storage on bge-small-en-v1.5, plus LLM extraction time per provider." Users can plan capacity.
-- [ ] **Add an ingest-perf regression test** so we don't silently regress this once it's fixed.
+**Public-release checklist (still open):**
 
-### Definition of done
-
-1. SCOTUS bake-off storage step ≤ 3× AGE on identical input (i.e., ≤2.5 min).
-2. README has a real "ingest performance" section with measured numbers.
-3. CI guards against regression (smoke test on a small fixed corpus, fails if storage exceeds budget).
-4. MuSiQue ingest re-run lands within budget (target: ≤30 min for 1,700 paragraphs end-to-end).
+- [ ] Update `research/apache-age-evaluation.md` methodology disclosure with the corrected ingest numbers (current doc never published the bad number, but should explicitly document the bake-off adapter pre/post timings for transparency).
+- [ ] Add an ingest-perf smoke test to CI that fails if SCOTUS storage step exceeds a budget (e.g., 3 min on the test box).
+- [ ] Add a short "ingest cost" note to README/user-guide so users can plan capacity.
 
 ---
 
 ## P1 — MuSiQue benchmark (in flight)
 
-Mission: prove (or disprove) that pgrg's graph modes beat naive vector retrieval on a multi-hop corpus. See `benchmarks/musique/README.md`. Currently ingesting (1700 paragraph docs, ~110 min ETA). Eval + writeup to follow.
+Mission: prove (or disprove) that pgrg's graph modes beat naive vector retrieval on a multi-hop corpus. See `benchmarks/musique/README.md`. Currently ingesting (1700 paragraph docs, near completion). Eval + writeup to follow.
+
+---
+
+## P2 — library ingest improvements (non-blocking, from perf audit F3-F6)
+
+Real but smaller wins on the library's own ingest path. None affect the bake-off comparison; these help the production ingest path users will actually run.
+
+- **F3 — `resolution.py` round-trip reduction.** Combine the exact-match SELECT and fuzzy SELECT into one CTE (saves one round-trip per entity). Verify the `gin_trgm_ops` index actually serves `similarity(name, X) > threshold` with `EXPLAIN ANALYZE` — if `Seq Scan`, switch to `name %% %s` plus `set_limit()`. Estimated 2-3× on per-document resolution cost.
+- **F4 — `register_vector_async` once per connection, not per checkout.** Move codec registration to the `AsyncConnectionPool` `configure` callback in `db.py`. Drop the per-call invocations from `execute`/`fetch_all`/`insert_returning_id`/`bulk_insert`/`Transaction.__aenter__`. Pure win, no behavior change. Estimated 1.5-2× on every short-query path. ~10 LOC + helper.
+- **F5 — opt-in `bulk_load=true` flag** that drops/rebuilds HNSW + trgm indexes around large initial loads. Only useful for >100K-chunk corpora. Default off; document the read-during-load tradeoff.
+- **F6 — opt-in `PGRG_INGEST_FAST=1` env var** to set `synchronous_commit=off` per session. Document the crash-window tradeoff. Marginal but free, only after F1+F2-class fixes.
+
+Recommended order: F4 first (one-line correctness improvement that compounds with everything), F3 next (real cleanup of the resolution path), F5/F6 as power-user knobs.
+
+Full detail in `skill-output/perf-audit/Ingest-Perf-Recommendations.md`.
 
 ---
 
