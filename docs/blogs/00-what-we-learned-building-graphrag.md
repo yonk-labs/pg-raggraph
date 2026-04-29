@@ -20,11 +20,43 @@ We built pg-raggraph — a PostgreSQL-native GraphRAG library — and benchmarke
 
 We expected graph modes to dominate on multi-hop questions. They didn't — at least not on the corpora we tested.
 
-> **All numbers in this section** are from the **2026-04-12 benchmark run** against the original PG-docs and NTSB corpora (`benchmarks/postgres-docs/` and `benchmarks/kg-rag-eval/ntsb/`). They reflect what graph mode did and didn't do on those specific runs. They have **not been re-verified** against `main` since the post-audit hardening + Tier 1 merge — a re-run would land in a separate session. The directional finding ("graph doesn't dominate on technical-doc corpora") was reproduced later on the 909-doc pg-agents corpus, where graph boost adds **+18.9%** at the same latency — see [`pg-agents-results.md`](../../benchmarks/pg-agents-results.md). Treat the percentages below as period data; treat the lesson as still load-bearing.
+> **The percentages in this section** are from the **2026-04-12** benchmark run. We **re-verified them against current `main` on 2026-04-29** — see the *Re-verification* callout immediately after the original numbers below. Both methodologies (keyword-recall and LLM-judge, the latter with the local vLLM as judge) confirm the directional finding: graph mode doesn't dominate on technical-doc corpora, but it earns its keep on cross-document corpora like NTSB. The specific percentages have shifted across methodology + chunker improvements; the lesson hasn't.
 
 On **PostgreSQL documentation** (31 docs, 1,140 entities; measured 2026-04-12), plain vector+BM25 hit **80% accuracy** on technical questions. Our hybrid graph mode? **72%**. Graph lost by 8 percentage points on the very technical-doc queries we expected it to excel at.
 
 On **NTSB aviation incident reports** (20 docs, 314 entities; measured 2026-04-12), hybrid scored 79% vs naive's 75% — a modest 4-point improvement on cross-incident questions. Graph won exactly **one of five test questions**: "How does pilot experience affect incident outcomes?" — which required correlating pilot certifications across multiple reports.
+
+> **Re-verification — 2026-04-29.** Re-ran both corpora against current `main` (post Tier-1 merge + audit hardening) using two methodologies side-by-side: keyword-recall (deterministic, % of expected keywords found in retrieved chunks — same as the 2026-04-12 method) AND LLM-judge (gpt-style 0–3 grading of `rag.ask()` answers using the local vLLM at `192.168.1.193:8000`, Intel/Qwen3-Coder-Next-int4-AutoRound, as judge — same model the bake-off harness uses).
+>
+> **PostgreSQL docs (31 docs, 248 chunks, 1,332 entities, 1,793 rels):**
+>
+> | Mode | Keyword-recall (current) | LLM-judge accuracy (current) |
+> |---|:-:|:-:|
+> | naive | 82.0% | 73.3% (5 fully correct, 1 wrong) |
+> | `naive_boost` ⭐ | n/a* | **80.0% (6 fully correct, 0 wrong)** |
+> | smart | n/a* | 76.7% |
+> | local | 82.0% | 76.7% |
+> | global | 78.0% | 73.3% |
+> | hybrid | 82.0% | 73.3% |
+>
+> *The original `run_benchmark.py` predates the `naive_boost` and `smart` modes — comparison is across modes the runner supports.
+>
+> Reading: the 2026-04-12 post said "naive 80% / hybrid 72%, graph lost by 8 points." On a re-run, **the negative gap is gone** — naive and hybrid both clock 82% on keyword-recall, 73.3% on LLM-judge. **`naive_boost` is the new standout** at 80% LLM-judge accuracy with zero wrong answers — exactly the +18.9% lift pattern reproduced on the 909-doc pg-agents corpus.
+>
+> **NTSB aviation reports (20 docs, 82 chunks, 344 entities, 438 rels):**
+>
+> | Mode | LLM-judge accuracy (current) |
+> |---|:-:|
+> | naive | 86.7% (6 fully correct, 0 wrong) |
+> | **`naive_boost`** ⭐ | **93.3% (8 fully correct, 0 wrong)** |
+> | smart | 86.7% |
+> | **local** ⭐ | **93.3% (8 fully correct, 0 wrong)** |
+> | global | 80.0% |
+> | hybrid | 86.7% |
+>
+> Reading: NTSB is exactly where graph mode is supposed to earn its keep — cross-incident questions ("how does pilot experience correlate with outcomes?", "what patterns emerge across engine failure incidents?"). Both `naive_boost` and `local` hit **93.3% with zero wrong** out of 10 questions. The original 4-point gap (75% → 79%) becomes a **6.6-point gap** (86.7% → 93.3%) under the more rigorous LLM-judge methodology. **The directional finding is sharper than the original blog suggested**, not weaker.
+>
+> The ingestion-time claim below also tightened: 20-doc NTSB now ingests in **309 s (~15.5 s/doc)** with the post-parallelization pipeline, versus the **45 s/doc sequential baseline** quoted later in this post. Three times faster per document. Re-runner: [`benchmarks/run_benchmark.py`](../../benchmarks/run_benchmark.py) (keyword-recall) and [`benchmarks/run_llm_judge.py`](../../benchmarks/run_llm_judge.py) (LLM-judge). Both produce JSON artifacts in `benchmarks/`.
 
 This matches the academic literature more honestly than the marketing does:
 - **GraphRAG-Bench (ICLR 2026)**: Graph advantage only on relational QA requiring multi-hop reasoning

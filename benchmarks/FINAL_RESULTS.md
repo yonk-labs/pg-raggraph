@@ -1,5 +1,41 @@
 # pg-raggraph: Cross-Corpus Benchmark Results
 
+## Re-verification — 2026-04-29
+
+Re-ran PG-docs and NTSB corpora against current `main` (post Tier-1 merge + audit hardening) using two methodologies in parallel: **keyword-recall** (`benchmarks/run_benchmark.py` — deterministic, no LLM cost) and **LLM-judge** (`benchmarks/run_llm_judge.py` — `rag.ask()` answers graded 0–3 by the local vLLM at `192.168.1.193:8000`, Intel/Qwen3-Coder-Next-int4-AutoRound, same model the AGE bake-off used).
+
+### PostgreSQL docs (31 docs, 248 chunks, 1,332 entities, 1,793 rels — re-ingested 2026-04-29 in 1252 s on `balanced` profile)
+
+| Mode | Keyword-recall | LLM-judge | Fully correct | Wrong / empty |
+|---|:-:|:-:|:-:|:-:|
+| naive | 82.0% | 73.3% | 5/10 | 1/10 |
+| `naive_boost` ⭐ | n/a (runner predates mode) | **80.0%** | **6/10** | **0/10** |
+| smart | n/a (runner predates mode) | 76.7% | 6/10 | 1/10 |
+| local | 82.0% | 76.7% | 6/10 | 1/10 |
+| global | 78.0% | 73.3% | 5/10 | 1/10 |
+| hybrid | 82.0% | 73.3% | 5/10 | 1/10 |
+
+### NTSB aviation reports (20 docs, 82 chunks, 344 entities, 438 rels — re-ingested 2026-04-29 in 309 s, 15.5 s/doc)
+
+| Mode | LLM-judge | Fully correct | Wrong / empty |
+|---|:-:|:-:|:-:|
+| naive | 86.7% | 6/10 | 0/10 |
+| **`naive_boost`** ⭐ | **93.3%** | **8/10** | **0/10** |
+| smart | 86.7% | 6/10 | 0/10 |
+| **local** ⭐ | **93.3%** | **8/10** | **0/10** |
+| global | 80.0% | 6/10 | 0/10 |
+| hybrid | 86.7% | 6/10 | 0/10 |
+
+### Reading the 2026-04-29 numbers
+
+- **PG-docs:** keyword-recall and LLM-judge both reproduce the directional finding — graph mode doesn't dominate on technical-doc corpora. The original blog 00 claim "graph lost by 8 points" is no longer accurate; the gap is gone (naive ≈ hybrid at the same accuracy). `naive_boost` is the standout at 80% LLM-judge with zero wrong answers — same +18.9% lift pattern found on the 909-doc pg-agents corpus.
+- **NTSB:** graph DOES earn its keep. `naive_boost` and `local` both hit 93.3% with zero wrong, beating naive by 6.6 points. The corpus is exactly the cross-incident pattern where graph traversal helps.
+- **Latency: ingest is 3× faster per document** vs the original sequential baseline (15.5 s/doc vs 45 s/doc). The `asyncio.gather` parallel-extract refactor delivered.
+
+The earlier (pre-2026-04-29) sections below are kept as history for prior cross-corpus runs; treat the 2026-04-29 numbers as canonical for current `main`.
+
+---
+
 ## TL;DR (updated with smart mode)
 
 Smart mode delivers **hybrid's accuracy at 1.8-2.9x better latency** across 4 real-world corpora (462 docs, 8,342 entities, 17,637 relationships). The confidence-triggered routing ships fast on easy questions (naive path) and applies cheap graph boost or full expansion only when needed. **Smart mode is the new default — use it unless you have a specific reason not to.**
