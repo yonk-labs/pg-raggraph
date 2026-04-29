@@ -50,9 +50,11 @@ OpenAI judge "fully-correct" / "wrong-or-empty" (n=10): naive 10/0, naive_boost 
 
 ### How do these numbers compare to Apache AGE?
 
-**Honest answer: PG-docs and NTSB were never directly measured against Apache AGE.** Our pgrg-vs-AGE head-to-head ran on SCOTUS only (`benchmarks/age-bakeoff/`). Adapting the bake-off harness to PG-docs / NTSB is its own effort (~30–60 min wall time, ~$1–2 LLM cost). What we have today, applied to **SCOTUS** with the same `gpt-5-mini` majority-of-3 judge methodology:
+We now have direct measurements on **two corpora** — SCOTUS (the original bake-off) and NTSB (added 2026-04-29). Both engines ingest the **same extraction** (identical chunks + entities + relationships), so the only point of variance is storage + retrieval engine.
 
-| Mode | pgrg accuracy (n=30) | AGE accuracy (n=30) | pgrg p50 latency | AGE p50 latency | pgrg speedup |
+#### SCOTUS — `gpt-5-mini` majority-of-3 judge, 30 questions, 779 chunks
+
+| Mode | pgrg acc | AGE acc | pgrg p50 | AGE p50 | pgrg speedup |
 |---|:-:|:-:|:-:|:-:|:-:|
 | naive | 18/30 | 18/30 | 35 ms | 3,873 ms | **111×** |
 | `naive_boost` | 17/30 | 18/30 | 40 ms | 3,895 ms | **98×** |
@@ -61,11 +63,30 @@ OpenAI judge "fully-correct" / "wrong-or-empty" (n=10): naive 10/0, naive_boost 
 | global | 18/30 | 18/30 | 43 ms | 3,906 ms | **91×** |
 | hybrid | 18/30 | 17/30 | 73 ms | 3,088 ms | **42×** |
 
-Source: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](age-bakeoff/results/REPORT-VERDICT.md). Same extraction JSON, same chunker, same embedder, same LLM judge — fair-defaults vs fair-defaults disclosed in [`research/apache-age-evaluation.md`](../research/apache-age-evaluation.md).
+Full report: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](age-bakeoff/results/REPORT-VERDICT.md).
 
-**What this means for PG-docs and NTSB:** if you transposed the architecture (recursive CTEs vs Cypher subqueries calling pgvector via two round-trips), the latency story is consistent — AGE would be 40–110× slower on retrieval, regardless of the corpus, because the architectural blocker is *Cypher and pgvector can't combine in one query*. The accuracy story is harder to predict from SCOTUS alone — both engines tied at 17–18/30 there because they share the same upstream extraction; the same parity probably holds on PG-docs / NTSB but we haven't confirmed.
+#### NTSB — Qwen + OpenAI judges, 10 questions, 82 chunks (re-runner: `benchmarks/run_age_compare_ntsb.py`)
 
-**If you want a direct measurement on these corpora**, the bake-off harness supports adding new corpora — see `benchmarks/age-bakeoff/README.md`. Not blocked, just a separate run.
+Local vLLM Qwen3-Coder generates answers for both engines; same answers graded by both judges:
+
+| Engine / Mode | Qwen judge | OpenAI judge | Retrieval p50 |
+|---|:-:|:-:|:-:|
+| pgrg / naive | 93.3% | 80.0% | 36 ms |
+| pgrg / `naive_boost` | 90.0% | 80.0% | 27 ms |
+| pgrg / smart | 86.7% | 66.7% | 45 ms |
+| pgrg / local | 90.0% | 70.0% | 26 ms |
+| pgrg / global | 90.0% | 73.3% | 24 ms |
+| pgrg / hybrid | 86.7% | 70.0% | 36 ms |
+| **age / hybrid** | **90.0%** | **80.0%** | **233 ms** |
+| **pgrg speedup vs AGE** | accuracy tied | accuracy tied | **5–9×** |
+
+#### Reading both corpora together
+
+- **Accuracy parity holds.** On SCOTUS (n=30) and NTSB (n=10), both engines land in the same accuracy band — neither dominates. AGE's hybrid retrieval scores 90.0% Qwen / 80.0% OpenAI on NTSB, sitting alongside pgrg's best modes. This is what you'd expect when both engines consume identical extractions: the storage-and-traversal layer doesn't change which chunks contain the answer, only the speed of finding them.
+- **The latency gap scales with corpus size.** AGE was 42–111× slower on SCOTUS (779 chunks); on NTSB (82 chunks) it's 5–9× slower. AGE's catastrophic plan estimates and full-table-scan tendencies hurt more as the graph grows. The architectural blocker (Cypher + pgvector can't combine in one query) is corpus-shape-independent; the size of the speedup is shape-dependent.
+- **Same fair-defaults caveat.** Both engines got the standard retrieval-relevant indexes (HNSW for vectors, GIN for FTS, typed labels for AGE). Tuning AGE more aggressively would close some of the gap; tuning specifics in [`research/apache-age-evaluation.md`](../research/apache-age-evaluation.md).
+
+**Methodology note for NTSB:** the n=10 question set is small enough that a single-question shift moves the percentages by 10 pp. Treat NTSB AGE numbers as directional confirmation of SCOTUS (parity on accuracy, faster on retrieval), not the precision baseline. SCOTUS's n=30 × 3 runs × `gpt-5-mini` majority-of-3 judge remains the canonical engine head-to-head.
 
 ### Methodology recommendation
 
