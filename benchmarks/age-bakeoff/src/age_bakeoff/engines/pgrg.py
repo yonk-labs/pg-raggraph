@@ -55,13 +55,13 @@ class PgrgEngine:
 
     async def ingest(self, extraction: ExtractionOutput) -> None:
         await self._ensure_connected()
-        db = self._rag.db
         ns = self._namespace
 
-        # Wipe previous data for idempotency
+        # Wipe previous data for idempotency. delete() runs in its own
+        # short transaction, before we open the long ingest transaction.
         await self._rag.delete(ns)
 
-        # Embed all chunks and entities
+        # Embed all chunks and entities (CPU work, no DB).
         chunk_embs = self._embed([c.content for c in extraction.chunks])
         ent_embs = (
             self._embed([e.name + " " + e.description for e in extraction.entities])
@@ -69,114 +69,135 @@ class PgrgEngine:
             else []
         )
 
-        # Group chunks by document_id
-        docs_by_id: dict[str, list[int]] = {}
-        for idx, c in enumerate(extraction.chunks):
-            docs_by_id.setdefault(c.document_id, []).append(idx)
+        # F1: one Transaction holds a single connection across every INSERT,
+        # eliminating ~10K-50K per-row pool checkouts and `register_vector_async`
+        # calls. Per-row commits become a single COMMIT at __aexit__.
+        async with self._rag.db.transaction() as tx:
+            # ---- documents ----
+            docs_by_id: dict[str, list[int]] = {}
+            for idx, c in enumerate(extraction.chunks):
+                docs_by_id.setdefault(c.document_id, []).append(idx)
 
-        # Insert documents
-        doc_pk_by_id: dict[str, int] = {}
-        for doc_id in docs_by_id:
-            row = await db.fetch_one(
-                "INSERT INTO documents (namespace, source_path, content_hash) "
-                "VALUES (%s, %s, %s) RETURNING id",
-                (ns, doc_id, doc_id),
-            )
-            doc_pk_by_id[doc_id] = row["id"]
+            doc_pk_by_id: dict[str, int] = {}
+            for doc_id in docs_by_id:
+                row = await tx.fetch_one(
+                    "INSERT INTO documents (namespace, source_path, content_hash) "
+                    "VALUES (%s, %s, %s) RETURNING id",
+                    (ns, doc_id, doc_id),
+                )
+                doc_pk_by_id[doc_id] = row["id"]
 
-        # Insert chunks (no sequence column in schema — use metadata for ordering).
-        # Bakeoff Chunk is single-content; embedded_content mirrors content so
-        # pg-raggraph's retrieval SELECT ``c.embedded_content AS content`` and
-        # the FTS trigger both find something to index.
-        chunk_pk_by_idx: dict[int, int] = {}
-        for idx, (chunk, emb) in enumerate(zip(extraction.chunks, chunk_embs)):
-            meta = dict(chunk.metadata)
-            meta["sequence"] = chunk.sequence
-            row = await db.fetch_one(
-                "INSERT INTO chunks "
-                "(document_id, content, embedded_content, embedding, token_count, metadata) "
-                "VALUES (%s, %s, %s, %s::vector, %s, %s) RETURNING id",
-                (
-                    doc_pk_by_id[chunk.document_id],
-                    chunk.content,
-                    chunk.content,
-                    emb,
-                    len(chunk.content.split()),
-                    json.dumps(meta),
-                ),
-            )
-            chunk_pk_by_idx[idx] = row["id"]
+            # ---- chunks ----
+            # Bakeoff Chunk is single-content; embedded_content mirrors content so
+            # pg-raggraph's retrieval SELECT ``c.embedded_content AS content`` and
+            # the FTS trigger both find something to index.
+            chunk_pk_by_idx: dict[int, int] = {}
+            for idx, (chunk, emb) in enumerate(zip(extraction.chunks, chunk_embs)):
+                meta = dict(chunk.metadata)
+                meta["sequence"] = chunk.sequence
+                row = await tx.fetch_one(
+                    "INSERT INTO chunks "
+                    "(document_id, content, embedded_content, embedding, token_count, metadata) "
+                    "VALUES (%s, %s, %s, %s::vector, %s, %s) RETURNING id",
+                    (
+                        doc_pk_by_id[chunk.document_id],
+                        chunk.content,
+                        chunk.content,
+                        emb,
+                        len(chunk.content.split()),
+                        json.dumps(meta),
+                    ),
+                )
+                chunk_pk_by_idx[idx] = row["id"]
 
-        # Insert entities (ON CONFLICT handles duplicate names within a corpus)
-        ent_pk_by_id: dict[str, int] = {}
-        for ent, emb in zip(extraction.entities, ent_embs):
-            row = await db.fetch_one(
-                "INSERT INTO entities (namespace, name, entity_type, description, embedding, properties) "
-                "VALUES (%s, %s, %s, %s, %s::vector, %s) "
-                "ON CONFLICT (namespace, name) DO UPDATE SET description = EXCLUDED.description "
-                "RETURNING id",
-                (
-                    ns,
-                    ent.name,
-                    ent.entity_type,
-                    ent.description,
-                    emb,
-                    json.dumps(ent.properties),
-                ),
-            )
-            ent_pk_by_id[ent.id] = row["id"]
+            # ---- entities ----
+            ent_pk_by_id: dict[str, int] = {}
+            for ent, emb in zip(extraction.entities, ent_embs):
+                row = await tx.fetch_one(
+                    "INSERT INTO entities (namespace, name, entity_type, description, embedding, properties) "
+                    "VALUES (%s, %s, %s, %s, %s::vector, %s) "
+                    "ON CONFLICT (namespace, name) DO UPDATE SET description = EXCLUDED.description "
+                    "RETURNING id",
+                    (
+                        ns,
+                        ent.name,
+                        ent.entity_type,
+                        ent.description,
+                        emb,
+                        json.dumps(ent.properties),
+                    ),
+                )
+                ent_pk_by_id[ent.id] = row["id"]
 
-        # Build entity name -> entity PK mapping for linking chunks
-        ent_name_to_pk: dict[str, int] = {}
-        for ent in extraction.entities:
-            ent_name_to_pk[ent.name.lower()] = ent_pk_by_id[ent.id]
+            # F2: build link rows in Python first, then one executemany per
+            # table. Replaces O(C×E) and O(R×C) nested-loop round-trips with
+            # in-memory substring scans + two batched inserts.
 
-        # Insert entity_chunks provenance links (required for graph retrieval).
-        # Link each chunk to entities whose name appears in the chunk content.
-        all_chunk_pks = list(chunk_pk_by_idx.values())
-        for idx, chunk in enumerate(extraction.chunks):
-            chunk_pk = chunk_pk_by_idx[idx]
-            content_lower = chunk.content.lower()
+            # Inverted index: entity_name_lower -> list of (chunk_idx, chunk_pk).
+            # Built in one pass over chunks; relationship linkage reuses it
+            # without re-scanning chunk text.
+            chunk_text_lower: list[str] = [c.content.lower() for c in extraction.chunks]
+
+            entity_to_chunk_idxs: dict[str, list[int]] = {}
             for ent in extraction.entities:
-                if ent.name.lower() in content_lower:
-                    await db.execute(
-                        "INSERT INTO entity_chunks (entity_id, chunk_id, confidence) "
-                        "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
-                        (ent_pk_by_id[ent.id], chunk_pk, 1.0),
+                name_lower = ent.name.lower()
+                if name_lower in entity_to_chunk_idxs:
+                    continue  # entity-name dedup
+                hits: list[int] = [
+                    idx for idx, text in enumerate(chunk_text_lower) if name_lower in text
+                ]
+                entity_to_chunk_idxs[name_lower] = hits
+
+            # ---- entity_chunks (provenance links) ----
+            entity_chunk_rows: list[tuple] = []
+            for ent in extraction.entities:
+                ent_pk = ent_pk_by_id[ent.id]
+                for chunk_idx in entity_to_chunk_idxs[ent.name.lower()]:
+                    entity_chunk_rows.append(
+                        (ent_pk, chunk_pk_by_idx[chunk_idx], 1.0)
                     )
-
-        # Build entity-id → name lookup for relationship_chunks linking
-        ent_id_to_name: dict[str, str] = {e.id: e.name.lower() for e in extraction.entities}
-
-        # Insert relationships + link to chunks that mention either endpoint
-        for rel in extraction.relationships:
-            if rel.src_id not in ent_pk_by_id or rel.dst_id not in ent_pk_by_id:
-                continue
-            row = await db.fetch_one(
-                "INSERT INTO relationships (namespace, src_id, dst_id, rel_type, weight, description, properties) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
-                (
-                    ns,
-                    ent_pk_by_id[rel.src_id],
-                    ent_pk_by_id[rel.dst_id],
-                    rel.rel_type,
-                    rel.weight,
-                    rel.description,
-                    json.dumps(rel.properties),
-                ),
+            await tx.executemany(
+                "INSERT INTO entity_chunks (entity_id, chunk_id, confidence) "
+                "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+                entity_chunk_rows,
             )
-            rel_pk = row["id"]
-            # Link relationship to chunks mentioning src or dst entity
-            src_name = ent_id_to_name.get(rel.src_id, "")
-            dst_name = ent_id_to_name.get(rel.dst_id, "")
-            for idx, chunk in enumerate(extraction.chunks):
-                content_lower = chunk.content.lower()
-                if src_name in content_lower or dst_name in content_lower:
-                    await db.execute(
-                        "INSERT INTO relationship_chunks (relationship_id, chunk_id, confidence) "
-                        "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
-                        (rel_pk, chunk_pk_by_idx[idx], 1.0),
+
+            # ---- relationships + relationship_chunks ----
+            ent_id_to_name: dict[str, str] = {
+                e.id: e.name.lower() for e in extraction.entities
+            }
+            relationship_chunk_rows: list[tuple] = []
+            for rel in extraction.relationships:
+                if rel.src_id not in ent_pk_by_id or rel.dst_id not in ent_pk_by_id:
+                    continue
+                row = await tx.fetch_one(
+                    "INSERT INTO relationships (namespace, src_id, dst_id, rel_type, weight, description, properties) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                    (
+                        ns,
+                        ent_pk_by_id[rel.src_id],
+                        ent_pk_by_id[rel.dst_id],
+                        rel.rel_type,
+                        rel.weight,
+                        rel.description,
+                        json.dumps(rel.properties),
+                    ),
+                )
+                rel_pk = row["id"]
+                src_name = ent_id_to_name.get(rel.src_id, "")
+                dst_name = ent_id_to_name.get(rel.dst_id, "")
+                # Union of chunk indexes mentioning either endpoint, dedup'd
+                src_idxs = set(entity_to_chunk_idxs.get(src_name, []))
+                dst_idxs = set(entity_to_chunk_idxs.get(dst_name, []))
+                for chunk_idx in src_idxs | dst_idxs:
+                    relationship_chunk_rows.append(
+                        (rel_pk, chunk_pk_by_idx[chunk_idx], 1.0)
                     )
+            await tx.executemany(
+                "INSERT INTO relationship_chunks (relationship_id, chunk_id, confidence) "
+                "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+                relationship_chunk_rows,
+            )
 
     async def retrieve(self, question: str) -> RetrievalResponse:
         await self._ensure_connected()

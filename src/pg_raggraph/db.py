@@ -332,3 +332,15 @@ class Transaction:
         result = await self._conn.execute(query_str, params)
         row = await result.fetchone()
         return row[0]
+
+    async def executemany(self, query_str: str, rows: list[tuple]) -> None:
+        """Batched insert/update on the transaction's single connection.
+
+        Unlike `Database.bulk_insert` (which opens its own pool connection
+        and commits), this stays inside the active transaction and does
+        not commit — `__aexit__` does that once for everything.
+        """
+        if not rows:
+            return
+        cur = self._conn.cursor()
+        await cur.executemany(query_str, rows)
