@@ -43,6 +43,6 @@ All papers use the same template (`_template.md`) and the same evaluation method
 ## See also
 
 - [Template](_template.md) — the section structure every paper must follow.
-- [graph-direction-decision.md](../graph-direction-decision.md) — T-G1 v1; will be revised (v2) after all 7 papers land.
+- [graph-direction-decision.md](../archive/graph-direction-decision.md) — T-G1 v1 (archived 2026-04-29 with the rest of the dated session decisions).
 - [GRAPH-AUGMENTATION-VERDICT.md](../../benchmarks/age-bakeoff/results/GRAPH-AUGMENTATION-VERDICT.md) — prior 2-corpus verdict this effort is stress-testing.
 - [Mission brief](../../skill-output/mission-brief/Mission-Brief-multi-corpus-benchmarks.md) — scope, success criteria, drift checkpoints.

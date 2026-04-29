@@ -38,6 +38,16 @@ Combine them in one SQL query and you have a complete GraphRAG stack. One ACID-c
 
 The thesis is decided by benchmark, not opinion. See *Tests and benchmarks* below.
 
+## Wait — isn't it called *graphrag*, not *raggraph*?
+
+The name flip is deliberate. Most "GraphRAG" systems lead with the graph: docs get converted to entities and relationships up front, the graph **is** the corpus, and retrieval is graph-walks looking for relevant subgraphs. That's the Microsoft GraphRAG / LightRAG / Neo4j-GraphRAG model.
+
+That model misreads what most corpora actually are. Documentation, technical articles, code, support tickets, papers, chat logs — none of these start out as graphs. They're prose. They answer most questions through plain semantic similarity. Forcing them through an entity-extraction pipeline first, then querying the resulting graph, adds latency, LLM cost, and information loss without buying you much for the bulk of queries.
+
+pg-raggraph inverts the order. **The graph is an enhancer, not the main attraction.** A query starts as RAG — vector similarity + BM25 — and the graph layer kicks in only when retrieval needs help: re-ranking the top-K via 1-hop entity connectivity (`naive_boost`), or expanding to chunks reachable through entity relationships when the seed retrieval is weak (`local` / `hybrid`). **Graph helps finish the story, not start it.**
+
+This isn't aesthetic preference. The [bake-off](benchmarks/age-bakeoff/results/REPORT-VERDICT.md) confirms it: on clean technical corpora, graph-only retrieval modes don't beat plain vector + BM25. They earn their cost when the chunker is weak, when the corpus has cross-document entity reasoning, or when you need explainability and provenance trails. Calling it "raggraph" rather than "graphrag" reflects that ordering: RAG first, graph second, and only when it pays.
+
 ## Quickstart — 5 minutes, works cold
 
 This is verified to reproduce on a fresh clone. Every command is copy-pasteable.
@@ -212,114 +222,35 @@ graph TB
 
 ## Retrieval modes
 
-```mermaid
-flowchart TD
-    Q[User query] --> N[Run naive: vector + BM25]
-    N --> C{Top score?}
-    C -->|≥ 0.7 high conf| SHIP[Return as-is<br/>~85 ms]
-    C -->|0.4-0.7 medium| BOOST[Apply graph boost:<br/>re-rank top-K<br/>~90 ms]
-    C -->|< 0.4 low| EXPAND[Escalate to local mode:<br/>seed → expand → rank<br/>~220 ms]
-    SHIP --> R[Results]
-    BOOST --> R
-    EXPAND --> R
-```
+`smart` (the default) routes between three strategies based on confidence: ship-as-is when the naive top score is high, apply a cheap graph boost when medium, escalate to graph expansion when low. Manually pin to a specific mode with `mode="..."` if you know your access pattern.
 
-| Mode | What it does | When to reach for it | Typical latency |
-|------|--------------|---------------------|-----------------|
-| **`smart`** ⭐ | Routes between naive / boost / expand based on confidence | **Default. Almost always.** | 85–220 ms |
-| `naive` | Vector similarity + BM25 over chunks | Fastest. Simple factual questions. | ~85 ms |
-| `naive_boost` | Naive + cheap 1-hop graph re-rank | Best single-mode: +18.9% accuracy at ~same speed | ~90 ms |
-| `local` | Seed via vector → recursive CTE traversal → rank chunks | When the answer chains across docs via entities | ~220 ms |
-| `global` | Search by relationship types → fetch evidence chunks | Entity-relationship questions | ~150 ms |
-| `hybrid` | local + global merged | Most exhaustive (and slowest) | ~450 ms |
+| Mode | What it does | Typical latency |
+|------|--------------|:-:|
+| **`smart`** ⭐ | Routes between naive / boost / expand based on confidence | 85–220 ms |
+| `naive` | Vector similarity + BM25 | ~85 ms |
+| `naive_boost` | Naive + 1-hop graph re-rank | ~90 ms |
+| `local` | Seed → recursive CTE traversal → rank | ~220 ms |
+| `global` | Relationship-centric retrieval | ~150 ms |
+| `hybrid` | local + global merged | ~450 ms |
 
-## Schema
+Full deep-dive with selection guidance and per-mode SQL: [`docs/modes.md`](docs/modes.md). Schema diagram + ER relationships: [`docs/user-guide.md#schema-overview`](docs/user-guide.md#schema-overview).
 
-```mermaid
-erDiagram
-    documents ||--o{ chunks : contains
-    documents ||--o{ document_versions : "has version metadata"
-    chunks ||--o{ entity_chunks : links
-    chunks ||--o{ relationship_chunks : links
-    entities ||--o{ entity_chunks : tagged
-    entities ||--o{ relationships : "is source"
-    entities ||--o{ relationships : "is target"
-    relationships ||--o{ relationship_chunks : evidence
-    documents {
-        bigint id PK
-        text namespace
-        text content_hash
-        text source_path
-        timestamptz effective_from
-        timestamptz effective_to
-        bool retracted
-        text version_label
-        jsonb metadata
-    }
-    chunks {
-        bigint id PK
-        bigint document_id FK
-        text content
-        text embedded_content
-        vector embedding
-        tsvector search_vector
-    }
-    entities {
-        bigint id PK
-        text namespace
-        text name
-        text entity_type
-        text description
-        vector embedding
-    }
-    relationships {
-        bigint id PK
-        text namespace
-        bigint src_id FK
-        bigint dst_id FK
-        text rel_type
-        float weight
-    }
-    document_versions {
-        bigint id PK
-        bigint document_id FK
-        text version_label
-        timestamptz retracted_at
-        text retraction_reason
-        bigint supersedes_document_id FK
-    }
-```
+## Configuration (essentials)
 
-Plus `facts` and `fact_edges` (empty at Tier 1; populated by Tier 2/3 fact extraction). Migrations are forward-only and applied automatically on first `rag.connect()` — see [`docs/user-guide.md#schema-migrations`](docs/user-guide.md#schema-migrations) for the rollback story.
-
-## Configuration
-
-All settings via environment variables prefixed `PGRG_`. Same names work as kwargs to `GraphRAG(...)`.
+All settings via env vars prefixed `PGRG_` (also work as kwargs to `GraphRAG(...)`). The most-used ones:
 
 | Variable | Default | What it does |
 |----------|---------|--------------|
-| `PGRG_DSN` | `postgresql://postgres:postgres@localhost:5434/pg_raggraph` | Database connection. **Refuses to start if `PGRG_ENV=production` and DSN unchanged.** |
-| `PGRG_NAMESPACE` | `default` | Data isolation key — pass to every method to scope by tenant / project. |
-| `PGRG_EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Local embedding model. 384-dim, ~30 MB, downloaded on first use. |
-| `PGRG_EMBEDDING_PROVIDER` | `local` | `local` (fastembed), `openai`, or `ollama`. |
-| `PGRG_LLM_BASE_URL` | `http://localhost:11434/v1` | OpenAI-compatible LLM endpoint. Set to `https://api.openai.com/v1` for OpenAI proper. |
-| `PGRG_LLM_MODEL` | `llama3.2` | LLM model name. |
-| `PGRG_LLM_API_KEY` | `""` | Bearer token — empty for Ollama. |
-| `PGRG_EXTRACTION_PROMPT` | `default` | `default` (general) or `dev` (code-tuned: person/service/library/file/commit/incident/ADR). |
-| `PGRG_INGEST_PROFILE` | `balanced` | `conservative` / `balanced` / `aggressive` / `max` — CPU-yield + concurrency knobs. |
-| `PGRG_CHUNK_STRATEGY` | `auto` | `auto` (markdown/code/text autodetect) or `hierarchy` (heading-prefixed chunks; opt-in — wins on concrete-title corpora, regresses on meeting-format titles, see [bake-off evidence](benchmarks/age-bakeoff/results/ACME-HIER-REPLICATION.md)). |
-| `PGRG_TOP_K` | `10` | Chunks returned per query. |
-| `PGRG_MAX_HOPS` | `2` | Recursive-CTE traversal depth for `local`/`global`/`hybrid`. |
-| `PGRG_BOOST_CONFIDENCE_THRESHOLD` | `0.7` | Above: ship `naive` result; between: apply graph boost. |
-| `PGRG_EXPAND_CONFIDENCE_THRESHOLD` | `0.4` | Below: escalate to graph expansion. |
-| `PGRG_EVOLUTION_TIER` | `off` | `off` / `structural` / `fact_aware` / `full`. Tier 1 (`structural`) is the only currently shipping; rest are roadmap. |
-| `PGRG_RETRACTED_BEHAVIOR` | `flag` | `hide` / `flag` / `surface_both`. **Config-only**, not a per-query kwarg — see [`docs/EVOLUTION-API-QUICKREF.md`](docs/EVOLUTION-API-QUICKREF.md). |
-| `PGRG_LOG_FORMAT` | (unset) | Set to `json` for stdlib-only structured logging on stderr (Datadog / ELK / Loki friendly). |
-| `PGRG_SERVER_API_KEY` | (unset) | When set, enables Bearer auth on the FastAPI server. |
-| `PGRG_SERVER_ALLOWED_ORIGINS` | (unset) | Comma-separated Origin allowlist for state-changing methods. When unset, only loopback Origins are accepted on POST/PUT/DELETE/PATCH. |
-| `PGRG_SERVER_MAX_UPLOAD_MB` | `100` | Hard cap on `/ingest` upload size; 413 on exceed. |
+| `PGRG_DSN` | `postgresql://postgres:postgres@localhost:5434/pg_raggraph` | Database connection. Refuses to start if `PGRG_ENV=production` and DSN unchanged. |
+| `PGRG_NAMESPACE` | `default` | Data isolation key. |
+| `PGRG_LLM_BASE_URL` | `http://localhost:11434/v1` | OpenAI-compatible LLM endpoint. |
+| `PGRG_LLM_API_KEY` | `""` | Bearer token (empty for Ollama). |
+| `PGRG_EVOLUTION_TIER` | `off` | `off` / `structural` (Tier 1 evolution-aware). |
+| `PGRG_INGEST_PROFILE` | `balanced` | `conservative` / `balanced` / `aggressive` / `max`. |
+| `PGRG_LOG_FORMAT` | (unset) | Set to `json` for structured logging (Datadog / ELK / Loki). |
+| `PGRG_SERVER_API_KEY` | (unset) | Enables Bearer auth on the FastAPI server. |
 
-Full table including evolution-tracking weights and entity-resolution thresholds: [`docs/user-guide.md#configuration`](docs/user-guide.md#configuration).
+Full reference (~25 vars including evolution scoring weights, entity-resolution thresholds, server upload caps, Origin allowlists): [`docs/user-guide.md#configuration`](docs/user-guide.md#configuration).
 
 ## CLI reference
 

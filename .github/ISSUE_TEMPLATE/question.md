@@ -17,8 +17,10 @@ labels: question
 
 - [ ] README.md
 - [ ] docs/user-guide.md
+- [ ] docs/USE-CASES.md
 - [ ] docs/modes.md
-- [ ] docs/why-not-apache-age.md
+- [ ] docs/EVOLUTION-API-QUICKREF.md
+- [ ] research/apache-age-evaluation.md
 - [ ] Existing issues
 - [ ] Source code
 

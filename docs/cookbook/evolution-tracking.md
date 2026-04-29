@@ -134,5 +134,5 @@ added to `documents`, all nullable. No existing data migrates.
 - LLM-inferred supersession / contradiction → Tier 3
   (`fact_extractor="llm"` + slow-path edge inference)
 - Fact-aware context assembly (dedup, diversity backfill) → Tier 2
-- See `docs/superpowers/specs/2026-04-22-evolving-knowledge-rag-design.md`
-  §3.2 for the full tier matrix.
+- See `docs/archive/superpowers/specs/2026-04-22-evolving-knowledge-rag-design.md`
+  §3.2 for the full tier matrix (dated audit-trail design spec).

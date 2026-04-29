@@ -1,7 +1,41 @@
 # Apache AGE for PostgreSQL-Native GraphRAG: Deep Evaluation
 
-**Date:** 2026-04-12
+**Date:** 2026-04-12 (architectural decision); benchmark methodology disclosure added 2026-04-28.
 **Purpose:** Architectural decision — should pg-raggraph use Apache AGE, or are simpler PostgreSQL-native alternatives sufficient?
+**Status:** Canonical AGE rationale for the project. Earlier `docs/apache-age-comparison.md` and `docs/why-not-apache-age.md` were duplicates and were removed 2026-04-28.
+
+---
+
+## Methodology disclosure: how was AGE configured in our bake-off?
+
+The bake-off [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](../benchmarks/age-bakeoff/results/REPORT-VERDICT.md) reports AGE retrieval p50 of 3,079–3,906 ms versus pg-raggraph's 32–73 ms — **42–111× slower**. To pre-empt the obvious "did you tune AGE?" question:
+
+**What AGE got** (the same retrieval-relevant indexes and session setup pg-raggraph uses):
+
+- HNSW index on `age_chunks.embedding` (`vector_cosine_ops`).
+- GIN index on `age_chunks.search_vector` (PostgreSQL full-text).
+- Per-session `LOAD 'age'` + correct `search_path = ag_catalog, "$user", public` to make Cypher work.
+- Typed labels via `create_vlabel('Entity')` and `create_elabel(<rel_type>)` per relationship type, so AGE can prune by label rather than scanning all vertices/edges.
+- `shared_preload_libraries = 'age'` baked into the Postgres image so the extension is available without per-session `LOAD` overhead in production.
+
+See [`benchmarks/age-bakeoff/src/age_bakeoff/engines/age.py`](../benchmarks/age-bakeoff/src/age_bakeoff/engines/age.py) for the full setup.
+
+**What AGE did *not* get** (tuning levers we left untouched):
+
+- Custom btree indexes on AGE's vertex `properties` JSON paths (e.g., `((properties->>'name'))`). AGE creates default indexes per label but not on resolved-property lookups; an additional btree could speed entity-by-name queries.
+- Per-engine tuning of `work_mem`, `effective_cache_size`, `random_page_cost`. Both engines used Postgres defaults.
+- Per-query `EXPLAIN ANALYZE`-driven plan inspection and forced index hints. AGE's planner sometimes picks sequential scans over Cypher subqueries that index hints would override.
+- Materialized views or query result caching at the AGE layer.
+
+**The honest framing** is *fair-defaults vs fair-defaults*. Both engines got the indexes their own documentation recommends and nothing extra. With aggressive AGE tuning the gap probably shrinks from 42–111× to something like 10–40× — meaningful, but not dispositive on its own.
+
+What *is* dispositive is the architecture, not the tuning:
+
+1. **AGE Cypher and pgvector cannot combine in a single query.** The killer GraphRAG operation — *vector seed → graph expand → re-rank by combined score* — needs at least two round-trips with AGE; one query with recursive CTEs in pg-raggraph. No amount of AGE indexing changes that.
+2. **`shared_preload_libraries = 'age'` requires a Postgres restart.** Among managed providers, only Azure Database for PostgreSQL allows this. AWS RDS, Supabase, Neon, GCP Cloud SQL all reject it. Tuning doesn't change the cloud-compatibility story.
+3. **AGE has documented catastrophic plan estimates in real-world workloads.** [LightRAG Issue #2255](https://github.com/HKUDS/LightRAG/issues/2255) — 17-hour migration caused by an AGE query plan estimating 49 **billion** intermediate rows for a 681,000-row join. Closed `NOT_PLANNED`.
+
+The architectural reasons stand even after the most generous AGE tuning. The latency numbers in the bake-off would close some on a fully-tuned AGE deployment; the deployment-and-architecture story would not.
 
 ---
 

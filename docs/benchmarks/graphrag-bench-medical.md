@@ -318,5 +318,5 @@ python3 -m age_bakeoff.tools.emit_paper --corpus graphrag-bench-medical
 - GraphRAG-Bench leaderboard: https://graphrag-bench.github.io/
 - pg-raggraph chunker fix: commit `58d8c1d`, *fix(chunker): cap hierarchy sections + dual content primitive*.
 - v1 session handoff (context for the retraction): `benchmarks/age-bakeoff/RETURN-TO-BAKEOFF-3.md`.
-- Evolving-knowledge RAG design (weight tuning context): `docs/superpowers/specs/2026-04-22-evolving-knowledge-rag-design.md`.
+- Evolving-knowledge RAG design (weight tuning context): `docs/archive/superpowers/specs/2026-04-22-evolving-knowledge-rag-design.md`.
 - pg-raggraph benchmark series index: [docs/benchmarks/index.md](index.md).

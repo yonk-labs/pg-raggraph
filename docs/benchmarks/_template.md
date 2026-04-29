@@ -150,4 +150,4 @@ Raw result files shipped in-repo at the paths listed at the top.
 
 - {Original corpus paper}
 - {Any engine paper — MS GraphRAG, LightRAG, etc.}
-- Our prior work: `benchmarks/age-bakeoff/results/REPORT-VERDICT.md`, `docs/graph-direction-decision.md`
+- Our prior work: `benchmarks/age-bakeoff/results/REPORT-VERDICT.md`, `docs/archive/graph-direction-decision.md`

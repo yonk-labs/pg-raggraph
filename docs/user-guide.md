@@ -127,6 +127,65 @@ asyncio.run(main())
 
 Already-running per-file transactions finish; queued files become no-ops counted as `skipped`. Re-running `ingest()` on the same paths picks up where it left off (content-hash dedup).
 
+### Schema overview
+
+```mermaid
+erDiagram
+    documents ||--o{ chunks : contains
+    documents ||--o{ document_versions : "has version metadata"
+    chunks ||--o{ entity_chunks : links
+    chunks ||--o{ relationship_chunks : links
+    entities ||--o{ entity_chunks : tagged
+    entities ||--o{ relationships : "is source"
+    entities ||--o{ relationships : "is target"
+    relationships ||--o{ relationship_chunks : evidence
+    documents {
+        bigint id PK
+        text namespace
+        text content_hash
+        text source_path
+        timestamptz effective_from
+        timestamptz effective_to
+        bool retracted
+        text version_label
+        jsonb metadata
+    }
+    chunks {
+        bigint id PK
+        bigint document_id FK
+        text content
+        text embedded_content
+        vector embedding
+        tsvector search_vector
+    }
+    entities {
+        bigint id PK
+        text namespace
+        text name
+        text entity_type
+        text description
+        vector embedding
+    }
+    relationships {
+        bigint id PK
+        text namespace
+        bigint src_id FK
+        bigint dst_id FK
+        text rel_type
+        float weight
+    }
+    document_versions {
+        bigint id PK
+        bigint document_id FK
+        text version_label
+        timestamptz retracted_at
+        text retraction_reason
+        bigint supersedes_document_id FK
+    }
+```
+
+Plus `facts` and `fact_edges` (empty at Tier 1; populated by Tier 2/3 fact extraction). The schema is auto-bootstrapped on first `rag.connect()` under a per-project Postgres advisory lock.
+
 ### Schema migrations
 
 pg-raggraph manages its own schema. On first connect, it bootstraps the base schema and applies any pending numbered migrations from
@@ -372,8 +431,8 @@ your config untouched. Unknown weight names raise `ValueError`.
 - Async slow-path fact-edge inference (Tier 3)
 
 See `docs/cookbook/evolution-tracking.md` for the quickstart and
-`docs/superpowers/specs/2026-04-22-evolving-knowledge-rag-design.md` for the full four-tier
-roadmap.
+`docs/archive/superpowers/specs/2026-04-22-evolving-knowledge-rag-design.md` for the full four-tier
+roadmap (dated audit-trail design spec).
 
 ### What's tested
 
