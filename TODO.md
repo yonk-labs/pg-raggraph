@@ -39,6 +39,18 @@ Mission: prove (or disprove) that pgrg's graph modes beat naive vector retrieval
 
 ---
 
+## P1 — PropRAG-on-Postgres (proposal stage, blocked on MuSiQue baseline)
+
+Forward-looking design + phase plan in `docs/proposals/PropRAG-on-Postgres.md`. Goal: port PropRAG's two algorithmic ideas (propositions + PPR) into pg-raggraph using only Postgres + scipy. Three phases; Phase D (beam search) deferred. Targets MuSiQue F1 of ≥45 (target) / ≥50 (stretch) at end of Phase C, vs PropRAG SOTA of ~54.
+
+Decision branch on current MuSiQue baseline:
+- If `naive` lands in the 30-40 F1 range, embedder is the likely bottleneck — Phase A-prime (embedder swap from bge-small-en-v1.5) becomes the prerequisite.
+- If `naive` lands in the 40-45 range, propositions + PPR are the right next step.
+
+Status: not yet committed for execution. Awaiting numbers.
+
+---
+
 ## P2 — library ingest improvements (non-blocking, from perf audit F3-F6)
 
 Real but smaller wins on the library's own ingest path. None affect the bake-off comparison; these help the production ingest path users will actually run.
