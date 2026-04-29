@@ -86,7 +86,21 @@ Local vLLM Qwen3-Coder generates answers for both engines; same answers graded b
 - **The latency gap scales with corpus size.** AGE was 42–111× slower on SCOTUS (779 chunks); on NTSB (82 chunks) it's 5–9× slower. AGE's catastrophic plan estimates and full-table-scan tendencies hurt more as the graph grows. The architectural blocker (Cypher + pgvector can't combine in one query) is corpus-shape-independent; the size of the speedup is shape-dependent.
 - **Same fair-defaults caveat.** Both engines got the standard retrieval-relevant indexes (HNSW for vectors, GIN for FTS, typed labels for AGE). Tuning AGE more aggressively would close some of the gap; tuning specifics in [`research/apache-age-evaluation.md`](../research/apache-age-evaluation.md).
 
-**Methodology note for NTSB:** the n=10 question set is small enough that a single-question shift moves the percentages by 10 pp. Treat NTSB AGE numbers as directional confirmation of SCOTUS (parity on accuracy, faster on retrieval), not the precision baseline. SCOTUS's n=30 × 3 runs × `gpt-5-mini` majority-of-3 judge remains the canonical engine head-to-head.
+#### Important read on NTSB specifically — graph mode doesn't help here
+
+Look at the NTSB table: pgrg/naive scores 93.3% (Qwen) / 80.0% (OpenAI). pgrg/naive_boost is 90.0% / 80.0%. AGE/hybrid is 90.0% / 80.0%. **All modes cluster in the same band; naive without graph boost is at the top under Qwen and tied at the top under OpenAI.** Graph mode adds no measurable lift on this corpus.
+
+This isn't a fluke or a measurement artifact (well, partly — see the n=10 caveat below — but the directional reading holds). It's a corpus-shape finding: **NTSB reports are self-contained narratives.** Each report has the pilot, weather, aircraft, accident sequence, and probable cause in one doc. Cross-incident questions in our set ("what role did pilot fatigue play across accidents?", "what patterns emerge across engine failure incidents?") are still answered by retrieving multiple self-contained reports via vector similarity; there's no entity chain to traverse that vector can't already follow.
+
+This is the **opposite** of pg-agents (909-doc dev codebase, +18.9% from graph boost) — there, answers chain across docs via shared entities (services → owners → commits → files). That's where graph earns its keep.
+
+The honest takeaway: NTSB is a *negative example* for graph mode. The earlier 2026-04-12 blog 00 claim that "graph wins by 4 points on NTSB" was probably noise on a single run; an apples-to-apples re-run shows the gap collapses. **Use this corpus to argue that graph isn't always worth it, not the other way around.**
+
+#### Methodology note for NTSB
+
+The n=10 question set is small enough that a single-question shift moves the percentages by 10 pp. Worse, the answer LLM (local Qwen3-Coder, ONNX/int4 quantized at temp=0) has GPU-non-determinism that swings n=10 numbers across runs. **Two consecutive Qwen-judge runs in the same hour disagreed by ~6 pp on pgrg/naive vs naive_boost** — same questions, same code, same extraction, different model state.
+
+Treat NTSB numbers as **directional confirmation** of SCOTUS's findings (parity on accuracy, AGE much slower on retrieval), not a precision baseline. The canonical engine head-to-head remains SCOTUS's `n=30 × 3 runs × gpt-5-mini majority-of-3 judge` in [`age-bakeoff/results/REPORT-VERDICT.md`](age-bakeoff/results/REPORT-VERDICT.md).
 
 ### Methodology recommendation
 
