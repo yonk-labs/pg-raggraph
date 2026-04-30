@@ -1,5 +1,7 @@
 # MuSiQue benchmark — results (2026-04-29)
 
+> ⚠️ **All numbers below are bounded by `BAAI/bge-small-en-v1.5` (384-dim).** Our retrieval ceiling on MuSiQue is heavily embedder-dependent. NV-Embed-v2 (4096-dim) tops the public MuSiQue table at 44.8 F1 vector-only — bge-small lands meaningfully lower. **None of the multi-step accuracy improvements in this file (short_answer, rerank, smart routing, propositions, PPR) substitute for a stronger embedder.** They stack with one — they don't replace it. See `embedding_model` in [`docs/Config-Reference.md`](../../docs/Config-Reference.md).
+>
 > **Update — late session 2026-04-29.** Steps 1 and 2 from `docs/proposals/Accuracy-Improvements-Roadmap.md` shipped and were re-validated. The original v1 numbers below are kept for the v0 narrative; **the v2 (`short_answer`) and v3 (`short_answer + rerank`) sections at the end are the canonical results for current `main`.**
 
 ## v1 — Original run (2026-04-29 14:51)

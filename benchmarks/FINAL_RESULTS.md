@@ -1,5 +1,7 @@
 # pg-raggraph: Cross-Corpus Benchmark Results
 
+> ⚠️ **All numbers below are bounded by the default embedder.** Every benchmark in this file uses `embedding_model = "BAAI/bge-small-en-v1.5"` (384-dim, ~33 MB, CPU). **Switching to a larger embedder typically buys +5-10 pp F1 and +10-15 pp Recall@5 on multi-hop benchmarks per published comparisons** — bge-large-en-v1.5 (1024-dim, free) is the cheapest upgrade; NV-Embed-v2 (4096-dim) is current MTEB SOTA. Read these results as the baseline pgrg ships with, not the ceiling pgrg can reach. Phase A-prime in [`docs/proposals/Accuracy-Improvements-Roadmap.md`](../docs/proposals/Accuracy-Improvements-Roadmap.md) covers when to flip the default.
+
 ## Re-verification — 2026-04-29
 
 Re-ran PG-docs and NTSB corpora against current `main` (post Tier-1 merge + audit hardening) using **three methodologies side-by-side**:

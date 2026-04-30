@@ -1,5 +1,7 @@
 # pg-raggraph — Configuration Reference
 
+> ⚠️ **About the default embedder.** Every benchmark number in this repo (MuSiQue, NTSB, SCOTUS, PG-docs, pg-agents, medical-HRT) is generated with the default `embedding_model = "BAAI/bge-small-en-v1.5"` — a 384-dimensional, ~33 MB CPU-friendly model. **Stronger embedders (bge-large-en-v1.5 at 1024-dim, NV-Embed-v2 at 4096-dim, OpenAI text-embedding-3-large at 3072-dim) materially raise the retrieval ceiling.** Public papers consistently show +5-10 pp F1 / +10-15 pp Recall@5 from a stronger embedder on the same corpus. The default is conservative (free, fast, airgap-safe); any production deployment that cares about retrieval quality on hard queries should evaluate a larger embedder. See `embedding_model` below + the "Phase A-prime" decision branch in [`proposals/Accuracy-Improvements-Roadmap.md`](proposals/Accuracy-Improvements-Roadmap.md).
+
 Canonical reference for every tunable setting. Each entry follows the same 6-field shape:
 
 ```
@@ -81,11 +83,30 @@ When NOT to use: never change in isolation; never change after data is ingested 
 ### `embedding_model` (str, default: `BAAI/bge-small-en-v1.5`)
 Env var: `PGRG_EMBEDDING_MODEL`
 
-What: the model used to embed chunks and entities at ingest time.
-Pros: bge-small-en-v1.5 is 33 MB, fast on CPU, decent quality. Larger models (bge-large, NV-Embed-v2) bring +5-10 pp recall lift.
-Cons: bigger models are 5-10× slower at ingest and need matching `embedding_dim`. Switching models requires full re-ingest; embeddings from one model are not comparable to another.
-When to use: `bge-large-en-v1.5` (1024-dim) when retrieval support recall plateaus on a known-good corpus.
-When NOT to use: change without planning a re-ingest of every existing namespace.
+What: the model used to embed chunks and entities at ingest time. **This is the single biggest lever on retrieval quality** — a stronger embedder shifts every other accuracy metric.
+
+Default is conservative: 384-dim, ~33 MB, CPU-only via fastembed, airgap-safe, free. It's fast and good enough for most queries; it is NOT optimal.
+
+Per public benchmark literature on multi-hop QA (MuSiQue, HotpotQA), upgrading the embedder typically buys:
+- **+5-10 pp F1** on retrieval-bound questions
+- **+10-15 pp Recall@5**
+- Most of this gain shows up on paraphrased, vocabulary-mismatched, or rare-entity queries
+
+Reasonable alternatives:
+
+| Model | Dims | Size | Cost | Lift estimate |
+|---|---|---|---|---|
+| BAAI/bge-small-en-v1.5 (default) | 384 | 33 MB | free | baseline |
+| BAAI/bge-base-en-v1.5 | 768 | 110 MB | free | +2-4 pp F1 |
+| BAAI/bge-large-en-v1.5 | 1024 | 1.3 GB | free | +5-8 pp F1 |
+| NV-Embed-v2 | 4096 | ~16 GB | free (huge) | +8-10 pp F1 (SOTA on MTEB) |
+| OpenAI text-embedding-3-small | 1536 | API | ~$0.02/M tokens | +4-6 pp F1 |
+| OpenAI text-embedding-3-large | 3072 | API | ~$0.13/M tokens | +6-9 pp F1 |
+
+Pros (raise embedder size): higher retrieval recall, better paraphrase handling, smaller gap to published SOTA.
+Cons (raise embedder size): bigger ingest time + memory; different `embedding_dim` requires full re-ingest of every namespace; OpenAI variants leak data + add per-token cost.
+When to use: every benchmark number you read in this repo is bge-small-bounded — if your retrieval ceiling matters in production, run a paired ingest with bge-large or NV-Embed-v2 and remeasure.
+When NOT to use: change without planning a re-ingest of every existing namespace; OpenAI embedders for any data sensitivity / airgap requirement.
 
 ### `embedding_provider` (`"local" | "openai" | "ollama"`, default: `local`)
 Env var: `PGRG_EMBEDDING_PROVIDER`

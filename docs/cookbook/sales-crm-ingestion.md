@@ -459,11 +459,14 @@ Once you have real data, the knobs most likely to matter:
 
 | Knob | When to flip | Effect |
 |---|---|---|
+| **`embedding_model`** | **First thing to evaluate** if retrieval feels weak | Biggest single lever. bge-small-en-v1.5 (default) is conservative; bge-large-en-v1.5 (1024-dim, free) typically buys +5-8 pp F1 on retrieval-bound queries |
 | `extraction_prompt="dev"` | already on in the example — keep it | Better fit for operational/CRM corpora than the generic prompt |
 | `chunk_max_tokens=384` | If your call notes are very long (>1k tokens) | Tighter chunks → more precise retrieval |
 | `mode="hybrid"` (per-query) | Multi-doc questions ("compare wins across competitors") | +graph traversal |
-| `rerank=True` (per-call) | Ambiguous questions where naive ordering is suspect | +5-10 pp accuracy, +50-200 ms latency (with default MiniLM-L-6 reranker) |
+| `rerank=True` (per-call) | Ambiguous questions where naive ordering is suspect | +3-7 pp accuracy, +50-200 ms latency (with default MiniLM-L-6 reranker) |
 | `short_answer=True` (per-call) | Factoid Q&A (single-fact questions) | Crisp short answers, much lower latency |
+
+> ⚠️ **Embedder note.** All retrieval-quality numbers across the pg-raggraph repo are generated with `embedding_model = "BAAI/bge-small-en-v1.5"` (384-dim). For production CRM Q&A, evaluate `bge-large-en-v1.5` (1024-dim) before declaring victory — it's free, similar latency on a modern CPU, and typically buys real F1. See [`docs/Config-Reference.md`](../Config-Reference.md) for the full embedder discussion.
 
 See [`docs/Config-Reference.md`](../Config-Reference.md) for every other knob.
 
