@@ -1,0 +1,86 @@
+# chunkshop bakeoff on MuSiQue — multi-hop QA corpus.
+#
+# Cross-corpus comparison vs chunkshop-bakeoff-crm.yaml. MuSiQue is paragraph-
+# shaped, not call-note-shaped — a different chunker may win here. Chunkshop's
+# bakeoff feature lets us find out empirically rather than guess.
+#
+# Run:
+#   uv run chunkshop bakeoff --config docs/cookbook/samples/chunkshop-bakeoff-musique.yaml \
+#                            --dsn postgresql://postgres:postgres@localhost:5434/pg_raggraph_768 --yes
+
+name: musique_bakeoff
+
+source:
+  type: files
+  glob: benchmarks/musique/docs/*.md
+  id_from: stem
+  encoding: utf-8
+
+# 10 of the 100 sampled MuSiQue questions. Gold = first supporting doc per
+# question (where the first hop lands). Multi-hop reasoning isn't evaluated
+# here — bakeoff measures whether retrieval finds the FIRST relevant doc
+# in top-k. Real Q&A accuracy is a separate measurement.
+gold_queries:
+  - query: "In the arabic dictionary what is the meaning of the word that also refers to the majority religion in India during the creation of the country where Rabwah is located?"
+    gold_doc_id: "Bashir-Rafiq"
+  - query: "What is the abbreviated name of the exclusive platform of the video game named for the league with a halftime event just before the publishers clearing house sweepstakes drawing?"
+    gold_doc_id: "Publishers-Clearing-House"
+  - query: "Where was Obama's opponent in his first election educated?"
+    gold_doc_id: "The-Code-of-Conduct-and-the-Vietnam-Prisoners-of-War"
+  - query: "How many times did plague occur in the birthplace of the person who used the spice route that the Ottoman Empire controlled?"
+    gold_doc_id: "Ottoman-Empire--1"
+  - query: "What is the name of the castle found in the birthplace of the performer of Falling Out?"
+    gold_doc_id: "Casa-Loma"
+  - query: "Who is the president of the new country who has jointly established a commission with the country East Timor descended from?"
+    gold_doc_id: "IndonesiaTimor-Leste-Commission-of-Truth-and-Friendship"
+  - query: "What body of water was dry land during the last ice age, besides the river that an ancient ferry helped people cross?"
+    gold_doc_id: "Rhine"
+  - query: "Where was the person who said she is the reigning national voice for the country whose first state to enact reform was North Carolina born?"
+    gold_doc_id: "Beyoncé"
+  - query: "When did the team that John Surtees is a member of the owner of stop competing in F1?"
+    gold_doc_id: "1973-oil-crisis"
+  - query: "What century did a notable subjective idealist live in?"
+    gold_doc_id: "Idealism"
+
+matrix:
+  embedders:
+    - type: fastembed
+      model_name: BAAI/bge-small-en-v1.5
+      dim: 384
+      threads: 4
+      batch_size: 64
+    - type: fastembed
+      model_name: BAAI/bge-base-en-v1.5
+      dim: 768
+      threads: 4
+      batch_size: 64
+    - type: fastembed
+      model_name: Xenova/bge-base-en-v1.5-int8
+      dim: 768
+      threads: 4
+      batch_size: 64
+
+  chunkers:
+    - type: hierarchy
+      prefix_heading: true
+      max_chars: 2000
+    - type: sentence_aware
+      max_chars: 2000
+    - type: fixed_overlap
+      window_words: 300
+      step_words: 150
+
+target:
+  dsn_env: PGRG_DSN
+  schema: chunkshop_bakeoff_musique
+
+scoring:
+  k: [1, 3, 5]
+  include_mrr: true
+  top_k: 5
+
+output_dir: benchmarks/musique/_logs/bakeoff
+
+runtime:
+  omp_num_threads: 4
+  heartbeat_every: 200

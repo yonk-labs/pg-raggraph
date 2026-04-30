@@ -1,0 +1,88 @@
+# chunkshop bakeoff: factorial chunker × embedder matrix on the sales-CRM
+# small corpus. Measures Recall@1/3/5 + MRR for each combo. Output is a
+# leaderboard + a recommended.yaml ready to plug into Pattern C.
+#
+# Run:
+#   export PGRG_DSN="postgresql://postgres:postgres@localhost:5434/pg_raggraph_768"
+#   uv run chunkshop bakeoff --config docs/cookbook/samples/chunkshop-bakeoff-crm.yaml
+
+name: sales_crm_bakeoff
+
+source:
+  type: files
+  glob: benchmarks/sales-crm-demo/docs/*.md
+  id_from: stem
+  encoding: utf-8
+
+# Inline gold-queries — 10 (query → gold_doc_id) pairs hand-picked from
+# real notes in the small CRM sample. Each query is shaped like a sales
+# lead would actually ask, so retrieval recall here predicts retrieval
+# recall on real questions.
+gold_queries:
+  - query: "Smith Technology Systems data infrastructure interest in ClarityDB Guardian"
+    gold_doc_id: "note-018021-Smith-Technology-Systems"
+  - query: "Miller Education Inc database challenges with Synapse AIOps"
+    gold_doc_id: "note-047545-Miller-Education-Inc"
+  - query: "Brown Technology Ltd IT team challenges Neuron Canvas"
+    gold_doc_id: "note-023443-Brown-Technology-Ltd"
+  - query: "Davis Retail Inc Synapse AIOps triage challenges"
+    gold_doc_id: "note-025446-Davis-Retail-Inc"
+  - query: "Smith Healthcare Group phishing alert ClarityDB Guardian"
+    gold_doc_id: "note-030041-Smith-Healthcare-Group"
+  - query: "Johnson Education LLC customer support challenges Neuron Canvas"
+    gold_doc_id: "note-008019-Johnson-Education-LLC"
+  - query: "Williams Manufacturing Ltd technical discussion TitanDB Enterprise"
+    gold_doc_id: "note-004181-Williams-Manufacturing-Ltd"
+  - query: "Miller Technology Systems negotiation OmniConnect Proxy"
+    gold_doc_id: "note-033276-Miller-Technology-Systems"
+  - query: "Smith Technology Systems negotiation PillarDB Standard"
+    gold_doc_id: "note-037167-Smith-Technology-Systems"
+  - query: "Williams Manufacturing Ltd Emily Miller discovery TitanDB Enterprise"
+    gold_doc_id: "note-004177-Williams-Manufacturing-Ltd"
+
+# 3 embedders × 4 chunkers = 12 combos. ~5-15 min total wall time.
+matrix:
+  embedders:
+    - type: fastembed
+      model_name: BAAI/bge-small-en-v1.5         # 384d fp32 — current pgrg default
+      dim: 384
+      threads: 4
+      batch_size: 64
+    - type: fastembed
+      model_name: BAAI/bge-base-en-v1.5          # 768d fp32 — the dim upgrade
+      dim: 768
+      threads: 4
+      batch_size: 64
+    - type: fastembed
+      model_name: Xenova/bge-base-en-v1.5-int8   # 768d int8 — chunkshop recommended default
+      dim: 768
+      threads: 4
+      batch_size: 64
+
+  chunkers:
+    - type: hierarchy
+      prefix_heading: true
+      max_chars: 2000
+    - type: sentence_aware
+      max_chars: 2000
+    - type: fixed_overlap
+      window_words: 300
+      step_words: 150
+    # Note: 'semantic' omitted — chunkshop 0.3.0 bakeoff/keys.py doesn't
+    # have a registered chunker_key for SemanticChunker yet. Re-add when
+    # https://github.com/yonk-labs/chunkshop registers it.
+
+target:
+  dsn_env: PGRG_DSN
+  schema: chunkshop_bakeoff
+
+scoring:
+  k: [1, 3, 5]
+  include_mrr: true
+  top_k: 5
+
+output_dir: benchmarks/sales-crm-demo/_logs/bakeoff
+
+runtime:
+  omp_num_threads: 4
+  heartbeat_every: 50

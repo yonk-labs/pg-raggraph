@@ -269,6 +269,60 @@ All three runs against the same 649 won-deal call notes; same `extraction_prompt
 
 Bottom line: **Pattern D is the right starting point** (one-line config change, +31% richer graph). **Pattern C** is right when you want chunkshop's metadata extractors AND don't want pg-raggraph re-embedding work. The `pre_chunked` API extension makes Pattern C clean — chunkshop's embeddings pass through unchanged.
 
+### Bakeoff: what actually wins per corpus (don't guess — measure)
+
+chunkshop ships a `bakeoff` subcommand that runs a factorial chunker × embedder matrix over your corpus, measures Recall@k + MRR using gold queries you author, and emits a leaderboard plus a runnable `recommended.yaml`. We ran it on two of our corpora to see whether "chunkshop:hierarchy + bge-base" actually wins everywhere. **It doesn't.**
+
+Both bakeoffs ran 3 embedders × 3 chunkers = 9 combos. Embedders: `bge-small-en-v1.5` (384d), `bge-base-en-v1.5` (768d fp32), `Xenova/bge-base-en-v1.5-int8` (768d int8). Chunkers: `hierarchy`, `sentence_aware`, `fixed_overlap`. (Reproducer configs: [`samples/chunkshop-bakeoff-crm.yaml`](samples/chunkshop-bakeoff-crm.yaml) and [`samples/chunkshop-bakeoff-musique.yaml`](samples/chunkshop-bakeoff-musique.yaml).)
+
+**Sales-CRM leaderboard** — 649 call notes, 10 hand-picked gold (customer × product × note) queries:
+
+| # | Chunker | Embedder | r@1 | r@3 | r@5 | MRR |
+|---|---|---|---|---|---|---|
+| 1 | **`fixed_overlap`** | bge-base fp32 | 0.400 | 0.600 | 0.800 | **0.533** |
+| 2 | `fixed_overlap` | bge-small | 0.400 | 0.600 | 0.800 | 0.512 |
+| 3 | `fixed_overlap` | bge-base int8 | 0.300 | 0.600 | 0.800 | 0.483 |
+| 4 | `hierarchy` | bge-base fp32 | 0.200 | 0.400 | 0.600 | 0.333 |
+| 5 | `hierarchy` | bge-small | 0.200 | 0.400 | 0.600 | 0.328 |
+| 6-9 | `sentence_aware` / `hierarchy` w/ int8 | various | 0.000–0.100 | 0.400–0.600 | 0.500–0.600 | 0.242–0.267 |
+
+**MuSiQue leaderboard** — 1,700 Wikipedia paragraphs, 10 multi-hop questions (gold = first supporting doc):
+
+| # | Chunker | Embedder | r@1 | r@3 | r@5 | MRR |
+|---|---|---|---|---|---|---|
+| 1 | **`hierarchy`** | bge-base **int8** | 0.400 | 0.500 | 0.500 | **0.433** |
+| 2 | `hierarchy` | bge-base fp32 | 0.400 | 0.400 | 0.500 | 0.420 |
+| 3 | `hierarchy` | bge-small | 0.300 | 0.500 | 0.500 | 0.383 |
+| 4 | `sentence_aware` | bge-base int8 | 0.300 | 0.400 | 0.400 | 0.350 |
+| 5 | `fixed_overlap` | bge-base int8 | 0.300 | 0.400 | 0.400 | 0.350 |
+| 6-9 | various | various | 0.300 | 0.400 | 0.400 | 0.333 |
+
+**Reading the cross-corpus pattern:**
+
+1. **Best chunker depends on corpus shape, not the chunkshop recommended default.** Sales-CRM's short narrative call notes prefer `fixed_overlap` (sliding-window paragraph splits); MuSiQue's dense Wikipedia paragraphs prefer `hierarchy`. There is no universal winner — chunkshop's "production sweet spot" of `hierarchy + int8` only wins on the corpus shape it was tuned for.
+2. **Bigger embedder helps a little.** bge-base over bge-small: +0.021 MRR on CRM, +0.037 MRR on MuSiQue. Not dramatic. Don't change embedder until you've fixed chunker first.
+3. **int8 quantization is corpus-dependent.** On MuSiQue, int8 *beats* fp32 (rank 1 vs 2). On CRM, fp32 beats int8. The sign of the quantization effect varies; another reason to bakeoff before believing defaults.
+4. **`hierarchy` is mid-pack on CRM** (rank 4-5, MRR 0.328-0.333) — chunkshop's flagship chunker doesn't win here. The hierarchy chunker bundles too aggressively for short call notes; fixed_overlap's overlapping windows preserve more retrievable chunks.
+
+### How to run bakeoff on your corpus
+
+```bash
+# 1. Materialize markdown (or point chunkshop at any source — files / pg_table / http / s3 / json_corpus)
+uv run python benchmarks/sales-crm-demo/prepare.py
+
+# 2. Author 8-15 gold queries — pick (query, gold_doc_id) pairs where you know
+#    which document SHOULD be top-1. See samples/chunkshop-bakeoff-crm.yaml.
+
+# 3. Run the bakeoff (1-15 min depending on matrix × corpus size)
+PGRG_DSN="postgresql://postgres:postgres@localhost:5434/your_db" \
+  uv run chunkshop bakeoff --config your-bakeoff.yaml --dsn "$PGRG_DSN" --yes
+
+# 4. Read the leaderboard. Top combo = your config. The recommended.yaml
+#    file is a drop-in chunkshop ingest config you can use for Pattern C.
+```
+
+Bakeoff measures **document-level retrieval recall** (which doc lands top-k for each gold query), not full Q&A accuracy. The chunker × embedder that wins bakeoff usually — but not always — also wins downstream Q&A. After picking a winner, validate it on a per-mode Q&A run like the comparison below before committing to it.
+
 ### Per-mode Q&A scores — graph density isn't the same as answer accuracy
 
 Same 5 sample questions through all 6 retrieval modes against each of the three pipelines (OpenAI gpt-4o-mini judge, 0-3 rubric, full transcripts in `benchmarks/sales-crm-demo/_logs/mode-comparison.json` per run):

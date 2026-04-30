@@ -13,18 +13,20 @@ Honest parking-lot for what's left to try on MuSiQue when we cycle back. Ordered
 
 ## Things we haven't tried — ranked
 
-### 1. Chunkshop-driven chunkers (untouched)
+### 1. Chunkshop-driven chunkers (✅ partially answered 2026-04-30)
 
-We're using the default `chunk_strategy="auto"` chunker. **chunkshop is a sibling library specifically for chunking experimentation**, and we have not run a single chunkshop strategy against MuSiQue. The historical bake-off (medical / acme corpora) showed `hierarchy` chunking matters on some shapes but not others; we never extended that to MuSiQue.
+Ran `chunkshop bakeoff` with 3 chunkers × 3 embedders = 9 combos against the 1700-paragraph MuSiQue corpus. Reproducer + full leaderboard: [`docs/cookbook/samples/chunkshop-bakeoff-musique.yaml`](../../docs/cookbook/samples/chunkshop-bakeoff-musique.yaml), [`benchmarks/musique/_logs/bakeoff/report.md`](_logs/bakeoff/report.md).
 
-Ideas to try:
-- `chunk_strategy="hierarchy"` — heading-prefixed chunks. MuSiQue paragraphs already have `# Title` headers, so this might help the title disambiguate similar-content chunks.
-- A chunkshop-ported strategy that produces overlapping micro-chunks within each paragraph. MuSiQue answers often live in a single sentence; smaller chunks could improve precision at the cost of more storage.
-- A chunkshop strategy that *combines* paragraphs from the same Wikipedia source page into a single doc. Our current pool-mode breaks each paragraph into its own doc — if chunkshop merges related paragraphs, the entity graph becomes denser and graph mode might win more often.
+**Bakeoff winner on MuSiQue**: `hierarchy` chunker + `Xenova/bge-base-en-v1.5-int8` embedder, **MRR 0.433** (r@1=0.40, r@3=0.50, r@5=0.50). All three top spots are `hierarchy` — it's the right chunker for paragraph-shaped Wikipedia content. The embedder change adds ~+0.05 MRR over `bge-small`.
 
-Expected impact: **±2-5 F1, unknown direction.** Worth measuring even if neutral, because chunkshop is the named experimentation surface and "we never tried it" is a credibility gap.
+What this answers from the original idea list:
+- ✅ `chunk_strategy="hierarchy"`: best chunker on MuSiQue per bakeoff. Adopt as default if we re-ingest MuSiQue.
+- ⬜ Chunkshop strategies that produce micro-chunks (sentence_aware, fixed_overlap): tried; both lose to hierarchy on MuSiQue. fixed_overlap wins on the *sales-CRM* corpus though — confirms chunker choice depends on corpus shape.
+- ⬜ Chunkshop strategy that merges related paragraphs into one doc: not yet tested. Would need a custom framer step. Captured as a future test if MuSiQue becomes the active concern again.
 
-Cost: 1-2 days to wire up a chunkshop-driven prepare path, plus a re-ingest (~2 hr each variant) and re-run (~1 hr each).
+Bakeoff measures retrieval recall, not full Q&A. To get F1/EM lift estimates, re-ingest the existing MuSiQue corpus with `chunk_strategy="chunkshop:hierarchy"` and `embedding_model="Xenova/bge-base-en-v1.5-int8"`, then re-run `benchmarks/musique/run.py --short-answer --judge both`. Pre-built — just hasn't been run as part of this session because the LLM-extraction cost of full re-ingest is meaningful.
+
+Expected MuSiQue F1 lift from the bakeoff winner combo: probably +1-3 pp over current short_answer numbers (33% F1 on hybrid). Compounds with rerank, PPR, etc. Captured for the "next time MuSiQue is active" pickup list.
 
 ### 2. Swap the embedder (the elephant)
 
