@@ -728,10 +728,54 @@ That's the correct answer — won-deal notes don't dwell on objections by defini
 - The system declines honestly when the corpus doesn't contain the answer (Q1).
 - Source attribution in every answer.
 
+### Per-mode breakdown — same 5 queries through all 6 modes
+
+To check whether `smart` was actually picking the right mode, we ran the same 5 questions through every retrieval mode and OpenAI-judged each answer (gpt-4o-mini, 0-3 rubric). Full transcript: `_logs/mode-comparison.json`.
+
+| Mode | Avg score | Avg latency | Wins (top score) |
+|---|---|---|---|
+| naive | 2.20 | 2,685 ms | 2/5 |
+| naive_boost | 2.40 | 3,610 ms | 3/5 |
+| local | 2.60 | 3,584 ms | 3/5 |
+| **global** | **3.00** | **4,499 ms** | **5/5** ⭐ |
+| hybrid | 2.80 | 3,911 ms | 4/5 |
+| smart | 2.60 | 3,417 ms | 3/5 |
+
+`global` mode dominates this corpus — perfect 3.0 average and the only mode to win every question. CRM call notes are entity-heavy (customers, products, salespeople are repeated across deals) and 4/5 of these questions require aggregation across deals ("most often", "most common", "alongside", "had the most"). `global` pivots on the relationships table rather than vector chunks, which buys it specific names + cross-deal coverage that other modes miss.
+
+Per-question:
+
+| Q | naive | naive_boost | local | global | hybrid | smart | smart's effective mode |
+|---|---|---|---|---|---|---|---|
+| Q1 — objections | 2 | 2 | 2 | **3** | 2 | 2 | `smart[expanded]` |
+| Q2 — ClarityDB customers + pain | 3 | 3 | 3 | **3** | 3 | 3 | `smart[boosted]` |
+| Q3 — products alongside competitors | 2 | **3** | **3** | **3** | **3** | **3** | `smart[expanded]` |
+| Q4 — most common win reason | 1 | 1 | 2 | **3** | **3** | 2 | `smart[expanded]` |
+| Q5 — industries with most | **3** | **3** | **3** | **3** | **3** | **3** | `smart[expanded]` |
+
+#### What this exposes about `smart` mode
+
+The current `smart` router decides between `naive → naive_boost → local` based on naive's retrieval confidence. **It never routes to `global` or `hybrid`** — even when those would clearly be the right pick. On Q1 and Q4 specifically, `global` scored 3 while `smart` scored 2. That's a real router gap, not a mode-quality issue.
+
+For pure-vector questions (Q2, Q5) `smart` matches the best modes at lower latency — it earns its keep. For aggregation-shaped questions (Q1, Q4) you currently want `mode="global"` or `mode="hybrid"` explicitly until the router is taught to route there.
+
+This is captured as a follow-up in [`docs/proposals/Accuracy-Improvements-Roadmap.md`](../proposals/Accuracy-Improvements-Roadmap.md) Step 4 (Smart routing tunes) and [`benchmarks/musique/tuning-ideas.md`](../../benchmarks/musique/tuning-ideas.md).
+
+#### Practical recommendation for CRM-shaped corpora
+
+| Question shape | Use this mode |
+|---|---|
+| "What did X say about Y?" (point lookup) | `naive` or `smart` |
+| "Who bought X and what did they say?" (multi-doc, single product) | `naive_boost` or `smart` |
+| "What's the most common ___ across deals?" (aggregation) | `global` ⭐ |
+| "What patterns emerge across N customers?" (cross-deal synthesis) | `global` or `hybrid` |
+| Don't know — just ask | `smart` (knows it'll occasionally underperform on aggregation questions; that's fine) |
+
 ### What it doesn't validate (yet)
 
-- Pattern B (in-memory `ingest_records` with caller-supplied `entities`/`relationships`) on this corpus — that's the same data through the better API. Run via `ingest_inmemory.py`; should produce a richer graph anchored in CRM FKs.
+- Pattern B (in-memory `ingest_records` with caller-supplied `entities`/`relationships`) on this corpus — that's the same data through the better API. Run via `ingest_inmemory.py`; should produce a richer graph anchored in CRM FKs (BOUGHT/SOLD_TO edges from `sales_orders` directly).
 - The medium dataset (~3,300 notes from 1,000 deals) — same script, just scale up to see how cross-deal patterns emerge.
+- Whether seeding caller-known entities/relationships changes the per-mode rankings. Hypothesis: `global` continues to win on aggregation questions, and `naive_boost` improves on customer/product queries because the explicit FK edges raise its 1-hop boost confidence.
 
 ---
 
