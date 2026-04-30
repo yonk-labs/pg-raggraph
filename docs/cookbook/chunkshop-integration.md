@@ -1,9 +1,11 @@
 # Cookbook: pg-raggraph + chunkshop
 
-> **TL;DR.** [`chunkshop`](https://github.com/yonk-labs/chunkshop) is a sibling library on PyPI / crates.io for ingest-shaped work — chunker → embedder → extractor → pgvector. pg-raggraph treats it as **optional but recommended** for the chunking step (and, if you want it, the metadata-extraction step). Two integration shapes:
+> **TL;DR.** [`chunkshop`](https://github.com/yonk-labs/chunkshop) is a sibling library on PyPI / crates.io for ingest-shaped work — chunker → embedder → extractor → pgvector. pg-raggraph offers two integration shapes:
 >
-> - **Pattern D — chunker-only** (recommended starting point): set `chunk_strategy="chunkshop:hierarchy"` on `GraphRAG` and pg-raggraph delegates the chunking step to chunkshop. Everything else (embedding, LLM extraction, graph layer) stays in pg-raggraph.
-> - **Pattern C — full chunkshop pipeline + bridge** (advanced): run chunkshop end-to-end (chunks + embeddings + extracted metadata into chunkshop's pgvector table), then have pg-raggraph read that table and add the graph layer on top.
+> - **Pattern D — chunker-only**: set `chunk_strategy="chunkshop:hierarchy"` on `GraphRAG` and pg-raggraph delegates the chunking step to chunkshop. Everything else (embedding, LLM extraction, graph layer) stays in pg-raggraph.
+> - **Pattern C — full chunkshop pipeline + bridge** (advanced): run chunkshop end-to-end (chunks + embeddings + extracted metadata into chunkshop's pgvector table), then have pg-raggraph read that table and add the graph layer on top via the `pre_chunked` field on `ingest_records()`.
+>
+> **Real-data caveat:** chunkshop chunking produces a denser graph (+31% relationships on the sales-CRM small sample) but **does NOT automatically improve Q&A accuracy**. On the same sample, Pattern A's built-in chunker scored higher per-mode. See [§Per-mode Q&A scores](#per-mode-qa-scores--graph-density-isnt-the-same-as-answer-accuracy) below — read this before flipping the default.
 
 ## Why integrate with chunkshop at all?
 
@@ -266,6 +268,34 @@ All three runs against the same 649 won-deal call notes; same `extraction_prompt
 - **Entity counts converge** across all three (~1,172-1,184). Entity extraction is roughly stable; chunking strategy mostly affects *relationships per chunk* density.
 
 Bottom line: **Pattern D is the right starting point** (one-line config change, +31% richer graph). **Pattern C** is right when you want chunkshop's metadata extractors AND don't want pg-raggraph re-embedding work. The `pre_chunked` API extension makes Pattern C clean — chunkshop's embeddings pass through unchanged.
+
+### Per-mode Q&A scores — graph density isn't the same as answer accuracy
+
+Same 5 sample questions through all 6 retrieval modes against each of the three pipelines (OpenAI gpt-4o-mini judge, 0-3 rubric, full transcripts in `benchmarks/sales-crm-demo/_logs/mode-comparison.json` per run):
+
+| Pipeline | naive | naive_boost | local | global | hybrid | smart | best mode |
+|---|---|---|---|---|---|---|---|
+| Pattern A/B (built-in) | 2.20 | 2.40 | 2.60 | **3.00** | 2.80 | **3.00** | global / smart ⭐ |
+| Pattern D (chunkshop:hierarchy) | 2.20 | 2.40 | 2.40 | 2.00 | 2.40 | 2.20 | naive_boost / local / hybrid |
+| Pattern C (chunkshop full + bridge) | 2.40 | 2.40 | 2.40 | 2.40 | 2.40 | 2.20 | flat across modes |
+
+**Surprise: chunkshop's denser relationship graph (+31%) didn't translate to better answers on this corpus.** In fact, `global` mode dropped from 3.00 → 2.00 under Pattern D, and `smart` dropped from 3.00 → 2.20. The richer graph appears to be diluting precision rather than helping aggregation.
+
+Honest read of why this might happen:
+
+- **Chunkshop's hierarchy chunker bundles more content per chunk** (Pattern D: ~2.6 chunks/doc vs Pattern A: ~2.9 chunks/doc). Bigger chunks pull more text on each retrieval, which can dilute vector similarity scores for specific-fact questions.
+- **The +31% extra relationships may include lower-signal edges.** LLM extraction on bigger chunks gives the model more co-occurrence to mine; some of what comes out is genuine, some is incidental.
+- **Small sample (n=5).** A single question score moving 1 point shifts the mode average by 0.2. The overall ordering matters more than the exact decimals.
+
+**This finding is the inverse of the graph-shape table above.** "More relationships" sounded like a win; on Q&A accuracy here, it isn't. **Don't flip to chunkshop based on graph counts alone — run your own per-mode comparison on a representative question set first.**
+
+If you do go with chunkshop, the data here suggests:
+
+- Use `naive_boost`, `local`, or `hybrid` — they're all 2.40 on Pattern D, comparable to Pattern A's same modes.
+- Avoid `global` until you've validated it on your corpus — the richer graph appears to hurt the relationship-centric retrieval mode specifically.
+- The new `smart` router still routes aggregation questions to `global`, so it inherits the regression. Override with explicit `mode="naive_boost"` for aggregation questions on chunkshop-indexed corpora until this is better understood.
+
+**Caveats worth re-reading:** n=5 is noisy; the per-mode dispatch math is the same across pipelines; the LLM extractor and judge are identical; only the chunker differs. The result is real but the explanation needs more data — a 50-question set on a larger corpus would tell us whether this is a real regression or sample-size noise. Captured for follow-up; not actively chasing it.
 
 ## Choosing a pattern
 

@@ -257,7 +257,7 @@ This is the `prepare.py` + `ingest.py` pair shown in this section. See [`benchma
 
 ### Pattern B — in-memory (SQL → in-memory records → pg-raggraph; no disk)
 
-> **Tip — recommended chunker.** Pattern B (and the chunkshop variant just below) work best with `chunk_strategy="chunkshop:hierarchy"` for the markdown-shaped frontmatter we use. Optional dependency: `pip install 'pg-raggraph[chunkshop]'`. See [`chunkshop-integration.md`](chunkshop-integration.md) for the why and when.
+> **Optional: chunkshop chunker.** [`chunk_strategy="chunkshop:hierarchy"`](chunkshop-integration.md) (`pip install 'pg-raggraph[chunkshop]'`) gives a denser relationship graph on this corpus (+31% relationships per the cookbook). Caveat: per-mode Q&A scores on n=5 questions actually came out *lower* with chunkshop chunking than with the built-in chunker. Run your own per-mode comparison on a representative question set before committing to chunkshop. See [`chunkshop-integration.md`](chunkshop-integration.md) for both the gain (graph density) and the loss (answer accuracy on this sample).
 
 **Recommended for same-database CRM/ERP pipelines.** Source data lives in your existing Postgres schema; pg-raggraph's tables live in another database (or another namespace in the same DB). No reason for the data to touch disk in between.
 
