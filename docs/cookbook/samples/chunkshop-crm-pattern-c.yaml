@@ -1,0 +1,63 @@
+# chunkshop config for the sales-CRM Pattern C cookbook example.
+#
+# Reads: markdown files written by benchmarks/sales-crm-demo/prepare.py
+#        (defaults to ./docs/ relative to that script)
+# Writes: chunkshop_demo.sales_crm_chunks (in the pg-raggraph DB)
+#
+# Usage:
+#   export PGRG_DSN="postgresql://postgres:postgres@localhost:5434/pg_raggraph"
+#   export OPENAI_API_KEY="..."   # only needed if extractor uses an LLM
+#
+#   # 1. Materialize markdown if not already done
+#   CRM_DSN="postgresql://postgres:postgres@127.0.0.1:5434/crm_demo_small" \
+#     uv run python benchmarks/sales-crm-demo/prepare.py
+#
+#   # 2. Run chunkshop end-to-end (chunker + embedder + optional extractor)
+#   chunkshop ingest --config docs/cookbook/samples/chunkshop-crm-pattern-c.yaml
+#
+#   # 3. Bridge chunkshop's output → pg-raggraph
+#   uv run python benchmarks/sales-crm-demo/ingest_chunkshop_pattern_c.py
+
+cell_name: sales_crm_pattern_c
+
+source:
+  type: files
+  glob: benchmarks/sales-crm-demo/docs/*.md
+  id_from: stem                # filename without ext becomes doc_id
+  encoding: utf-8
+
+chunker:
+  type: hierarchy              # heading-prefixed; matches pg-raggraph's chunkshop:hierarchy default
+  prefix_heading: true
+  min_section_chars: 100
+  max_chars: 2000
+
+embedder:
+  type: fastembed
+  model_name: BAAI/bge-small-en-v1.5
+  dim: 384                     # MUST match GraphRAG(embedding_dim=384)
+  threads: 4
+  batch_size: 64
+
+# Optional metadata extractors. Uncomment one (and install the matching
+# chunkshop extra) if you want chunkshop adding RAKE / KeyBERT / spaCy
+# tagged metadata to every chunk. With extractor.type=none the pipeline
+# still chunks + embeds; metadata is just whatever the chunker emitted.
+#
+# extractor:
+#   type: rake_keywords        # requires `pip install 'chunkshop[extractors]'`
+#   max_keywords: 8
+extractor:
+  type: none
+
+target:
+  dsn_env: PGRG_DSN            # write to the pg-raggraph database (different schema)
+  schema: chunkshop_demo
+  table: sales_crm_chunks
+  overwrite: true              # rerun-friendly — drop + recreate on each run
+  hnsw: true
+
+runtime:
+  omp_num_threads: 4
+  heartbeat_every: 50
+  log_path: /tmp/chunkshop-crm-pattern-c.log

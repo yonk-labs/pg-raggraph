@@ -499,6 +499,16 @@ class GraphRAG:
                   extraction for this document. Useful when the caller's
                   known_entities/known_relationships already cover what
                   they care about and the LLM would just add noise / cost.
+                - ``pre_chunked`` (list of dict, optional): bypass
+                  pg-raggraph's chunker AND embedder. Each entry:
+                  ``{"content": str, "embedded_content": str (optional),
+                  "embedding": list[float] (must match config.embedding_dim),
+                  "metadata": dict (optional), "token_count": int (optional)}``.
+                  Use when an upstream tool (e.g. chunkshop's full pipeline)
+                  already chunked + embedded the document. The ``text``
+                  field still drives LLM entity/relationship extraction;
+                  set it to a sensible reconstruction of the document.
+                  See docs/cookbook/chunkshop-integration.md Pattern C.
             namespace: Namespace for data isolation.
             on_progress: Optional callback(message: str) for progress.
 
@@ -588,6 +598,7 @@ class GraphRAG:
                         rec_entities = rec.get("entities")
                         rec_rels = rec.get("relationships")
                         rec_skip_llm = bool(rec.get("skip_llm", False))
+                        rec_pre_chunked = rec.get("pre_chunked")
                         r = await self._ingest_one_content(
                             rec["text"],
                             source_id=rec["source_id"],
@@ -601,6 +612,7 @@ class GraphRAG:
                             known_entities=rec_entities,
                             known_relationships=rec_rels,
                             skip_llm_for_this_doc=rec_skip_llm,
+                            pre_chunked=rec_pre_chunked,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -704,6 +716,7 @@ class GraphRAG:
         known_entities: list[dict] | None = None,
         known_relationships: list[dict] | None = None,
         skip_llm_for_this_doc: bool = False,
+        pre_chunked: list[dict] | None = None,
     ):
         """Ingest a single document from in-memory content with all DB
         writes in a single transaction.
@@ -735,6 +748,25 @@ class GraphRAG:
         only — useful when the caller's known_entities/known_relationships
         already cover everything they care about and the LLM would just
         add noise (or cost).
+
+        ``pre_chunked`` lets callers bypass pg-raggraph's chunker AND
+        embedder. Use when the chunks + embeddings already exist
+        upstream (e.g. chunkshop end-to-end pipeline → pg-raggraph
+        graph layer; see docs/cookbook/chunkshop-integration.md
+        Pattern C). Each list entry is a dict::
+
+            {
+                "content":          "<original chunk text>",            # required
+                "embedded_content": "<text given to the embedder>",     # optional, defaults to content
+                "embedding":        [float, ...],                        # required, must match config.embedding_dim
+                "metadata":         {...},                               # optional, merged with chunkshop_* metadata
+                "token_count":      int,                                 # optional, computed if missing
+            }
+
+        When ``pre_chunked`` is set, ``content`` is still used as the
+        full-document text input for LLM entity/relationship extraction
+        — set it to a sensible reconstruction (e.g. join all chunks
+        with newlines) so the LLM sees the document.
         """
         # Use the source_id as the chunker's path hint so .md/.py-style
         # extension detection still works for callers that pass
@@ -752,16 +784,52 @@ class GraphRAG:
             logger.debug(f"Skipped (unchanged): {file_path}")
             return None
 
-        # Chunk (no DB)
-        chunks = chunk_document_fn(content, source_path=file_path, config=self.config)
-        if not chunks:
-            return {"entities": 0, "rels": 0}
+        # Chunk (no DB) — caller can pre-chunk to bypass pg-raggraph's
+        # chunker AND embedder (e.g. chunkshop Pattern C, where the upstream
+        # pipeline already chunked + embedded + extracted metadata).
+        from pg_raggraph.chunking import token_count as _token_count
 
-        # Batch embed all chunks. Use embedded_content so the embedder sees
-        # heading prefix (hierarchy strategy) or any future neighbor/summary
-        # decoration; for auto strategy this equals content.
-        texts = [c["embedded_content"] for c in chunks]
-        chunk_embeddings = await embedder.embed(texts)
+        if pre_chunked is not None:
+            chunks = []
+            chunk_embeddings = []
+            for i, pc in enumerate(pre_chunked):
+                if "content" not in pc or "embedding" not in pc:
+                    raise ValueError(
+                        f"pre_chunked[{i}] must include 'content' and 'embedding'"
+                    )
+                emb = pc["embedding"]
+                if len(emb) != self.config.embedding_dim:
+                    raise ValueError(
+                        f"pre_chunked[{i}].embedding has dim {len(emb)} but "
+                        f"config.embedding_dim={self.config.embedding_dim}. "
+                        "Configure GraphRAG with embedding_dim matching the "
+                        "upstream embedder, or re-embed at the upstream layer."
+                    )
+                body = pc["content"]
+                emb_content = pc.get("embedded_content") or body
+                meta = dict(pc.get("metadata") or {})
+                meta.setdefault("source_path", file_path)
+                meta.setdefault("chunk_index", i)
+                chunks.append({
+                    "content": body,
+                    "embedded_content": emb_content,
+                    "token_count": pc.get("token_count") or _token_count(emb_content),
+                    "content_hash": pc.get("content_hash") or content_hash_fn(body),
+                    "metadata": meta,
+                })
+                chunk_embeddings.append(emb)
+            if not chunks:
+                return {"entities": 0, "rels": 0}
+        else:
+            chunks = chunk_document_fn(content, source_path=file_path, config=self.config)
+            if not chunks:
+                return {"entities": 0, "rels": 0}
+
+            # Batch embed all chunks. Use embedded_content so the embedder sees
+            # heading prefix (hierarchy strategy) or any future neighbor/summary
+            # decoration; for auto strategy this equals content.
+            texts = [c["embedded_content"] for c in chunks]
+            chunk_embeddings = await embedder.embed(texts)
 
         # Extract entities/relationships via LLM (cache reads OK outside txn).
         # If llm is None or skip_llm_for_this_doc is set, skip extraction
