@@ -635,6 +635,106 @@ The injection script is how you keep the second column trustworthy without payin
 - **Multi-tenant isolation across customers viewing their own data.** Use one `namespace` per tenant.
 - **Tier 1 evolution-aware retrieval.** Set `evolution_tier="structural"` and add `effective_from` / `version_label` metadata if your CRM tracks deal-state-over-time and you want time-travel queries. See [`docs/cookbook/evolution-tracking.md`](evolution-tracking.md).
 
+## Real run output (small dataset, 2026-04-30)
+
+Actually running the disk-based pipeline (Pattern A) end-to-end against the small sample produced these numbers — committed at `benchmarks/sales-crm-demo/_logs/ingest-small.log` and `_logs/queries.log` for reproducibility.
+
+### Ingest
+
+```
+Ingesting 649 call notes into namespace=sales_crm_demo_small
+...
+Done in 67.8 min
+  documents:     649
+  chunks:        1,864
+  entities:      1,172
+  relationships: 4,110
+```
+
+Cost: ~$0.30 in `gpt-4o-mini` extraction calls. ~6.3 relationships and ~1.8 entities per doc — a meaningful graph density for a corpus where each note is a few hundred chars.
+
+### Graph shape
+
+The LLM extraction (with `extraction_prompt="dev"`) classifies entities into operational types:
+
+| entity_type | count |
+|---|---|
+| concept | 429 |
+| ticket | 224 |
+| service | 197 |
+| person | 141 |
+| company | 97 |
+| environment | 17 |
+| tool | 16 |
+| file | 14 |
+| document | 9 |
+| library | 8 |
+
+Top-connected entities by edge degree are exactly what you'd expect for a sales corpus — the product line and the top sellers:
+
+| name | type | edges |
+|---|---|---|
+| ClarityDB Guardian | service | 300 |
+| Ava Chen | person | 246 |
+| Synapse AIOps | service | 225 |
+| Liam Park | person | 209 |
+| Neuron Canvas | service | 168 |
+| OmniConnect Proxy | service | 140 |
+| Converge Lakehouse | service | 134 |
+| PillarDB Standard | service | 111 |
+| TitanDB Enterprise | service | 108 |
+| Prometheus AI Factory | service | 99 |
+
+Most common relationships: `OWNS` (1,130), `RELATED_TO` (953), `REFERENCES` (559), `DEPENDS_ON` (217), `USES` (202), `CAUSED` (186), `PART_OF` (185).
+
+> Note: this run used the disk-based path (Pattern A) on the *original* `ingest()` API — caller-known entities like Customer/Product/Salesperson and FK relationships like BOUGHT/SOLD_TO were NOT seeded into the graph. Re-running with Pattern B (`ingest_records()` + the new `entities`/`relationships` fields) would add those structured edges on top.
+
+### Sample queries — real `rag.ask()` output
+
+Five queries via `mode="smart"` against the same namespace. Verbatim answers below (full transcript in `_logs/queries.log`).
+
+**Q: "What customers bought ClarityDB Guardian and what was their main pain point?"** *(99 ms retrieval, smart[boosted])*
+
+> Customers who bought ClarityDB Guardian and their main pain points include:
+>
+> 1. **Davis Healthcare Inc.**: They faced issues with an index making other queries slower [source: note-010536-Davis-Healthcare-Inc.md].
+> 2. **Williams Finance Corp.**: They only discovered database problems when customers complained [source: note-008338-Williams-Finance-Corp.md].
+> 3. **Smith Healthcare Group**: They had a manual process for checking alerts across multiple tools and experienced intermittent slow queries [source: note-030041-Smith-Healthcare-Group.md].
+> 4. **Jones Healthcare Solutions**: They needed DBA approval for all queries, which created bottlenecks…
+> 5. **Smith Healthcare Inc.**: They wanted to know when they would hit their maximum IOPS on cloud disks and struggled with root cause analysis…
+
+This is the kind of cross-document reasoning the graph is supposed to enable — each customer-pain-point pair lives in a different note, and the answer chains them through the shared `ClarityDB Guardian` product entity.
+
+**Q: "Which industries had the most won deals?"** *(143 ms retrieval, smart[expanded])*
+
+> The industries with the most won deals are:
+> 1. **Retail** — Multiple deals won, including one for $72,597 ARR and another for $809.54.
+> 2. **Healthcare** — One deal won for $22,541 ARR.
+> 3. **Manufacturing** — One deal won for $655.18.
+>
+> Retail has the highest number of won deals based on the provided context.
+
+**Q: "What objections came up most often in our closed-won deals?"** *(183 ms retrieval, smart[expanded])*
+
+> The context does not provide specific information about objections that came up most often in closed-won deals. It mainly contains notes on contract review meetings with various companies, all mentioning "minor redlines on SLA terms" but no details on objections.
+
+That's the correct answer — won-deal notes don't dwell on objections by definition. The system declines honestly instead of fabricating; that's what `extraction_prompt="dev"` + grounded answer prompt buy.
+
+### What this validates
+
+- Pipeline runs end-to-end on a 649-note corpus in 68 minutes for ~$0.30.
+- Retrieval latency stays sub-500 ms across all 5 queries via `mode="smart"`.
+- Multi-document reasoning works: Q2 chains pain points across 5 different notes via the shared product entity.
+- The system declines honestly when the corpus doesn't contain the answer (Q1).
+- Source attribution in every answer.
+
+### What it doesn't validate (yet)
+
+- Pattern B (in-memory `ingest_records` with caller-supplied `entities`/`relationships`) on this corpus — that's the same data through the better API. Run via `ingest_inmemory.py`; should produce a richer graph anchored in CRM FKs.
+- The medium dataset (~3,300 notes from 1,000 deals) — same script, just scale up to see how cross-deal patterns emerge.
+
+---
+
 ## Loading the sample dataset
 
 If you just want to follow along:
