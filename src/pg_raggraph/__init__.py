@@ -756,12 +756,17 @@ class GraphRAG:
         as_of: datetime | None = None,
         version_filter: str | None = None,
         evolution_aware: bool | None = None,
+        short_answer: bool = False,
     ) -> QueryResult:
         """Query + LLM answer synthesis.
 
         Runs retrieval then generates a grounded natural-language answer
         using the configured LLM. Falls back to a top-chunk summary if no
         LLM is configured — library stays useful as pure vector RAG.
+
+        When ``short_answer=True``, the LLM is asked for a short factoid
+        answer (≤10 tokens, single phrase) instead of a paragraph. Useful
+        for SQuAD-style benchmarks where gold answers are short strings.
         """
         from pg_raggraph.answer import generate_answer
 
@@ -784,7 +789,9 @@ class GraphRAG:
                 except Exception as e:
                     logger.warning(f"LLM provider unavailable: {e}")
             llm = self._llm
-        result.answer = await generate_answer(question, result, llm, self.config)
+        result.answer = await generate_answer(
+            question, result, llm, self.config, short_answer=short_answer
+        )
         return result
 
     async def status(self, namespace: str | None = None) -> dict:

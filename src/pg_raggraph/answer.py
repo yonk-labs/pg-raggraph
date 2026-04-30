@@ -28,6 +28,22 @@ Rules:
 - Do not hallucinate facts not present in the chunks.
 """
 
+SHORT_ANSWER_SYSTEM_PROMPT = """\
+You answer factoid questions. Output ONLY the answer as a short noun phrase,
+named entity, number, or date. No explanation, no reasoning, no citations,
+no preamble, no quotation marks around the answer.
+
+Examples:
+- Q: "What is the capital of France?" → Paris
+- Q: "Who wrote Hamlet?" → William Shakespeare
+- Q: "When was Stanford founded?" → 1885
+
+Constraints:
+- ≤10 tokens. Single phrase. No sentences.
+- If the context is insufficient to answer, output exactly: INSUFFICIENT
+- Do not hallucinate facts not present in the chunks.
+"""
+
 
 def _format_context(result: QueryResult, max_chunks: int = 8) -> str:
     """Format retrieved chunks as LLM context."""
@@ -80,12 +96,17 @@ async def generate_answer(
     result: QueryResult,
     llm: LLMProvider | None,
     config: PGRGConfig,
+    short_answer: bool = False,
 ) -> str:
     """Generate an answer from retrieved chunks using an LLM.
 
     Gracefully degrades when LLM is unavailable — returns a fallback
     summary of the top chunk so the library is still useful without
     any LLM configured.
+
+    When ``short_answer=True``, switches to a factoid prompt that returns
+    a short noun phrase / named entity / number — useful for SQuAD-style
+    benchmarks (MuSiQue, HotpotQA) where gold answers are short strings.
     """
     if not result.chunks:
         return "No relevant content found in the knowledge base."
@@ -94,9 +115,10 @@ async def generate_answer(
         return _fallback_answer(result)
 
     context = _format_context(result)
+    system_prompt = SHORT_ANSWER_SYSTEM_PROMPT if short_answer else ANSWER_SYSTEM_PROMPT
 
     messages = [
-        {"role": "system", "content": ANSWER_SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {
             "role": "user",
             "content": f"Question: {question}\n\nContext:\n{context}\n\nAnswer:",

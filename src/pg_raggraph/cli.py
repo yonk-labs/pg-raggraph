@@ -192,8 +192,15 @@ def query(ctx, question, mode, namespace):
     "Other modes are power-user overrides — see docs/modes.md.",
 )
 @click.option("-n", "--namespace", default=None)
+@click.option(
+    "--short-answer",
+    is_flag=True,
+    default=False,
+    help="Return a short factoid answer (≤10 tokens) instead of a paragraph. "
+    "Useful for SQuAD-style benchmarks (MuSiQue, HotpotQA).",
+)
 @click.pass_context
-def ask(ctx, question, mode, namespace):
+def ask(ctx, question, mode, namespace, short_answer):
     """Ask a question — retrieves chunks and generates a grounded answer."""
 
     async def _ask():
@@ -202,7 +209,9 @@ def ask(ctx, question, mode, namespace):
             kwargs["namespace"] = namespace
         rag = GraphRAG(**kwargs)
         await rag.connect()
-        result = await rag.ask(question, mode=mode, namespace=namespace)
+        result = await rag.ask(
+            question, mode=mode, namespace=namespace, short_answer=short_answer
+        )
         await rag.close()
 
         click.echo(f"\n{result.answer}\n")

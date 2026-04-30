@@ -219,6 +219,12 @@ async def main() -> None:
     )
     parser.add_argument("--limit", type=int, default=0, help="Cap on questions (0 = all)")
     parser.add_argument(
+        "--short-answer",
+        action="store_true",
+        help="Tell rag.ask() to return a short factoid answer (≤10 tokens). "
+        "Required for fair EM/F1 vs MuSiQue gold short-form answers.",
+    )
+    parser.add_argument(
         "--out-tag",
         default=time.strftime("%Y%m%d-%H%M%S"),
         help="Tag suffix for the result file",
@@ -260,7 +266,12 @@ async def main() -> None:
             for mode in modes:
                 t0 = time.perf_counter()
                 try:
-                    result = await rag.ask(q["question"], mode=mode, namespace=NAMESPACE)
+                    result = await rag.ask(
+                        q["question"],
+                        mode=mode,
+                        namespace=NAMESPACE,
+                        short_answer=args.short_answer,
+                    )
                     answer = (result.answer or "").strip()
                     chunks = list(result.chunks)[:5]
                     latency_ms = (time.perf_counter() - t0) * 1000
