@@ -57,6 +57,17 @@ Six-step plan in [`docs/proposals/Accuracy-Improvements-Roadmap.md`](docs/propos
 
 ---
 
+## P2 — Declarative ingest (forward proposal)
+
+User ask: *"less code to write the better for users... configure it in yaml?"* Sketched in [`docs/proposals/Declarative-Ingest.md`](docs/proposals/Declarative-Ingest.md). Two paths:
+
+- Phase 1 — Python builder (`SQLSourceIngest`) that wraps `ingest_records()`. ~50 lines of cookbook boilerplate becomes ~25 lines of declarative class instantiation. ~1 week.
+- Phase 2 — YAML config + `pgrg ingest --config foo.yaml` on top of the builder. ~5 lines of config replaces all of it. ~1 week, conditional on non-Python user demand.
+
+Recommendation: build Phase 1 when there's a second cookbook to write — that'd validate the API shape is right. Defer Phase 2 until a non-Python user surfaces. **Until then, `ingest_records()` + Pattern B in the cookbook is the right teaching surface.**
+
+---
+
 ## P2 — DB-native pg-raggraph (forward proposal, pgrg-native only)
 
 User question: *"is there a way to do these as database functions/primitives? maybe a longer term ask."* Sketched in [`docs/proposals/DB-Native-Ingest.md`](docs/proposals/DB-Native-Ingest.md).
