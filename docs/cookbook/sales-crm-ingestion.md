@@ -292,16 +292,37 @@ async def main():
             rows = cur.fetchall()
 
     # 2. Format in memory; build the records list.
+    #
+    # `metadata` is persisted as documents.metadata JSONB — query later via
+    # `metadata->>'order_id'`. Keep it for filterable scalars only.
+    #
+    # `entities` and `relationships` seed the GRAPH directly with what your
+    # CRM already knows. The LLM doesn't need to re-derive them; it adds
+    # soft signals (champions mentioned, competing products) on top.
     records = [
         {
             "text": format_doc(row),
             "source_id": f"sales_note:{row['note_id']}",
             "metadata": {
                 "order_id": row["order_id"],
+                "customer_id": row["customer_id"],
+                "product_id": row["product_id"],
                 "status": row["status"],
                 "sentiment": row["sentiment"],
                 "note_type": row["note_type"],
             },
+            "entities": [
+                {"name": row["company_name"],     "entity_type": "Customer"},
+                {"name": row["product_name"],    "entity_type": "Product"},
+                {"name": row["salesperson_name"], "entity_type": "Salesperson"},
+            ],
+            "relationships": [
+                {"src": row["company_name"],     "dst": row["product_name"],
+                 "rel_type": "BOUGHT",
+                 "description": f"order #{row['order_id']} ({row['status']})"},
+                {"src": row["salesperson_name"], "dst": row["company_name"],
+                 "rel_type": "SOLD_TO"},
+            ],
         }
         for row in rows
     ]

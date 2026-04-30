@@ -476,14 +476,53 @@ class GraphRAG:
                   scheme like ``"sales_note:42"`` or ``"jira:PROJ-1234"``.
                   Re-ingesting the same source_id with new text replaces
                   the prior version atomically.
-                - ``metadata`` (dict, optional): per-record metadata, same
-                  shape as the ``metadata`` arg on ``ingest()`` (supports
-                  evolution-tracking keys like ``effective_from``,
-                  ``retracted``, ``version_label``).
+                - ``metadata`` (dict, optional): per-record metadata.
+                  Persisted as JSONB on ``documents.metadata`` (queryable
+                  via ``metadata->>'foo'``). Evolution-tracking keys
+                  (``effective_from``, ``effective_to``, ``retracted``,
+                  ``version_label``, ``supersedes_document_id``) are ALSO
+                  written to dedicated columns. Other keys are stored only
+                  in the JSONB.
+                - ``entities`` (list of dict, optional): caller-known
+                  entities to seed the graph. Each: ``{"name": "...",
+                  "entity_type": "...", "description": "...", "properties":
+                  {...}}``. ``name`` is required; the rest are optional.
+                  Entity resolution merges these with LLM-extracted
+                  entities of the same name. Linked to every chunk.
+                - ``relationships`` (list of dict, optional): caller-known
+                  graph edges. Each: ``{"src": "EntityName1",
+                  "dst": "EntityName2", "rel_type": "...", "weight": 1.0,
+                  "description": "..."}``. ``src`` and ``dst`` are
+                  required and must match either a caller-supplied or
+                  LLM-extracted entity name.
+                - ``skip_llm`` (bool, optional, default False): skip LLM
+                  extraction for this document. Useful when the caller's
+                  known_entities/known_relationships already cover what
+                  they care about and the LLM would just add noise / cost.
             namespace: Namespace for data isolation.
             on_progress: Optional callback(message: str) for progress.
 
         Returns: same stats shape as ``ingest()``.
+
+        Example (CRM with known FK relationships):
+
+            records = [{
+                "text": format_doc(row),
+                "source_id": f"sales_note:{row['note_id']}",
+                "metadata": {"order_id": row["order_id"], "status": row["status"]},
+                "entities": [
+                    {"name": row["company_name"], "entity_type": "Customer"},
+                    {"name": row["product_name"], "entity_type": "Product"},
+                    {"name": row["salesperson_name"], "entity_type": "Salesperson"},
+                ],
+                "relationships": [
+                    {"src": row["company_name"], "dst": row["product_name"],
+                     "rel_type": "BOUGHT"},
+                    {"src": row["salesperson_name"], "dst": row["company_name"],
+                     "rel_type": "SOLD_TO"},
+                ],
+            } for row in crm_rows]
+            await rag.ingest_records(records, namespace="sales_calls")
         """
         import asyncio
 
@@ -545,8 +584,10 @@ class GraphRAG:
                 while True:
                     attempt += 1
                     try:
-                        # Per-record metadata wins over batch metadata.
                         rec_meta = rec.get("metadata")
+                        rec_entities = rec.get("entities")
+                        rec_rels = rec.get("relationships")
+                        rec_skip_llm = bool(rec.get("skip_llm", False))
                         r = await self._ingest_one_content(
                             rec["text"],
                             source_id=rec["source_id"],
@@ -557,6 +598,9 @@ class GraphRAG:
                             chunk_document_fn=chunk_document,
                             extract_from_chunks_fn=extract_from_chunks,
                             metadata=rec_meta,
+                            known_entities=rec_entities,
+                            known_relationships=rec_rels,
+                            skip_llm_for_this_doc=rec_skip_llm,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -657,6 +701,9 @@ class GraphRAG:
         chunk_document_fn,
         extract_from_chunks_fn,
         metadata: dict | None = None,
+        known_entities: list[dict] | None = None,
+        known_relationships: list[dict] | None = None,
+        skip_llm_for_this_doc: bool = False,
     ):
         """Ingest a single document from in-memory content with all DB
         writes in a single transaction.
@@ -671,6 +718,23 @@ class GraphRAG:
         content_hash) and stale-doc cleanup. Use a stable string —
         e.g. ``"sales_note:42"`` — so re-ingests of the same record
         replace the prior version atomically.
+
+        ``known_entities`` and ``known_relationships`` let callers seed
+        the graph with structured edges they already have (e.g. FK-derived
+        relationships from a CRM). Each known entity is linked to every
+        chunk of the document; each known relationship is linked to the
+        first chunk. They merge with LLM-extracted entities/relationships
+        via the entity-resolution path — same name across both sources
+        resolves to the same row.
+
+        ``metadata`` is now persisted to ``documents.metadata`` JSONB as a
+        whole (in addition to the evolution-tracking columns). Query via
+        ``metadata->>'foo'`` after ingest.
+
+        ``skip_llm_for_this_doc`` skips LLM extraction for this document
+        only — useful when the caller's known_entities/known_relationships
+        already cover everything they care about and the LLM would just
+        add noise (or cost).
         """
         # Use the source_id as the chunker's path hint so .md/.py-style
         # extension detection still works for callers that pass
@@ -700,9 +764,11 @@ class GraphRAG:
         chunk_embeddings = await embedder.embed(texts)
 
         # Extract entities/relationships via LLM (cache reads OK outside txn).
-        # If llm is None, skip extraction entirely — pure vector RAG mode.
+        # If llm is None or skip_llm_for_this_doc is set, skip extraction
+        # entirely — pure vector RAG mode (with whatever known_entities /
+        # known_relationships the caller provides as the only graph signal).
         extraction_degraded = False
-        if llm is None:
+        if llm is None or skip_llm_for_this_doc:
             from pg_raggraph.models import ExtractionResult
 
             extraction_results = [ExtractionResult() for _ in chunks]
@@ -745,6 +811,58 @@ class GraphRAG:
                     for r in extraction.relationships
                 ]
             )
+
+        # Merge caller-supplied known entities and relationships.
+        # Known entities are document-level: linked to every chunk.
+        # Known relationships attach to chunk[0] (only one anchor point
+        # is needed; graph traversal queries entities, not chunks).
+        if known_entities:
+            all_chunk_idxs = list(range(len(chunks)))
+            for ke in known_entities:
+                if not ke.get("name"):
+                    raise ValueError("known_entities entries must include a non-empty 'name'")
+                name = ke["name"]
+                ke_desc = ke.get("description", "") or ""
+                ke_type = ke.get("entity_type", "ENTITY")
+                if name not in unique_entities:
+                    unique_entities[name] = {
+                        "entity_type": ke_type,
+                        "description": ke_desc,
+                        "chunks": list(all_chunk_idxs),
+                    }
+                else:
+                    # LLM also found this entity. Caller's domain knowledge
+                    # WINS on entity_type and (if non-empty) description —
+                    # the user explicitly tagged this as a Customer/Product/
+                    # whatever, so don't let the LLM's generic "company"
+                    # classification overwrite the caller's intent.
+                    if ke_type and ke_type != "ENTITY":
+                        unique_entities[name]["entity_type"] = ke_type
+                    if ke_desc:
+                        unique_entities[name]["description"] = ke_desc
+                    existing = set(unique_entities[name]["chunks"])
+                    existing.update(all_chunk_idxs)
+                    unique_entities[name]["chunks"] = sorted(existing)
+                # Reflect in chunk_to_entities so entity_chunks links are written.
+                for ci in all_chunk_idxs:
+                    if name not in chunk_to_entities[ci]:
+                        chunk_to_entities[ci].append(name)
+
+        if known_relationships:
+            for kr in known_relationships:
+                if not (kr.get("src") and kr.get("dst")):
+                    raise ValueError(
+                        "known_relationships entries must include 'src' and 'dst'"
+                    )
+                rel_tuple = (
+                    kr["src"],
+                    kr["dst"],
+                    kr.get("rel_type", "RELATED_TO"),
+                    kr.get("description", "") or "",
+                    float(kr.get("weight", 1.0)),
+                )
+                # Anchor on chunk[0] — relationships are document-level.
+                chunk_to_rels[0].append(rel_tuple)
 
         # Batch embed entities (no DB)
         if unique_entities:
@@ -796,13 +914,22 @@ class GraphRAG:
             version_label = meta.get("version_label")
             supersedes_doc = meta.get("supersedes_document_id")
 
+            # Persist arbitrary caller metadata to documents.metadata JSONB.
+            # The dedicated evolution columns (effective_from etc.) ALSO get
+            # the same fields, so callers can query either way.
+            # Re-ingest merges (caller intent: add new keys, update changed
+            # keys, leave untouched keys alone) — implemented via JSONB
+            # concat in the ON CONFLICT branch.
+            doc_metadata_json = json.dumps(meta) if meta else "{}"
+
             doc_id = await tx.insert_returning_id(
                 "INSERT INTO documents "
-                "(namespace, content_hash, source_path, "
+                "(namespace, content_hash, source_path, metadata, "
                 " effective_from, effective_to, retracted, version_label) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s) "
+                "VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s) "
                 "ON CONFLICT (namespace, content_hash) DO UPDATE "
                 "SET source_path = EXCLUDED.source_path, "
+                "    metadata = documents.metadata || EXCLUDED.metadata, "
                 "    effective_from = COALESCE("
                 "EXCLUDED.effective_from, documents.effective_from), "
                 "    effective_to = COALESCE("
@@ -816,6 +943,7 @@ class GraphRAG:
                     ns,
                     c_hash,
                     file_path,
+                    doc_metadata_json,
                     eff_from,
                     eff_to,
                     retracted_value,

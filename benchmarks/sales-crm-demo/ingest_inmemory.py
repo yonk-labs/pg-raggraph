@@ -114,7 +114,56 @@ def format_doc(row: dict) -> str:
 
 
 def row_to_record(row: dict) -> dict:
-    """Convert a CRM row into an ingest_records() record dict."""
+    """Convert a CRM row into an ingest_records() record dict.
+
+    Brings *known* structure from the CRM directly:
+      - metadata: filterable fields (status, sentiment, FK ids) → JSONB
+      - entities: pre-tagged Customer / Product / Salesperson — the LLM
+        doesn't need to re-derive these. They get linked to every chunk.
+      - relationships: FK-derived edges (Customer-BOUGHT-Product,
+        Salesperson-SOLD_TO-Customer). The LLM still extracts soft
+        signals (champions, blockers, competitors mentioned) on top.
+    """
+    company = row["company_name"]
+    product = row["product_name"]
+    salesperson = row["salesperson_name"]
+
+    entities = []
+    if company:
+        entities.append({
+            "name": company,
+            "entity_type": "Customer",
+            "description": (
+                f"{row.get('industry') or ''} "
+                f"{row.get('hq_city') or ''}, {row.get('hq_state') or ''}"
+            ).strip(),
+        })
+    if product:
+        entities.append({
+            "name": product,
+            "entity_type": "Product",
+            "description": row.get("category") or "",
+        })
+    if salesperson:
+        entities.append({"name": salesperson, "entity_type": "Salesperson"})
+
+    relationships = []
+    if company and product:
+        relationships.append({
+            "src": company, "dst": product, "rel_type": "BOUGHT",
+            "description": f"order #{row['order_id']} ({row['status']})",
+        })
+    if salesperson and company:
+        relationships.append({
+            "src": salesperson, "dst": company, "rel_type": "SOLD_TO",
+        })
+    if company and row.get("use_case"):
+        relationships.append({
+            "src": company, "dst": row["use_case"], "rel_type": "HAS_USE_CASE",
+        })
+        # Make sure UseCase is in entities so the relationship's dst resolves.
+        entities.append({"name": row["use_case"], "entity_type": "UseCase"})
+
     return {
         "text": format_doc(row),
         "source_id": f"sales_note:{row['note_id']}",
@@ -129,6 +178,8 @@ def row_to_record(row: dict) -> dict:
             "primary_use_case": row["use_case"],
             "use_cases_mentioned": row["use_case_mentioned"] or [],
         },
+        "entities": entities,
+        "relationships": relationships,
     }
 
 
