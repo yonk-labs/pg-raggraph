@@ -230,12 +230,67 @@ For benchmarks that are retrieval-bound (e.g., MuSiQue, HotpotQA), `rerank=True`
 
 ---
 
+---
+
+## v4 — Step 2b (`short_answer + rerank` with MiniLM-L-6, factor=2), 2026-04-30 06:50
+
+The Step 2 latency overshoot prompted a default-model swap: `BAAI/bge-reranker-base` (1 GB) → `Xenova/ms-marco-MiniLM-L-6-v2` (80 MB), and `rerank_factor` 4 → 2.
+
+### Headline (by mode)
+
+| Mode | EM | F1 | Support recall | Qwen judge | OpenAI judge | p50 latency |
+|---|---|---|---|---|---|---|
+| naive | 20.0 % | 26.5 % | 62.4 % | 37.7 % | 28.0 % | 1,364 ms |
+| naive_boost | 20.0 % | 26.5 % | 62.4 % | 36.0 % | 28.7 % | **934 ms** |
+| hybrid | 23.0 % | 29.7 % | 61.7 % | 43.0 % | 33.7 % | 1,342 ms |
+| smart | **24.0 %** | **30.8 %** | 59.8 % | **44.3 %** | 33.7 % | **993 ms** |
+
+### Step 2 (bge-reranker-base) vs Step 2b (MiniLM-L-6) — the latency/accuracy tradeoff
+
+| Mode | F1 (Step 2) | F1 (Step 2b) | F1 Δ | Latency (Step 2) | Latency (Step 2b) | Latency Δ |
+|---|---|---|---|---|---|---|
+| naive | 31.2 % | 26.5 % | **−4.7** | 3,754 ms | 1,364 ms | **−2,390 ms (2.8× faster)** |
+| naive_boost | 30.0 % | 26.5 % | −3.5 | 3,677 ms | 934 ms | **−2,743 ms (3.9× faster)** |
+| hybrid | 29.7 % | 29.7 % | 0.0 | 3,253 ms | 1,342 ms | **−1,911 ms (2.4× faster)** |
+| smart | 30.1 % | 30.8 % | +0.7 | 3,141 ms | 993 ms | **−2,148 ms (3.2× faster)** |
+
+### DoD — partial pass on latency, partial regress on naive accuracy
+
+| DoD criterion | Target | Actual | Result |
+|---|---|---|---|
+| p50 latency add over Step 1 | ≤ +400 ms | naive +374 (✅), naive_boost +622 (❌), hybrid −496 (✅), smart +625 (❌) | mixed — within target on 2 of 4 modes |
+| Preserve most of Step 2's lift on naive | preserve ≥ 70% of +6.8 F1 | got +2.1 F1 / +6.8 = **31% of the lift** | ❌ keeps less than expected |
+| 2.4-3.9× faster than bge-reranker | implicit in switch rationale | confirmed across all modes | ✅ |
+| `smart` mode F1 ≥ 50% of judges | aspirational | Qwen 44.3 %, OpenAI 33.7 % | ❌ same gap as Step 2 |
+
+### Reading
+
+- **Latency win is real and the headline.** MiniLM-L-6 is 2.4-3.9× faster across modes. naive_boost on rerank is now 934 ms (vs 3,677 ms with bge-reranker). hybrid actually came in *faster* than the no-rerank baseline (1,342 ms vs 1,838 ms in Step 1) — likely a combination of the larger candidate pool helping hybrid skip its expensive global merge AND Qwen LLM variance between runs.
+- **Accuracy lift smaller than bge-reranker.** Naive F1 +2.1 pp over Step 1 (vs +6.8 pp with bge-reranker). The smaller cross-encoder is doing real work, but ~3 fewer F1 points per mode than the 1 GB model.
+- **`smart` is the best mode in this configuration.** Top F1 (30.8 %), top Qwen judge (44.3 %), and lowest latency among multi-mode configurations (993 ms). If you're going to ship one mode + rerank as a default, this is it.
+- **Hybrid still regresses vs Step 1** (no rerank). Same finding as Step 2 — reranking on top of hybrid's local+global merge picks differently than its existing scoring path.
+
+### Recommendation — what to ship as default
+
+`rerank_model = "Xenova/ms-marco-MiniLM-L-6-v2"` and `rerank_factor = 2` are the right defaults. Both are committed in `6cf114a`. Power users who want maximum accuracy can override with `rerank_model = "BAAI/bge-reranker-base"` and `rerank_factor = 4` per the Config-Reference docs.
+
+`rerank=False` remains the per-call default. Users opt in when retrieval quality matters more than the +400-700 ms latency floor.
+
+---
+
+## Picking it up later
+
+There's plenty of headroom left on MuSiQue that we haven't pushed on. Captured separately so it's a real worklist, not buried in this results file: see [`tuning-ideas.md`](tuning-ideas.md).
+
+---
+
 ## Files
 
 - **v1 raw rows:** `_results/results-20260429-145103.json`
-- **v2 (Step 1) raw rows:** `_results/results-short_answer-20260429-205512.json`
-- **v3 (Step 2) raw rows:** `_results/results-rerank-20260429-221301.json`
+- **v2 (Step 1, short_answer) raw rows:** `_results/results-short_answer-20260429-205512.json`
+- **v3 (Step 2, bge-reranker-base + short_answer) raw rows:** `_results/results-rerank-20260429-221301.json`
+- **v4 (Step 2b, MiniLM-L-6 + short_answer) raw rows:** `_results/results-rerank_minilm-20260430-061145.json`
 - **Sampled question set:** `questions.json`
 - **Pooled corpus:** `docs/*.md` (1,700 files, gitignored)
 - **Manifest:** `manifest.json`
-- **Logs:** `_logs/ingest.log`, `_logs/run.log`, `_logs/run-short_answer.log`, `_logs/run-rerank.log`
+- **Logs:** `_logs/ingest.log`, `_logs/run.log`, `_logs/run-short_answer.log`, `_logs/run-rerank.log`, `_logs/run-rerank-minilm.log`

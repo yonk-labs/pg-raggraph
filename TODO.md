@@ -47,11 +47,13 @@ Six-step plan in [`docs/proposals/Accuracy-Improvements-Roadmap.md`](docs/propos
 
 - ✅ **Step 1 — `short_answer` mode (commit `fd842d5`).** Validated 2026-04-29. EM 0% → 27%, F1 4.4% → 33% on hybrid. Latency dropped 7.6× on `smart`. DoD met.
 - ✅ **Step 2 — cross-encoder reranker (commit `2709f43`).** Validated 2026-04-29. Lifts `naive`/`naive_boost` by +5-7 F1 and +8 pp support recall but regresses `hybrid` slightly (-3.3 F1). **Latency DoD missed** (+1.4 to +3.4 s vs +80 ms target on this CPU box). Default stays `rerank=False` — opt-in only. Follow-up below.
-- ⬜ **Step 2b — reranker model swap (NEW, gating Step 3).** Switch default `rerank_model` to `Xenova/ms-marco-MiniLM-L-6-v2` (80 MB, ~5× faster, <2 pp accuracy loss per public benchmarks) and consider `rerank_factor=2` instead of 4. Target: bring p50 add under +400 ms while preserving the naive/naive_boost lift.
+- ✅ **Step 2b — reranker model swap (commits `6cf114a`, validation `9a6c287` and follow-ups).** MiniLM-L-6 + factor=2 shipped as default. 2.4-3.9× faster than bge-reranker-base across modes. Latency DoD met on 2 of 4 modes (naive, hybrid). Accuracy lift is smaller (~31% of bge-reranker's lift on naive) but that's the right tradeoff for a default — power users can still pick `rerank_model="BAAI/bge-reranker-base"` for accuracy-first work. Full numbers in [`benchmarks/musique/results.md`](benchmarks/musique/results.md) v4 section.
 - ⬜ Step 3 — PPR over `relationships` (Phase B from PropRAG proposal) — +3-5 pp on multi-hop, +30-50 ms (1 week)
 - ⬜ Step 4 — Smart routing tunes — encode "right amount of graph is a little" finding (2-3 days)
 - ⬜ Step 5 — Propositions (Phase A from PropRAG proposal) — +3-5 pp standalone (1 week)
 - ⬜ Step 6 — PPR over proposition cliques (Phase C) — +5-10 pp combined (1 week)
+
+> **MuSiQue tuning parking-lot:** comprehensive list of unexplored ideas (chunkshop strategies, MiniLM-L-12, per-mode rerank flag, embedder swap variants, HyDE, multi-query) lives in [`benchmarks/musique/tuning-ideas.md`](benchmarks/musique/tuning-ideas.md). Pickup priority captured there. **Not pulling on these now — more relevant work is in the CRM/dev-rel direction.**
 
 Decision branches captured in the roadmap; Tier 3 ideas (HyDE, multi-query) explicitly deferred as `smart`-mode escalations only.
 
