@@ -1,17 +1,26 @@
-"""Build a self-contained SQL sample of the demo sales CRM.
+"""Build self-contained SQL sample(s) of the demo sales CRM.
 
-Reads the live demo database (200 won + 100 lost deals + all their
-dependencies and notes), writes a single .sql file that can be loaded
-into any Postgres instance via:
+Reads the live demo database, writes one .sql file per tier:
 
-    psql -h <host> -d <db> -f docs/cookbook/samples/sales-crm-demo.sql
+  small  (200 won + 100 lost deals)  → quick iteration, ~0.8 MB
+  medium (700 won + 300 lost deals)  → realistic shape, ~3-4 MB
 
-This is a one-shot helper — the resulting .sql file is the actual
-deliverable. Re-run if the demo data ever changes.
+Each .sql file loads into any Postgres 14+ via:
+
+    psql -h <host> -d <db> -f docs/cookbook/samples/sales-crm-demo-small.sql
+
+This is a one-shot helper — the resulting .sql files are the actual
+deliverables. Re-run if the demo data ever changes.
+
+Usage:
+    python _build_sample.py            # builds both small and medium
+    python _build_sample.py --tier small
+    python _build_sample.py --tier medium
 """
 
 from __future__ import annotations
 
+import argparse
 import os
 from pathlib import Path
 
@@ -21,11 +30,13 @@ CRM_DSN = os.environ.get(
     "CRM_DSN",
     "postgresql://sales_demo_app:salesdemo123@127.0.0.1:5432/postgres",
 )
-OUT = Path(__file__).parent / "sales-crm-demo.sql"
+HERE = Path(__file__).parent
 SCHEMA_DUMP = Path("/tmp/sales-crm-demo-schema.sql")  # produced by pg_dump --schema-only
 
-WON_SAMPLE = 200
-LOST_SAMPLE = 100
+TIERS = {
+    "small":  {"won": 200, "lost": 100},
+    "medium": {"won": 700, "lost": 300},
+}
 SEED = 20260430
 
 
@@ -69,20 +80,31 @@ def insert_rows(table: str, rows: list[dict], cols: list[str]) -> str:
     return "\n".join(lines) + "\n\n"
 
 
-def main():
-    # 1. Pull schema dump (already produced via pg_dump --schema-only).
-    schema_sql = SCHEMA_DUMP.read_text() if SCHEMA_DUMP.exists() else ""
-    if not schema_sql:
-        raise SystemExit(
-            "Run first:  pg_dump -h 127.0.0.1 -U sales_demo_app -d postgres "
-            "--schema=sales_demo_app --schema-only "
-            "--table=sales_demo_app.salespeople "
-            "--table=sales_demo_app.customers "
-            "--table=sales_demo_app.products "
-            "--table=sales_demo_app.sales_orders "
-            "--table=sales_demo_app.sales_notes "
-            "--no-owner --no-privileges -f /tmp/sales-crm-demo-schema.sql"
-        )
+def _clean_schema_dump(s: str) -> str:
+    """Strip pg-version-specific noise so the dump loads on PG 14+."""
+    out = []
+    skip_trigger = False
+    for line in s.splitlines():
+        # PG18-specific psql restrict directives
+        if line.startswith("\\restrict ") or line.startswith("\\unrestrict "):
+            continue
+        # PG18-specific session var
+        if line.strip() == "SET transaction_timeout = 0;":
+            continue
+        # CREATE TRIGGER blocks reference functions we don't bundle
+        if line.startswith("CREATE TRIGGER "):
+            skip_trigger = True
+        if skip_trigger:
+            if line.rstrip().endswith(";"):
+                skip_trigger = False
+            continue
+        out.append(line)
+    return "\n".join(out)
+
+
+def build_tier(tier_name: str, won_n: int, lost_n: int, schema_sql: str):
+    out_path = HERE / f"sales-crm-demo-{tier_name}.sql"
+    schema_sql = _clean_schema_dump(schema_sql)
 
     with psycopg.connect(CRM_DSN, row_factory=psycopg.rows.dict_row) as conn:
         with conn.cursor() as cur:
@@ -90,17 +112,17 @@ def main():
             cur.execute(
                 "SELECT order_id FROM sales_demo_app.sales_orders "
                 "WHERE status='won' ORDER BY md5(order_id::text || %s::text) LIMIT %s",
-                (str(SEED), WON_SAMPLE),
+                (str(SEED), won_n),
             )
             won_ids = [r["order_id"] for r in cur.fetchall()]
             cur.execute(
                 "SELECT order_id FROM sales_demo_app.sales_orders "
                 "WHERE status='lost' ORDER BY md5(order_id::text || %s::text) LIMIT %s",
-                (str(SEED), LOST_SAMPLE),
+                (str(SEED), lost_n),
             )
             lost_ids = [r["order_id"] for r in cur.fetchall()]
             order_ids = won_ids + lost_ids
-            print(f"Sample: {len(won_ids)} won + {len(lost_ids)} lost = {len(order_ids)} deals")
+            print(f"\n[{tier_name}] {len(won_ids)} won + {len(lost_ids)} lost = {len(order_ids)} deals")
 
             # Pull orders
             cur.execute(
@@ -149,18 +171,19 @@ def main():
             sp_cols = list(salespeople[0].keys()) if salespeople else []
 
     print(
-        f"Loaded: {len(customers)} customers, {len(products)} products, "
+        f"  loaded: {len(customers)} customers, {len(products)} products, "
         f"{len(salespeople)} salespeople, {len(orders)} orders, {len(notes)} notes"
     )
 
     # 2. Stitch together: schema + data inserts in dependency order.
     sql_parts = [
-        "-- Sales CRM demo dataset for pg-raggraph cookbook example.",
+        f"-- Sales CRM demo dataset for pg-raggraph cookbook (tier: {tier_name}).",
         "-- Synthetic data; safe to share. See docs/cookbook/sales-crm-ingestion.md.",
-        f"-- Sample: {WON_SAMPLE} won + {LOST_SAMPLE} lost deals + dependencies.",
-        f"-- Generated 2026-04-30.",
+        f"-- Sample: {won_n} won + {lost_n} lost deals + dependencies.",
+        "-- Generated 2026-04-30.",
         "",
         "BEGIN;",
+        "CREATE SCHEMA IF NOT EXISTS sales_demo_app;",
         "",
         schema_sql.strip(),
         "",
@@ -186,9 +209,38 @@ def main():
         "COMMIT;",
     ]
 
-    OUT.write_text("\n".join(sql_parts))
-    size_mb = OUT.stat().st_size / 1024 / 1024
-    print(f"Wrote {OUT} ({size_mb:.2f} MB)")
+    out_path.write_text("\n".join(sql_parts))
+    size_mb = out_path.stat().st_size / 1024 / 1024
+    print(f"  wrote {out_path.name} ({size_mb:.2f} MB)")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--tier",
+        choices=list(TIERS.keys()) + ["all"],
+        default="all",
+        help="Which tier(s) to generate.",
+    )
+    args = parser.parse_args()
+
+    schema_sql = SCHEMA_DUMP.read_text() if SCHEMA_DUMP.exists() else ""
+    if not schema_sql:
+        raise SystemExit(
+            "Run first:  pg_dump -h 127.0.0.1 -U sales_demo_app -d postgres "
+            "--schema=sales_demo_app --schema-only "
+            "--table=sales_demo_app.salespeople "
+            "--table=sales_demo_app.customers "
+            "--table=sales_demo_app.products "
+            "--table=sales_demo_app.sales_orders "
+            "--table=sales_demo_app.sales_notes "
+            "--no-owner --no-privileges -f /tmp/sales-crm-demo-schema.sql"
+        )
+
+    tiers_to_build = list(TIERS.keys()) if args.tier == "all" else [args.tier]
+    for tier in tiers_to_build:
+        sizes = TIERS[tier]
+        build_tier(tier, sizes["won"], sizes["lost"], schema_sql)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
--- Sales CRM demo dataset for pg-raggraph cookbook example.
+-- Sales CRM demo dataset for pg-raggraph cookbook (tier: small).
 -- Synthetic data; safe to share. See docs/cookbook/sales-crm-ingestion.md.
 -- Sample: 200 won + 100 lost deals + dependencies.
 -- Generated 2026-04-30.
@@ -471,9 +471,23 @@ CREATE INDEX idx_salespeople_region ON sales_demo_app.salespeople USING btree (r
 
 
 --
+-- Name: sales_notes trg_sales_notes_tsv; Type: TRIGGER; Schema: sales_demo_app; Owner: -
+--
+
+
+
+--
 -- Name: sales_orders update_customer_products; Type: TRIGGER; Schema: sales_demo_app; Owner: -
 --
 
+
+
+--
+-- Name: sales_notes sales_notes_order_id_fkey; Type: FK CONSTRAINT; Schema: sales_demo_app; Owner: -
+--
+
+ALTER TABLE ONLY sales_demo_app.sales_notes
+    ADD CONSTRAINT sales_notes_order_id_fkey FOREIGN KEY (order_id) REFERENCES sales_demo_app.sales_orders(order_id);
 
 
 --
@@ -511,7 +525,6 @@ ALTER TABLE ONLY sales_demo_app.sales_orders
 --
 -- PostgreSQL database dump complete
 --
-
 
 -- Data (dependency order: salespeople, customers, products → orders → notes).
 
