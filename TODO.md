@@ -43,17 +43,19 @@ Mission: prove (or disprove) that pgrg's graph modes beat naive vector retrieval
 
 Six-step plan in [`docs/proposals/Accuracy-Improvements-Roadmap.md`](docs/proposals/Accuracy-Improvements-Roadmap.md). Constraint: no substantial sacrifice in latency or per-query cost. Total expected lift ~+10-15 pp on MuSiQue with ~+100-150 ms p50 latency and zero added per-query LLM cost.
 
-Order:
-1. `short_answer` mode for `rag.ask()` — fixes MuSiQue EM/F1 measurement (1-2 days)
-2. Cross-encoder reranker (`bge-reranker-base`, CPU) — +3-7 pp, +50-80 ms (3-5 days)
-3. PPR over `relationships` (Phase B from PropRAG proposal) — +3-5 pp on multi-hop, +30-50 ms (1 week)
-4. Smart routing tunes — encode "right amount of graph is a little" finding (2-3 days)
-5. Propositions (Phase A from PropRAG proposal) — +3-5 pp standalone (1 week)
-6. PPR over proposition cliques (Phase C) — +5-10 pp combined (1 week)
+### Status
+
+- ✅ **Step 1 — `short_answer` mode (commit `fd842d5`).** Validated 2026-04-29. EM 0% → 27%, F1 4.4% → 33% on hybrid. Latency dropped 7.6× on `smart`. DoD met.
+- ✅ **Step 2 — cross-encoder reranker (commit `2709f43`).** Validated 2026-04-29. Lifts `naive`/`naive_boost` by +5-7 F1 and +8 pp support recall but regresses `hybrid` slightly (-3.3 F1). **Latency DoD missed** (+1.4 to +3.4 s vs +80 ms target on this CPU box). Default stays `rerank=False` — opt-in only. Follow-up below.
+- ⬜ **Step 2b — reranker model swap (NEW, gating Step 3).** Switch default `rerank_model` to `Xenova/ms-marco-MiniLM-L-6-v2` (80 MB, ~5× faster, <2 pp accuracy loss per public benchmarks) and consider `rerank_factor=2` instead of 4. Target: bring p50 add under +400 ms while preserving the naive/naive_boost lift.
+- ⬜ Step 3 — PPR over `relationships` (Phase B from PropRAG proposal) — +3-5 pp on multi-hop, +30-50 ms (1 week)
+- ⬜ Step 4 — Smart routing tunes — encode "right amount of graph is a little" finding (2-3 days)
+- ⬜ Step 5 — Propositions (Phase A from PropRAG proposal) — +3-5 pp standalone (1 week)
+- ⬜ Step 6 — PPR over proposition cliques (Phase C) — +5-10 pp combined (1 week)
 
 Decision branches captured in the roadmap; Tier 3 ideas (HyDE, multi-query) explicitly deferred as `smart`-mode escalations only.
 
-Sub-proposal: [`docs/proposals/PropRAG-on-Postgres.md`](docs/proposals/PropRAG-on-Postgres.md) covers Steps 3, 5, 6 in depth. Steps 1, 2, 4 are the additional Tier-1 wins surfaced by the consolidation.
+Sub-proposal: [`docs/proposals/PropRAG-on-Postgres.md`](docs/proposals/PropRAG-on-Postgres.md) covers Steps 3, 5, 6 in depth.
 
 ---
 

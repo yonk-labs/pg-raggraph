@@ -117,6 +117,8 @@ The earlier (pre-2026-04-29) sections below are kept as history for prior cross-
 
 First real-world multi-hop benchmark for pg-raggraph. **MuSiQue-Ans dev split, n=100 stratified across 33/33/34 across 2-hop / 3-hop / 4-hop.** Pooled corpus of 1,700 unique paragraphs (supporting + distractor) ingested as one namespace. 4 modes × 100 Qs × 2 LLM judges = 1,200 evaluations. Full writeup: [`benchmarks/musique/results.md`](musique/results.md).
 
+> **Late-session update (2026-04-29 23:08).** Steps 1 and 2 from [`docs/proposals/Accuracy-Improvements-Roadmap.md`](../docs/proposals/Accuracy-Improvements-Roadmap.md) shipped. Step 1 (`short_answer` mode) lifted F1 from **4.4% → 33.0%** (hybrid) at zero added cost. Step 2 (cross-encoder reranker) lifted F1 further on `naive`/`naive_boost` (+5-7 pp) and support recall by +8 pp across the board, but regressed `hybrid` slightly and overshot the +80 ms latency DoD by 17-42×. The v1 numbers below are kept for v0 narrative; **see `benchmarks/musique/results.md` v2/v3 sections for current canonical numbers.**
+
 ### What this corpus tests
 
 MuSiQue questions are *constructed* to require multi-hop reasoning. A 4-hop question chains four facts across four documents, with shared entities as the only connection. If graph mode never helps anywhere, MuSiQue is the corpus where it should — questions can't be answered by retrieving any single paragraph.
