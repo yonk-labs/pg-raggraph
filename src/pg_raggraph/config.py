@@ -171,12 +171,20 @@ class PGRGConfig(BaseSettings):
     top_k: int = 10
     similarity_threshold: float = 0.3
 
-    # Cross-encoder reranking (off by default; opt-in per-query via rerank=True)
+    # Cross-encoder reranking (off by default; opt-in per-query via rerank=True).
     # When enabled, retrieval fetches top_k * rerank_factor candidates, then a
     # cross-encoder scores each (question, chunk) pair and trims to top_k.
-    # Adds ~30-80 ms p50 latency, zero per-query LLM cost.
-    rerank_model: str = "BAAI/bge-reranker-base"
-    rerank_factor: int = 4
+    #
+    # Default model: Xenova/ms-marco-MiniLM-L-6-v2 (~80 MB, ~5x faster on CPU
+    #   than bge-reranker-base, <2 pp accuracy loss per public benchmarks).
+    # Alternative for accuracy-first workloads: "BAAI/bge-reranker-base"
+    #   (~1 GB, slower but higher quality on hard pairs).
+    #
+    # rerank_factor=2 means we fetch top_k*2 candidates then rerank to top_k.
+    # Larger values fetch more candidates (better recall, slower); smaller
+    # values stay closer to the original ranking.
+    rerank_model: str = "Xenova/ms-marco-MiniLM-L-6-v2"
+    rerank_factor: int = 2
 
     # Smart mode routing thresholds
     # If top chunk score >= boost_confidence_threshold: return naive result as-is

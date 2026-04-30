@@ -139,14 +139,28 @@ class GraphRAG:
                 print(chunk.content)
     """
 
-    def __init__(self, dsn: str | None = None, **kwargs):
+    def __init__(self, dsn: str | None = None, *, reranker=None, **kwargs):
+        """Construct a GraphRAG instance.
+
+        Args:
+            dsn: PostgreSQL connection string. Optional — can also be set
+                via PGRG_DSN env var or kwargs["dsn"].
+            reranker: Optional Reranker (see pg_raggraph.reranker.Reranker
+                protocol) to inject for power users. If None, a
+                FastEmbedReranker is lazy-loaded from config.rerank_model
+                on first use of rerank=True.
+            **kwargs: Any PGRGConfig field. See docs/Config-Reference.md
+                for the full list.
+        """
         if dsn:
             kwargs["dsn"] = dsn
         self.config = PGRGConfig(**kwargs)
         self._db = None
         self._embedder = None
         self._llm = None  # Shared LLM provider; closed with the instance
-        self._reranker = None  # Lazy-loaded cross-encoder reranker
+        # If user injects a reranker, use it; otherwise lazy-load from
+        # config.rerank_model on first rerank=True call.
+        self._reranker = reranker
         # PR-209: cooperative shutdown signal for long-running ingest loops.
         # Lazily initialized inside ingest() because it must be created on the
         # running asyncio loop, not at __init__ time.
