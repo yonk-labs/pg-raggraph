@@ -1,0 +1,76 @@
+# chunkshop bakeoff on PostgreSQL docs (31 markdown files in benchmarks/postgres-docs/).
+# Each gold query is a one-doc lookup — the kind of question a postgres engineer
+# would actually ask while working.
+
+name: pgdocs_bakeoff
+
+source:
+  type: files
+  glob: benchmarks/postgres-docs/*.md
+  id_from: stem
+  encoding: utf-8
+
+gold_queries:
+  - query: "How do I configure HNSW vector indexes for pgvector?"
+    gold_doc_id: "edb-rag-pgvector"
+  - query: "What are the EXPLAIN options for analyzing query plans?"
+    gold_doc_id: "pg-explain"
+  - query: "How does Postgres handle MVCC and snapshot isolation?"
+    gold_doc_id: "pg-mvcc"
+  - query: "What's the difference between logical and physical replication?"
+    gold_doc_id: "pg-logical-replication"
+  - query: "How do I set up table partitioning by range or list?"
+    gold_doc_id: "pg-partitioning"
+  - query: "What authentication methods does pg_hba.conf support?"
+    gold_doc_id: "pg-auth"
+  - query: "How does parallel query execution work and when does it help?"
+    gold_doc_id: "pg-parallel-query"
+  - query: "What's the syntax for creating tsvector columns and full-text search indexes?"
+    gold_doc_id: "pg-full-text-search"
+  - query: "How do I tune Postgres for write-heavy workloads?"
+    gold_doc_id: "pg-performance-tips"
+  - query: "What JSON operators and indexing strategies does Postgres support?"
+    gold_doc_id: "pg-json"
+
+matrix:
+  embedders:
+    - type: fastembed
+      model_name: BAAI/bge-small-en-v1.5
+      dim: 384
+      threads: 4
+      batch_size: 64
+    - type: fastembed
+      model_name: BAAI/bge-base-en-v1.5
+      dim: 768
+      threads: 4
+      batch_size: 64
+    - type: fastembed
+      model_name: Xenova/bge-base-en-v1.5-int8
+      dim: 768
+      threads: 4
+      batch_size: 64
+
+  chunkers:
+    - type: hierarchy
+      prefix_heading: true
+      max_chars: 2000
+    - type: sentence_aware
+      max_chars: 2000
+    - type: fixed_overlap
+      window_words: 300
+      step_words: 150
+
+target:
+  dsn_env: PGRG_DSN
+  schema: chunkshop_bakeoff_pgdocs
+
+scoring:
+  k: [1, 3, 5]
+  include_mrr: true
+  top_k: 5
+
+output_dir: benchmarks/postgres-docs/_logs/bakeoff
+
+runtime:
+  omp_num_threads: 4
+  heartbeat_every: 10
