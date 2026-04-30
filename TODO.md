@@ -57,11 +57,18 @@ Six-step plan in [`docs/proposals/Accuracy-Improvements-Roadmap.md`](docs/propos
 
 ---
 
-## P2 — DB-native pg-raggraph (forward proposal)
+## P2 — DB-native pg-raggraph (forward proposal, pgrg-native only)
 
-User question: *"is there a way to do these as database functions/primitives? maybe a longer term ask."* Sketched in [`docs/proposals/DB-Native-Ingest.md`](docs/proposals/DB-Native-Ingest.md). Three paths (pgai integration, PL/Python sidecars, native pgrx extension); recommended near-term path is **Path 1 (pgai integration)** — wraps pgai's `ai.embed`/`ai.openai_chat_complete` primitives and adds pg-raggraph's chunking, resolution, and graph storage as SQL functions. Not committed for execution; revisit when there's a real user wanting `SELECT pgrg.ingest_record(...)` from a trigger.
+User question: *"is there a way to do these as database functions/primitives? maybe a longer term ask."* Sketched in [`docs/proposals/DB-Native-Ingest.md`](docs/proposals/DB-Native-Ingest.md).
 
-The in-memory `rag.ingest_records()` API (committed in this session) is the right Python-side answer in the meantime — closes the disk-roundtrip gap for SQL→pgrg pipelines.
+**Hard constraint:** **no pgai integration.** pg-raggraph stands alone, same independence stance as our Apache AGE position. No mandatory new extensions beyond pgvector + pg_trgm.
+
+Three paths sketched:
+- **Path A (recommended near-term, if demand):** pgrg-native sidecar HTTP service for embed + extract; SQL functions call it via `pg_net`. The sidecar IS our existing Python code, just bound to a port. ~70% of the value is already pure SQL today (chunking, resolution, graph storage, traversal).
+- Path B (long-term aspiration): native pgrx extension. Cloud-extension availability blocks this — same problem that killed AGE for us.
+- Path C: PL/Python sidecars-in-process. Strict downgrade vs Path A.
+
+Not committed for execution. Revisit when there's a real user wanting `SELECT pgrg.ingest_record(...)` from a trigger. The in-memory `rag.ingest_records()` API (committed in this session) is the right Python-side answer for now.
 
 Decision branches captured in the roadmap; Tier 3 ideas (HyDE, multi-query) explicitly deferred as `smart`-mode escalations only.
 

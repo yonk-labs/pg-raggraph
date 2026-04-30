@@ -1,19 +1,23 @@
 # Proposal: pg-raggraph as database primitives
 
-> **Status:** Forward-looking draft (2026-04-30). Captured from a user question: *"is there a way to do these as database functions/primitives? maybe a longer term ask."* Not committed for execution. The goal here is to sketch what the SQL-callable shape could look like and what's actually doable today vs needs heavier engineering.
+> **Status:** Forward-looking draft (2026-04-30). Captured from a user question: *"is there a way to do these as database functions/primitives? maybe a longer term ask."* Not committed for execution.
+>
+> **Hard constraints from the user, 2026-04-30:**
+> - **No `pgai` integration.** pg-raggraph stands alone — same independence stance as our position on Apache AGE. Adding a dependency on Timescale's pgai contradicts the "use the Postgres you already have" thesis and limits deployment portability (pgai isn't on AWS RDS / GCP Cloud SQL / most managed providers).
+> - **No new mandatory extensions beyond what we already require** (`pgvector`, `pg_trgm`).
+> - **`pg_net` / `http` are acceptable optional dependencies** since they're widely supported and let us call out to sidecars without baking models into Postgres itself.
 
 ## TL;DR
 
-Yes — but in stages, and the right pragmatic path is **build on top of `pgai`** (Timescale's Postgres extension for AI workloads) rather than reimplement embedding/LLM clients in PL/Python. Three layers:
+Yes — buildable in stages, fully independent of pgai. The recommended shape:
 
-1. **Today, in pure SQL:** chunking + entity resolution + graph traversal — already SQL.
-2. **Near-term, via `pgai`-or-similar integration:** embeddings + LLM extraction become `SELECT pgrg.embed(text)` and `SELECT pgrg.extract(chunk_text)` callable from any query.
-3. **Longer-term, as a pgrx extension:** native `pg_raggraph` extension exposing `pgrg.ingest_record(text, source_id, namespace, metadata)` as a single SQL function. Set-returning functions for query (`pgrg.search(question, mode)`).
+1. **In pure SQL today:** chunking, entity resolution, graph traversal, graph storage. ~70% of the value, no new extension.
+2. **Mid-term:** add a thin **pg-raggraph-native sidecar service** (a small HTTP server exposing `embed(text)` and `extract(chunk_text)`), called from SQL via `pg_net`. The sidecar is the same Python code we ship today, just bound to a port. Postgres functions compose its primitives with our SQL chunking + resolution + storage.
+3. **Long-term:** native `pg_raggraph` extension via pgrx that bundles model loading inside Postgres. Optional, only if cloud-extension availability ever catches up.
 
-Final shape that "looks right":
+End-state interface stays the same in any path:
 
 ```sql
--- One-call ingest from anywhere a query can run
 SELECT pgrg.ingest_record(
     text       => sn.note_text || E'\n# Customer\n' || c.company_name,
     source_id  => 'sales_note:' || sn.note_id,
@@ -24,107 +28,73 @@ FROM sales_demo_app.sales_notes sn
 JOIN sales_demo_app.sales_orders so ON so.order_id = sn.order_id
 JOIN sales_demo_app.customers c ON c.customer_id = so.customer_id
 WHERE so.status = 'won';
-
--- Query with the same primitive
-SELECT * FROM pgrg.search(
-    question  => 'What were the most common reasons we won deals?',
-    mode      => 'smart',
-    namespace => 'sales_calls'
-);
 ```
 
-Same primitive composes with triggers, materialized views, scheduled jobs, CDC pipelines.
+The user calls one SQL primitive. Whether that primitive ultimately routes to a sidecar HTTP endpoint or a native extension is an implementation detail under our control — *not* a dependency on someone else's stack.
 
-## What's pure SQL today
+## What's pure SQL today (no new dep at all)
 
-These already work — no new extension needed, just stored procedures wrapping current logic:
+These already work as plain stored procedures wrapping current logic:
 
-- **Chunking** — text manipulation. `pgrg.chunk(text, strategy)` returns `setof (sequence int, content text)`. Markdown-aware, code-aware, sentence-aware splitters all expressible in pure SQL with `regexp_split_to_table` + post-processing.
-- **Entity resolution** — already SQL via pg_trgm + pgvector. Today's `resolution.py` is essentially three SQL statements; the Python layer just orchestrates. A `pgrg.resolve_entity(name, embedding)` function returning the resolved entity_id is a 50-line wrapper.
+- **Chunking** — text manipulation. `pgrg.chunk(text, strategy)` returns `setof (sequence int, content text, embedded_content text)`. Markdown-aware, code-aware, sentence-aware splitters all expressible via `regexp_split_to_table` + post-processing.
+- **Entity resolution** — already SQL via `pg_trgm` + `pgvector`. Today's `resolution.py` is essentially three SQL statements; `pgrg.resolve_entity(name text, embedding vector(384))` is a 50-line wrapper that returns the resolved entity_id.
 - **Graph storage** — flat INSERTs into `entities`, `relationships`, `entity_chunks`, `relationship_chunks`. Trivially callable from SQL.
-- **Graph traversal** — recursive CTEs already power `local`/`global`/`hybrid` modes. `pgrg.search()` returns `setof retrieval_result` — straightforward.
+- **Graph traversal** — recursive CTEs already power `local`/`global`/`hybrid` modes. `pgrg.search(question text, mode text)` returns `setof retrieval_result`.
 
-**This subset alone covers ~70% of the value.** A user with embeddings already-computed (e.g. inserted via pgai or a separate ETL job) could do everything from SQL today.
+**This subset alone covers ~70% of the value.** Anyone who has embeddings + extraction available some other way — already-computed via an ETL job, or coming from a pre-extracted JSON cache — can do everything else from SQL today.
 
-## What's not pure SQL today
+## What needs a runtime
 
-The two remaining pieces:
+Two pieces that aren't SQL:
 
-- **Embeddings** — needs to run a transformer model (bge-small via fastembed/onnx). Postgres has no native way to do this.
+- **Embeddings** — needs a transformer model. Postgres has no native way to run one without an extension that bundles a runtime.
 - **LLM extraction** — needs an HTTP call to an OpenAI-compatible endpoint.
 
-Three implementation paths, ranked by pragmatism:
+Three implementation paths, ranked by alignment with the "stand alone" mandate:
 
-### Path 1 — `pgai` integration (recommended)
+### Path A — pgrg-native sidecar over `pg_net` (recommended near-term)
 
-[Timescale's `pgai` extension](https://github.com/timescale/pgai) already provides:
+Ship a small HTTP service alongside pg-raggraph (or have users run it themselves). The sidecar exposes:
 
-- `ai.embed(text, model => 'BAAI/bge-small-en-v1.5')` — runs locally via the extension's bundled embedding runtime
-- `ai.openai_chat_complete(messages, model => 'gpt-4o-mini', api_key => ...)` — direct LLM call from SQL
+```
+POST /embed       body: {"text": "..."}                       → 384-dim vector
+POST /extract     body: {"chunks": [...], "namespace": "..."} → entities + relationships
+```
 
-Both are already mature, both are pure-Postgres, both compose with triggers/materialized views.
+Implementation is **literally the existing Python code** in `extraction.py` + `embedding.py`, wrapped in a FastAPI app. We already ship this for use as a library; binding it to a port is ~80 lines.
 
-What we'd add to pg-raggraph:
+From SQL, call it via `pg_net`:
 
 ```sql
--- Wrapper that uses pgai under the hood
 CREATE OR REPLACE FUNCTION pgrg.embed(text)
 RETURNS vector(384)
 LANGUAGE sql
-AS $$ SELECT ai.embed(text, model => current_setting('pgrg.embedding_model', true)) $$;
-
-CREATE OR REPLACE FUNCTION pgrg.extract(chunk_text text)
-RETURNS table(entities jsonb, relationships jsonb)
-LANGUAGE sql
 AS $$
-    SELECT entities, relationships
-    FROM ai.openai_chat_complete(
-        messages => jsonb_build_array(
-            jsonb_build_object('role','system','content', current_setting('pgrg.extraction_prompt')),
-            jsonb_build_object('role','user','content', chunk_text)
-        ),
-        response_format => 'json_object'
-    ) AS r,
-    jsonb_to_record(r.content::jsonb) AS x(entities jsonb, relationships jsonb)
+    SELECT (response.body::jsonb->'embedding')::text::vector(384)
+    FROM net.http_post(
+        url     => current_setting('pgrg.sidecar_url') || '/embed',
+        body    => jsonb_build_object('text', $1),
+        timeout_milliseconds => 5000
+    ) AS response
 $$;
 ```
 
-`pgrg.ingest_record()` then composes these primitives in a single transaction. Roughly 200-400 lines of SQL/PL-pgSQL, no new extension code.
+Then `pgrg.ingest_record()` becomes a pure-SQL function that composes `pgrg.chunk` → `pgrg.embed` → `pgrg.extract` → `pgrg.resolve_entity` → graph-storage INSERTs, all in one transaction.
 
 **Tradeoffs:**
-- Pro: cheapest path to working DB-native ingest.
-- Pro: pgai handles model loading, caching, batching — we don't reinvent that.
-- Pro: composes with anything pgai already supports (other embedders, providers).
-- Con: depends on pgai. Adds an extension to the install matrix.
-- Con: pgai availability varies — Timescale-managed Postgres has it; AWS RDS / GCP Cloud SQL / Supabase don't yet (but trending toward yes).
-- Con: cloud-portability story softens — "use any Postgres" becomes "any Postgres with pgai."
+- **Pro: stands alone.** No pgai, no Apache AGE, no Timescale-specific extension. Just pgrg + pgvector + pg_trgm + pg_net.
+- **Pro: cloud-portable.** `pg_net` is in Supabase by default, available on Neon, and trivially installable elsewhere. AWS RDS supports it via `rds.allowed_extensions`.
+- **Pro: same code, two surfaces.** The sidecar IS the Python library, just running as a service. Bug fix in one = bug fix in both.
+- **Pro: failure isolation.** A slow LLM call doesn't block PG backends — `pg_net` is async; calls go through a background worker.
+- **Con: need to deploy + run the sidecar.** Adds an operational concern. Mitigated by shipping a `docker compose` snippet and a single binary for self-hosted users.
+- **Con: latency floor includes localhost HTTP roundtrip (~1-3 ms each call).** Marginal at our scale.
+- **Con: pg_net itself isn't yet in core Postgres** — but it's installable nearly everywhere we care about and the bar to add it is much lower than installing extension-of-the-month.
 
-### Path 2 — PL/Python sidecars (no pgai)
+This is the recommended near-term path. It honors the "stand alone" mandate, ships in months not years, and gives a real `SELECT pgrg.ingest_record(...)` SQL surface.
 
-If pgai isn't available, fallback is PL/Python with `httpx` for LLM calls and `onnxruntime` (or a pure-Python fastembed wrapper) for embeddings.
+### Path B — Native `pg_raggraph` extension via pgrx (long-term aspiration)
 
-```sql
-CREATE EXTENSION plpython3u;
-
-CREATE OR REPLACE FUNCTION pgrg.embed(text) RETURNS vector(384)
-LANGUAGE plpython3u AS $$
-    import onnxruntime as ort  # loaded once per backend
-    # ... embed and return
-$$;
-```
-
-**Tradeoffs:**
-- Pro: works on any Postgres that allows PL/Python (most cloud providers don't, in fairness).
-- Pro: no extension install beyond plpython3u.
-- Con: model loaded per Postgres backend → memory cost ~50-200 MB × backends. Heavyweight.
-- Con: LLM HTTP calls block PG backend processes. One slow call = one stuck connection. Throttle carefully.
-- Con: PL/Python is hard to debug, hard to deploy, hard to upgrade.
-
-I would not recommend this for production unless pgai isn't available AND you've measured the memory cost.
-
-### Path 3 — Native `pg_raggraph` extension via pgrx
-
-A Rust extension via [pgrx](https://github.com/pgcentralfoundation/pgrx) — native types, native function dispatch, native memory management.
+Rust extension via [pgrx](https://github.com/pgcentralfoundation/pgrx) — bundle the embedding runtime + HTTP client natively, no sidecar.
 
 ```rust
 #[pg_extern]
@@ -134,44 +104,57 @@ fn pgrg_ingest_record(
     namespace: &str,
     metadata: pgrx::JsonB,
 ) -> Result<(), Error> {
-    // chunk, embed (via candle or onnxruntime-rs), call LLM (via reqwest),
-    // resolve, write — all native Rust, no extension hops.
+    // chunk in pure Rust
+    // embed via candle-rs (Rust-native ONNX)
+    // extract via reqwest to configured LLM endpoint
+    // resolve, write — all native, one transaction
 }
 ```
 
 **Tradeoffs:**
-- Pro: best performance. Native types, proper transaction handling, no Python interpreter overhead.
-- Pro: same install model as pgvector/pg_trgm — drop-in `CREATE EXTENSION pg_raggraph`.
-- Pro: aligns with the existing thesis — "use Postgres for everything." `pg_raggraph` becomes a real Postgres extension, not a Python framework.
-- Con: significant engineering — multi-month effort for a maintainable extension.
-- Con: model loading + GPU access in Rust is harder than in Python (smaller ecosystem).
-- Con: cloud-availability is the same problem as pgai but worse — extensions need provider whitelisting (no AWS RDS without explicit support, etc.).
+- **Pro: best performance + native types + proper transaction semantics, no sidecar to operate.**
+- **Pro: fully aligned with the "use Postgres" thesis.** `CREATE EXTENSION pg_raggraph` and the user has everything.
+- **Con: significant engineering** — multi-month effort with proper test coverage and packaging.
+- **Con: cloud-extension availability is the same blocker that killed Apache AGE for us.** AWS RDS, GCP Cloud SQL, Supabase, Neon all need to whitelist new extensions individually. Without that adoption story, the extension is only useful for self-hosted users who could run a sidecar anyway.
+- **Con: model loading inside PG backend processes** — significant memory + restart cost per backend.
 
-This is the long-term aspirational shape. Don't start here.
+Don't start here. This is the right long-term aspiration only if (a) cloud providers solve their extension story, or (b) we decide pg-raggraph's audience is exclusively self-hosted.
+
+### Path C — PL/Python sidecars-in-process
+
+Same code as Path A but running inside the Postgres backend via `plpython3u` instead of as an external service.
+
+**Tradeoffs:**
+- **Pro: no separate process to run.**
+- **Con: PL/Python isn't on most managed providers** (AWS RDS supports it, but Cloud SQL doesn't, Supabase doesn't, Neon doesn't). Worse availability than `pg_net`.
+- **Con: model loaded per Postgres backend** — every connection that touches `pgrg.embed` instantiates the embedding model. Memory cost ~50-200 MB × backends.
+- **Con: synchronous LLM calls block backend processes.** One slow call = one stuck connection.
+
+Strict downgrade from Path A on every dimension that matters.
+
+Listed for completeness; not recommended.
 
 ## Recommended sequencing
 
-1. **Now:** the `ingest_records()` Python API is enough for same-DB pipelines via a thin Python orchestrator script. Cookbook covers this in Pattern B.
-2. **Mid-term (3-6 months):** implement Path 1 (pgai integration). New SQL functions: `pgrg.chunk`, `pgrg.embed`, `pgrg.extract`, `pgrg.resolve_entity`, `pgrg.ingest_record`, `pgrg.search`. Keep Python API as the orchestration layer for batch/CDC; the SQL surface handles trigger/scheduled-job use cases.
-3. **Long-term (12+ months):** evaluate whether the pgrx native extension is worth building. Probably only if pgai is not on a supported deployment path and the cloud-availability problem is solvable independently (e.g. Supabase or Neon adds it as a first-class extension).
+1. **Now:** the `ingest_records()` Python API closes the disk-roundtrip gap for SQL-source pipelines via a small Python orchestrator (50 lines). Cookbook covers this in Pattern B.
+2. **Mid-term (3-6 months) — Path A:** ship the pgrg sidecar service + SQL functions (`pgrg.chunk`, `pgrg.embed`, `pgrg.extract`, `pgrg.resolve_entity`, `pgrg.ingest_record`, `pgrg.search`). Binary distribution + docker-compose snippet. Document `pg_net` install for self-hosted users.
+3. **Long-term (12+ months) — Path B:** evaluate the native pgrx extension if cloud-extension availability improves. Right now it's a strict liability for cloud users.
 
 ## What should we ship next?
 
-Honest read: the in-memory `ingest_records()` API closes the immediate "no disk roundtrip" gap. Path 1 (pgai integration) is the next real step but it's a separate workstream from the accuracy roadmap and the public-release work — it's an integration project, not a feature project.
+Honest read: the in-memory `ingest_records()` API closes the immediate "no disk roundtrip" gap. Path A is the next real workstream IF user demand for SQL-callable ingest emerges from real users (not just architectural neatness). Most ETL/CDC jobs already run from Python; the script is 50 lines.
 
-If demand for "pure SQL ingest" emerges from real users (not just blog-post-credibility), prioritize Path 1. If the demand stays theoretical, the Python `ingest_records()` API + cookbook Pattern B is enough — most ETL jobs and CDC streams already run from Python, and the script is 50 lines.
-
-Capture the proposal here, revisit when there's a real user with `pgrg.ingest_record()` written into a trigger.
+Don't pre-build Path A. Capture the design here, ship the Python API, wait for actual demand.
 
 ## Open questions
 
-- **What's the right name for the extension?** `pg_raggraph`, `raggraph`, `pgrg`? Today the Python package is `pg_raggraph`. The SQL surface namespace would naturally be `pgrg.*`.
-- **How does this interact with `evolution_tier`?** Tier 1 metadata (`effective_from`, `retracted_at`) should naturally pass through as JSONB metadata; the schema already supports it.
-- **GPU usage from inside Postgres** — pgai supports GPU backends but adds complexity. For pgrg-on-postgres, default to CPU embeddings; let the GPU live elsewhere (sidecar, fastembed-server) if needed.
-- **Async LLM calls from PG** — Postgres functions are synchronous. A long LLM call blocks one backend. For trigger-driven ingest, that's a problem at any meaningful volume. Solution: enqueue via `pg_cron` + a worker queue table; functions write the queue row and return immediately. The actual extraction happens in a background worker. Good pattern, but real engineering.
+- **Sidecar packaging.** Single Docker image? Standalone binary via `pyinstaller`? Both? Decided when we actually start Path A.
+- **`pg_net` availability gating.** Which managed providers offer `pg_net` today? Supabase yes; Neon yes; RDS via allowlist; Cloud SQL no. Should pgrg fall back to a Python-orchestrated path if `pg_net` isn't installed? Probably yes — same model as the Python API today.
+- **Async/queueing.** Sync `pgrg.ingest_record()` calls from triggers will block when the LLM is slow. The PG-side answer is `pg_cron` + a queue table; the function writes the queue row, a background worker drains it. Real engineering, deferred until Path A is committed.
+- **GPU access.** Sidecar can use GPU; native extension faces the usual "GPU inside Postgres backend" problem. Default both paths to CPU embeddings; GPU is an opt-in deployment choice.
 
 ## What this proposal is NOT
 
 - Not a commitment to build any of this. The user explicitly said "longer term ask."
-- Not a critique of `ingest_records()` — that's the right Python-side API and stays the recommended path until DB-native primitives have a real reason to exist.
-- Not advocacy for replacing `pg_raggraph` (the Python library) with an extension. The Python orchestration layer remains valuable for complex workflows, debugging, async batch processing, and any deployment that doesn't want to install an extension.
+- **Not pgai integration.** Hard ruled out by the user. pg-raggraph remains independent of Timescale's stack the same way it's independent of Apache AGE.
+- Not a replacement for the Python `pg_raggraph` library. The Python API stays the primary surface for batch ingest, complex orchestration, async workflows, and any deployment that doesn't want to run a sidecar.
