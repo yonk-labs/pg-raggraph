@@ -146,6 +146,7 @@ class GraphRAG:
         self._db = None
         self._embedder = None
         self._llm = None  # Shared LLM provider; closed with the instance
+        self._reranker = None  # Lazy-loaded cross-encoder reranker
         # PR-209: cooperative shutdown signal for long-running ingest loops.
         # Lazily initialized inside ingest() because it must be created on the
         # running asyncio loop, not at __init__ time.
@@ -712,6 +713,7 @@ class GraphRAG:
         as_of: datetime | None = None,
         version_filter: str | None = None,
         evolution_aware: bool | None = None,
+        rerank: bool = False,
     ) -> QueryResult:
         """Query the knowledge graph.
 
@@ -729,13 +731,21 @@ class GraphRAG:
             version_filter: restrict to documents with matching version_label.
             evolution_aware: when False, ignore evolution_tier for this query
                 (forces classic retrieval). When None, honors config.
+            rerank: when True, fetch top_k * rerank_factor candidates and
+                re-rank with a cross-encoder before trimming to top_k.
+                Adds ~30-80 ms p50 latency, zero per-query LLM cost.
+                Model and factor configured via PGRGConfig.rerank_model
+                and rerank_factor.
         """
         from pg_raggraph.retrieval import query as retrieval_query
 
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
         embedder = self._get_embedder()
-        return await retrieval_query(
+        top_k_override = (
+            self.config.top_k * self.config.rerank_factor if rerank else None
+        )
+        result = await retrieval_query(
             question=question,
             db=self.db,
             embedder=embedder,
@@ -745,7 +755,17 @@ class GraphRAG:
             as_of=as_of,
             version_filter=version_filter,
             evolution_aware=evolution_aware,
+            top_k_override=top_k_override,
         )
+        if rerank:
+            from pg_raggraph.reranker import FastEmbedReranker, apply_reranker
+
+            if self._reranker is None:
+                self._reranker = FastEmbedReranker(self.config.rerank_model)
+            result = await apply_reranker(
+                self._reranker, question, result, self.config.top_k
+            )
+        return result
 
     async def ask(
         self,
@@ -757,6 +777,7 @@ class GraphRAG:
         version_filter: str | None = None,
         evolution_aware: bool | None = None,
         short_answer: bool = False,
+        rerank: bool = False,
     ) -> QueryResult:
         """Query + LLM answer synthesis.
 
@@ -767,6 +788,10 @@ class GraphRAG:
         When ``short_answer=True``, the LLM is asked for a short factoid
         answer (≤10 tokens, single phrase) instead of a paragraph. Useful
         for SQuAD-style benchmarks where gold answers are short strings.
+
+        When ``rerank=True``, the retrieved chunks are re-ranked with a
+        cross-encoder before answer generation. Adds ~30-80 ms p50 latency,
+        zero per-query LLM cost.
         """
         from pg_raggraph.answer import generate_answer
 
@@ -777,6 +802,7 @@ class GraphRAG:
             as_of=as_of,
             version_filter=version_filter,
             evolution_aware=evolution_aware,
+            rerank=rerank,
         )
         # Reuse the shared LLM client (same pool as ingestion).
         llm = None

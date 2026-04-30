@@ -242,8 +242,14 @@ async def query(
     as_of: datetime | None = None,
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
+    top_k_override: int | None = None,
 ) -> QueryResult:
-    """Execute a retrieval query against the knowledge graph."""
+    """Execute a retrieval query against the knowledge graph.
+
+    ``top_k_override`` lets callers fetch a larger candidate pool when
+    a downstream reranker will trim back to ``config.top_k``. None
+    falls back to ``config.top_k``.
+    """
     valid_modes = ("naive", "local", "global", "hybrid", "naive_boost", "smart")
     if mode not in valid_modes:
         raise ValueError(f"Invalid mode '{mode}'. Must be one of: {valid_modes}")
@@ -259,6 +265,7 @@ async def query(
             as_of=as_of,
             version_filter=version_filter,
             evolution_aware=evolution_aware,
+            top_k_override=top_k_override,
         )
     if mode == "naive_boost":
         return await _naive_boost_query(
@@ -270,10 +277,12 @@ async def query(
             as_of=as_of,
             version_filter=version_filter,
             evolution_aware=evolution_aware,
+            top_k_override=top_k_override,
         )
 
     start = time.perf_counter()
     ns = namespace or config.namespace
+    effective_top_k = top_k_override or config.top_k
 
     # Embed the question
     q_embedding = (await embedder.embed([question]))[0]
@@ -285,8 +294,8 @@ async def query(
         "query": question,
         "tsquery": tsquery,
         "namespace": ns,
-        "top_k": config.top_k,
-        "seed_k": min(config.top_k, 5),
+        "top_k": effective_top_k,
+        "seed_k": min(effective_top_k, 5),
         "max_hops": config.max_hops,
         "w_sem": config.w_sem,
         "w_bm25": config.w_bm25,
@@ -317,7 +326,7 @@ async def query(
             cid = row["id"]
             if cid not in seen or row["score"] > seen[cid]["score"]:
                 seen[cid] = row
-        rows = sorted(seen.values(), key=lambda r: r["score"], reverse=True)[: config.top_k]
+        rows = sorted(seen.values(), key=lambda r: r["score"], reverse=True)[:effective_top_k]
     else:
         rows = []
 
@@ -453,6 +462,7 @@ async def _naive_boost_query(
     as_of: datetime | None = None,
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
+    top_k_override: int | None = None,
 ) -> QueryResult:
     """Naive vector+BM25 retrieval followed by cheap 1-hop graph boost."""
     result = await query(
@@ -465,6 +475,7 @@ async def _naive_boost_query(
         as_of=as_of,
         version_filter=version_filter,
         evolution_aware=evolution_aware,
+        top_k_override=top_k_override,
     )
     ns = namespace or config.namespace
     boosted = await _graph_boost(result, db, config, ns)
@@ -508,6 +519,7 @@ async def _smart_query(
     as_of: datetime | None = None,
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
+    top_k_override: int | None = None,
 ) -> QueryResult:
     """Confidence-triggered routing that actually improves accuracy.
 
@@ -539,6 +551,7 @@ async def _smart_query(
         as_of=as_of,
         version_filter=version_filter,
         evolution_aware=evolution_aware,
+        top_k_override=top_k_override,
     )
 
     # High confidence — ship it
@@ -559,6 +572,7 @@ async def _smart_query(
             as_of=as_of,
             version_filter=version_filter,
             evolution_aware=evolution_aware,
+            top_k_override=top_k_override,
         )
         expanded.query_mode = "smart[expanded]"
         expanded.latency_ms = (time.perf_counter() - start) * 1000

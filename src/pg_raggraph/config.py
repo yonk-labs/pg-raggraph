@@ -171,6 +171,13 @@ class PGRGConfig(BaseSettings):
     top_k: int = 10
     similarity_threshold: float = 0.3
 
+    # Cross-encoder reranking (off by default; opt-in per-query via rerank=True)
+    # When enabled, retrieval fetches top_k * rerank_factor candidates, then a
+    # cross-encoder scores each (question, chunk) pair and trims to top_k.
+    # Adds ~30-80 ms p50 latency, zero per-query LLM cost.
+    rerank_model: str = "BAAI/bge-reranker-base"
+    rerank_factor: int = 4
+
     # Smart mode routing thresholds
     # If top chunk score >= boost_confidence_threshold: return naive result as-is
     # If top chunk score < expand_confidence_threshold: escalate to graph expansion

@@ -225,6 +225,13 @@ async def main() -> None:
         "Required for fair EM/F1 vs MuSiQue gold short-form answers.",
     )
     parser.add_argument(
+        "--rerank",
+        action="store_true",
+        help="Enable cross-encoder reranking. Fetches top_k * rerank_factor "
+        "candidates, rescore with BAAI/bge-reranker-base, trim back to top_k. "
+        "Adds ~30-80 ms p50 latency, zero per-query LLM cost.",
+    )
+    parser.add_argument(
         "--out-tag",
         default=time.strftime("%Y%m%d-%H%M%S"),
         help="Tag suffix for the result file",
@@ -271,6 +278,7 @@ async def main() -> None:
                         mode=mode,
                         namespace=NAMESPACE,
                         short_answer=args.short_answer,
+                        rerank=args.rerank,
                     )
                     answer = (result.answer or "").strip()
                     chunks = list(result.chunks)[:5]
