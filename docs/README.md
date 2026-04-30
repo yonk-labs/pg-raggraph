@@ -8,6 +8,7 @@
 ## User guides
 
 - **[user-guide.md](user-guide.md)** — Full user guide: installation, configuration, all 6 retrieval modes, evolution-tracking API, REST/MCP servers, schema overview, troubleshooting.
+- **[Config-Reference.md](Config-Reference.md)** — Every tunable knob with What / Default / Pros / Cons / When-to-use / When-NOT-to-use. Includes `rerank_*`, `short_answer`, `top_k`, smart-mode thresholds, resolution weights, ingest profiles, evolution-tier toggles.
 - **[USE-CASES.md](USE-CASES.md)** — Decision matrix: classic GraphRAG vs evolving knowledge. Corpus shape → recommended config.
 - **[EVOLUTION-API-QUICKREF.md](EVOLUTION-API-QUICKREF.md)** — Common assumptions vs reality for the Tier 1 API (which kwargs are per-query vs config-only, schema column locations, `as_of` × `retracted_at` semantics).
 - **[modes.md](modes.md)** — All 6 retrieval modes explained with diagrams, SQL, and benchmark numbers.
