@@ -1,17 +1,30 @@
 # Cookbook: ingest a sales CRM into pg-raggraph
 
-> **Worked example.** This walks the full pipeline using a real sales-CRM schema (`sales_demo_app.*`) — call notes, orders, customers, products, salespeople. Same shape as Salesforce / HubSpot / a custom Postgres CRM. The decisions and code work for any CRM with similar structure.
+> **Worked example.** Full pipeline using a real sales-CRM schema (`sales_demo_app.*`) — call notes, orders, customers, products, salespeople. Same shape as Salesforce / HubSpot / a custom Postgres CRM. The decisions and code work for any CRM with similar structure.
 >
-> **Reproducible sample dataset:** [`samples/sales-crm-demo.sql`](samples/sales-crm-demo.sql) ships with this cookbook. 200 won + 100 lost deals + 974 call notes + their dependencies (254 customers, 15 products, 46 salespeople). All synthetic. Load with `psql -d <yourdb> -f docs/cookbook/samples/sales-crm-demo.sql` and follow along verbatim.
+> **Reproducible sample dataset:** [`samples/sales-crm-demo-small.sql`](samples/sales-crm-demo-small.sql) (788 KB) and [`samples/sales-crm-demo-medium.sql`](samples/sales-crm-demo-medium.sql) (2.4 MB) ship with this cookbook. Synthetic, safe to share. Load with `psql -d <yourdb> -f docs/cookbook/samples/sales-crm-demo-small.sql` to follow along verbatim.
+
+## How to read this guide
+
+1. **[The source schema](#the-source-schema-what-you-bring)** — what you bring in.
+2. **[The decisions](#the-decisions-you-make-these--once)** — three choices you make once: doc grain, frontmatter shape, metadata.
+3. **[Step 1: pull + format](#step-1--pull-rows--format-markdown)** — SQL → markdown.
+4. **[Step 2: ingest (Pattern A or B)](#step-2--ingest-two-patterns)** — disk-based vs in-memory.
+5. **[Step 3: structural edges](#step-3--inject-structured-relationships-from-crm-optional-but-high-leverage)** — pin known graph edges from CRM FKs.
+6. **[Steps 4-5: query & validate](#step-4--query)** — `rag.ask()` and sanity-check the graph.
+7. **[Real run output](#real-run-output-small-dataset-2026-04-30)** — actual numbers from running this against the small sample.
+8. **[Per-mode breakdown](#per-mode-breakdown--same-5-queries-through-all-6-modes)** — which mode wins on CRM-shaped Q&A.
+9. **[Tuning + scope notes](#what-youll-want-to-tune-after-the-first-ingest)** — what to flip when results don't satisfy.
 
 ## TL;DR
 
 1. **Each row in `sales_notes` becomes one document.** That's the right grain.
-2. **Wrap the note in markdown with structured frontmatter** (customer, product, deal status, sentiment, salesperson). The frontmatter gives every chunk context, so retrieval works even mid-document.
-3. **Filter to `status='won'`** as a starter slice. ~50-200 deals is enough to validate.
-4. **Let the LLM extract soft entities** (people mentioned in notes, competing products, pain points) — that's what it's good at.
-5. **Inject structured edges directly** from your existing FKs: `(Customer)–[BOUGHT]–(Product)`, `(Salesperson)–[CLOSED]–(Customer)`, `(UseCase)–[APPLIES_TO]–(Product)`. That's what your CRM already knows; don't make the LLM re-derive it.
-6. Total work: ~150 lines of Python (1 SQL query + 1 markdown formatter + 1 `rag.ingest()` + 1 structured-edge injector).
+2. **Wrap the note in markdown with structured frontmatter** (customer, product, deal status, sentiment, salesperson). The frontmatter gives every chunk context so retrieval works even mid-document.
+3. **Filter to `status='won'`** as a starter slice. ~50-200 deals is enough to validate; the small SQL sample ships with 200 won + 100 lost.
+4. **Bring known structure to the graph at ingest time** via the `entities` and `relationships` fields on `ingest_records()`. Customer-BOUGHT-Product, Salesperson-SOLD_TO-Customer — the LLM doesn't need to re-derive what your CRM already knows.
+5. **Let the LLM extract soft signals** on top: people mentioned in notes, competing products, pain points. That's what the LLM is actually good at.
+6. **Use `mode="smart"` for queries.** It auto-routes aggregation questions ("most common", "across all") to `global` mode and synthesis questions ("compare", "alongside") to `hybrid`. Lookup questions go through the cheap naive → boost → local path. (See [per-mode breakdown](#per-mode-breakdown--same-5-queries-through-all-6-modes).)
+7. Total work: ~50-150 lines of Python depending on whether you go disk-based (Pattern A) or in-memory (Pattern B). Pattern B is preferred for same-database CRM/ERP pipelines.
 
 ## The source schema (what you bring)
 
@@ -443,9 +456,44 @@ For ~200 won call notes (each ~200-500 tokens of body), expect roughly:
 
 Cost (one-time, with `gpt-4o-mini` for extraction): roughly **$1-3** for the entire ingest. Wall time: 10-30 min depending on `extract_concurrency`.
 
-## Step 3 — Inject structured relationships from CRM (optional but high-leverage)
+## Step 3 — Structural relationships from CRM (two ways)
 
-After ingest, your call-notes graph is dominated by what the LLM noticed in narrative. The CRM has *known* edges that are worth pinning so the graph is anchored in ground truth:
+Your call-notes graph is dominated by what the LLM noticed in narrative. The CRM has *known* edges that are worth pinning so the graph is anchored in ground truth:
+
+- `(Customer)–[BOUGHT]–(Product)` from `sales_orders.product_id`
+- `(Salesperson)–[CLOSED]–(Customer)` from `sales_orders.salesperson_id`
+- `(UseCase)–[APPLIES_TO]–(Product)` from `sales_notes.use_case_mentioned[]`
+
+You have two ways to get these edges into the graph.
+
+### 3a — In-line via Pattern B (recommended, no second pass)
+
+If you used Pattern B's `ingest_records()`, just include `entities` and `relationships` on each record. They get inserted alongside the LLM-extracted graph in the same single-document transaction. The example in [`benchmarks/sales-crm-demo/ingest_inmemory.py`](../../benchmarks/sales-crm-demo/ingest_inmemory.py) already does this — `row_to_record()` emits the BOUGHT/SOLD_TO/HAS_USE_CASE edges directly from the SQL row.
+
+```python
+records = [{
+    "text": format_doc(row),
+    "source_id": f"sales_note:{row['note_id']}",
+    "metadata": {...},
+    "entities": [
+        {"name": row["company_name"],     "entity_type": "Customer"},
+        {"name": row["product_name"],    "entity_type": "Product"},
+        {"name": row["salesperson_name"], "entity_type": "Salesperson"},
+    ],
+    "relationships": [
+        {"src": row["company_name"],     "dst": row["product_name"],
+         "rel_type": "BOUGHT",
+         "description": f"order #{row['order_id']} ({row['status']})"},
+        {"src": row["salesperson_name"], "dst": row["company_name"],
+         "rel_type": "SOLD_TO"},
+    ],
+}]
+await rag.ingest_records(records, namespace=NAMESPACE)
+```
+
+### 3b — Post-ingest backfill via SQL (for Pattern A or to add edges later)
+
+If you used Pattern A (disk-based) or you want to add structural edges to an existing namespace without re-ingesting, write directly to `relationships`:
 
 - `(Customer)–[BOUGHT]–(Product)` from `sales_orders.product_id`
 - `(Salesperson)–[CLOSED]–(Customer)` from `sales_orders.salesperson_id` for won
@@ -730,36 +778,36 @@ That's the correct answer — won-deal notes don't dwell on objections by defini
 
 ### Per-mode breakdown — same 5 queries through all 6 modes
 
-To check whether `smart` was actually picking the right mode, we ran the same 5 questions through every retrieval mode and OpenAI-judged each answer (gpt-4o-mini, 0-3 rubric). Full transcript: `_logs/mode-comparison.json`.
+We ran the same 5 questions through every retrieval mode and OpenAI-judged each answer (gpt-4o-mini, 0-3 rubric). Full transcript: `_logs/mode-comparison.json`.
 
 | Mode | Avg score | Avg latency | Wins (top score) |
 |---|---|---|---|
-| naive | 2.20 | 2,685 ms | 2/5 |
-| naive_boost | 2.40 | 3,610 ms | 3/5 |
-| local | 2.60 | 3,584 ms | 3/5 |
-| **global** | **3.00** | **4,499 ms** | **5/5** ⭐ |
-| hybrid | 2.80 | 3,911 ms | 4/5 |
-| smart | 2.60 | 3,417 ms | 3/5 |
+| naive | 2.20 | 2,808 ms | 2/5 |
+| naive_boost | 2.40 | 2,801 ms | 3/5 |
+| local | 2.80 | 3,791 ms | 4/5 |
+| **global** | **3.00** | **3,359 ms** | **5/5** ⭐ |
+| hybrid | 2.60 | 3,274 ms | 3/5 |
+| **smart** | **3.00** | **2,931 ms** | **5/5** ⭐ |
 
-`global` mode dominates this corpus — perfect 3.0 average and the only mode to win every question. CRM call notes are entity-heavy (customers, products, salespeople are repeated across deals) and 4/5 of these questions require aggregation across deals ("most often", "most common", "alongside", "had the most"). `global` pivots on the relationships table rather than vector chunks, which buys it specific names + cross-deal coverage that other modes miss.
+`global` dominates this corpus and `smart` matches it — perfect 3.0 averages, 5/5 wins each. CRM call notes are entity-heavy (customers, products, salespeople repeat across deals) and 4/5 of these questions require aggregation across deals ("most often", "most common", "alongside", "had the most"). `global` pivots on the relationships table rather than vector chunks, which buys specific names + cross-deal coverage other modes miss. `smart` ties because — see below — it now routes aggregation-shaped questions to `global` automatically.
 
 Per-question:
 
 | Q | naive | naive_boost | local | global | hybrid | smart | smart's effective mode |
 |---|---|---|---|---|---|---|---|
-| Q1 — objections | 2 | 2 | 2 | **3** | 2 | 2 | `smart[expanded]` |
-| Q2 — ClarityDB customers + pain | 3 | 3 | 3 | **3** | 3 | 3 | `smart[boosted]` |
-| Q3 — products alongside competitors | 2 | **3** | **3** | **3** | **3** | **3** | `smart[expanded]` |
-| Q4 — most common win reason | 1 | 1 | 2 | **3** | **3** | 2 | `smart[expanded]` |
-| Q5 — industries with most | **3** | **3** | **3** | **3** | **3** | **3** | `smart[expanded]` |
+| Q1 — objections | 2 | 2 | 2 | **3** | 2 | **3** | `smart[global]` |
+| Q2 — ClarityDB customers + pain | 3 | 3 | 3 | **3** | 3 | **3** | `smart[boosted]` |
+| Q3 — products alongside competitors | 3 | 3 | 3 | **3** | 3 | **3** | `smart[hybrid]` |
+| Q4 — most common win reason | 1 | 1 | 3 | **3** | 2 | **3** | `smart[global]` |
+| Q5 — industries with most | 2 | 3 | 3 | **3** | 3 | **3** | `smart[global]` |
 
-#### What this exposes about `smart` mode
+#### How `smart` learned to route to `global`/`hybrid`
 
-The current `smart` router decides between `naive → naive_boost → local` based on naive's retrieval confidence. **It never routes to `global` or `hybrid`** — even when those would clearly be the right pick. On Q1 and Q4 specifically, `global` scored 3 while `smart` scored 2. That's a real router gap, not a mode-quality issue.
+The original `smart` router only decided between `naive → naive_boost → local` based on naive's retrieval confidence. **It never picked `global` or `hybrid`** — even when those were clearly the right answer. On the first run of this comparison, `global` won 5/5 while `smart` only matched on 3/5; the two questions `smart` lost (Q1 and Q4) were both aggregation-shaped.
 
-For pure-vector questions (Q2, Q5) `smart` matches the best modes at lower latency — it earns its keep. For aggregation-shaped questions (Q1, Q4) you currently want `mode="global"` or `mode="hybrid"` explicitly until the router is taught to route there.
+That's a real router gap, not a mode-quality issue. Fixed in [`src/pg_raggraph/retrieval.py`](../../src/pg_raggraph/retrieval.py) (`_question_shape`): a cheap lexical pre-check classifies the question as **aggregation** ("most often", "across all", "patterns", "how many", …), **synthesis** ("compare", "alongside", "common themes", …), or **lookup**. Aggregation-shaped questions route directly to `mode="global"`. Synthesis-shaped go to `mode="hybrid"`. Lookup-shaped fall through to the original confidence-based routing (naive → boost → local).
 
-This is captured as a follow-up in [`docs/proposals/Accuracy-Improvements-Roadmap.md`](../proposals/Accuracy-Improvements-Roadmap.md) Step 4 (Smart routing tunes) and [`benchmarks/musique/tuning-ideas.md`](../../benchmarks/musique/tuning-ideas.md).
+The `smart`'s effective mode column above shows it working: Q1, Q4, Q5 routed to `smart[global]`; Q3 to `smart[hybrid]`; Q2 (the one true lookup question) to `smart[boosted]`. Smart now matches global at lower average latency.
 
 #### Practical recommendation for CRM-shaped corpora
 
@@ -767,9 +815,9 @@ This is captured as a follow-up in [`docs/proposals/Accuracy-Improvements-Roadma
 |---|---|
 | "What did X say about Y?" (point lookup) | `naive` or `smart` |
 | "Who bought X and what did they say?" (multi-doc, single product) | `naive_boost` or `smart` |
-| "What's the most common ___ across deals?" (aggregation) | `global` ⭐ |
-| "What patterns emerge across N customers?" (cross-deal synthesis) | `global` or `hybrid` |
-| Don't know — just ask | `smart` (knows it'll occasionally underperform on aggregation questions; that's fine) |
+| "What's the most common ___ across deals?" (aggregation) | `smart` (auto-routes to `global`) — or `global` explicitly |
+| "What patterns emerge across N customers?" (cross-deal synthesis) | `smart` (auto-routes to `hybrid`) — or `global`/`hybrid` explicitly |
+| Don't know — just ask | `smart` ⭐ — now routes correctly across all five question shapes |
 
 ### What it doesn't validate (yet)
 

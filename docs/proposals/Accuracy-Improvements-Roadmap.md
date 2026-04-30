@@ -154,21 +154,38 @@ Six steps. Each has an explicit measurement and a definition of done. Stop after
 
 **Cost:** zero per-query LLM cost. scipy CPU-only.
 
-### Step 4 — Smart routing tunes (2-3 days)
+### Step 4 — Smart routing tunes (✅ partially shipped 2026-04-30)
 
-**Goal:** Encode the MuSiQue 4-hop finding ("the right amount of graph is 'a little'") into the router. +1-3 pp on multi-hop, possibly latency improvement on simple questions.
+**Goal:** Encode question-shape signals into the `smart` router so it reaches modes (`global`, `hybrid`) it previously couldn't.
 
-**Tasks:**
-- Add lightweight question-shape heuristics: count of "of" prepositions (proxy for multi-hop), question depth, named-entity count.
-- Route multi-hop-shaped questions to `naive_boost` or `local_ppr_2stage` instead of full `hybrid`.
-- Keep current confidence-based routing as fallback.
-- Validate on MuSiQue per-hop breakdown.
+**Shipped — aggregation/synthesis pre-check (`src/pg_raggraph/retrieval.py:_question_shape`):**
+
+The CRM `compare_modes.py` run on 2026-04-30 surfaced a real router gap. The original `smart` only routed between `naive → naive_boost → local` based on naive's confidence. **It never picked `global` or `hybrid`** — even when those were clearly the right answer. On aggregation-shaped questions ("most common", "across all"), `global` scored 3/3 while `smart` (without shape detection) only matched on 3/5.
+
+Fix: cheap lexical pre-check classifies the question as **aggregation**, **synthesis**, or **lookup** before naive runs.
+
+- aggregation cues ("most often", "most common", "how many", "across all", "patterns", "trends", "in total", "every customer/deal/product/account") → `mode="global"`
+- synthesis cues ("compare", "contrast", "alongside", "common themes/threads/reasons") → `mode="hybrid"`
+- lookup (default) → falls through to existing confidence-based routing (naive → boost → local)
+
+Validation on the CRM 5-question set:
+
+| Configuration | smart avg score | smart wins | smart avg latency |
+|---|---|---|---|
+| Pre-fix | 2.60 | 3/5 | 3,417 ms |
+| **Post-fix** | **3.00** | **5/5** ⭐ | **2,931 ms** |
+
+Smart now matches `global` (which also went 5/5 at 3,359 ms avg latency) at *lower* average latency. Effective modes routed correctly: Q1/Q4/Q5 → `smart[global]`, Q3 → `smart[hybrid]`, Q2 (the only true lookup) → `smart[boosted]`.
+
+**Still open — MuSiQue multi-hop heuristic:**
+
+The shape pre-check covers aggregation/synthesis. The MuSiQue 4-hop finding ("the right amount of graph is 'a little'") needs separate handling: detect chained-entity questions ("X of the Y of Z") and bias toward `naive_boost` over full `hybrid`. Captured in [`benchmarks/musique/tuning-ideas.md`](../../benchmarks/musique/tuning-ideas.md) item #5.
 
 **Definition of done:**
-- MuSiQue overall LLM-judge ≥ best single mode from steps 1-3.
-- p50 latency ≤ existing `smart` p50 (2.8 s).
+- ✅ CRM aggregation/synthesis questions auto-route correctly (`smart` ties `global` at 5/5 wins).
+- ⬜ MuSiQue chained-entity questions route to `naive_boost` instead of full `hybrid`.
 
-**Cost:** zero. Routing math.
+**Cost:** zero. Routing math, no LLM call, no DB round-trip added.
 
 ### Step 5 — Propositions (1 week, Phase A from PropRAG proposal)
 

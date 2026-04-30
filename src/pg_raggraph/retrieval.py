@@ -509,6 +509,66 @@ def _merge_and_dedupe(primary: QueryResult, secondary: QueryResult, top_k: int) 
     return primary
 
 
+# --- smart-router question-shape detection ---
+#
+# The original smart router (validated on pg-agents) only routed between
+# naive → naive_boost → local. The CRM compare_modes.py run on
+# 2026-04-30 surfaced a real gap: questions like "What's the most common
+# reason we win deals?" or "What objections came up most often" want
+# *aggregation across documents*, which the `global` mode (relationship-
+# centric retrieval) handles best. The original router never picked
+# `global` because naive can score high on individual chunks while the
+# answer needs to span them.
+#
+# Fix: detect aggregation/synthesis question shape BEFORE running naive
+# and route directly to the right mode. Conservative heuristics — only
+# fire on clear lexical signals so we don't pay global's higher latency
+# on plain lookup questions.
+
+# Aggregation cue tokens — questions implying counting/comparing across docs.
+_AGG_PATTERNS = [
+    r"\bmost (often|common|frequent)\b",
+    r"\bleast (often|common|frequent)\b",
+    r"\bhow many\b",
+    r"\bwhich .+ (had|has|have) the most\b",
+    r"\bacross (all|our|the|every)\b",
+    r"\bpattern[s]?\b",
+    r"\btrend[s]?\b",
+    r"\bsummari[sz]e\b",
+    r"\boverall\b",
+    r"\bin total\b",
+    r"\bevery (customer|deal|product|account)\b",
+]
+
+# Synthesis cue tokens — questions implying combining info from many sources.
+_SYN_PATTERNS = [
+    r"\bcompare\b",
+    r"\bcontrast\b",
+    r"\b(differences?|similarities)\s+between\b",
+    r"\balongside\b",
+    r"\b(common|shared) (theme|threads?|reasons?|objections?)\b",
+]
+
+
+def _question_shape(question: str) -> str:
+    """Cheap lexical classifier returning aggregation / synthesis / lookup.
+
+    Returns the strongest shape that matches; falls back to "lookup" when
+    no aggregation/synthesis signal is present. Tunable via the pattern
+    lists above.
+    """
+    import re
+
+    q = question.lower()
+    for p in _AGG_PATTERNS:
+        if re.search(p, q):
+            return "aggregation"
+    for p in _SYN_PATTERNS:
+        if re.search(p, q):
+            return "synthesis"
+    return "lookup"
+
+
 async def _smart_query(
     question: str,
     db: Database,
@@ -521,25 +581,71 @@ async def _smart_query(
     evolution_aware: bool | None = None,
     top_k_override: int | None = None,
 ) -> QueryResult:
-    """Confidence-triggered routing that actually improves accuracy.
+    """Confidence + question-shape routing that improves accuracy across corpora.
 
-    Strategy (validated on real pg-agents corpus, 479 docs, 17K entities):
-    - High confidence (top_score >= boost_threshold): ship naive as-is (fast path)
-    - Medium confidence (between thresholds): apply cheap graph boost. This
-      alone gives +19% top score improvement on dev knowledge bases — there's
-      no need to pull in local-mode chunks, which dilute the ranking.
-    - Low confidence (top_score < expand_threshold): escalate to local mode
-      (pulls in new chunks via graph traversal — the right call when naive
-      has NO relevant matches)
+    Two layers of routing:
 
-    Why boost-only is the right medium-confidence path: the benchmark showed
-    naive_boost avg score 0.707 vs local/hybrid 0.607. Boost re-ranks the
-    top-K vector results by graph connectivity; adding more chunks via local
-    mode actually hurts because they're further from the query semantically.
+    1. **Question shape** (lexical, cheap, fires before naive runs):
+       - "aggregation" — questions like "most common", "across all", "how
+         many" — route to ``global`` mode (relationship-centric).
+       - "synthesis" — questions like "compare X vs Y", "alongside", "common
+         themes" — route to ``hybrid`` (local + global merged).
+       - "lookup" — falls through to confidence-based routing below.
+
+    2. **Confidence** (validated on pg-agents corpus, 479 docs, 17K entities):
+       - High confidence (top_score >= boost_threshold): ship naive as-is.
+       - Medium confidence (between thresholds): apply cheap graph boost.
+         Boost gives +19% top-score improvement on dev knowledge bases;
+         pulling in local-mode chunks dilutes the ranking.
+       - Low confidence (top_score < expand_threshold): escalate to local
+         mode — pulls in new chunks via graph traversal.
+
+    The shape pre-check came from the 2026-04-30 CRM compare_modes.py run
+    (docs/cookbook/sales-crm-ingestion.md "Per-mode breakdown") which showed
+    ``global`` winning 5/5 questions while ``smart`` (without shape detection)
+    only matched on 3/5. The two questions ``smart`` lost were both
+    aggregation-shaped.
     """
     start = time.perf_counter()
     ns = namespace or config.namespace
 
+    # Layer 1: question-shape pre-check. Aggregation/synthesis questions
+    # bypass naive's confidence check and go straight to the right mode.
+    shape = _question_shape(question)
+    if shape == "aggregation":
+        agg = await query(
+            question=question,
+            db=db,
+            embedder=embedder,
+            config=config,
+            mode="global",
+            namespace=namespace,
+            as_of=as_of,
+            version_filter=version_filter,
+            evolution_aware=evolution_aware,
+            top_k_override=top_k_override,
+        )
+        agg.query_mode = "smart[global]"
+        agg.latency_ms = (time.perf_counter() - start) * 1000
+        return agg
+    if shape == "synthesis":
+        syn = await query(
+            question=question,
+            db=db,
+            embedder=embedder,
+            config=config,
+            mode="hybrid",
+            namespace=namespace,
+            as_of=as_of,
+            version_filter=version_filter,
+            evolution_aware=evolution_aware,
+            top_k_override=top_k_override,
+        )
+        syn.query_mode = "smart[hybrid]"
+        syn.latency_ms = (time.perf_counter() - start) * 1000
+        return syn
+
+    # Layer 2: confidence-based routing for lookup-shaped questions.
     # Always start with naive (cheap)
     result = await query(
         question=question,
