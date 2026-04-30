@@ -49,6 +49,15 @@ Detailed research docs are in `research/`:
 - **LlamaIndex PropertyGraphStore interface** — the abstraction to implement for framework interoperability
 - Research base available at `skill-output/research-base/` with competitive landscape and market context
 
+### Sibling: chunkshop (optional but recommended)
+[chunkshop](https://github.com/yonk-labs/chunkshop) is a sibling library on PyPI 0.3.0+. **Optional dependency, recommended chunker.** Status changed in 2026-04-30 from "no import, port winners only" to "optional but recommended dep" once chunkshop hit PyPI/crates.
+
+Two integration shapes documented in `docs/cookbook/chunkshop-integration.md`:
+- **Pattern D** — `chunk_strategy="chunkshop:hierarchy"` (or `:semantic`/`:sentence_aware`/`:fixed_overlap`/`:neighbor_expand`) on `GraphRAG` config. Pg-raggraph delegates the chunking step; everything else stays in pg-raggraph. Lazy import in `src/pg_raggraph/chunking.py:_chunk_via_chunkshop`. Install: `pip install 'pg-raggraph[chunkshop]'`.
+- **Pattern C** — full chunkshop pipeline (chunker + embedder + extractor) → pgvector table; pg-raggraph reads that table and adds the entity/relationship graph. Used when you want chunkshop's metadata extractors (RAKE, KeyBERT, spaCy entities, langdetect).
+
+Built-in chunker (`chunk_strategy="auto"` / `"hierarchy"`) is the default and stays — chunkshop is never required.
+
 ## Development
 
 ### Tech Stack

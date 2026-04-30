@@ -257,6 +257,8 @@ This is the `prepare.py` + `ingest.py` pair shown in this section. See [`benchma
 
 ### Pattern B — in-memory (SQL → in-memory records → pg-raggraph; no disk)
 
+> **Tip — recommended chunker.** Pattern B (and the chunkshop variant just below) work best with `chunk_strategy="chunkshop:hierarchy"` for the markdown-shaped frontmatter we use. Optional dependency: `pip install 'pg-raggraph[chunkshop]'`. See [`chunkshop-integration.md`](chunkshop-integration.md) for the why and when.
+
 **Recommended for same-database CRM/ERP pipelines.** Source data lives in your existing Postgres schema; pg-raggraph's tables live in another database (or another namespace in the same DB). No reason for the data to touch disk in between.
 
 ```python
@@ -442,6 +444,19 @@ asyncio.run(main())
 ```
 
 That's it. The tool runs chunking → embedding → entity extraction → entity resolution → graph storage → indexing automatically.
+
+**Pattern D (recommended) — same as Pattern B, but with the chunkshop chunker:**
+
+```python
+rag = GraphRAG(
+    dsn=PGRG_DSN, namespace="sales_calls",
+    chunk_strategy="chunkshop:hierarchy",   # ← single line, big upgrade
+    extraction_prompt="dev",
+    # ... everything else identical to Pattern B above
+)
+```
+
+Full runnable variant: [`benchmarks/sales-crm-demo/ingest_chunkshop.py`](../../benchmarks/sales-crm-demo/ingest_chunkshop.py). Install requirement: `pip install 'pg-raggraph[chunkshop]'`. See [`chunkshop-integration.md`](chunkshop-integration.md) for the why, when, and a comparison of chunkshop strategies.
 
 ### What you should see
 

@@ -14,6 +14,8 @@
 - **[modes.md](modes.md)** — All 6 retrieval modes explained with diagrams, SQL, and benchmark numbers.
 - **[devmem-guide.md](devmem-guide.md)** — Developer knowledge base walkthrough (`pgrg devmem`).
 - **[cookbook/evolution-tracking.md](cookbook/evolution-tracking.md)** — Tier 1 quickstart for `effective_from` / `retracted` / `version_label`.
+- **[cookbook/sales-crm-ingestion.md](cookbook/sales-crm-ingestion.md)** — Worked example: ingest a sales CRM (call notes / orders / customers / products) end-to-end. Two ingest patterns (disk-based, in-memory), real-run output with entity counts and queries, per-mode comparison.
+- **[cookbook/chunkshop-integration.md](cookbook/chunkshop-integration.md)** — How to use the [chunkshop](https://github.com/yonk-labs/chunkshop) sibling library (optional but recommended) for chunking and metadata extraction. Patterns D (chunker-only via `chunk_strategy="chunkshop:*"`) and C (full chunkshop pipeline + bridge).
 
 ## Worked walkthroughs (blog series — `blogs/`)
 

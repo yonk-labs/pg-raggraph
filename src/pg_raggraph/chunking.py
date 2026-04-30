@@ -42,12 +42,29 @@ def chunk_document(
     """Chunk a document into pieces respecting structure.
 
     Returns list of dicts with keys: content, token_count, content_hash, metadata.
+
+    `config.chunk_strategy` accepts these values:
+
+    - ``"auto"`` (default) — detect markdown / code / text by extension + content,
+      pick the best built-in splitter.
+    - ``"hierarchy"`` — heading-prefixed, ported from chunkshop's HierarchyChunker
+      (lineage annotation in this file). Built-in, no dependency.
+    - ``"chunkshop:<chunker_name>"`` — delegate to chunkshop directly. Optional
+      dependency: install with ``pip install pg-raggraph[chunkshop]``. Supported
+      chunker names: ``hierarchy``, ``sentence_aware``, ``semantic``,
+      ``fixed_overlap``, ``neighbor_expand``, ``summary_embed``,
+      ``hierarchical_summary``. See docs/cookbook/chunkshop-integration.md.
     """
     if config is None:
         config = PGRGConfig()
 
     max_tokens = config.chunk_max_tokens
     overlap_tokens = config.chunk_overlap_tokens
+
+    # chunkshop pass-through strategies. Lazy import so users without the
+    # optional dep don't pay; gracefully tell them how to install when missing.
+    if config.chunk_strategy.startswith("chunkshop:"):
+        return _chunk_via_chunkshop(content, source_path, config)
 
     # Hierarchy strategy: heading-prefixed, token-capped. Each section body is
     # sub-split through _split_to_token_budget when it exceeds chunk_max_tokens;
@@ -119,6 +136,124 @@ def chunk_document(
                     "source_path": source_path,
                     "chunk_index": i,
                 },
+            }
+        )
+    return result
+
+
+def _chunk_via_chunkshop(
+    content: str,
+    source_path: str | None,
+    config: PGRGConfig,
+) -> list[dict]:
+    """Delegate chunking to chunkshop (optional dep).
+
+    chunkshop is a sibling library on PyPI / crates.io. pg-raggraph treats
+    it as the recommended chunker when available; the strategies in
+    chunkshop's registry (hierarchy, semantic, sentence_aware, etc.) are
+    typically richer than our built-in chunker and have been tuned across
+    multiple corpora.
+
+    Install: ``pip install pg-raggraph[chunkshop]`` (or pin chunkshop
+    yourself for the version of your choice).
+    """
+    try:
+        from chunkshop.chunkers import (
+            FixedOverlapChunker,
+            HierarchyChunker,
+            NeighborExpandChunker,
+            SemanticChunker,
+            SentenceAwareChunker,
+        )
+        from chunkshop.config import (
+            FixedOverlapChunker as FixedCfg,
+            HierarchyChunker as HierCfg,
+            NeighborExpandChunker as NeighborCfg,
+            SemanticChunker as SemanticCfg,
+            SentenceAwareChunker as SentCfg,
+        )
+        from chunkshop.sources.base import Document
+    except ImportError as e:
+        raise ImportError(
+            "chunk_strategy='chunkshop:*' requires the chunkshop package. "
+            "Install with: pip install 'pg-raggraph[chunkshop]'  "
+            "(or pin chunkshop directly: pip install chunkshop). "
+            f"Original import error: {e}"
+        ) from e
+
+    name = config.chunk_strategy.split(":", 1)[1]
+    title = _derive_title(content, source_path)
+    doc = Document(
+        id=source_path or "doc",
+        content=content,
+        title=title or None,
+        metadata={"source_path": source_path} if source_path else None,
+    )
+
+    # Each chunker takes its own config. Defaults chosen to track our existing
+    # chunk_max_tokens budget (1 token ≈ 4 chars for English).
+    max_chars = max(config.chunk_max_tokens * 4, 800)
+
+    # chunkshop's pydantic Cfgs all require a `type` discriminator. Build
+    # them explicitly so callers don't have to know the chunkshop schema.
+    chunker_map = {
+        "hierarchy": (
+            HierarchyChunker,
+            HierCfg(type="hierarchy", max_chars=max_chars),
+        ),
+        "sentence_aware": (
+            SentenceAwareChunker,
+            SentCfg(type="sentence_aware", max_chars=max_chars),
+        ),
+        "semantic": (
+            SemanticChunker,
+            SemanticCfg(type="semantic", max_chunk_chars=max_chars),
+        ),
+        "fixed_overlap": (
+            FixedOverlapChunker,
+            FixedCfg(type="fixed_overlap"),
+        ),
+        "neighbor_expand": (
+            NeighborExpandChunker,
+            NeighborCfg(
+                type="neighbor_expand",
+                base=HierCfg(type="hierarchy", max_chars=max_chars),
+            ),
+        ),
+    }
+
+    if name not in chunker_map:
+        raise ValueError(
+            f"Unknown chunkshop strategy 'chunkshop:{name}'. "
+            f"Supported: {sorted(chunker_map.keys())}. "
+            "For summary_embed and hierarchical_summary (which require an "
+            "embedder + summarizer), use chunkshop's own pipeline directly "
+            "and feed the resulting chunks to rag.ingest_records()."
+        )
+
+    chunker_cls, chunker_cfg = chunker_map[name]
+    chunker = chunker_cls(chunker_cfg)
+    cs_chunks = chunker.chunk(doc)
+
+    result: list[dict] = []
+    for cs in cs_chunks:
+        body = (cs.original_content or "").strip()
+        if not body:
+            continue
+        embedded = (cs.embedded_content or body).strip()
+        meta = dict(cs.metadata or {})
+        # Preserve our standard metadata keys alongside chunkshop's.
+        meta.setdefault("source_path", source_path)
+        meta.setdefault("chunk_index", len(result))
+        meta.setdefault("chunkshop_strategy", name)
+        meta.setdefault("chunkshop_seq_num", cs.seq_num)
+        result.append(
+            {
+                "content": body,
+                "embedded_content": embedded,
+                "token_count": token_count(embedded),
+                "content_hash": content_hash(body),
+                "metadata": meta,
             }
         )
     return result

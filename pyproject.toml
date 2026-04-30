@@ -39,6 +39,9 @@ community = ["python-igraph>=0.11", "leidenalg>=0.10"]
 langchain = ["langchain-core>=0.2"]
 llamaindex = ["llama-index-core>=0.11"]
 mcp = ["mcp>=1.0"]
+# Sibling library for richer chunking strategies + optional metadata extraction.
+# Optional but recommended — see docs/cookbook/chunkshop-integration.md.
+chunkshop = ["chunkshop>=0.3"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
@@ -46,7 +49,7 @@ dev = [
     "coverage>=7.0",
     "beautifulsoup4>=4.14.3",
 ]
-all = ["pg-raggraph[server,community,langchain,llamaindex,mcp]"]
+all = ["pg-raggraph[server,community,langchain,llamaindex,mcp,chunkshop]"]
 
 [project.scripts]
 pgrg = "pg_raggraph.cli:main"

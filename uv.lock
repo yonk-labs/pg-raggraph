@@ -333,6 +333,23 @@ wheels = [
 ]
 
 [[package]]
+name = "chunkshop"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "fastembed" },
+    { name = "numpy" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/58/e7/a26f4bdb407687f36323701f93b5c8391ab6dd06de3bc5a06b298995ffd9/chunkshop-0.3.0.tar.gz", hash = "sha256:b94e17bd26460ca58edbe9adbb73fcd1314ccd9118787e7b9f712fdbfe9d0c04", size = 64043, upload-time = "2026-04-30T13:52:29.935Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8c/1d/b6290cc544227ed0040256a518cf3f90abae258653bb6703240993517cb7/chunkshop-0.3.0-py3-none-any.whl", hash = "sha256:8910ebac248e4085836f1d38734682c48ed9f6f55b5aac2964d58ec983cc5dd2", size = 77314, upload-time = "2026-04-30T13:52:28.343Z" },
+]
+
+[[package]]
 name = "click"
 version = "8.3.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1666,6 +1683,7 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
+    { name = "chunkshop" },
     { name = "fastapi" },
     { name = "langchain-core" },
     { name = "leidenalg" },
@@ -1674,6 +1692,9 @@ all = [
     { name = "python-igraph" },
     { name = "python-multipart" },
     { name = "uvicorn", extra = ["standard"] },
+]
+chunkshop = [
+    { name = "chunkshop" },
 ]
 community = [
     { name = "leidenalg" },
@@ -1709,6 +1730,7 @@ server = [
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4", marker = "extra == 'dev'", specifier = ">=4.14.3" },
+    { name = "chunkshop", marker = "extra == 'chunkshop'", specifier = ">=0.3" },
     { name = "click", specifier = ">=8.0" },
     { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.110" },
@@ -1719,7 +1741,7 @@ requires-dist = [
     { name = "llama-index-core", marker = "extra == 'llamaindex'", specifier = ">=0.11" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0" },
     { name = "pg-raggraph", extras = ["server"], marker = "extra == 'demo'" },
-    { name = "pg-raggraph", extras = ["server", "community", "langchain", "llamaindex", "mcp"], marker = "extra == 'all'" },
+    { name = "pg-raggraph", extras = ["server", "community", "langchain", "llamaindex", "mcp", "chunkshop"], marker = "extra == 'all'" },
     { name = "pgvector", specifier = ">=0.3" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1" },
     { name = "psycopg-pool", specifier = ">=3.1" },
@@ -1733,7 +1755,7 @@ requires-dist = [
     { name = "tiktoken", specifier = ">=0.7" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'server'", specifier = ">=0.27" },
 ]
-provides-extras = ["server", "demo", "community", "langchain", "llamaindex", "mcp", "dev", "all"]
+provides-extras = ["server", "demo", "community", "langchain", "llamaindex", "mcp", "chunkshop", "dev", "all"]
 
 [[package]]
 name = "pgvector"

@@ -173,11 +173,11 @@ When NOT to use: any workload that might benefit from cross-document entity chai
 ### `chunk_strategy` (str, default: `auto`)
 Env var: `PGRG_CHUNK_STRATEGY`
 
-What: how to split documents into chunks. `auto` detects markdown / code / text and picks the right splitter; alternatives include `hierarchy` (heading-prefixed chunks).
-Pros: `auto` is good across most corpora. `hierarchy` improves retrieval when titles disambiguate similar content.
-Cons: `hierarchy` adds heading prefix overhead; small wins on most corpora, modest losses on a few.
-When to use: `hierarchy` for highly-structured docs (legal, technical specs).
-When NOT to use: `hierarchy` on flat narrative content like news or blog posts.
+What: how to split documents into chunks. Built-in values: `auto` (detect markdown / code / text and pick the right splitter), `hierarchy` (heading-prefixed chunks). Plus chunkshop pass-through values when the optional dep is installed: `chunkshop:hierarchy`, `chunkshop:sentence_aware`, `chunkshop:semantic`, `chunkshop:fixed_overlap`, `chunkshop:neighbor_expand` — see [`cookbook/chunkshop-integration.md`](cookbook/chunkshop-integration.md).
+Pros: `auto` is good across most corpora. `hierarchy` improves retrieval when titles disambiguate similar content. `chunkshop:*` strategies are the recommended chunkers for any markdown-shaped or sentence-rich corpus — chunkshop's hierarchy chunker is the production sweet spot from chunkshop's own factorial benchmarks.
+Cons: `chunkshop:*` requires the `chunkshop` optional dep (`pip install 'pg-raggraph[chunkshop]'`); without it pg-raggraph errors with an install hint when you set the strategy. `chunkshop:semantic` loads a sentence-transformer for boundary detection — heavier than the others.
+When to use: `chunkshop:hierarchy` as the upgrade path from `auto` for structured corpora. `chunkshop:sentence_aware` for prose without strong heading structure. `chunkshop:semantic` for long-form content where topic-shift detection matters and the extra runtime cost is worth it.
+When NOT to use: any `chunkshop:*` strategy if you don't want the extra dependency. The built-in `auto`/`hierarchy` are perfectly serviceable.
 
 ### `chunk_max_tokens` (int, default: `512`)
 Env var: `PGRG_CHUNK_MAX_TOKENS`
