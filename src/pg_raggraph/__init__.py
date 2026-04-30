@@ -444,6 +444,170 @@ class GraphRAG:
             f"{stats['entities']} entities, {stats['rels']} relationships."
         )
 
+    async def ingest_records(
+        self,
+        records,
+        namespace: str | None = None,
+        on_progress=None,
+    ):
+        """Ingest documents from in-memory records — no disk roundtrip.
+
+        Use this when your source data lives in another database, an API,
+        a queue, or anywhere that's not the filesystem. The classic
+        pattern for same-database CRM/ERP pipelines:
+
+            with psycopg.connect(crm_dsn) as conn:
+                rows = conn.execute("SELECT note_id, note_text, ... FROM ...").fetchall()
+            records = [
+                {
+                    "text": format_doc(row),
+                    "source_id": f"sales_note:{row['note_id']}",
+                    "metadata": {"order_id": row["order_id"], "status": row["status"]},
+                }
+                for row in rows
+            ]
+            await rag.ingest_records(records, namespace="sales_calls")
+
+        Args:
+            records: Iterable of dicts. Each dict must have:
+                - ``text`` (str, required): document content
+                - ``source_id`` (str, required): stable logical identifier
+                  used for content-hash dedup AND stale-doc cleanup. Use a
+                  scheme like ``"sales_note:42"`` or ``"jira:PROJ-1234"``.
+                  Re-ingesting the same source_id with new text replaces
+                  the prior version atomically.
+                - ``metadata`` (dict, optional): per-record metadata, same
+                  shape as the ``metadata`` arg on ``ingest()`` (supports
+                  evolution-tracking keys like ``effective_from``,
+                  ``retracted``, ``version_label``).
+            namespace: Namespace for data isolation.
+            on_progress: Optional callback(message: str) for progress.
+
+        Returns: same stats shape as ``ingest()``.
+        """
+        import asyncio
+
+        from pg_raggraph.chunking import chunk_document, content_hash
+        from pg_raggraph.extraction import extract_from_chunks, get_llm_provider
+
+        records = list(records)
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        self.config.apply_nice_level()
+        embedder = self._get_embedder()
+
+        def _progress(msg: str):
+            logger.info(msg)
+            if on_progress:
+                on_progress(msg)
+
+        # Validate input shape (per-record, fail fast on the first bad row).
+        for i, rec in enumerate(records):
+            if not isinstance(rec, dict):
+                raise TypeError(f"records[{i}] must be a dict, got {type(rec).__name__}")
+            if not rec.get("text"):
+                raise ValueError(f"records[{i}] missing required 'text' field")
+            if not rec.get("source_id"):
+                raise ValueError(f"records[{i}] missing required 'source_id' field")
+
+        if not records:
+            _progress("No records to process.")
+            return
+
+        _progress(f"Processing {len(records)} records (in-memory ingest).")
+
+        if self._shutdown_event is None:
+            self._shutdown_event = asyncio.Event()
+
+        doc_sem = asyncio.Semaphore(self.config.doc_concurrency)
+        llm = None
+        if not self.config.skip_extraction and self.config.llm_base_url:
+            if self._llm is None:
+                try:
+                    self._llm = get_llm_provider(self.config)
+                except Exception as e:
+                    logger.warning(f"LLM provider unavailable, skipping extraction: {e}")
+            llm = self._llm
+        if llm is None:
+            _progress("Extraction disabled — ingesting as pure vector RAG.")
+
+        stats = {
+            "ingested": 0, "skipped": 0, "failed": 0,
+            "degraded": 0, "entities": 0, "rels": 0,
+        }
+
+        async def _process_record(idx: int, rec: dict):
+            async with doc_sem:
+                if self._shutdown_event is not None and self._shutdown_event.is_set():
+                    stats["skipped"] += 1
+                    return
+                attempt = 0
+                while True:
+                    attempt += 1
+                    try:
+                        # Per-record metadata wins over batch metadata.
+                        rec_meta = rec.get("metadata")
+                        r = await self._ingest_one_content(
+                            rec["text"],
+                            source_id=rec["source_id"],
+                            ns=ns,
+                            embedder=embedder,
+                            llm=llm,
+                            content_hash_fn=content_hash,
+                            chunk_document_fn=chunk_document,
+                            extract_from_chunks_fn=extract_from_chunks,
+                            metadata=rec_meta,
+                        )
+                        if r:
+                            stats["ingested"] += 1
+                            stats["entities"] += r["entities"]
+                            stats["rels"] += r["rels"]
+                            if r.get("degraded"):
+                                stats["degraded"] += 1
+                            deg_note = (
+                                " (extraction failed, vector-only)" if r.get("degraded") else ""
+                            )
+                            _progress(
+                                f"[{idx}/{len(records)}] {rec['source_id']}: "
+                                f"{r['entities']} entities, {r['rels']} rels{deg_note}"
+                            )
+                        else:
+                            stats["skipped"] += 1
+                        return
+                    except Exception as e:
+                        sqlstate = getattr(e, "sqlstate", None)
+                        msg = str(e)
+                        transient = sqlstate in ("40P01", "40001") or (
+                            sqlstate is None
+                            and (
+                                "40P01" in msg or "40001" in msg
+                                or "deadlock detected" in msg
+                                or "could not serialize" in msg
+                            )
+                        )
+                        if transient and attempt < 3:
+                            backoff = 0.2 * (2 ** (attempt - 1))
+                            await asyncio.sleep(backoff)
+                            continue
+                        logger.warning(f"Failed {rec['source_id']}: {e}")
+                        stats["failed"] += 1
+                        return
+
+        await asyncio.gather(
+            *[_process_record(i + 1, rec) for i, rec in enumerate(records)]
+        )
+
+        notes_msg = []
+        if stats["failed"]:
+            notes_msg.append(f"{stats['failed']} failed")
+        if stats["degraded"]:
+            notes_msg.append(f"{stats['degraded']} degraded")
+        suffix = f", {', '.join(notes_msg)}" if notes_msg else ""
+        _progress(
+            f"Done: {stats['ingested']} ingested, {stats['skipped']} skipped"
+            f"{suffix}. {stats['entities']} entities, {stats['rels']} relationships."
+        )
+
     async def _ingest_one_file(
         self,
         file_path,
@@ -456,12 +620,12 @@ class GraphRAG:
         *,
         metadata: dict | None = None,
     ):
-        """Ingest a single file with all DB writes in a single transaction.
+        """Read a file from disk and ingest it.
 
-        Using db.transaction() ensures all chunks/entities/relationships for
-        one doc commit atomically, and chunk_id from INSERT is immediately
-        visible to entity_chunks INSERT on the same connection (no pool
-        commit propagation race).
+        Thin wrapper over `_ingest_one_content` — for in-memory ingest
+        (SQL → pgrg in the same database, no disk roundtrip) call
+        `ingest_records` instead, which routes directly to
+        `_ingest_one_content`.
         """
         try:
             with open(file_path, encoding="utf-8") as f:
@@ -469,6 +633,50 @@ class GraphRAG:
         except (UnicodeDecodeError, ValueError):
             logger.warning(f"Skipping non-UTF-8 file: {file_path}")
             return None
+        return await self._ingest_one_content(
+            content,
+            source_id=file_path,
+            ns=ns,
+            embedder=embedder,
+            llm=llm,
+            content_hash_fn=content_hash_fn,
+            chunk_document_fn=chunk_document_fn,
+            extract_from_chunks_fn=extract_from_chunks_fn,
+            metadata=metadata,
+        )
+
+    async def _ingest_one_content(
+        self,
+        content: str,
+        *,
+        source_id: str,
+        ns,
+        embedder,
+        llm,
+        content_hash_fn,
+        chunk_document_fn,
+        extract_from_chunks_fn,
+        metadata: dict | None = None,
+    ):
+        """Ingest a single document from in-memory content with all DB
+        writes in a single transaction.
+
+        Using db.transaction() ensures all chunks/entities/relationships for
+        one doc commit atomically, and chunk_id from INSERT is immediately
+        visible to entity_chunks INSERT on the same connection (no pool
+        commit propagation race).
+
+        ``source_id`` serves the same role as ``source_path`` in file-based
+        ingest: it's the logical identifier for dedup (combined with
+        content_hash) and stale-doc cleanup. Use a stable string —
+        e.g. ``"sales_note:42"`` — so re-ingests of the same record
+        replace the prior version atomically.
+        """
+        # Use the source_id as the chunker's path hint so .md/.py-style
+        # extension detection still works for callers that pass
+        # filename-shaped IDs. For non-filename IDs the chunker falls back
+        # to content-based detection (e.g. markdown headings).
+        file_path = source_id
 
         # Delta check (read-only)
         c_hash = content_hash_fn(content)

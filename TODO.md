@@ -55,6 +55,14 @@ Six-step plan in [`docs/proposals/Accuracy-Improvements-Roadmap.md`](docs/propos
 
 > **MuSiQue tuning parking-lot:** comprehensive list of unexplored ideas (chunkshop strategies, MiniLM-L-12, per-mode rerank flag, embedder swap variants, HyDE, multi-query) lives in [`benchmarks/musique/tuning-ideas.md`](benchmarks/musique/tuning-ideas.md). Pickup priority captured there. **Not pulling on these now — more relevant work is in the CRM/dev-rel direction.**
 
+---
+
+## P2 — DB-native pg-raggraph (forward proposal)
+
+User question: *"is there a way to do these as database functions/primitives? maybe a longer term ask."* Sketched in [`docs/proposals/DB-Native-Ingest.md`](docs/proposals/DB-Native-Ingest.md). Three paths (pgai integration, PL/Python sidecars, native pgrx extension); recommended near-term path is **Path 1 (pgai integration)** — wraps pgai's `ai.embed`/`ai.openai_chat_complete` primitives and adds pg-raggraph's chunking, resolution, and graph storage as SQL functions. Not committed for execution; revisit when there's a real user wanting `SELECT pgrg.ingest_record(...)` from a trigger.
+
+The in-memory `rag.ingest_records()` API (committed in this session) is the right Python-side answer in the meantime — closes the disk-roundtrip gap for SQL→pgrg pipelines.
+
 Decision branches captured in the roadmap; Tier 3 ideas (HyDE, multi-query) explicitly deferred as `smart`-mode escalations only.
 
 Sub-proposal: [`docs/proposals/PropRAG-on-Postgres.md`](docs/proposals/PropRAG-on-Postgres.md) covers Steps 3, 5, 6 in depth.

@@ -224,7 +224,114 @@ if __name__ == "__main__":
 
 After this runs you have one markdown file per won call note in `benchmarks/sales_crm/docs/`.
 
-## Step 2 — Ingest
+## Step 2 — Ingest (two patterns)
+
+You have two equally valid pipeline shapes. Pick the one that matches your situation.
+
+### Pattern A — disk-based (write markdown first, ingest from disk)
+
+Useful when:
+- You want the intermediate markdown for human audit / review
+- You'll re-ingest the same content many times for prompt/config tuning
+- You want to fan out the markdown to other consumers (e.g. ETL into other tools)
+
+This is the `prepare.py` + `ingest.py` pair shown in this section. See [`benchmarks/sales-crm-demo/prepare.py`](../../benchmarks/sales-crm-demo/prepare.py) and [`benchmarks/sales-crm-demo/ingest.py`](../../benchmarks/sales-crm-demo/ingest.py).
+
+```python
+# prepare.py runs the SQL → markdown formatter and writes .md files
+# ingest.py reads the .md files and calls rag.ingest(file_paths, ...)
+```
+
+### Pattern B — in-memory (SQL → in-memory records → pg-raggraph; no disk)
+
+**Recommended for same-database CRM/ERP pipelines.** Source data lives in your existing Postgres schema; pg-raggraph's tables live in another database (or another namespace in the same DB). No reason for the data to touch disk in between.
+
+```python
+import asyncio, os, psycopg
+from pg_raggraph import GraphRAG
+
+CRM_DSN  = os.environ["CRM_DSN"]
+PGRG_DSN = os.environ["PGRG_DSN"]
+
+SQL = """
+  SELECT sn.note_id, sn.note_text, sn.note_type, sn.sentiment,
+         so.order_id, so.status, so.win_reason,
+         c.company_name, c.industry,
+         p.product_name,
+         sp.name AS salesperson_name
+  FROM sales_demo_app.sales_notes sn
+  JOIN sales_demo_app.sales_orders so ON so.order_id = sn.order_id
+  LEFT JOIN sales_demo_app.customers c ON c.customer_id = so.customer_id
+  LEFT JOIN sales_demo_app.products  p ON p.product_id  = so.product_id
+  LEFT JOIN sales_demo_app.salespeople sp ON sp.salesperson_id = sn.salesperson_id
+  WHERE so.status = 'won'
+"""
+
+def format_doc(row):
+    """SQL row → markdown body kept in memory (never written to disk)."""
+    return f"""# Sales call note — {row['company_name']} / {row['product_name']}
+
+**Customer:** {row['company_name']} ({row['industry']})
+**Deal:** Order #{row['order_id']} ({row['status']})
+**Product:** {row['product_name']}
+**Salesperson:** {row['salesperson_name']}
+**Sentiment:** {row['sentiment']}
+**Note type:** {row['note_type']}
+
+## Notes
+
+{row['note_text']}
+""" + (f"\n## Win reason\n\n{row['win_reason']}" if row['win_reason'] else "")
+
+
+async def main():
+    # 1. Pull rows from CRM (no disk).
+    with psycopg.connect(CRM_DSN, row_factory=psycopg.rows.dict_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute(SQL)
+            rows = cur.fetchall()
+
+    # 2. Format in memory; build the records list.
+    records = [
+        {
+            "text": format_doc(row),
+            "source_id": f"sales_note:{row['note_id']}",
+            "metadata": {
+                "order_id": row["order_id"],
+                "status": row["status"],
+                "sentiment": row["sentiment"],
+                "note_type": row["note_type"],
+            },
+        }
+        for row in rows
+    ]
+
+    # 3. Push to pg-raggraph (no disk).
+    rag = GraphRAG(
+        dsn=PGRG_DSN, namespace="sales_calls_won",
+        llm_base_url="https://api.openai.com/v1",
+        llm_model="gpt-4o-mini",
+        llm_api_key=os.environ["OPENAI_API_KEY"],
+        extraction_prompt="dev",
+    )
+    await rag.connect()
+    await rag.ingest_records(records, namespace="sales_calls_won")
+    print(await rag.status("sales_calls_won"))
+    await rag.close()
+
+asyncio.run(main())
+```
+
+That's the whole ETL job. Three blocks. No filesystem. Full runnable version: [`benchmarks/sales-crm-demo/ingest_inmemory.py`](../../benchmarks/sales-crm-demo/ingest_inmemory.py).
+
+The `ingest_records()` API:
+- Each record is a dict with `text` (required), `source_id` (required, used as content-hash dedup key + stale-doc identifier), `metadata` (optional, same shape as `ingest()`'s metadata kwarg)
+- `source_id` should be stable — e.g. `"sales_note:42"` — so re-ingesting the same record replaces the prior version atomically
+- Returns the same stats as `ingest()`: documents/chunks/entities/relationships counts
+
+Both patterns share all the same tunables (chunking, embedder, LLM, namespace, evolution metadata). Pick by ergonomics, not by capability.
+
+### Original disk-based variant (Pattern A details)
 
 `benchmarks/sales_crm/ingest.py`:
 
