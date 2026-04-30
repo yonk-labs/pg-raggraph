@@ -1,12 +1,14 @@
 # Cookbook: ingest a sales CRM into pg-raggraph
 
 > **Worked example.** This walks the full pipeline using a real sales-CRM schema (`sales_demo_app.*`) — call notes, orders, customers, products, salespeople. Same shape as Salesforce / HubSpot / a custom Postgres CRM. The decisions and code work for any CRM with similar structure.
+>
+> **Reproducible sample dataset:** [`samples/sales-crm-demo.sql`](samples/sales-crm-demo.sql) ships with this cookbook. 200 won + 100 lost deals + 974 call notes + their dependencies (254 customers, 15 products, 46 salespeople). All synthetic. Load with `psql -d <yourdb> -f docs/cookbook/samples/sales-crm-demo.sql` and follow along verbatim.
 
 ## TL;DR
 
 1. **Each row in `sales_notes` becomes one document.** That's the right grain.
 2. **Wrap the note in markdown with structured frontmatter** (customer, product, deal status, sentiment, salesperson). The frontmatter gives every chunk context, so retrieval works even mid-document.
-3. **Filter to `status='closed_won'`** as a starter slice. ~50-200 deals is enough to validate.
+3. **Filter to `status='won'`** as a starter slice. ~50-200 deals is enough to validate.
 4. **Let the LLM extract soft entities** (people mentioned in notes, competing products, pain points) — that's what it's good at.
 5. **Inject structured edges directly** from your existing FKs: `(Customer)–[BOUGHT]–(Product)`, `(Salesperson)–[CLOSED]–(Customer)`, `(UseCase)–[APPLIES_TO]–(Product)`. That's what your CRM already knows; don't make the LLM re-derive it.
 6. Total work: ~150 lines of Python (1 SQL query + 1 markdown formatter + 1 `rag.ingest()` + 1 structured-edge injector).
@@ -55,7 +57,7 @@ All four core tables in this example come from the schema you already showed:
 
 Three options I considered:
 
-| Option | Doc count (closed_won) | Pros | Cons |
+| Option | Doc count (won) | Pros | Cons |
 |---|---|---|---|
 | **Per call note (chosen)** | 100s-1000s | Natural narrative; chunks stay focused; metadata-filterable | Many small docs |
 | Per deal (aggregate calls) | 10s-100s | One doc per deal | Loses per-call structure; harder to filter by date |
@@ -95,7 +97,7 @@ metadata = {
     "customer_id": ...,
     "product_id": ...,
     "salesperson_id": ...,
-    "status": "closed_won",
+    "status": "won",
     "sentiment": ...,
     "note_type": ...,
     "use_cases_mentioned": [...],
@@ -106,7 +108,7 @@ metadata = {
 ```
 
 Two upsides:
-- Query: `WHERE metadata->>'status' = 'closed_won' AND (metadata->>'total_value')::numeric > 50000`
+- Query: `WHERE metadata->>'status' = 'won' AND (metadata->>'total_value')::numeric > 50000`
 - Tier 1 evolution awareness later: `effective_from`, `version_label` slot here naturally.
 
 ## Step 1 — Pull rows + format markdown
@@ -114,7 +116,7 @@ Two upsides:
 `benchmarks/sales_crm/prepare.py` (or wherever you keep it):
 
 ```python
-"""Pull closed_won sales notes from the CRM and format as markdown docs."""
+"""Pull won sales notes from the CRM and format as markdown docs."""
 
 import os
 import re
@@ -163,7 +165,7 @@ LEFT JOIN sales_demo_app.sales_orders so ON so.order_id = sn.order_id
 LEFT JOIN sales_demo_app.customers c    ON c.customer_id = so.customer_id
 LEFT JOIN sales_demo_app.products p     ON p.product_id  = so.product_id
 LEFT JOIN sales_demo_app.salespeople sp ON sp.salesperson_id = sn.salesperson_id
-WHERE so.status = 'closed_won'
+WHERE so.status = 'won'
 ORDER BY so.actual_close_date DESC, sn.created_at;
 """
 
@@ -209,7 +211,7 @@ def main():
         with conn.cursor() as cur:
             cur.execute(SQL)
             rows = cur.fetchall()
-    print(f"Fetched {len(rows)} closed_won notes")
+    print(f"Fetched {len(rows)} won notes")
     for row in rows:
         path = OUT / f"note-{row['note_id']:06d}-{slug(row['company_name'])}.md"
         path.write_text(format_doc(row))
@@ -220,14 +222,14 @@ if __name__ == "__main__":
     main()
 ```
 
-After this runs you have one markdown file per closed_won call note in `benchmarks/sales_crm/docs/`.
+After this runs you have one markdown file per won call note in `benchmarks/sales_crm/docs/`.
 
 ## Step 2 — Ingest
 
 `benchmarks/sales_crm/ingest.py`:
 
 ```python
-"""Ingest the closed_won sales notes into pg-raggraph."""
+"""Ingest the won sales notes into pg-raggraph."""
 
 import asyncio
 import json
@@ -241,7 +243,7 @@ from pg_raggraph import GraphRAG
 
 DOCS = Path("benchmarks/sales_crm/docs")
 DSN = os.environ["PGRG_DSN"]
-NAMESPACE = "sales_calls_closed_won"
+NAMESPACE = "sales_calls_won"
 
 
 def parse_metadata_from_doc(text: str) -> dict:
@@ -302,7 +304,7 @@ That's it. The tool runs chunking → embedding → entity extraction → entity
 
 ### What you should see
 
-For ~200 closed_won call notes (each ~200-500 tokens of body), expect roughly:
+For ~200 won call notes (each ~200-500 tokens of body), expect roughly:
 
 | Counter | Order of magnitude |
 |---|---|
@@ -318,7 +320,7 @@ Cost (one-time, with `gpt-4o-mini` for extraction): roughly **$1-3** for the ent
 After ingest, your call-notes graph is dominated by what the LLM noticed in narrative. The CRM has *known* edges that are worth pinning so the graph is anchored in ground truth:
 
 - `(Customer)–[BOUGHT]–(Product)` from `sales_orders.product_id`
-- `(Salesperson)–[CLOSED]–(Customer)` from `sales_orders.salesperson_id` for closed_won
+- `(Salesperson)–[CLOSED]–(Customer)` from `sales_orders.salesperson_id` for won
 - `(UseCase)–[APPLIES_TO]–(Product)` from `use_cases` table (if present) or `sales_notes.use_case_mentioned`
 
 `benchmarks/sales_crm/inject_structural_edges.py`:
@@ -331,7 +333,7 @@ import psycopg
 
 CRM_DSN = os.environ["CRM_DSN"]
 PGRG_DSN = os.environ["PGRG_DSN"]
-NAMESPACE = "sales_calls_closed_won"
+NAMESPACE = "sales_calls_won"
 
 
 async def main():
@@ -350,7 +352,7 @@ async def main():
                 FROM sales_demo_app.sales_orders so
                 JOIN sales_demo_app.customers cu ON cu.customer_id = so.customer_id
                 JOIN sales_demo_app.products p   ON p.product_id   = so.product_id
-                WHERE so.status = 'closed_won'
+                WHERE so.status = 'won'
             """)
             for row in c.fetchall():
                 # Match against entities pg-raggraph already extracted by name.
@@ -375,7 +377,7 @@ async def main():
                 FROM sales_demo_app.sales_orders so
                 JOIN sales_demo_app.salespeople sp ON sp.salesperson_id = so.salesperson_id
                 JOIN sales_demo_app.customers cu   ON cu.customer_id    = so.customer_id
-                WHERE so.status = 'closed_won'
+                WHERE so.status = 'won'
             """)
             for row in c.fetchall():
                 g.execute(
@@ -420,7 +422,7 @@ Or via CLI:
 
 ```bash
 pgrg ask "What were the most common reasons we won deals against Stripe Billing?" \
-  --namespace sales_calls_closed_won \
+  --namespace sales_calls_won \
   --mode smart
 ```
 
@@ -431,7 +433,7 @@ After ingest, sanity-check what got extracted:
 ```sql
 -- Top entity types
 SELECT entity_type, COUNT(*) FROM entities
-WHERE namespace = 'sales_calls_closed_won'
+WHERE namespace = 'sales_calls_won'
 GROUP BY entity_type ORDER BY 2 DESC LIMIT 20;
 
 -- Most connected entities (likely customers, products, key people)
@@ -439,13 +441,13 @@ SELECT e.name, e.entity_type, COUNT(r.*) AS edges
 FROM entities e
 LEFT JOIN relationships r
   ON r.namespace = e.namespace AND (r.src_id = e.id OR r.dst_id = e.id)
-WHERE e.namespace = 'sales_calls_closed_won'
+WHERE e.namespace = 'sales_calls_won'
 GROUP BY e.id, e.name, e.entity_type
 ORDER BY edges DESC LIMIT 20;
 
 -- Did the structural injection land?
 SELECT rel_type, COUNT(*) FROM relationships
-WHERE namespace = 'sales_calls_closed_won'
+WHERE namespace = 'sales_calls_won'
 GROUP BY rel_type ORDER BY 2 DESC;
 ```
 
@@ -502,11 +504,34 @@ The injection script is how you keep the second column trustworthy without payin
 - **Multi-tenant isolation across customers viewing their own data.** Use one `namespace` per tenant.
 - **Tier 1 evolution-aware retrieval.** Set `evolution_tier="structural"` and add `effective_from` / `version_label` metadata if your CRM tracks deal-state-over-time and you want time-travel queries. See [`docs/cookbook/evolution-tracking.md`](evolution-tracking.md).
 
+## Loading the sample dataset
+
+If you just want to follow along:
+
+```bash
+# Load the synthetic CRM sample into your local Postgres
+psql -h localhost -d postgres -f docs/cookbook/samples/sales-crm-demo.sql
+
+# Confirm rows
+psql -h localhost -d postgres -c "
+  SELECT
+    (SELECT COUNT(*) FROM sales_demo_app.sales_orders WHERE status='won') AS won,
+    (SELECT COUNT(*) FROM sales_demo_app.sales_orders WHERE status='lost') AS lost,
+    (SELECT COUNT(*) FROM sales_demo_app.sales_notes) AS notes;
+"
+# won | lost | notes
+# 200 | 100  | 974
+```
+
+The sample is 0.77 MB. It includes only the 5 tables this cookbook uses (salespeople, customers, products, sales_orders, sales_notes), with a stratified slice of 200 won + 100 lost deals + their dependencies. Triggers and Postgres-18-specific session variables are stripped so the file loads on Postgres 14+.
+
+To regenerate from a live CRM with different sample size, edit `WON_SAMPLE` / `LOST_SAMPLE` in [`samples/_build_sample.py`](samples/_build_sample.py) and re-run. (Build script is for maintainers; the .sql file is the actual deliverable.)
+
 ## Next steps for *your* schema specifically
 
 Given the `sales_demo_app.*` tables you showed:
 
-1. **Run the prepare step** with `WHERE so.status = 'closed_won'` to get a sense of corpus size. If it's < 50 deals, drop the filter and use all statuses; pg-raggraph's namespace separation makes per-status retrieval easy via metadata filter at query time.
+1. **Run the prepare step** with `WHERE so.status = 'won'` to get a sense of corpus size. If it's < 50 deals, drop the filter and use all statuses; pg-raggraph's namespace separation makes per-status retrieval easy via metadata filter at query time.
 2. **Use `extraction_prompt="dev"`** — your notes contain product names, salespeople, customers, use cases, sentiments. That's an operational corpus, not a general-knowledge corpus. The dev prompt tunes for exactly this shape.
 3. **Inject the four structural edges:**
    - `(Customer)–[BOUGHT]–(Product)` from `sales_orders`
