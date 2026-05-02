@@ -50,20 +50,22 @@ This isn't aesthetic preference. The [bake-off](benchmarks/age-bakeoff/results/R
 
 ## Quickstart — 5 minutes, works cold
 
-This is verified to reproduce on a fresh clone. Every command is copy-pasteable.
+Every command is copy-pasteable. You need a running Postgres 16+ with the
+`pgvector` and `pg_trgm` extensions; the `docker compose` step below sets
+one up locally if you don't have one.
 
 ```bash
-# 1. Clone (pg-raggraph is alpha and not yet on PyPI)
-git clone https://github.com/yonk-labs/pg_raggraph
-cd pg_raggraph
+# 1. Install from PyPI
+pip install pg-raggraph              # core SDK + CLI
+# or, with the bundled FastAPI server + web UI:
+pip install 'pg-raggraph[server]'
 
-# 2. Install Python deps (uv recommended; falls back to pip if you must)
-uv sync
-
-# 3. Start a local Postgres with pgvector + pg_trgm pre-installed
+# 2. Start a local Postgres with pgvector + pg_trgm pre-installed
+#    (skip if you already have a Postgres with the extensions)
+curl -sLo docker-compose.yml https://raw.githubusercontent.com/yonk-labs/pg_raggraph/main/docker-compose.yml
 docker compose up -d postgres
 
-# 4. Pick an LLM endpoint (skip if you only want pure vector RAG)
+# 3. Pick an LLM endpoint (skip if you only want pure vector RAG)
 #    Option A — OpenAI:
 export PGRG_LLM_BASE_URL=https://api.openai.com/v1
 export PGRG_LLM_API_KEY=sk-...   # your key
@@ -73,10 +75,14 @@ export PGRG_LLM_MODEL=gpt-4o-mini
 # ollama pull llama3.2 && ollama serve   # leave running in another shell
 # (PGRG defaults to Ollama at http://localhost:11434/v1, so no env needed)
 
-# 5. Ingest a directory and ask questions
-uv run pgrg devmem ingest ./my-repo/
-uv run pgrg devmem ask "who owns the authentication service?"
+# 4. Ingest a directory and ask questions
+pgrg devmem ingest ./my-repo/
+pgrg devmem ask "who owns the authentication service?"
 ```
+
+Prefer to run from source? `git clone https://github.com/yonk-labs/pg_raggraph
+&& cd pg_raggraph && uv sync` works the same way; substitute `uv run pgrg` for
+`pgrg` in the commands above.
 
 If your LLM endpoint is up and your repo has docs/code, you'll see something like:
 
@@ -97,7 +103,7 @@ Sources:
   [0.68] commits/4f2c8a1.md
 ```
 
-That's the whole loop. From `git clone` to a grounded answer in five minutes.
+That's the whole loop. From `pip install` to a grounded answer in five minutes.
 
 > **One thing to know about `pgrg serve`** — the bundled FastAPI web UI is for **local development and demos only**. It ships without authentication, rate limiting, or upload size caps. **Do not expose it directly to the public internet.** For production, put it behind a reverse proxy that adds auth, TLS, and rate limits — or embed `create_app()` in your own FastAPI application. See [`docs/user-guide.md#production-deployment`](docs/user-guide.md#production-deployment) for the recommended setup.
 
