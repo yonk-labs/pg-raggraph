@@ -1,19 +1,23 @@
 name: release
 
 # Triggered by pushing a `v*` tag (e.g., `git tag v0.3.0a2 && git push --tags`).
-# Builds the wheel + sdist with `uv build` and publishes to PyPI using a
-# long-lived API token stored as the `PYPI_TOKEN` secret.
+# Builds the wheel + sdist with `uv build` and publishes to PyPI using
+# Trusted Publishing (OIDC) — no token in repo secrets, the GitHub
+# repo + workflow + environment is registered as a publisher on the
+# PyPI side.
 #
-# Long-term, prefer PyPI Trusted Publishing (OIDC) — no token in secrets,
-# repo registered as a publisher on PyPI side. See:
-#   https://docs.pypi.org/trusted-publishers/
-# Until that's set up, this token-based path is the lowest-friction option.
+# PyPI Trusted Publishing setup (https://docs.pypi.org/trusted-publishers/):
+#   - Repo owner: yonk-labs
+#   - Repo name: pg_raggraph
+#   - Workflow filename: release.yml
+#   - Environment name: pypi
 #
-# Manual dry-run before tagging:
-#   uv build
-#   uv publish --publish-url https://test.pypi.org/legacy/ --token TESTPYPI_TOKEN
-#   pip install --index-url https://test.pypi.org/simple/ \
-#               --extra-index-url https://pypi.org/simple/ pg-raggraph
+# `uv publish` auto-detects OIDC when running in GitHub Actions with
+# `permissions.id-token: write`. No token env var required.
+#
+# TestPyPI fallback (token-based) is preserved for dry-runs via
+# workflow_dispatch with target=testpypi. Provide a TESTPYPI_TOKEN secret
+# under the testpypi environment to use it.
 
 on:
   push:
@@ -71,6 +75,11 @@ jobs:
     name: Publish to PyPI
     needs: build
     runs-on: ubuntu-latest
+    # OIDC requires `id-token: write` at the job level. `contents: read`
+    # is inherited from the workflow-level grant.
+    permissions:
+      id-token: write
+      contents: read
     # The job only publishes on real `v*` tag pushes, OR when explicitly
     # dispatched. Workflow re-runs on the same tag are no-ops because PyPI
     # rejects duplicate version uploads.
@@ -88,23 +97,16 @@ jobs:
         with:
           name: dist
           path: dist/
-      - name: Publish (PyPI)
+      - name: Publish (PyPI via Trusted Publishing / OIDC)
         if: github.event.inputs.target != 'testpypi'
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
-        run: |
-          if [ -z "$UV_PUBLISH_TOKEN" ]; then
-            echo "::error::PYPI_TOKEN secret is not set. Add it under Settings → Secrets and variables → Actions."
-            exit 1
-          fi
-          uv publish dist/*
-      - name: Publish (TestPyPI)
+        run: uv publish dist/*
+      - name: Publish (TestPyPI, token-based)
         if: github.event.inputs.target == 'testpypi'
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.TESTPYPI_TOKEN }}
         run: |
           if [ -z "$UV_PUBLISH_TOKEN" ]; then
-            echo "::error::TESTPYPI_TOKEN secret is not set."
+            echo "::error::TESTPYPI_TOKEN secret is not set in the testpypi environment."
             exit 1
           fi
           uv publish --publish-url https://test.pypi.org/legacy/ dist/*
