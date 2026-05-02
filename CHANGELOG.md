@@ -1,5 +1,78 @@
 # Changelog
 
+## 0.3.0a2 — 2026-05-02 (pre-public-push hardening)
+
+Second prod-ready audit pass on top of `0.3.0a1`, ahead of the public-repo
+flip + first real PyPI release. Five PRs closed (PR-301..PR-305) plus a
+fix for an evolution-tracking bug surfaced during test hardening.
+
+### Security
+
+- **PR-301 — Bearer auth uses constant-time compare.** `pgrg serve`'s
+  optional `PGRG_SERVER_API_KEY` Bearer middleware now uses
+  `secrets.compare_digest` instead of `!=`. The previous comparison
+  short-circuited on the first differing byte and leaked the key
+  length + prefix via response timing — bypassable by a network
+  attacker over thousands of probes. Added regression-lock test that
+  spies on `secrets.compare_digest` and asserts the auth path actually
+  invokes it (catches a future revert to `==` directly).
+- **PR-303 — Defense-in-depth security headers.** New middleware
+  attaches `Content-Security-Policy`, `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, and `Referrer-Policy: no-referrer` to every
+  response — including the 401/403 short-circuits from the auth
+  middleware. CSP allows `https://unpkg.com` for the bundled
+  `vis-network` UI; tighten to `'self'` once the JS is bundled locally.
+- **PR-304 — MCP `pgrg_ingest` enforces the file-extension allowlist.**
+  Hoisted the canonical extension list to `pg_raggraph.INGEST_ALLOWED_EXTS`
+  so the FastAPI `/ingest` endpoint, the MCP `pgrg_ingest` tool, and
+  the library's directory walker all share one source. An LLM agent
+  that asks the MCP server to ingest a `.exe`, `.so`, `.tar`, etc.
+  now gets a structured `{"error": "unsupported_extension", ...}`
+  response — no garbage entities polluting the knowledge graph.
+
+### Packaging / DX
+
+- **PR-302 — `[project.urls]` table on PyPI.** `pyproject.toml` now
+  declares Homepage, Repository, Issues, Changelog, and Documentation
+  URLs. The PyPI project page sidebar surfaces these — without them
+  the listing was barebones, a permanent first-impression tax.
+- **PR-305 — Reranker actionable ImportError.** When fastembed's
+  cross-encoder submodule isn't available, `FastEmbedReranker._load()`
+  now raises `ImportError` with a `pip install --upgrade 'fastembed>=0.4'`
+  hint instead of letting a bare `ModuleNotFoundError` propagate. Matches
+  the pattern used for the chunkshop integration in `chunking.py`.
+
+### Bug fixes
+
+- **datetime metadata no longer crashes ingest.** `rag.ingest(metadata={...})`
+  with `effective_from` / `effective_to` `datetime` values previously
+  failed with `TypeError: Object of type datetime is not JSON serializable`
+  in the `documents.metadata` JSONB path (and similarly for chunk
+  metadata in the chunkshop pre-chunked path). Added a `_json_default`
+  helper that serializes datetimes as ISO 8601 strings — queryable from
+  JSONB via `metadata->>'effective_from'`. Fixed 5 evolution-tier1
+  integration tests that were silently failing on `main` since the
+  `22d83f7` documents-metadata-persistence change.
+
+### Tests
+
+- 13 new tests in `tests/integration/test_error_paths.py` covering
+  PR-301..PR-304 (Bearer auth contract, security-header presence on
+  success + auth-failure paths, MCP `pgrg_ingest` extension rejection
+  and partial-state guard, public `INGEST_ALLOWED_EXTS` import).
+- New `tests/unit/test_reranker.py` (2 tests) covering PR-305.
+- All 204 tests pass on the full suite.
+
+### CI / hygiene
+
+- Cleared the lint+format failures that had been silently red on `main`
+  for several pushes. `ruff check .` and `ruff format --check .` are
+  now both green. Two new excludes added: `benchmarks/sales-crm-demo/`
+  (cookbook demo with its own SQL-heavy conventions, matches the prior
+  `benchmarks/age-bakeoff/` precedent) and `docs/cookbook/samples/*.py`
+  (documentation/demo scripts). One auto-fixed import sort in
+  `chunking.py`; one trimmed docstring example in `__init__.py`.
+
 ## 0.3.0a1 — 2026-04-28 (post-audit hardening)
 
 First public PyPI release. Polish + hardening pass on top of `0.3.0a0`. No public-API changes; all 23 production-readiness items from the prod-ready audit closed (22 fixed, 1 false positive). Library + server ready for external use.
