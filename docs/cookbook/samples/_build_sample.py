@@ -34,7 +34,7 @@ HERE = Path(__file__).parent
 SCHEMA_DUMP = Path("/tmp/sales-crm-demo-schema.sql")  # produced by pg_dump --schema-only
 
 TIERS = {
-    "small":  {"won": 200, "lost": 100},
+    "small": {"won": 200, "lost": 100},
     "medium": {"won": 700, "lost": 300},
 }
 SEED = 20260430
@@ -122,7 +122,9 @@ def build_tier(tier_name: str, won_n: int, lost_n: int, schema_sql: str):
             )
             lost_ids = [r["order_id"] for r in cur.fetchall()]
             order_ids = won_ids + lost_ids
-            print(f"\n[{tier_name}] {len(won_ids)} won + {len(lost_ids)} lost = {len(order_ids)} deals")
+            print(
+                f"\n[{tier_name}] {len(won_ids)} won + {len(lost_ids)} lost = {len(order_ids)} deals"
+            )
 
             # Pull orders
             cur.execute(

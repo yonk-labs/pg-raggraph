@@ -246,10 +246,12 @@ async def main() -> None:
         questions = json.load(f)
     if args.limit > 0:
         questions = questions[: args.limit]
-    print(f"Questions: {len(questions)} (hop counts: "
-          f"2hop={sum(1 for q in questions if q['hop_class'] == '2hop')}, "
-          f"3hop={sum(1 for q in questions if q['hop_class'] == '3hop')}, "
-          f"4hop={sum(1 for q in questions if q['hop_class'] == '4hop')})")
+    print(
+        f"Questions: {len(questions)} (hop counts: "
+        f"2hop={sum(1 for q in questions if q['hop_class'] == '2hop')}, "
+        f"3hop={sum(1 for q in questions if q['hop_class'] == '3hop')}, "
+        f"4hop={sum(1 for q in questions if q['hop_class'] == '4hop')})"
+    )
 
     judge_local = JudgeConfig("local") if args.judge in ("local", "both") else None
     judge_openai = JudgeConfig("openai") if args.judge in ("openai", "both") else None
@@ -284,19 +286,21 @@ async def main() -> None:
                     chunks = list(result.chunks)[:5]
                     latency_ms = (time.perf_counter() - t0) * 1000
                 except Exception as e:
-                    rows.append({
-                        "qid": q["id"],
-                        "hop_class": q["hop_class"],
-                        "mode": mode,
-                        "question": q["question"],
-                        "gold": q["answer"],
-                        "answer": "",
-                        "em": 0,
-                        "f1": 0.0,
-                        "support_recall": 0.0,
-                        "latency_ms": 0,
-                        "error": str(e),
-                    })
+                    rows.append(
+                        {
+                            "qid": q["id"],
+                            "hop_class": q["hop_class"],
+                            "mode": mode,
+                            "question": q["question"],
+                            "gold": q["answer"],
+                            "answer": "",
+                            "em": 0,
+                            "f1": 0.0,
+                            "support_recall": 0.0,
+                            "latency_ms": 0,
+                            "error": str(e),
+                        }
+                    )
                     done += 1
                     continue
 
@@ -310,21 +314,27 @@ async def main() -> None:
                     "answer": answer[:500],
                     "em": em(answer, golds),
                     "f1": round(f1(answer, golds), 3),
-                    "support_recall": round(
-                        supporting_recall(q["supporting"], chunks), 3
-                    ),
+                    "support_recall": round(supporting_recall(q["supporting"], chunks), 3),
                     "latency_ms": round(latency_ms, 0),
                 }
                 if judge_local is not None:
                     score, rationale = await llm_judge(
-                        client, judge_local, q["question"], q["answer"], answer,
+                        client,
+                        judge_local,
+                        q["question"],
+                        q["answer"],
+                        answer,
                         [c.content for c in chunks[:3]],
                     )
                     row["qwen_score"] = score
                     row["qwen_rationale"] = rationale
                 if judge_openai is not None:
                     score, rationale = await llm_judge(
-                        client, judge_openai, q["question"], q["answer"], answer,
+                        client,
+                        judge_openai,
+                        q["question"],
+                        q["answer"],
+                        answer,
                         [c.content for c in chunks[:3]],
                     )
                     row["openai_score"] = score
@@ -391,8 +401,7 @@ def aggregate(rows: list[dict], modes: list[str], judge: str) -> dict:
     return {
         "by_mode": {m: stats(by_mode[m]) for m in modes},
         "by_mode_hop": {
-            m: {h: stats(by_mode_hop[m][h]) for h in ("2hop", "3hop", "4hop")}
-            for m in modes
+            m: {h: stats(by_mode_hop[m][h]) for h in ("2hop", "3hop", "4hop")} for m in modes
         },
     }
 

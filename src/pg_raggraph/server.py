@@ -5,11 +5,12 @@ from __future__ import annotations
 import logging
 import os
 import re
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlparse
 
-from pg_raggraph import GraphRAG
+from pg_raggraph import INGEST_ALLOWED_EXTS, GraphRAG
 from pg_raggraph.config import PGRGConfig
 
 try:
@@ -23,12 +24,10 @@ _logger = logging.getLogger("pg_raggraph.server")
 
 STATIC_DIR = Path(__file__).parent / "static"
 
-# PR-104: extension allowlist for /ingest. Mirrors SUPPORTED_EXTS in
-# pg_raggraph.__init__.ingest so the server only accepts what the ingest
-# pipeline can actually consume.
-_INGEST_ALLOWED_EXTS = frozenset(
-    {".md", ".txt", ".py", ".ts", ".js", ".tsx", ".jsx", ".go", ".rs", ".java", ".rst"}
-)
+# PR-104 / PR-304: extension allowlist for /ingest. Imported from the
+# canonical INGEST_ALLOWED_EXTS in pg_raggraph.__init__ so the server, MCP
+# server, and library walker all accept the same set.
+_INGEST_ALLOWED_EXTS = frozenset(INGEST_ALLOWED_EXTS)
 _DEFAULT_MAX_UPLOAD_MB = 100
 # PR-104: filename sanitization. Strip any character outside [A-Za-z0-9._-]
 # and collapse runs of underscores. Path components are stripped via
@@ -106,7 +105,9 @@ def create_app(**kwargs) -> FastAPI:
             bearer = request.headers.get("Authorization", "")
             if not bearer.startswith("Bearer "):
                 return JSONResponse({"detail": "missing Bearer token"}, status_code=401)
-            if bearer[len("Bearer ") :].strip() != api_key:
+            # Constant-time compare so timing differences don't leak the key
+            # length or prefix. (`!=` short-circuits at the first byte.)
+            if not secrets.compare_digest(bearer[len("Bearer ") :].strip(), api_key):
                 return JSONResponse({"detail": "invalid API key"}, status_code=401)
 
         # Origin check on state-changing methods. Browsers always send Origin
@@ -135,6 +136,27 @@ def create_app(**kwargs) -> FastAPI:
                             status_code=403,
                         )
         return await call_next(request)
+
+    # PR-303: defense-in-depth security headers on every response, including
+    # auth-middleware short-circuits. Added after the auth middleware so it's
+    # the outermost wrapper (Starlette middleware is LIFO). The CSP allows
+    # https://unpkg.com because the bundled HTMX UI loads vis-network from
+    # there; tighten to 'self' once the JS is bundled locally.
+    @app.middleware("http")
+    async def _security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; "
+            "script-src 'self' https://unpkg.com 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; "
+            "connect-src 'self'",
+        )
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        return response
 
     @app.get("/", response_class=HTMLResponse)
     async def index():

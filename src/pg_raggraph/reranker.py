@@ -56,7 +56,16 @@ class FastEmbedReranker:
     def _load(self) -> None:
         if self._model is not None:
             return
-        from fastembed.rerank.cross_encoder import TextCrossEncoder
+        try:
+            from fastembed.rerank.cross_encoder import TextCrossEncoder
+        except ImportError as e:
+            raise ImportError(
+                "Reranking requires fastembed's cross-encoder support. "
+                "fastembed is already a base dependency, but the cross-encoder "
+                "submodule may be missing in older versions. "
+                "Try: pip install --upgrade 'fastembed>=0.4'. "
+                f"Original error: {e}"
+            ) from e
 
         logger.info(f"Loading reranker model: {self.model_name}")
         self._model = TextCrossEncoder(model_name=self.model_name)
@@ -97,9 +106,7 @@ async def apply_reranker(
     scores = await reranker.score(question, chunk_texts)
 
     # Pair each chunk with its new score, sort descending, trim
-    reranked = sorted(
-        zip(result.chunks, scores), key=lambda pair: pair[1], reverse=True
-    )[:top_k]
+    reranked = sorted(zip(result.chunks, scores), key=lambda pair: pair[1], reverse=True)[:top_k]
 
     new_chunks = []
     for chunk, score in reranked:

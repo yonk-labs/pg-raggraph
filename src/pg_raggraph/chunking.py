@@ -167,9 +167,17 @@ def _chunk_via_chunkshop(
         )
         from chunkshop.config import (
             FixedOverlapChunker as FixedCfg,
+        )
+        from chunkshop.config import (
             HierarchyChunker as HierCfg,
+        )
+        from chunkshop.config import (
             NeighborExpandChunker as NeighborCfg,
+        )
+        from chunkshop.config import (
             SemanticChunker as SemanticCfg,
+        )
+        from chunkshop.config import (
             SentenceAwareChunker as SentCfg,
         )
         from chunkshop.sources.base import Document

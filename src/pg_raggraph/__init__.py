@@ -14,14 +14,49 @@ try:
     __version__ = _pkg_version("pg-raggraph")
 except PackageNotFoundError:
     # Editable install without installed metadata (rare). Mirror pyproject.
-    __version__ = "0.3.0a1"
+    __version__ = "0.3.0a2"
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.models import QueryResult
 
-__all__ = ["GraphRAG", "PGRGConfig", "QueryResult", "__version__"]
+# Canonical extension allowlist for ingestion. Mirrored by the FastAPI server
+# and the MCP server so all surfaces accept the same set. Stored as a tuple
+# so it's compatible with str.endswith() in the directory walker.
+INGEST_ALLOWED_EXTS: tuple[str, ...] = (
+    ".md",
+    ".txt",
+    ".py",
+    ".ts",
+    ".js",
+    ".tsx",
+    ".jsx",
+    ".go",
+    ".rs",
+    ".java",
+    ".rst",
+)
+
+__all__ = [
+    "GraphRAG",
+    "INGEST_ALLOWED_EXTS",
+    "PGRGConfig",
+    "QueryResult",
+    "__version__",
+]
 
 logger = logging.getLogger("pg_raggraph")
+
+
+def _json_default(obj):
+    """JSON encoder fallback for types stdlib json can't handle natively.
+
+    datetime → ISO 8601 string (queryable from JSONB via
+    ``metadata->>'effective_from'``). Falls back to ``str(obj)`` for
+    anything else so a user's exotic metadata value never crashes ingest.
+    """
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    return str(obj)
 
 
 class _JSONLogFormatter(logging.Formatter):
@@ -295,19 +330,7 @@ class GraphRAG:
             ".autonomy",
             "skill-output",
         }
-        SUPPORTED_EXTS = (
-            ".md",
-            ".txt",
-            ".py",
-            ".ts",
-            ".js",
-            ".tsx",
-            ".jsx",
-            ".go",
-            ".rs",
-            ".java",
-            ".rst",
-        )
+        SUPPORTED_EXTS = INGEST_ALLOWED_EXTS
 
         # Collect and validate file paths
         file_paths = []
@@ -581,8 +604,12 @@ class GraphRAG:
             _progress("Extraction disabled — ingesting as pure vector RAG.")
 
         stats = {
-            "ingested": 0, "skipped": 0, "failed": 0,
-            "degraded": 0, "entities": 0, "rels": 0,
+            "ingested": 0,
+            "skipped": 0,
+            "failed": 0,
+            "degraded": 0,
+            "entities": 0,
+            "rels": 0,
         }
 
         async def _process_record(idx: int, rec: dict):
@@ -636,7 +663,8 @@ class GraphRAG:
                         transient = sqlstate in ("40P01", "40001") or (
                             sqlstate is None
                             and (
-                                "40P01" in msg or "40001" in msg
+                                "40P01" in msg
+                                or "40001" in msg
                                 or "deadlock detected" in msg
                                 or "could not serialize" in msg
                             )
@@ -649,9 +677,7 @@ class GraphRAG:
                         stats["failed"] += 1
                         return
 
-        await asyncio.gather(
-            *[_process_record(i + 1, rec) for i, rec in enumerate(records)]
-        )
+        await asyncio.gather(*[_process_record(i + 1, rec) for i, rec in enumerate(records)])
 
         notes_msg = []
         if stats["failed"]:
@@ -756,11 +782,11 @@ class GraphRAG:
         Pattern C). Each list entry is a dict::
 
             {
-                "content":          "<original chunk text>",            # required
-                "embedded_content": "<text given to the embedder>",     # optional, defaults to content
-                "embedding":        [float, ...],                        # required, must match config.embedding_dim
-                "metadata":         {...},                               # optional, merged with chunkshop_* metadata
-                "token_count":      int,                                 # optional, computed if missing
+                "content":          "<original chunk text>",          # required
+                "embedded_content": "<text given to the embedder>",   # optional
+                "embedding":        [float, ...],                     # required (dim)
+                "metadata":         {...},                            # optional (merged)
+                "token_count":      int,                              # optional
             }
 
         When ``pre_chunked`` is set, ``content`` is still used as the
@@ -794,9 +820,7 @@ class GraphRAG:
             chunk_embeddings = []
             for i, pc in enumerate(pre_chunked):
                 if "content" not in pc or "embedding" not in pc:
-                    raise ValueError(
-                        f"pre_chunked[{i}] must include 'content' and 'embedding'"
-                    )
+                    raise ValueError(f"pre_chunked[{i}] must include 'content' and 'embedding'")
                 emb = pc["embedding"]
                 if len(emb) != self.config.embedding_dim:
                     raise ValueError(
@@ -810,13 +834,15 @@ class GraphRAG:
                 meta = dict(pc.get("metadata") or {})
                 meta.setdefault("source_path", file_path)
                 meta.setdefault("chunk_index", i)
-                chunks.append({
-                    "content": body,
-                    "embedded_content": emb_content,
-                    "token_count": pc.get("token_count") or _token_count(emb_content),
-                    "content_hash": pc.get("content_hash") or content_hash_fn(body),
-                    "metadata": meta,
-                })
+                chunks.append(
+                    {
+                        "content": body,
+                        "embedded_content": emb_content,
+                        "token_count": pc.get("token_count") or _token_count(emb_content),
+                        "content_hash": pc.get("content_hash") or content_hash_fn(body),
+                        "metadata": meta,
+                    }
+                )
                 chunk_embeddings.append(emb)
             if not chunks:
                 return {"entities": 0, "rels": 0}
@@ -919,9 +945,7 @@ class GraphRAG:
         if known_relationships:
             for kr in known_relationships:
                 if not (kr.get("src") and kr.get("dst")):
-                    raise ValueError(
-                        "known_relationships entries must include 'src' and 'dst'"
-                    )
+                    raise ValueError("known_relationships entries must include 'src' and 'dst'")
                 rel_tuple = (
                     kr["src"],
                     kr["dst"],
@@ -988,7 +1012,10 @@ class GraphRAG:
             # Re-ingest merges (caller intent: add new keys, update changed
             # keys, leave untouched keys alone) — implemented via JSONB
             # concat in the ON CONFLICT branch.
-            doc_metadata_json = json.dumps(meta) if meta else "{}"
+            # Use _json_default so datetime values in metadata (e.g.
+            # effective_from / effective_to from evolution-tracking ingests)
+            # serialize to ISO strings instead of crashing the ingest.
+            doc_metadata_json = json.dumps(meta, default=_json_default) if meta else "{}"
 
             doc_id = await tx.insert_returning_id(
                 "INSERT INTO documents "
@@ -1054,7 +1081,7 @@ class GraphRAG:
                         chunk["embedded_content"],
                         chunk_embeddings[i],
                         chunk["token_count"],
-                        json.dumps(chunk["metadata"]),
+                        json.dumps(chunk["metadata"], default=_json_default),
                     ),
                 )
                 chunk_ids.append(chunk_id)
@@ -1160,9 +1187,7 @@ class GraphRAG:
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
         embedder = self._get_embedder()
-        top_k_override = (
-            self.config.top_k * self.config.rerank_factor if rerank else None
-        )
+        top_k_override = self.config.top_k * self.config.rerank_factor if rerank else None
         result = await retrieval_query(
             question=question,
             db=self.db,
@@ -1180,9 +1205,7 @@ class GraphRAG:
 
             if self._reranker is None:
                 self._reranker = FastEmbedReranker(self.config.rerank_model)
-            result = await apply_reranker(
-                self._reranker, question, result, self.config.top_k
-            )
+            result = await apply_reranker(self._reranker, question, result, self.config.top_k)
         return result
 
     async def ask(

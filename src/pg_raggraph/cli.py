@@ -209,9 +209,7 @@ def ask(ctx, question, mode, namespace, short_answer):
             kwargs["namespace"] = namespace
         rag = GraphRAG(**kwargs)
         await rag.connect()
-        result = await rag.ask(
-            question, mode=mode, namespace=namespace, short_answer=short_answer
-        )
+        result = await rag.ask(question, mode=mode, namespace=namespace, short_answer=short_answer)
         await rag.close()
 
         click.echo(f"\n{result.answer}\n")

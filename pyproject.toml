@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pg-raggraph"
-version = "0.3.0a1"
+version = "0.3.0a2"
 description = "The fastest, simplest way to add knowledge-graph-powered RAG to any app — backed by PostgreSQL."
 readme = "README.md"
 license = "MIT"
@@ -54,6 +54,13 @@ all = ["pg-raggraph[server,community,langchain,llamaindex,mcp,chunkshop]"]
 [project.scripts]
 pgrg = "pg_raggraph.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/yonk-labs/pg_raggraph"
+Repository = "https://github.com/yonk-labs/pg_raggraph"
+Issues = "https://github.com/yonk-labs/pg_raggraph/issues"
+Changelog = "https://github.com/yonk-labs/pg_raggraph/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/yonk-labs/pg_raggraph/tree/main/docs"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/pg_raggraph"]
 
@@ -85,6 +92,10 @@ exclude = [
     # ruff config. It maintains its own lint posture; the root config
     # shouldn't police it (was masked by the broken-CI bug pre-PR-201).
     "benchmarks/age-bakeoff",
+    # sales-crm-demo is a cookbook demo with its own format conventions
+    # (long SQL strings, copy-paste friendly). Excluded for the same
+    # reason as age-bakeoff.
+    "benchmarks/sales-crm-demo",
     ".venv",
 ]
 
@@ -97,6 +108,8 @@ select = ["E", "F", "I", "W"]
 "tests/integration/test_retrieval_comparison.py" = ["E501", "E741"]
 # Benchmarks are scripts, not library code — relax rules
 "benchmarks/*.py" = ["E501", "E402", "E741", "F841"]
+# Cookbook samples are documentation/demo scripts, not library code
+"docs/cookbook/samples/*.py" = ["E501", "E402", "E741", "F841"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

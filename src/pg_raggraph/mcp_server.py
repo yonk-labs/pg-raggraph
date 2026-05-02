@@ -14,7 +14,7 @@ import logging
 import os
 import traceback
 
-from pg_raggraph import GraphRAG
+from pg_raggraph import INGEST_ALLOWED_EXTS, GraphRAG
 
 logger = logging.getLogger("pg_raggraph.mcp")
 
@@ -124,6 +124,12 @@ def build_server(rag: GraphRAG):
         (colon-separated). If that env var is unset, ingestion is refused —
         an MCP client is untrusted and must not be able to pull in
         arbitrary filesystem paths (/etc, ~/.ssh, etc.) and query them back.
+
+        File paths must have an allowed extension (see INGEST_ALLOWED_EXTS).
+        Directory paths are walked by the library and filtered there, so a
+        directory containing both .md and .exe will only ingest the .md
+        files. PR-304: an explicit file path with a non-allowed extension is
+        rejected here so an LLM agent can't ingest binaries by listing them.
         """
         if not allowed_roots:
             return {
@@ -132,6 +138,24 @@ def build_server(rag: GraphRAG):
             }
         try:
             safe_paths = [_check_path_allowed(p, allowed_roots) for p in paths]
+            rejected = []
+            for p in safe_paths:
+                if os.path.isfile(p):
+                    ext = os.path.splitext(p)[1].lower()
+                    if ext not in INGEST_ALLOWED_EXTS:
+                        rejected.append(
+                            {
+                                "path": p,
+                                "error": "unsupported_extension",
+                                "ext": ext,
+                            }
+                        )
+            if rejected:
+                return {
+                    "error": "unsupported_extension",
+                    "rejected": rejected,
+                    "allowed": list(INGEST_ALLOWED_EXTS),
+                }
             await rag.ingest(safe_paths, namespace=namespace)
             return await rag.status(namespace=namespace)
         except PermissionError as exc:
