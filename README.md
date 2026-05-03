@@ -62,7 +62,7 @@ pip install 'pg-raggraph[server]'
 
 # 2. Start a local Postgres with pgvector + pg_trgm pre-installed
 #    (skip if you already have a Postgres with the extensions)
-curl -sLo docker-compose.yml https://raw.githubusercontent.com/yonk-labs/pg_raggraph/main/docker-compose.yml
+curl -sLo docker-compose.yml https://raw.githubusercontent.com/yonk-labs/pg-raggraph/main/docker-compose.yml
 docker compose up -d postgres
 
 # 3. Pick an LLM endpoint (skip if you only want pure vector RAG)
@@ -80,8 +80,8 @@ pgrg devmem ingest ./my-repo/
 pgrg devmem ask "who owns the authentication service?"
 ```
 
-Prefer to run from source? `git clone https://github.com/yonk-labs/pg_raggraph
-&& cd pg_raggraph && uv sync` works the same way; substitute `uv run pgrg` for
+Prefer to run from source? `git clone https://github.com/yonk-labs/pg-raggraph
+&& cd pg-raggraph && uv sync` works the same way; substitute `uv run pgrg` for
 `pgrg` in the commands above.
 
 If your LLM endpoint is up and your repo has docs/code, you'll see something like:

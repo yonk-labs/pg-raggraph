@@ -119,8 +119,8 @@ weight (`config.w_recent`) to favor newer documents at scoring time.
 From a fresh clone:
 
 ```bash
-git clone https://github.com/yonk-labs/pg_raggraph
-cd pg_raggraph
+git clone https://github.com/yonk-labs/pg-raggraph
+cd pg-raggraph
 docker compose up -d postgres
 uv sync
 

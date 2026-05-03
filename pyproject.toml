@@ -55,11 +55,11 @@ all = ["pg-raggraph[server,community,langchain,llamaindex,mcp,chunkshop]"]
 pgrg = "pg_raggraph.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/yonk-labs/pg_raggraph"
-Repository = "https://github.com/yonk-labs/pg_raggraph"
-Issues = "https://github.com/yonk-labs/pg_raggraph/issues"
-Changelog = "https://github.com/yonk-labs/pg_raggraph/blob/main/CHANGELOG.md"
-Documentation = "https://github.com/yonk-labs/pg_raggraph/tree/main/docs"
+Homepage = "https://github.com/yonk-labs/pg-raggraph"
+Repository = "https://github.com/yonk-labs/pg-raggraph"
+Issues = "https://github.com/yonk-labs/pg-raggraph/issues"
+Changelog = "https://github.com/yonk-labs/pg-raggraph/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/yonk-labs/pg-raggraph/tree/main/docs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pg_raggraph"]

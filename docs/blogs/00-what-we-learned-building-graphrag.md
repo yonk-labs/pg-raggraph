@@ -230,10 +230,9 @@ Our happy-path suite had 55 passing tests before edge case testing. None of them
 pg-raggraph is MIT-licensed, ~4K LOC core (grew with the Tier 1 evolution layer), 9 core dependencies, works on every managed PostgreSQL provider. If you're already running PostgreSQL and want to add GraphRAG to an app, it's the simplest path:
 
 ```bash
-# Until the first stable PyPI release, install from source:
-git clone https://github.com/yonk-labs/pg_raggraph
-cd pg_raggraph
-uv sync
+# pip install (or, to run from source: `git clone
+# https://github.com/yonk-labs/pg-raggraph && cd pg-raggraph && uv sync`)
+pip install pg-raggraph
 docker compose up -d postgres
 
 uv run pgrg ingest ./your-docs/

@@ -119,8 +119,8 @@ Both paths are real benchmark scripts in the repo, not contrived demos.
 Clone and run:
 
 ```bash
-git clone https://github.com/yonk-labs/pg_raggraph
-cd pg_raggraph
+git clone https://github.com/yonk-labs/pg-raggraph
+cd pg-raggraph
 docker compose up -d postgres
 uv sync
 
