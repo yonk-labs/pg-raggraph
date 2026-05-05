@@ -607,6 +607,13 @@ pg-raggraph automatically skips documents that haven't changed. You can safely r
 4. Entities are resolved against existing ones (pg_trgm fuzzy + vector similarity)
 5. Everything is stored in PostgreSQL with content hashes for dedup
 
+### Ingesting from a database (CRM / ERP / app schema)
+
+The patterns above cover files on disk. For pulling rows out of a Postgres database (or any SQL source), see the worked end-to-end cookbook:
+
+- **[cookbook/sales-crm-ingestion.md](cookbook/sales-crm-ingestion.md)** — synthetic sales-CRM schema (customers / orders / products / call notes) ingested into pg-raggraph. Covers document grain, frontmatter shape, two ingest patterns (Pattern A: disk-based; Pattern B: in-memory via `ingest_records()` — preferred for same-database pipelines), pinning known graph edges from foreign keys at ingest time, and a per-mode query comparison. Ships with `samples/sales-crm-demo-small.sql` (788 KB) and `-medium.sql` (2.4 MB) so you can `psql -f` and follow along verbatim.
+- **[cookbook/chunkshop-integration.md](cookbook/chunkshop-integration.md)** — Pattern C: run [chunkshop](https://github.com/yonk-labs/chunkshop) into a pgvector table, then point pg-raggraph at it for the entity/relationship graph layer.
+
 ---
 
 ## Python SDK
