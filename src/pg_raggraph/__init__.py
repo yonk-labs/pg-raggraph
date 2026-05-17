@@ -1410,6 +1410,18 @@ class GraphRAG:
                 "(e.g., datetime(..., tzinfo=timezone.utc)); "
                 "naive datetimes silently misbehave against timestamptz columns"
             )
+        # Eager arg-shape validation (DEC-9a): fail fast on a malformed call
+        # with zero DB work, for BOTH sides, before opening the transaction —
+        # consistent with retract()'s pre-transaction validation. DB
+        # resolution (not-found / source_path->!=1) still happens in _resolve.
+        if (old_doc_id is None) == (old_source_path is None):
+            raise ValueError(
+                "exactly one of old_doc_id / old_source_path is required"
+            )
+        if (new_doc_id is None) == (new_source_path is None):
+            raise ValueError(
+                "exactly one of new_doc_id / new_source_path is required"
+            )
 
         async with self.db.transaction() as tx:
 
@@ -1451,7 +1463,7 @@ class GraphRAG:
 
             existing = await tx.fetch_one(
                 "SELECT id FROM document_versions WHERE document_id = %s "
-                "ORDER BY id DESC LIMIT 1",
+                "AND retracted = false ORDER BY id DESC LIMIT 1",
                 (new_id,),
             )
             if existing is not None:
@@ -1487,12 +1499,13 @@ class GraphRAG:
                     (ns, new_id, old_id, meta_json),
                 )
 
-            await tx.execute(
-                "UPDATE documents SET effective_to = %s WHERE id = %s",
+            updated = await tx.fetch_all(
+                "UPDATE documents SET effective_to = %s WHERE id = %s "
+                "RETURNING id",
                 (effective_at, old_id),
             )
 
-        return {"updated": 1}
+        return {"updated": len(updated)}
 
     async def delete_entity(self, entity_id: int) -> bool:
         """Delete an entity and its relationships by id."""

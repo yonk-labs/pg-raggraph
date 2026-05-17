@@ -390,3 +390,122 @@ async def test_prg3_legacy_supersede_without_effective_to_stays_hidden():
     finally:
         await rag.delete("test_prg3c")
         await rag.close()
+
+
+async def test_prg3_supersede_arg_validation_parity():
+    rag = await _connect(namespace="test_prg3d")
+    try:
+        with pytest.raises(ValueError, match="exactly one"):
+            await rag.supersede(old_doc_id=1, old_source_path="x",
+                                new_doc_id=2)
+        with pytest.raises(ValueError, match="exactly one"):
+            await rag.supersede(old_doc_id=1)  # new side missing
+    finally:
+        await rag.close()
+
+
+async def test_prg3_retract_then_supersede_uses_live_version_row():
+    # DEC-9 (amended): if retract() wrote a retraction-audit version row for
+    # the NEW doc first, supersede() must NOT commingle the supersedes pointer
+    # onto that retraction row — it targets a live (retracted=false) row,
+    # inserting one if none exists.
+    rag = await _connect(
+        namespace="test_prg3e",
+        evolution_tier="structural",
+        retracted_behavior="flag",
+    )
+    try:
+        await rag.delete("test_prg3e")
+        await rag.ingest_records(
+            [{"text": "Old doc OLD.", "source_id": "e:OLD"},
+             {"text": "New doc NEW.", "source_id": "e:NEW"}],
+            namespace="test_prg3e",
+        )
+        old = await rag.db.fetch_one(
+            "SELECT id FROM documents WHERE namespace=%s AND source_path=%s",
+            ("test_prg3e", "e:OLD"))
+        new = await rag.db.fetch_one(
+            "SELECT id FROM documents WHERE namespace=%s AND source_path=%s",
+            ("test_prg3e", "e:NEW"))
+        # Retract NEW first → writes a retraction-audit document_versions row.
+        await rag.retract(doc_id=new["id"], reason="temp retraction")
+        retraction_row = await rag.db.fetch_one(
+            "SELECT id FROM document_versions "
+            "WHERE document_id=%s AND retracted=true", (new["id"],))
+        assert retraction_row is not None
+
+        out = await rag.supersede(old_doc_id=old["id"], new_doc_id=new["id"],
+                                  reason="NEW supersedes OLD")
+        assert out == {"updated": 1}
+
+        # The supersedes pointer must NOT have been written onto the
+        # retraction-audit row.
+        contaminated = await rag.db.fetch_one(
+            "SELECT supersedes_document_id FROM document_versions WHERE id=%s",
+            (retraction_row["id"],))
+        assert contaminated["supersedes_document_id"] is None
+
+        # It must live on a non-retracted row pointing new -> old.
+        live = await rag.db.fetch_one(
+            "SELECT supersedes_document_id, retracted FROM document_versions "
+            "WHERE document_id=%s AND supersedes_document_id=%s",
+            (new["id"], old["id"]))
+        assert live is not None
+        assert live["retracted"] is False
+    finally:
+        await rag.delete("test_prg3e")
+        await rag.close()
+
+
+async def test_prg3_legacy_supersede_with_effective_to_uses_window():
+    # DEC-10 precise boundary: legacy data with BOTH a supersedes pointer AND
+    # an ingest-time effective_to is, under as_of, governed by the temporal
+    # window (the one intended narrow refinement) — NOT the blunt
+    # existence-hide. Current/non-as_of queries remain hidden.
+    rag = await _connect(
+        namespace="test_prg3f",
+        evolution_tier="structural",
+        supersession_behavior="hide",
+    )
+    try:
+        await rag.delete("test_prg3f")
+        old_eff = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        # OLD has an ingest-time effective_to that ends in 2023.
+        old_eff_to = datetime(2023, 1, 1, tzinfo=timezone.utc)
+        await rag.ingest_records(
+            [{"text": "Legacy windowed OLD doc.", "source_id": "f:OLD",
+              "metadata": {"effective_from": old_eff,
+                           "effective_to": old_eff_to}},
+             {"text": "Legacy windowed NEW doc.", "source_id": "f:NEW",
+              "metadata": {"effective_from": old_eff}}],
+            namespace="test_prg3f",
+        )
+        old = await rag.db.fetch_one(
+            "SELECT id, effective_to FROM documents "
+            "WHERE namespace=%s AND source_path=%s", ("test_prg3f", "f:OLD"))
+        new = await rag.db.fetch_one(
+            "SELECT id FROM documents WHERE namespace=%s AND source_path=%s",
+            ("test_prg3f", "f:NEW"))
+        assert old["effective_to"] is not None  # ingest-time window present
+        # Legacy ingest-time supersedes pointer (NOT via supersede()).
+        await rag.db.execute(
+            "INSERT INTO document_versions "
+            "(namespace, document_id, supersedes_document_id) "
+            "VALUES (%s, %s, %s)",
+            ("test_prg3f", new["id"], old["id"]),
+        )
+
+        # Current query (no as_of): existence-hide → OLD hidden (unchanged).
+        cur = await rag.query("legacy windowed", mode="naive",
+                              namespace="test_prg3f")
+        assert all(c.document_source != "f:OLD" for c in cur.chunks)
+
+        # as_of WITHIN OLD's window (2020-01-01 .. 2023-01-01): DEC-10 lets
+        # the temporal window govern (OLD has effective_to) → OLD surfaces.
+        within = datetime(2022, 1, 1, tzinfo=timezone.utc)
+        hist = await rag.query("legacy windowed", mode="naive",
+                               namespace="test_prg3f", as_of=within)
+        assert any(c.document_source == "f:OLD" for c in hist.chunks)
+    finally:
+        await rag.delete("test_prg3f")
+        await rag.close()
