@@ -337,3 +337,56 @@ async def test_prg3_supersede_ambiguous_path_raises():
     finally:
         await rag.delete("test_prg3b")
         await rag.close()
+
+
+async def test_prg3_legacy_supersede_without_effective_to_stays_hidden():
+    # Back-compat guard: a doc superseded the LEGACY way (a document_versions
+    # supersedes pointer with NO effective_to on the old doc) must stay hidden
+    # under supersession_behavior="hide" even in an as_of query — the as_of
+    # branch only relaxes the existence-hide for docs that have an
+    # effective_to (set by supersede()).
+    rag = await _connect(
+        namespace="test_prg3c",
+        evolution_tier="structural",
+        supersession_behavior="hide",
+    )
+    try:
+        await rag.delete("test_prg3c")
+        old_eff = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        await rag.ingest_records(
+            [{"text": "Legacy onboarding doc OLD.", "source_id": "leg:OLD",
+              "metadata": {"effective_from": old_eff}},
+             {"text": "Legacy onboarding doc NEW.", "source_id": "leg:NEW",
+              "metadata": {"effective_from": old_eff}}],
+            namespace="test_prg3c",
+        )
+        old = await rag.db.fetch_one(
+            "SELECT id, effective_to FROM documents "
+            "WHERE namespace=%s AND source_path=%s", ("test_prg3c", "leg:OLD"))
+        new = await rag.db.fetch_one(
+            "SELECT id FROM documents WHERE namespace=%s AND source_path=%s",
+            ("test_prg3c", "leg:NEW"))
+        # Simulate the legacy ingest-time supersedes pointer: NEW supersedes
+        # OLD, but OLD.effective_to is left NULL (supersede() was NOT used).
+        await rag.db.execute(
+            "INSERT INTO document_versions "
+            "(namespace, document_id, supersedes_document_id) "
+            "VALUES (%s, %s, %s)",
+            ("test_prg3c", new["id"], old["id"]),
+        )
+        assert old["effective_to"] is None  # legacy: no temporal boundary
+
+        # current query: existence-hide → OLD hidden
+        cur = await rag.query("legacy onboarding", mode="naive",
+                              namespace="test_prg3c")
+        assert all(c.document_source != "leg:OLD" for c in cur.chunks)
+
+        # historical query: OLD has no effective_to, so the guard keeps the
+        # existence-hide → OLD still hidden (no back-compat regression).
+        before = datetime(2021, 1, 1, tzinfo=timezone.utc)
+        hist = await rag.query("legacy onboarding", mode="naive",
+                               namespace="test_prg3c", as_of=before)
+        assert all(c.document_source != "leg:OLD" for c in hist.chunks)
+    finally:
+        await rag.delete("test_prg3c")
+        await rag.close()
