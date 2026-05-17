@@ -168,7 +168,7 @@ async def test_prg2_retract_by_doc_id_and_temporal():
     )
     try:
         await rag.delete("test_prg2")
-        _before = datetime.now(timezone.utc) - timedelta(days=1)
+        before_retract = datetime.now(timezone.utc) - timedelta(seconds=1)
         eff = datetime(2020, 1, 1, tzinfo=timezone.utc)
         await rag.ingest_records(
             [{"text": "Quarterly travel reimbursement policy details.",
@@ -198,9 +198,26 @@ async def test_prg2_retract_by_doc_id_and_temporal():
         assert dv["retracted"] is True
         assert dv["retraction_reason"] == "superseded by FY26 policy"
 
+        # retraction is a non-temporal flag — it does NOT shrink the doc's
+        # effective window. A historical (as_of before the retract) query
+        # still returns the document (retraction did not delete it / alter
+        # its effective_from). Document-level time-versioned retraction is
+        # out of scope (PRG-5).
+        hist = await rag.query(
+            "travel reimbursement", mode="naive",
+            namespace="test_prg2", as_of=before_retract,
+        )
+        assert hist.chunks
+        assert any(c.document_source == "doc:1" for c in hist.chunks)
+
         # idempotent: second retract is a no-op success
         out2 = await rag.retract(doc_id=doc_id)
         assert out2 == {"retracted_count": 1}
+        dv_count = await rag.db.fetch_one(
+            "SELECT count(*) AS cnt FROM document_versions WHERE document_id=%s",
+            (doc_id,),
+        )
+        assert dv_count["cnt"] == 1
     finally:
         await rag.delete("test_prg2")
         await rag.close()
@@ -217,6 +234,12 @@ async def test_prg2_retract_by_source_path_fans_out():
         )
         out = await rag.retract(source_path="shared/path", reason="cleanup")
         assert out == {"retracted_count": 1}
+        other = await rag.db.fetch_one(
+            "SELECT retracted FROM documents "
+            "WHERE namespace=%s AND source_path=%s",
+            ("test_prg2b", "other/path"),
+        )
+        assert other and other["retracted"] is False
     finally:
         await rag.delete("test_prg2b")
         await rag.close()
