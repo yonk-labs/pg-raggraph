@@ -70,14 +70,22 @@ PRG-5 (chain "current view") is **explicitly out of scope**.
   schema-additive, semantically clean. `retract()`'s `reason` maps cleanly to
   the existing `document_versions.retraction_reason` column.
 - **DEC-9 `supersede()` upsert target.** "Upsert" resolves a single
-  deterministic row: `SELECT id FROM document_versions WHERE document_id=<new>
-  ORDER BY retracted, id DESC LIMIT 1`; if found, `UPDATE` that row; else
-  `INSERT` a new row. Idempotent — re-running writes the same pointer to the
-  same row. The `retracted` sort key (FALSE sorts before TRUE in Postgres)
-  **prefers a live version row over a retraction-audit row**, so a
-  `supersede()` after a `retract()` on the same (new) document does not
-  commingle the supersession pointer onto the retraction record; `id DESC`
-  is the tiebreak among same-`retracted` rows (newest).
+  deterministic row, **excluding retraction-audit rows**:
+  `SELECT id FROM document_versions WHERE document_id=<new>
+  AND retracted = false ORDER BY id DESC LIMIT 1`; if found, `UPDATE` that
+  row; else `INSERT` a fresh row. Idempotent — re-running writes the same
+  pointer to the same row. The `retracted = false` filter (not merely an
+  `ORDER BY`) means a document whose *only* `document_versions` rows are
+  retraction-audit rows (written by a prior `retract()` on the new doc) gets
+  a **fresh, clean** supersession row rather than having the
+  `supersedes_document_id` pointer commingled onto a retraction record.
+- **DEC-9a `supersede()` eager arg validation.** The "exactly one of
+  `*_doc_id` / `*_source_path` per side" constraint is checked **before the
+  transaction** for *both* sides (fail-fast on a malformed call with zero DB
+  work), consistent with `retract()`'s pre-transaction validation. DB
+  resolution (id-not-found, source_path→≠1) still happens inside the
+  transaction. Net: an arg-shape error never depends on DB state or which
+  side resolves first.
 - **DEC-10 `as_of`-aware `supersession_behavior="hide"` (engine refinement,
   owner-approved amendment 2026-05-17).** Discovered during PRG-3
   implementation: the existing `evolution_where_clauses` `supersession_behavior
