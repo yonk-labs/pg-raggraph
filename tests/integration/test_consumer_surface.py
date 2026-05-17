@@ -509,3 +509,30 @@ async def test_prg3_legacy_supersede_with_effective_to_uses_window():
     finally:
         await rag.delete("test_prg3f")
         await rag.close()
+
+
+async def test_prg4_chunk_id_stable_and_non_null():
+    rag = await _connect(namespace="test_prg4")
+    try:
+        await rag.delete("test_prg4")
+        await rag.ingest_records(
+            [
+                {
+                    "text": "Incident postmortem for the cache stampede event.",
+                    "source_id": "doc:1",
+                }
+            ],
+            namespace="test_prg4",
+        )
+        r1 = await rag.query("cache stampede", mode="naive", namespace="test_prg4")
+        r2 = await rag.query("cache stampede", mode="naive", namespace="test_prg4")
+        assert r1.chunks and r2.chunks
+        for c in r1.chunks + r2.chunks:
+            assert c.chunk_id is not None
+        ids1 = {c.content: c.chunk_id for c in r1.chunks}
+        ids2 = {c.content: c.chunk_id for c in r2.chunks}
+        for content, cid in ids1.items():
+            assert ids2.get(content) == cid
+    finally:
+        await rag.delete("test_prg4")
+        await rag.close()
