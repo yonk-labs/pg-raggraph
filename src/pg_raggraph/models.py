@@ -171,7 +171,18 @@ class ChunkResult(BaseModel):
     score: float
     document_source: str | None = None
     entities: list[str] = Field(default_factory=list)
-    chunk_id: int | None = None  # DB id, used for graph boost lookups
+    chunk_id: int | None = None
+    """DB id (chunks.id). PRG-4 guarantee: always populated and stable for
+    results returned by GraphRAG.query()/ask() — the same stored chunk has an
+    identical, non-null chunk_id across re-queries. The type stays optional
+    for back-compat with direct ChunkResult construction."""
+    # --- PRG-1: opaque caller metadata + evolution status (all optional) ---
+    metadata: dict | None = None
+    retracted: bool | None = None
+    version_label: str | None = None
+    effective_from: datetime | None = None
+    effective_to: datetime | None = None
+    superseded_by_id: int | None = None
 
 
 class EntityResult(BaseModel):
