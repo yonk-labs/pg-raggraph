@@ -46,8 +46,6 @@ async def test_prg1_metadata_none_when_absent():
         res = await rag.query("payment outage", mode="naive", namespace="test_prg1_nometa")
         assert res.chunks
         assert res.chunks[0].metadata is None
-
-
     finally:
         await rag.delete("test_prg1_nometa")
         await rag.close()
@@ -100,4 +98,29 @@ async def test_prg1_retracted_true_under_flag():
         assert res.chunks[0].retracted is True
     finally:
         await rag.delete("test_prg1_flag")
+        await rag.close()
+
+
+async def test_prg1_retracted_false_when_not_retracted():
+    # evolution on, ordinary (non-retracted) doc → chunk.retracted is False
+    # (not None, not True). Guards against an inverted column mapping on the
+    # most common production path.
+    rag = await _connect(
+        namespace="test_prg1_notretracted",
+        evolution_tier="structural",
+    )
+    try:
+        await rag.delete("test_prg1_notretracted")
+        await rag.ingest_records(
+            [{"text": "Current API key rotation policy.",
+              "source_id": "doc:1"}],
+            namespace="test_prg1_notretracted",
+        )
+        res = await rag.query(
+            "API key rotation", mode="naive", namespace="test_prg1_notretracted"
+        )
+        assert res.chunks
+        assert res.chunks[0].retracted is False
+    finally:
+        await rag.delete("test_prg1_notretracted")
         await rag.close()

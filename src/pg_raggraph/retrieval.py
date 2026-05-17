@@ -77,6 +77,9 @@ def _build_naive_query(
         evolution_aware=evolution_aware,
     )
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
+    # PRG-1 consumer-surface columns (d.metadata/retracted/version_label/
+    # effective_from/effective_to/superseded_by_id) are intentionally repeated
+    # in all three builders below — keep the three SELECT blocks in sync.
     sql = f"""
 SELECT c.id, COALESCE(c.embedded_content, c.content) AS content, c.metadata,
        d.source_path,
