@@ -10,6 +10,7 @@ from pg_raggraph.config import PGRGConfig
 from pg_raggraph.db import Database
 from pg_raggraph.embedding import EmbeddingProvider
 from pg_raggraph.evolution import (
+    _effective_tier,
     evolution_bind_params,
     evolution_score_expr,
     evolution_where_clauses,
@@ -79,6 +80,11 @@ def _build_naive_query(
     sql = f"""
 SELECT c.id, COALESCE(c.embedded_content, c.content) AS content, c.metadata,
        d.source_path,
+       d.metadata AS doc_metadata,
+       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       (SELECT dv.document_id FROM document_versions dv
+        WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
+           AS superseded_by_id,
        1 - (c.embedding <=> %(embedding)s::vector) AS vec_score,
        ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score,
        {evolution_score_expr(base, cfg, evolution_aware)} AS score
@@ -139,6 +145,11 @@ relevant_chunks AS (
 )
 SELECT rc.id, rc.content, rc.metadata,
        d.source_path,
+       d.metadata AS doc_metadata,
+       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       (SELECT dv.document_id FROM document_versions dv
+        WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
+           AS superseded_by_id,
        {evolution_score_expr(base, cfg, evolution_aware)} AS score
 FROM relevant_chunks rc
 JOIN documents d ON d.id = rc.document_id
@@ -198,6 +209,11 @@ relevant_chunks AS (
 )
 SELECT rc.id, rc.content, rc.metadata,
        d.source_path,
+       d.metadata AS doc_metadata,
+       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       (SELECT dv.document_id FROM document_versions dv
+        WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
+           AS superseded_by_id,
        {evolution_score_expr(base, cfg, evolution_aware)} AS score
 FROM relevant_chunks rc
 JOIN documents d ON d.id = rc.document_id
@@ -331,6 +347,7 @@ async def query(
         rows = []
 
     # Build chunk results
+    evo_on = _effective_tier(config, evolution_aware) != "off"
     chunks = []
     chunk_ids = []
     for row in rows:
@@ -340,6 +357,15 @@ async def query(
                 score=float(row["score"]) if row["score"] else 0.0,
                 document_source=row.get("source_path"),
                 chunk_id=row["id"],
+                # PRG-1: opaque caller metadata is tier-independent.
+                # DEC-4: empty/absent JSONB ('{}') maps to None.
+                metadata=(row.get("doc_metadata") or None),
+                # DEC-5: evolution fields only when effective tier != "off".
+                retracted=(row.get("retracted") if evo_on else None),
+                version_label=(row.get("version_label") if evo_on else None),
+                effective_from=(row.get("effective_from") if evo_on else None),
+                effective_to=(row.get("effective_to") if evo_on else None),
+                superseded_by_id=(row.get("superseded_by_id") if evo_on else None),
             )
         )
         chunk_ids.append(row["id"])
