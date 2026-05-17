@@ -17,6 +17,7 @@
 - `src/pg_raggraph/models.py` — add 6 optional fields to `ChunkResult`, docstring on `chunk_id` (PRG-1, PRG-4).
 - `src/pg_raggraph/retrieval.py` — add columns to the 3 query builders' `SELECT`; map them in `query()` (PRG-1).
 - `src/pg_raggraph/__init__.py` — `timezone` import; add `retract()` + `supersede()` methods (PRG-2, PRG-3).
+- `src/pg_raggraph/evolution.py` — **(amended 2026-05-17, owner-approved DEC-10)** bounded, back-compat-guarded `as_of`-aware refinement of the `supersession_behavior="hide"` clause, required by PRG-3's temporal acceptance. See design doc DEC-10. Existing-data behavior unchanged (regression-tested).
 - `tests/unit/test_models.py` — `ChunkResult` field tests (PRG-1, PRG-4 shape).
 - `tests/integration/test_consumer_surface.py` — NEW: PRG-1/2/3/4 acceptance + back-compat gate.
 - `tests/integration/test_e2e.py` — extend cumulative path with a metadata round-trip.

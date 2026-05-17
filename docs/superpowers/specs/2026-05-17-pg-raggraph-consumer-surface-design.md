@@ -73,6 +73,28 @@ PRG-5 (chain "current view") is **explicitly out of scope**.
   deterministic row: `SELECT id FROM document_versions WHERE document_id=<new>
   ORDER BY id DESC LIMIT 1`; if found, `UPDATE` that row; else `INSERT` a new
   row. Idempotent — re-running writes the same pointer to the same row.
+- **DEC-10 `as_of`-aware `supersession_behavior="hide"` (engine refinement,
+  owner-approved amendment 2026-05-17).** Discovered during PRG-3
+  implementation: the existing `evolution_where_clauses` `supersession_behavior
+  ="hide"` clause is a *non-temporal* existence filter (`NOT EXISTS
+  document_versions WHERE supersedes_document_id = d.id`), so it hid superseded
+  docs in **all** queries — including historical `as_of` ones — which makes
+  PRG-3's two acceptance properties ("current honors hide" + "`as_of=<before>`
+  still returns the old doc") unsatisfiable against the unmodified engine. This
+  is a genuine internal inconsistency in the original PRG-3 acceptance. **Owner
+  decision: a small, deliberate, in-scope refinement to `evolution.py`** — when
+  `as_of` is provided under `supersession_behavior="hide"`, rely on the
+  `effective_to > as_of` temporal window for docs that **have** an
+  `effective_to` (set by `supersede()`), but **preserve the legacy
+  existence-hide** for docs superseded the old ingest-time way (supersedes
+  pointer with `effective_to IS NULL`). Net clause: keep a row if it is not
+  superseded **OR** it has an `effective_to`; hide only when superseded **AND**
+  `effective_to IS NULL`. This makes new `supersede()` data temporally correct
+  while guaranteeing **zero behavior change for existing data** (the back-compat
+  regression that a blanket skip would have introduced is closed and
+  regression-tested:
+  `test_prg3_legacy_supersede_without_effective_to_stays_hidden`). This
+  supersedes the original PRG-3 "no new query-path branching" wording.
 
 ---
 
@@ -222,16 +244,22 @@ Behavior, in a single `self.db.transaction()`:
    windowing lives on `documents` (step 5); the version row only carries the
    pointer.
 5. `UPDATE documents SET effective_to = %s WHERE id = old` (`effective_at`) —
-   existing temporal / `supersession_behavior` SQL then applies with **zero
-   new query-path branching**.
+   the existing temporal window SQL then governs historical visibility. Under
+   `supersession_behavior="hide"` the engine applies the **DEC-10**
+   `as_of`-aware clause so `as_of=<before>` correctly surfaces the
+   not-yet-superseded old doc while current queries still hide it.
 6. Return `{"updated": <rows changed>}`.
 
 ### Acceptance
 
 - Ingest A then B; `supersede(old=A,new=B)`; current query honors
-  `supersession_behavior`; `as_of=<before effective_at>` still returns A.
-- No new query-path branching — reuses existing `effective_to` /
-  `supersedes_document_id` semantics.
+  `supersession_behavior`; `as_of=<before effective_at>` still returns A
+  (via DEC-10 — A carries an `effective_to` from `supersede()`).
+- Legacy data (supersedes pointer, `effective_to IS NULL`) stays hidden under
+  `supersession_behavior="hide"` in `as_of` queries — back-compat preserved
+  and regression-tested (DEC-10).
+- Reuses existing `effective_to` / `supersedes_document_id` semantics; the only
+  engine change is the bounded, back-compat-guarded DEC-10 clause.
 
 ---
 
@@ -305,8 +333,12 @@ feature-branch workflow. Tree compiles and tests pass between commits
   deferred per source spec.
 - Any schema migration — all required columns/tables already exist in
   `sql/schema.sql` and migration `002_evolution_tracking.sql`.
-- Any change to existing query scoring, smart-router behavior, or evolution
-  engine internals.
+- Any change to existing query scoring or smart-router behavior.
+- Evolution engine internals — **with one owner-approved exception (DEC-10)**:
+  the bounded, back-compat-guarded `as_of`-aware refinement of the
+  `supersession_behavior="hide"` clause in `evolution_where_clauses`. No other
+  evolution-engine behavior changes; existing data behavior is unchanged
+  (regression-tested).
 
 ## Definition of ready for the consumer
 
