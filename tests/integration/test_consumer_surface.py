@@ -124,3 +124,35 @@ async def test_prg1_retracted_false_when_not_retracted():
     finally:
         await rag.delete("test_prg1_notretracted")
         await rag.close()
+
+
+async def test_prg1_back_compat_scores_and_fields_unchanged():
+    rag = await _connect(namespace="test_prg1_bc")
+    try:
+        await rag.delete("test_prg1_bc")
+        await rag.ingest_records(
+            [
+                {"text": "Payment service outage on the checkout path.",
+                 "source_id": "doc:1"},
+                {"text": "Database failover runbook for the orders cluster.",
+                 "source_id": "doc:2"},
+            ],
+            namespace="test_prg1_bc",
+        )
+        r1 = await rag.query("payment outage", mode="naive", namespace="test_prg1_bc")
+        r2 = await rag.query("payment outage", mode="naive", namespace="test_prg1_bc")
+
+        # Existing fields + scores are deterministic and unaffected.
+        assert [c.content for c in r1.chunks] == [c.content for c in r2.chunks]
+        assert [round(c.score, 9) for c in r1.chunks] == [
+            round(c.score, 9) for c in r2.chunks
+        ]
+        assert [c.chunk_id for c in r1.chunks] == [c.chunk_id for c in r2.chunks]
+        assert r1.top_score == r2.top_score
+        # New optional fields are inert for a no-metadata ingest.
+        for c in r1.chunks:
+            assert c.metadata is None
+            assert c.retracted is None
+    finally:
+        await rag.delete("test_prg1_bc")
+        await rag.close()
