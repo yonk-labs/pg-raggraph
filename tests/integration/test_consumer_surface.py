@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from pg_raggraph import GraphRAG
@@ -155,4 +157,79 @@ async def test_prg1_back_compat_scores_and_fields_unchanged():
             assert c.retracted is None
     finally:
         await rag.delete("test_prg1_bc")
+        await rag.close()
+
+
+async def test_prg2_retract_by_doc_id_and_temporal():
+    rag = await _connect(
+        namespace="test_prg2",
+        evolution_tier="structural",
+        retracted_behavior="flag",
+    )
+    try:
+        await rag.delete("test_prg2")
+        _before = datetime.now(timezone.utc) - timedelta(days=1)
+        eff = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        await rag.ingest_records(
+            [{"text": "Quarterly travel reimbursement policy details.",
+              "source_id": "doc:1",
+              "metadata": {"effective_from": eff}}],
+            namespace="test_prg2",
+        )
+        row = await rag.db.fetch_one(
+            "SELECT id FROM documents WHERE namespace=%s AND source_path=%s",
+            ("test_prg2", "doc:1"),
+        )
+        doc_id = row["id"]
+
+        out = await rag.retract(doc_id=doc_id, reason="superseded by FY26 policy")
+        assert out == {"retracted_count": 1}
+
+        # current query: retracted_behavior="flag" → still returned, flagged
+        cur = await rag.query("travel reimbursement", mode="naive", namespace="test_prg2")
+        assert cur.chunks and cur.chunks[0].retracted is True
+
+        # document_versions captured the retraction
+        dv = await rag.db.fetch_one(
+            "SELECT retracted, retraction_reason FROM document_versions "
+            "WHERE document_id=%s",
+            (doc_id,),
+        )
+        assert dv["retracted"] is True
+        assert dv["retraction_reason"] == "superseded by FY26 policy"
+
+        # idempotent: second retract is a no-op success
+        out2 = await rag.retract(doc_id=doc_id)
+        assert out2 == {"retracted_count": 1}
+    finally:
+        await rag.delete("test_prg2")
+        await rag.close()
+
+
+async def test_prg2_retract_by_source_path_fans_out():
+    rag = await _connect(namespace="test_prg2b", evolution_tier="structural")
+    try:
+        await rag.delete("test_prg2b")
+        await rag.ingest_records(
+            [{"text": "Alpha content one.", "source_id": "shared/path"},
+             {"text": "Beta content two.", "source_id": "other/path"}],
+            namespace="test_prg2b",
+        )
+        out = await rag.retract(source_path="shared/path", reason="cleanup")
+        assert out == {"retracted_count": 1}
+    finally:
+        await rag.delete("test_prg2b")
+        await rag.close()
+
+
+async def test_prg2_retract_rejects_naive_datetime_and_bad_args():
+    rag = await _connect(namespace="test_prg2c")
+    try:
+        with pytest.raises(ValueError, match="timezone-aware"):
+            await rag.retract(doc_id=1, retracted_at=datetime(2026, 1, 1))
+        with pytest.raises(ValueError, match="exactly one"):
+            await rag.retract()
+        with pytest.raises(ValueError, match="exactly one"):
+            await rag.retract(doc_id=1, source_path="x")
+    finally:
         await rag.close()

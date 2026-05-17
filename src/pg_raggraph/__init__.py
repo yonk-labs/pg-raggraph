@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 
@@ -1305,6 +1305,76 @@ class GraphRAG:
             (ns, source_path),
         )
         return 1 if result else 0
+
+    async def retract(
+        self,
+        *,
+        doc_id: int | None = None,
+        source_path: str | None = None,
+        reason: str = "",
+        retracted_at: datetime | None = None,
+        namespace: str | None = None,
+    ) -> dict:
+        """Mark already-ingested document(s) retracted, post-hoc.
+
+        Exactly one of ``doc_id`` / ``source_path``. By ``source_path`` this
+        fans out to every document in the namespace sharing that path
+        (DEC-7). Idempotent: retracting an already-retracted document is a
+        no-op success. ``retracted_at`` must be timezone-aware (defaults to
+        ``now(timezone.utc)``).
+
+        Returns ``{"retracted_count": int}`` — documents matched.
+        """
+        if (doc_id is None) == (source_path is None):
+            raise ValueError("exactly one of doc_id / source_path is required")
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        if retracted_at is None:
+            retracted_at = datetime.now(timezone.utc)
+        elif retracted_at.tzinfo is None:
+            raise ValueError(
+                "retracted_at must be timezone-aware "
+                "(e.g., datetime(..., tzinfo=timezone.utc)); "
+                "naive datetimes silently misbehave against timestamptz columns"
+            )
+
+        async with self.db.transaction() as tx:
+            if doc_id is not None:
+                target_rows = await tx.fetch_all(
+                    "SELECT id FROM documents WHERE id = %s AND namespace = %s",
+                    (doc_id, ns),
+                )
+            else:
+                target_rows = await tx.fetch_all(
+                    "SELECT id FROM documents "
+                    "WHERE namespace = %s AND source_path = %s",
+                    (ns, source_path),
+                )
+            ids = [r["id"] for r in target_rows]
+            if not ids:
+                return {"retracted_count": 0}
+
+            await tx.execute(
+                "UPDATE documents SET retracted = true WHERE id = ANY(%s)",
+                (ids,),
+            )
+            updated = await tx.fetch_all(
+                "UPDATE document_versions "
+                "SET retracted = true, retracted_at = %s, retraction_reason = %s "
+                "WHERE document_id = ANY(%s) RETURNING document_id",
+                (retracted_at, reason, ids),
+            )
+            have_version = {r["document_id"] for r in updated}
+            for mid in (i for i in ids if i not in have_version):
+                await tx.execute(
+                    "INSERT INTO document_versions "
+                    "(namespace, document_id, retracted, retracted_at, "
+                    " retraction_reason) "
+                    "VALUES (%s, %s, true, %s, %s)",
+                    (ns, mid, retracted_at, reason),
+                )
+
+        return {"retracted_count": len(ids)}
 
     async def delete_entity(self, entity_id: int) -> bool:
         """Delete an entity and its relationships by id."""
