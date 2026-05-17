@@ -71,8 +71,13 @@ PRG-5 (chain "current view") is **explicitly out of scope**.
   the existing `document_versions.retraction_reason` column.
 - **DEC-9 `supersede()` upsert target.** "Upsert" resolves a single
   deterministic row: `SELECT id FROM document_versions WHERE document_id=<new>
-  ORDER BY id DESC LIMIT 1`; if found, `UPDATE` that row; else `INSERT` a new
-  row. Idempotent — re-running writes the same pointer to the same row.
+  ORDER BY retracted, id DESC LIMIT 1`; if found, `UPDATE` that row; else
+  `INSERT` a new row. Idempotent — re-running writes the same pointer to the
+  same row. The `retracted` sort key (FALSE sorts before TRUE in Postgres)
+  **prefers a live version row over a retraction-audit row**, so a
+  `supersede()` after a `retract()` on the same (new) document does not
+  commingle the supersession pointer onto the retraction record; `id DESC`
+  is the tiebreak among same-`retracted` rows (newest).
 - **DEC-10 `as_of`-aware `supersession_behavior="hide"` (engine refinement,
   owner-approved amendment 2026-05-17).** Discovered during PRG-3
   implementation: the existing `evolution_where_clauses` `supersession_behavior
@@ -89,11 +94,20 @@ PRG-5 (chain "current view") is **explicitly out of scope**.
   existence-hide** for docs superseded the old ingest-time way (supersedes
   pointer with `effective_to IS NULL`). Net clause: keep a row if it is not
   superseded **OR** it has an `effective_to`; hide only when superseded **AND**
-  `effective_to IS NULL`. This makes new `supersede()` data temporally correct
-  while guaranteeing **zero behavior change for existing data** (the back-compat
-  regression that a blanket skip would have introduced is closed and
-  regression-tested:
-  `test_prg3_legacy_supersede_without_effective_to_stays_hidden`). This
+  `effective_to IS NULL`. This makes new `supersede()` data temporally correct.
+  **Precise back-compat boundary:** for the dominant legacy case — superseded
+  the old ingest-time way *without* an `effective_to` (`effective_to IS NULL`)
+  — behavior is **byte-identical** to before (still hidden in current *and*
+  `as_of` queries); this is the regression that a blanket skip would have
+  introduced, and it is closed and regression-tested
+  (`test_prg3_legacy_supersede_without_effective_to_stays_hidden`). The **one
+  deliberate, narrow refinement**: legacy data that carries *both* a supersedes
+  pointer *and* an ingest-time `effective_to` will, under `as_of` queries, now
+  be governed by the temporal window instead of the blunt existence-hide
+  (current/non-`as_of` queries are unchanged — still hidden). That is the
+  intended, more-correct behavior (a caller who set `effective_to` asked for
+  temporal windowing) and is regression-tested
+  (`test_prg3_legacy_supersede_with_effective_to_uses_window`). This
   supersedes the original PRG-3 "no new query-path branching" wording.
 
 ---
