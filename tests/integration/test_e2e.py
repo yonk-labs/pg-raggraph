@@ -5,6 +5,7 @@ import os
 import pytest
 
 from pg_raggraph import GraphRAG
+from pg_raggraph.db import SCHEMA_VERSION
 
 TEST_DSN = os.environ.get(
     "PGRG_TEST_DSN",
@@ -23,7 +24,7 @@ async def test_e2e_sprint0_schema():
     await rag.connect()
 
     status = await rag.status()
-    assert status["schema_version"] == 1
+    assert status["schema_version"] >= SCHEMA_VERSION
     assert status["embedding_dim"] == 384
     assert status["documents"] == 0
     assert status["entities"] == 0
@@ -102,6 +103,23 @@ async def test_e2e_sprint2_query():
     # Local mode query
     result2 = await rag.query("PostgreSQL", mode="local", namespace=ns)
     assert len(result2.chunks) > 0
+
+    await rag.ingest_records(
+        [
+            {
+                "text": "End to end metadata round trip probe document.",
+                "source_id": "e2e:rt",
+                "metadata": {"e2e_ref": "rt-1"},
+                "skip_llm": True,
+            }
+        ],
+        namespace=ns,
+    )
+    rt = await rag.query("metadata round trip probe", mode="naive", namespace=ns)
+    assert rt.chunks, "expected the probe doc to be retrievable"
+    assert any(c.metadata == {"e2e_ref": "rt-1"} for c in rt.chunks), (
+        "PRG-1: caller metadata must round-trip through query()"
+    )
 
     # Clean up
     await rag.delete(ns)
