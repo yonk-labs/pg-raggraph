@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.3.0a3 — 2026-05-17 (consumer surface)
+
+### Added (all optional, back-compatible)
+
+- `ChunkResult` now returns opaque caller `metadata` from
+  `documents.metadata` plus evolution status: `retracted`, `version_label`,
+  `effective_from`, `effective_to`, and `superseded_by_id`. All fields are
+  optional; evolution status stays `None` when `evolution_tier="off"`
+  (PRG-1).
+- `GraphRAG.retract(*, doc_id|source_path, reason, retracted_at, namespace)`
+  marks already-ingested documents retracted post-hoc and is idempotent
+  (PRG-2).
+- `GraphRAG.supersede(*, old_*, new_*, reason, effective_at, namespace)`
+  records post-hoc document supersession and sets the old document's
+  `effective_to` for temporal retrieval (PRG-3).
+- `ChunkResult.chunk_id` is documented and regression-tested as non-null and
+  stable for `query()` / `ask()` results (PRG-4).
+
+### Notes
+
+- No schema migration. The release uses existing `documents` and
+  `document_versions` columns.
+- No change to existing signatures, scoring, or defaults. A caller that
+  ingests no metadata and never calls the new methods sees behavior matching
+  `0.3.0a2`.
+
 ## 0.3.0a2 — 2026-05-02 (pre-public-push hardening)
 
 Second prod-ready audit pass on top of `0.3.0a1`, ahead of the public-repo

@@ -14,7 +14,7 @@ try:
     __version__ = _pkg_version("pg-raggraph")
 except PackageNotFoundError:
     # Editable install without installed metadata (rare). Mirror pyproject.
-    __version__ = "0.3.0a2"
+    __version__ = "0.3.0a3"
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.models import QueryResult
