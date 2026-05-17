@@ -112,10 +112,19 @@ def evolution_where_clauses(
     if cfg.retracted_behavior == "hide":
         clauses.append(f"NOT {doc_alias}.retracted")
     if cfg.supersession_behavior == "hide":
-        clauses.append(
-            f"NOT EXISTS (SELECT 1 FROM document_versions dv "
-            f"            WHERE dv.supersedes_document_id = {doc_alias}.id)"
-        )
+        if as_of is not None:
+            # When querying historically, use effective_to as the supersession
+            # boundary — if the doc was not yet superseded at as_of (i.e.,
+            # effective_to IS NULL or effective_to > as_of), it should surface.
+            # The temporal filter added below already encodes this via
+            # effective_to > as_of, so skip the existence-based hide clause;
+            # the as_of window handles visibility correctly.
+            pass
+        else:
+            clauses.append(
+                f"NOT EXISTS (SELECT 1 FROM document_versions dv "
+                f"            WHERE dv.supersedes_document_id = {doc_alias}.id)"
+            )
     if as_of is not None:
         if as_of.tzinfo is None:
             raise ValueError(

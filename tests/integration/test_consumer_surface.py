@@ -256,3 +256,84 @@ async def test_prg2_retract_rejects_naive_datetime_and_bad_args():
             await rag.retract(doc_id=1, source_path="x")
     finally:
         await rag.close()
+
+
+async def test_prg3_supersede_temporal_and_behavior():
+    rag = await _connect(
+        namespace="test_prg3",
+        evolution_tier="structural",
+        supersession_behavior="hide",
+    )
+    try:
+        await rag.delete("test_prg3")
+        a_eff = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        await rag.ingest_records(
+            [{"text": "Onboarding checklist version A.", "source_id": "doc:A",
+              "metadata": {"effective_from": a_eff}},
+             {"text": "Onboarding checklist version B revised.", "source_id": "doc:B",
+              "metadata": {"effective_from": a_eff}}],
+            namespace="test_prg3",
+        )
+        a = await rag.db.fetch_one(
+            "SELECT id FROM documents WHERE namespace=%s AND source_path=%s",
+            ("test_prg3", "doc:A"))
+        b = await rag.db.fetch_one(
+            "SELECT id FROM documents WHERE namespace=%s AND source_path=%s",
+            ("test_prg3", "doc:B"))
+
+        before = datetime(2021, 1, 1, tzinfo=timezone.utc)
+        eff_at = datetime.now(timezone.utc)
+        out = await rag.supersede(
+            old_doc_id=a["id"], new_doc_id=b["id"], reason="B revises A",
+            effective_at=eff_at,
+        )
+        assert out == {"updated": 1}
+
+        # supersedes pointer (new -> old) recorded
+        dv = await rag.db.fetch_one(
+            "SELECT supersedes_document_id, metadata FROM document_versions "
+            "WHERE document_id=%s", (b["id"],))
+        assert dv["supersedes_document_id"] == a["id"]
+        assert dv["metadata"].get("supersede_reason") == "B revises A"
+
+        # old doc got effective_to = eff_at
+        ad = await rag.db.fetch_one(
+            "SELECT effective_to FROM documents WHERE id=%s", (a["id"],))
+        assert ad["effective_to"] is not None
+
+        # supersession_behavior="hide": A no longer surfaces in current query
+        cur = await rag.query("onboarding checklist", mode="naive",
+                              namespace="test_prg3")
+        assert all(c.document_source != "doc:A" for c in cur.chunks)
+
+        # as_of before effective_at still returns A (temporal window)
+        hist = await rag.query("onboarding checklist", mode="naive",
+                               namespace="test_prg3", as_of=before)
+        assert any(c.document_source == "doc:A" for c in hist.chunks)
+    finally:
+        await rag.delete("test_prg3")
+        await rag.close()
+
+
+async def test_prg3_supersede_ambiguous_path_raises():
+    rag = await _connect(namespace="test_prg3b")
+    try:
+        await rag.delete("test_prg3b")
+        # Two docs share a source_path → ambiguous for a doc->doc pointer.
+        await rag.db.execute(
+            "INSERT INTO documents (namespace, content_hash, source_path) "
+            "VALUES (%s,%s,%s),(%s,%s,%s)",
+            ("test_prg3b", "h1", "dup/path", "test_prg3b", "h2", "dup/path"),
+        )
+        await rag.ingest_records(
+            [{"text": "Unique target doc.", "source_id": "unique/path"}],
+            namespace="test_prg3b",
+        )
+        with pytest.raises(ValueError, match="resolved to 2 documents"):
+            await rag.supersede(
+                old_source_path="dup/path", new_source_path="unique/path")
+        with pytest.raises(ValueError, match="exactly one"):
+            await rag.supersede(new_source_path="unique/path")
+    finally:
+        await rag.delete("test_prg3b")
+        await rag.close()

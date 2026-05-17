@@ -1376,6 +1376,124 @@ class GraphRAG:
 
         return {"retracted_count": len(ids)}
 
+    async def supersede(
+        self,
+        *,
+        old_doc_id: int | None = None,
+        old_source_path: str | None = None,
+        new_doc_id: int | None = None,
+        new_source_path: str | None = None,
+        reason: str | None = None,
+        effective_at: datetime | None = None,
+        namespace: str | None = None,
+    ) -> dict:
+        """Record that ``new`` supersedes ``old``, post-hoc.
+
+        Exactly one of ``*_doc_id`` / ``*_source_path`` per side. A
+        ``*_source_path`` that resolves to != 1 document raises ValueError
+        (the supersession pointer is document->document; DEC-7). ``reason``
+        is stored in ``document_versions.metadata`` as ``supersede_reason``
+        (DEC-8). ``effective_at`` must be timezone-aware (defaults to
+        ``now(timezone.utc)``); it is written as the old document's
+        ``effective_to`` so existing temporal / ``supersession_behavior``
+        logic applies with no new query-path code.
+
+        Returns ``{"updated": int}``.
+        """
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        if effective_at is None:
+            effective_at = datetime.now(timezone.utc)
+        elif effective_at.tzinfo is None:
+            raise ValueError(
+                "effective_at must be timezone-aware "
+                "(e.g., datetime(..., tzinfo=timezone.utc)); "
+                "naive datetimes silently misbehave against timestamptz columns"
+            )
+
+        async with self.db.transaction() as tx:
+
+            async def _resolve(side: str, did: int | None, spath: str | None) -> int:
+                if (did is None) == (spath is None):
+                    raise ValueError(
+                        f"exactly one of {side}_doc_id / {side}_source_path "
+                        "is required"
+                    )
+                if did is not None:
+                    row = await tx.fetch_one(
+                        "SELECT id FROM documents "
+                        "WHERE id = %s AND namespace = %s",
+                        (did, ns),
+                    )
+                    if row is None:
+                        raise ValueError(
+                            f"{side} document id {did} not found in "
+                            f"namespace {ns!r}"
+                        )
+                    return row["id"]
+                rows = await tx.fetch_all(
+                    "SELECT id FROM documents "
+                    "WHERE namespace = %s AND source_path = %s",
+                    (ns, spath),
+                )
+                if len(rows) != 1:
+                    raise ValueError(
+                        f"{side}_source_path {spath!r} resolved to "
+                        f"{len(rows)} documents (need exactly 1); pass "
+                        f"{side}_doc_id to disambiguate"
+                    )
+                return rows[0]["id"]
+
+            old_id = await _resolve("old", old_doc_id, old_source_path)
+            new_id = await _resolve("new", new_doc_id, new_source_path)
+            if old_id == new_id:
+                raise ValueError("old and new resolve to the same document")
+
+            existing = await tx.fetch_one(
+                "SELECT id FROM document_versions WHERE document_id = %s "
+                "ORDER BY id DESC LIMIT 1",
+                (new_id,),
+            )
+            if existing is not None:
+                if reason is not None:
+                    await tx.execute(
+                        "UPDATE document_versions "
+                        "SET supersedes_document_id = %s, "
+                        "    metadata = COALESCE(metadata, '{}'::jsonb) "
+                        "              || %s::jsonb "
+                        "WHERE id = %s",
+                        (
+                            old_id,
+                            json.dumps({"supersede_reason": reason}),
+                            existing["id"],
+                        ),
+                    )
+                else:
+                    await tx.execute(
+                        "UPDATE document_versions "
+                        "SET supersedes_document_id = %s WHERE id = %s",
+                        (old_id, existing["id"]),
+                    )
+            else:
+                meta_json = (
+                    json.dumps({"supersede_reason": reason})
+                    if reason is not None
+                    else "{}"
+                )
+                await tx.execute(
+                    "INSERT INTO document_versions "
+                    "(namespace, document_id, supersedes_document_id, metadata) "
+                    "VALUES (%s, %s, %s, %s::jsonb)",
+                    (ns, new_id, old_id, meta_json),
+                )
+
+            await tx.execute(
+                "UPDATE documents SET effective_to = %s WHERE id = %s",
+                (effective_at, old_id),
+            )
+
+        return {"updated": 1}
+
     async def delete_entity(self, entity_id: int) -> bool:
         """Delete an entity and its relationships by id."""
         result = await self.db.fetch_one(
