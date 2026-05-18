@@ -124,3 +124,40 @@ def _cooccurrence_edges(
         )
         for (a, b), n in counts.items()
     ]
+
+
+def _extract_one(text: str) -> ExtractionResult:
+    from lede.sentences import split_sentences
+
+    from pg_raggraph.extraction import filter_extraction
+
+    entities = _entities_from_text(text)
+    if not entities:
+        return ExtractionResult()
+    names = [e.name for e in entities]
+    sentences = split_sentences(text) if text and text.strip() else []
+    rels = _cooccurrence_edges(names, sentences)
+    return filter_extraction(ExtractionResult(entities=entities, relationships=rels))
+
+
+async def extract_from_chunks_lede(
+    chunks: list[dict],
+    llm,  # ignored — accepted for seam parity with extract_from_chunks
+    db,  # unused — no LLM cache on the deterministic path
+    config: PGRGConfig | None,
+) -> list[ExtractionResult]:
+    """Deterministic, LLM-free analogue of extraction.extract_from_chunks.
+
+    One ExtractionResult per chunk. CPU-bound lede/spaCy work is run in a
+    thread so the event loop is not blocked. Order is preserved.
+    """
+
+    def _work(text: str) -> ExtractionResult:
+        try:
+            return _extract_one(text)
+        except Exception as e:  # never fail the whole ingest on one chunk
+            logger.warning("lede extraction failed for a chunk: %s", e)
+            return ExtractionResult()
+
+    texts = [c.get("embedded_content") or c.get("content") or "" for c in chunks]
+    return await asyncio.gather(*(asyncio.to_thread(_work, t) for t in texts))

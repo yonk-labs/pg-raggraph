@@ -1,3 +1,4 @@
+import asyncio
 import builtins
 
 import pytest
@@ -63,3 +64,21 @@ def test_cooccurrence_edges_weighted_and_supported():
     # substring false-positives avoided: "NASA" must not match inside a word
     assert lede_extraction._mentions("NASASAT orbiter", "NASA") is False
     assert lede_extraction._mentions("NASA launched.", "NASA") is True
+
+
+def test_extract_from_chunks_lede_returns_one_result_per_chunk():
+    chunks = [
+        {
+            "content": "NASA launched the Saturn V rocket. NASA and Saturn V again.",
+            "embedded_content": (
+                "NASA launched the Saturn V rocket. NASA and Saturn V again."
+            ),
+        },
+        {"content": "", "embedded_content": ""},
+    ]
+    results = asyncio.run(
+        lede_extraction.extract_from_chunks_lede(chunks, None, None, None)
+    )
+    assert len(results) == 2
+    assert any(e.name == "NASA" for e in results[0].entities)
+    assert results[1].entities == [] and results[1].relationships == []
