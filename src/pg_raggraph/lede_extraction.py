@@ -54,3 +54,29 @@ def ensure_lede_available() -> None:
         raise RuntimeError(
             f"spaCy model `en_core_web_sm` not available. {_INSTALL_HINT}"
         ) from e
+
+
+def _entities_from_text(text: str) -> list[ExtractedEntity]:
+    """Untyped entity strings via lede's spaCy backend → ExtractedEntity.
+
+    lede 0.3.0's public API returns a flat tuple of surface strings with
+    no NER labels, so entity_type is the generic "entity". Reuses the
+    existing false-positive filter.
+    """
+    import lede
+    import lede_spacy  # noqa: F401  (registers the spacy backend on import)
+
+    from pg_raggraph.extraction import _is_valid_entity
+
+    if not text or not text.strip():
+        return []
+    raw = lede.extract.metadata(text, backend="spacy").entities
+    seen: set[str] = set()
+    out: list[ExtractedEntity] = []
+    for name in raw:
+        name = (name or "").strip()
+        if name in seen or not _is_valid_entity(name):
+            continue
+        seen.add(name)
+        out.append(ExtractedEntity(name=name, entity_type="entity", description=""))
+    return out
