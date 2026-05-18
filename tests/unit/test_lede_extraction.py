@@ -4,6 +4,7 @@ import builtins
 import pytest
 
 from pg_raggraph import lede_extraction
+from pg_raggraph.lede_extraction import select_extractor
 
 
 def test_ensure_lede_available_passes_when_installed():
@@ -53,11 +54,7 @@ def test_cooccurrence_edges_weighted_and_supported():
     rels = lede_extraction._cooccurrence_edges(names, sentences)
     by_pair = {(r.source, r.target): r for r in rels}
     # NASA<->Saturn V co-occur in 2 sentences
-    key = (
-        ("NASA", "Saturn V")
-        if ("NASA", "Saturn V") in by_pair
-        else ("Saturn V", "NASA")
-    )
+    key = ("NASA", "Saturn V") if ("NASA", "Saturn V") in by_pair else ("Saturn V", "NASA")
     assert by_pair[key].weight == 2.0
     assert by_pair[key].rel_type == "RELATED_TO"
     assert "NASA" in by_pair[key].description  # verbatim supporting sentence
@@ -70,21 +67,14 @@ def test_extract_from_chunks_lede_returns_one_result_per_chunk():
     chunks = [
         {
             "content": "NASA launched the Saturn V rocket. NASA and Saturn V again.",
-            "embedded_content": (
-                "NASA launched the Saturn V rocket. NASA and Saturn V again."
-            ),
+            "embedded_content": ("NASA launched the Saturn V rocket. NASA and Saturn V again."),
         },
         {"content": "", "embedded_content": ""},
     ]
-    results = asyncio.run(
-        lede_extraction.extract_from_chunks_lede(chunks, None, None, None)
-    )
+    results = asyncio.run(lede_extraction.extract_from_chunks_lede(chunks, None, None, None))
     assert len(results) == 2
     assert any(e.name == "NASA" for e in results[0].entities)
     assert results[1].entities == [] and results[1].relationships == []
-
-
-from pg_raggraph.lede_extraction import select_extractor
 
 
 class _Cfg:

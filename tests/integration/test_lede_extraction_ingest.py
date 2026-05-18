@@ -40,9 +40,7 @@ async def test_lede_spacy_ingest_builds_graph_without_llm():
     )
     await rag.connect()
     try:
-        await rag.ingest_records(
-            [{"text": _DOC, "source_id": "apollo:1"}], namespace=ns
-        )
+        await rag.ingest_records([{"text": _DOC, "source_id": "apollo:1"}], namespace=ns)
         ent = await rag.db.fetch_one(
             "SELECT COUNT(*) AS n FROM entities WHERE namespace=%s", (ns,)
         )

@@ -51,9 +51,7 @@ def ensure_lede_available() -> None:
 
         spacy.load("en_core_web_sm")
     except (ModuleNotFoundError, OSError) as e:
-        raise RuntimeError(
-            f"spaCy model `en_core_web_sm` not available. {_INSTALL_HINT}"
-        ) from e
+        raise RuntimeError(f"spaCy model `en_core_web_sm` not available. {_INSTALL_HINT}") from e
 
 
 def _entities_from_text(text: str) -> list[ExtractedEntity]:
@@ -87,15 +85,10 @@ def _mentions(sentence: str, name: str) -> bool:
 
     Avoids substring false positives ("NASA" inside "NASASAT").
     """
-    return (
-        re.search(rf"(?<!\w){re.escape(name)}(?!\w)", sentence, flags=re.IGNORECASE)
-        is not None
-    )
+    return re.search(rf"(?<!\w){re.escape(name)}(?!\w)", sentence, flags=re.IGNORECASE) is not None
 
 
-def _cooccurrence_edges(
-    names: list[str], sentences: list[str]
-) -> list[ExtractedRelationship]:
+def _cooccurrence_edges(names: list[str], sentences: list[str]) -> list[ExtractedRelationship]:
     """RELATED_TO edges for entities co-occurring in the same sentence.
 
     weight = number of sentences the pair co-occurs in. description = the
