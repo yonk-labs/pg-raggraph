@@ -80,3 +80,47 @@ def _entities_from_text(text: str) -> list[ExtractedEntity]:
         seen.add(name)
         out.append(ExtractedEntity(name=name, entity_type="entity", description=""))
     return out
+
+
+def _mentions(sentence: str, name: str) -> bool:
+    """True if `name` appears in `sentence` on word-ish boundaries.
+
+    Avoids substring false positives ("NASA" inside "NASASAT").
+    """
+    return (
+        re.search(rf"(?<!\w){re.escape(name)}(?!\w)", sentence, flags=re.IGNORECASE)
+        is not None
+    )
+
+
+def _cooccurrence_edges(
+    names: list[str], sentences: list[str]
+) -> list[ExtractedRelationship]:
+    """RELATED_TO edges for entities co-occurring in the same sentence.
+
+    weight = number of sentences the pair co-occurs in. description = the
+    first supporting sentence verbatim. Deterministic: pairs are ordered
+    by first appearance in `names`.
+    """
+    counts: dict[tuple[str, str], int] = {}
+    support: dict[tuple[str, str], str] = {}
+    for sent in sentences:
+        present = [n for n in names if _mentions(sent, n)]
+        for i in range(len(present)):
+            for j in range(i + 1, len(present)):
+                a, b = present[i], present[j]
+                if a == b:
+                    continue
+                pair = (a, b)
+                counts[pair] = counts.get(pair, 0) + 1
+                support.setdefault(pair, sent.strip())
+    return [
+        ExtractedRelationship(
+            source=a,
+            target=b,
+            rel_type="RELATED_TO",
+            description=support[(a, b)],
+            weight=float(n),
+        )
+        for (a, b), n in counts.items()
+    ]

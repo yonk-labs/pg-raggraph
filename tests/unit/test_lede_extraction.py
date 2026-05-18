@@ -40,3 +40,26 @@ def test_entities_from_text_are_untyped_and_filtered():
     assert all(e.entity_type == "entity" for e in ents)
     # blocklist/short-token filter from extraction._is_valid_entity applied
     assert all(len(e.name) >= 2 for e in ents)
+
+
+def test_cooccurrence_edges_weighted_and_supported():
+    names = ["NASA", "Saturn V", "Congress"]
+    sentences = [
+        "NASA launched the Saturn V rocket.",
+        "Congress funded NASA that decade.",
+        "NASA and Saturn V appeared together again here.",
+    ]
+    rels = lede_extraction._cooccurrence_edges(names, sentences)
+    by_pair = {(r.source, r.target): r for r in rels}
+    # NASA<->Saturn V co-occur in 2 sentences
+    key = (
+        ("NASA", "Saturn V")
+        if ("NASA", "Saturn V") in by_pair
+        else ("Saturn V", "NASA")
+    )
+    assert by_pair[key].weight == 2.0
+    assert by_pair[key].rel_type == "RELATED_TO"
+    assert "NASA" in by_pair[key].description  # verbatim supporting sentence
+    # substring false-positives avoided: "NASA" must not match inside a word
+    assert lede_extraction._mentions("NASASAT orbiter", "NASA") is False
+    assert lede_extraction._mentions("NASA launched.", "NASA") is True
