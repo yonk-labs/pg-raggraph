@@ -161,3 +161,18 @@ async def extract_from_chunks_lede(
 
     texts = [c.get("embedded_content") or c.get("content") or "" for c in chunks]
     return await asyncio.gather(*(asyncio.to_thread(_work, t) for t in texts))
+
+
+def select_extractor(config):
+    """Decide which extractor the ingest gate should use.
+
+    Returns ``(extractor_fn_or_None, needs_llm)``.
+
+    - ``fact_extractor == "lede_spacy"``: ``(extract_from_chunks_lede,
+      False)`` — runs the deterministic path; no ``llm_base_url`` needed.
+    - anything else: ``(None, True)`` — caller keeps the existing
+      LLM / skip_extraction behavior unchanged.
+    """
+    if getattr(config, "fact_extractor", "none") == "lede_spacy":
+        return extract_from_chunks_lede, False
+    return None, True

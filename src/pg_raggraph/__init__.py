@@ -364,15 +364,24 @@ class GraphRAG:
         # LLM is optional — without it, ingest stores chunks+embeddings only
         # (pure vector RAG mode). Reuse the shared provider if already created
         # so the connection pool is shared across ingest() calls.
+        from pg_raggraph.lede_extraction import select_extractor
+
         llm = None
-        if not self.config.skip_extraction and self.config.llm_base_url:
+        lede_fn, _needs_llm = select_extractor(self.config)
+        if lede_fn is not None:
+            from pg_raggraph.lede_extraction import ensure_lede_available
+
+            ensure_lede_available()
+            extract_from_chunks = lede_fn
+            _progress("Extraction via lede_spacy (deterministic, no LLM).")
+        elif not self.config.skip_extraction and self.config.llm_base_url:
             if self._llm is None:
                 try:
                     self._llm = get_llm_provider(self.config)
                 except Exception as e:
                     logger.warning(f"LLM provider unavailable, skipping extraction: {e}")
             llm = self._llm
-        if llm is None:
+        if lede_fn is None and llm is None:
             _progress("Extraction disabled — ingesting as pure vector RAG.")
 
         stats = {
@@ -591,16 +600,25 @@ class GraphRAG:
         if self._shutdown_event is None:
             self._shutdown_event = asyncio.Event()
 
+        from pg_raggraph.lede_extraction import select_extractor
+
         doc_sem = asyncio.Semaphore(self.config.doc_concurrency)
         llm = None
-        if not self.config.skip_extraction and self.config.llm_base_url:
+        lede_fn, _needs_llm = select_extractor(self.config)
+        if lede_fn is not None:
+            from pg_raggraph.lede_extraction import ensure_lede_available
+
+            ensure_lede_available()
+            extract_from_chunks = lede_fn
+            _progress("Extraction via lede_spacy (deterministic, no LLM).")
+        elif not self.config.skip_extraction and self.config.llm_base_url:
             if self._llm is None:
                 try:
                     self._llm = get_llm_provider(self.config)
                 except Exception as e:
                     logger.warning(f"LLM provider unavailable, skipping extraction: {e}")
             llm = self._llm
-        if llm is None:
+        if lede_fn is None and llm is None:
             _progress("Extraction disabled — ingesting as pure vector RAG.")
 
         stats = {
@@ -862,7 +880,8 @@ class GraphRAG:
         # entirely — pure vector RAG mode (with whatever known_entities /
         # known_relationships the caller provides as the only graph signal).
         extraction_degraded = False
-        if llm is None or skip_llm_for_this_doc:
+        _lede_path = getattr(self.config, "fact_extractor", "none") == "lede_spacy"
+        if (llm is None and not _lede_path) or skip_llm_for_this_doc:
             from pg_raggraph.models import ExtractionResult
 
             extraction_results = [ExtractionResult() for _ in chunks]

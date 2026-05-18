@@ -82,3 +82,28 @@ def test_extract_from_chunks_lede_returns_one_result_per_chunk():
     assert len(results) == 2
     assert any(e.name == "NASA" for e in results[0].entities)
     assert results[1].entities == [] and results[1].relationships == []
+
+
+from pg_raggraph.lede_extraction import select_extractor
+
+
+class _Cfg:
+    def __init__(self, fact_extractor, skip_extraction=False, llm_base_url=""):
+        self.fact_extractor = fact_extractor
+        self.skip_extraction = skip_extraction
+        self.llm_base_url = llm_base_url
+
+
+def test_select_extractor_lede_path_needs_no_llm():
+    fn, needs_llm = select_extractor(_Cfg("lede_spacy"))
+    assert needs_llm is False
+    assert fn is lede_extraction.extract_from_chunks_lede
+
+
+def test_select_extractor_llm_path_unchanged():
+    fn, needs_llm = select_extractor(_Cfg("llm", llm_base_url="http://x"))
+    assert needs_llm is True
+    assert fn is None  # caller uses the existing extract_from_chunks
+
+    fn, needs_llm = select_extractor(_Cfg("none"))
+    assert needs_llm is True and fn is None
