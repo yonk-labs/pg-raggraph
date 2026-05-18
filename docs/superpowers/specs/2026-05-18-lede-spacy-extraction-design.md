@@ -48,6 +48,11 @@ what is actually delivered.
   `ExtractionResult` seam only.
 - SPO / dependency-parse triple extraction. Not shipped by any upstream
   package; not in scope. The doc claims that promise it will be corrected.
+- **Typed entities** (`person`/`organization`/`location`). The supported
+  `lede`/`lede-spacy` 0.3.0 API returns untyped entity strings only;
+  surfacing spaCy `.label_` would require a private/internal path or a
+  second direct spaCy pass. Deferred follow-up. v1 stores
+  `entity_type="entity"` and documents this.
 - Changing the `"llm"` or `"none"` paths' behavior.
 
 ## Verified upstream API (PyPI, 2026-05-18)
@@ -88,23 +93,23 @@ async def extract_from_chunks_lede(
   (`list[ExtractionResult]`, one per chunk), so storage, entity
   resolution, and dedupe at `__init__.py:881+` are reused unchanged.
 - Per chunk, on `chunk["embedded_content"] or chunk["content"]`:
-  1. **Entities** ← lede + `lede_spacy` NER over the **full chunk text**
-     (not a truncated summary — entity coverage must not depend on
-     summary length). Mapped: `PERSON → person`, `ORG → organization`,
-     `GPE → location` (other labels → `concept`). Run through the
+  1. **Entities** ← `lede.extract.metadata(content, backend="spacy")
+     .entities` over the **full chunk text** (`import lede_spacy`
+     registers the backend as an import side effect). **Verified
+     2026-05-18 against `lede==0.3.0`:** this returns a flat
+     `tuple[str, ...]` of entity surface strings with **no NER type
+     labels** (e.g. `("NASA", "Neil Armstrong", "Moon")`). The
+     supported public API does not expose `PERSON/ORG/GPE`. Therefore
+     `entity_type = "entity"` (generic) for v1. Run each through the
      existing `extraction._is_valid_entity` / `filter_extraction`.
   2. **Relationships** ← deterministic **sentence-level co-occurrence**:
-     two entities whose mentions fall in the same sentence get a
-     `RELATED_TO` edge, `weight` = number of co-occurring sentences in
-     the chunk, `description` = one supporting sentence verbatim.
-     Explicitly typed as co-occurrence — **not** a semantic relation.
-  3. Exact lede entrypoint (`lede.extract.metadata(content,
-     backend="spacy")` vs `lede.summarize(content,
-     attach=["metadata"]).metadata`) and the sentence-iteration source
-     (lede-exposed spans vs a directly-loaded spaCy `Doc`) are
-     **pinned in the implementation plan after probing the installed
-     package** — the spec fixes the contract (full-text NER +
-     sentence co-occurrence), not the private call path.
+     split the chunk with `lede.sentences.split_sentences(content)`
+     (verified `(text: str) -> list[str]`, zero-dep regex splitter);
+     two entities whose surface strings both occur in the same sentence
+     get a `RELATED_TO` edge, `weight` = number of co-occurring
+     sentences in the chunk, `description` = one supporting sentence
+     verbatim. Explicitly typed as co-occurrence — **not** a semantic
+     relation.
 - CPU-bound spaCy work runs in a thread (`asyncio.to_thread`) so it does
   not block the event loop; bounded by `config.extract_concurrency`.
 - Lazy imports only (mirrors `chunking._chunk_via_chunkshop`). A
