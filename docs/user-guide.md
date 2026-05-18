@@ -426,7 +426,7 @@ your config untouched. Unknown weight names raise `ValueError`.
 
 ### What's NOT in Tier 1
 
-- Fact-level extraction (Tier 2 — `fact_extractor="lede_spacy"` will populate `facts` table)
+- Fact-level extraction into the `facts` table (Tier 2 — still a follow-up). NOTE: `fact_extractor="lede_spacy"` is implemented and builds a deterministic LLM-free graph (NER entities + co-occurrence `RELATED_TO` edges, no LLM/network); it does **not** populate the `facts` table yet. Requires `pip install 'pg-raggraph[lede_spacy]'` + `python -m spacy download en_core_web_sm`.
 - LLM-inferred supersession / contradiction (Tier 3)
 - Async slow-path fact-edge inference (Tier 3)
 

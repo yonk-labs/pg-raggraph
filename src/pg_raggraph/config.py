@@ -228,10 +228,14 @@ class PGRGConfig(BaseSettings):
     diversity_backfill: bool = True
 
     # Fact extraction (Tier 2+)
-    # Tier 2 fact extractor. `lede_spacy` is the supported non-LLM
-    # extractor (lede selects salient sentences; spaCy dep-parses them
-    # into SPO triples). Renamed from `skimr_spacy` 2026-04-28 — the
-    # underlying package shipped as `lede` / `lede-spacy` on PyPI.
+    # `lede_spacy` is the supported non-LLM extractor: lede + lede-spacy
+    # NER produce (untyped) entities; edges are deterministic
+    # sentence-level co-occurrence (RELATED_TO). No LLM, no network.
+    # Requires the [lede_spacy] extra + `python -m spacy download
+    # en_core_web_sm`. Selecting it builds a graph WITHOUT llm_base_url.
+    # NOTE: it does NOT emit SPO triples and does NOT populate the Tier 2
+    # `facts` table — that is a tracked follow-up. `llm` = full LLM
+    # extraction; `none` = disabled.
     fact_extractor: Literal["llm", "lede_spacy", "none"] = "none"
     fact_similarity_threshold: float = 0.92
     fact_edge_candidate_k: int = 8

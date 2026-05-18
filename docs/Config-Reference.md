@@ -503,11 +503,12 @@ When NOT to use: static benchmarks (waste of cycles); when the extractor is unre
 ### `fact_extractor` (`"llm" | "lede_spacy" | "none"`, default: `none`)
 Env var: `PGRG_FACT_EXTRACTOR`
 
-What: backend for extracting structured facts (Tier 2+). `llm` = full-quality, expensive. `lede_spacy` = cheap, regex-y. `none` = disabled.
-Pros: enables fact-level deduplication and contradiction detection.
-Cons: `llm` doubles or triples ingest LLM cost.
-When to use: `lede_spacy` for general use; `llm` for medical/legal precision.
-When NOT to use: `none` is correct unless you've moved past Tier 1.
+What: extractor backend for the graph. `llm` = full-quality LLM entity+relationship extraction, expensive. `lede_spacy` = deterministic, LLM-free: lede + lede-spacy NER produce (untyped) entities and edges are sentence-level co-occurrence (`RELATED_TO`); no LLM, no network. `none` = disabled.
+Requires (for `lede_spacy`): `pip install 'pg-raggraph[lede_spacy]'` **and** `python -m spacy download en_core_web_sm`. Selecting `lede_spacy` builds a graph **without** `llm_base_url` set; missing deps fail loud with the exact install commands.
+Pros: `lede_spacy` is ~sub-5ms/doc and fully offline; `llm` gives higher relational quality.
+Cons: `llm` adds an extraction LLM call per chunk. `lede_spacy` edges are co-occurrence, not semantic relations; entities are untyped (`entity_type="entity"`) in this version.
+When to use: `lede_spacy` when you need a graph with no LLM/offline; `llm` for higher-quality typed relations.
+When NOT to use: `none` is correct unless you want a graph. NOTE: `lede_spacy` does **not** emit SPO triples and does **not** populate the Tier 2 `facts` table — that is a tracked follow-up.
 
 ### `fact_dedup_threshold` (float, default: `0.8`)
 Env var: `PGRG_FACT_DEDUP_THRESHOLD`

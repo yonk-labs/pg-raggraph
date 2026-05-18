@@ -130,7 +130,7 @@ added to `documents`, all nullable. No existing data migrates.
 
 ## What's not in Tier 1
 
-- Fact-level extraction → Tier 2 (`fact_extractor="lede_spacy"` — package is published as `lede` + `lede-spacy` on PyPI)
+- Fact-level extraction into the `facts` table → Tier 2 (still a follow-up). NOTE: `fact_extractor="lede_spacy"` **is** implemented, but builds the deterministic LLM-free entity/relationship graph (NER entities + sentence-level co-occurrence edges), not the Tier 2 `facts` table. Needs `pip install 'pg-raggraph[lede_spacy]'` + `python -m spacy download en_core_web_sm`. `lede` / `lede-spacy` are on PyPI.
 - LLM-inferred supersession / contradiction → Tier 3
   (`fact_extractor="llm"` + slow-path edge inference)
 - Fact-aware context assembly (dedup, diversity backfill) → Tier 2
