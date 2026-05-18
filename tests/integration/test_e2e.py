@@ -124,3 +124,53 @@ async def test_e2e_sprint2_query():
     # Clean up
     await rag.delete(ns)
     await rag.close()
+
+
+def _lede_model_available() -> bool:
+    try:
+        import lede  # noqa: F401
+        import lede_spacy  # noqa: F401
+        import spacy
+
+        spacy.load("en_core_web_sm")
+        return True
+    except Exception:
+        return False
+
+
+@pytest.mark.skipif(
+    not _lede_model_available(),
+    reason="lede / lede-spacy / en_core_web_sm not available",
+)
+async def test_e2e_sprint3_lede_spacy_no_llm():
+    """fact_extractor='lede_spacy' builds a graph and is queryable, no LLM."""
+    ns = "e2e_lede"
+    rag = GraphRAG(
+        dsn=TEST_DSN,
+        namespace=ns,
+        fact_extractor="lede_spacy",
+        llm_base_url="",  # explicitly no LLM
+    )
+    await rag.connect()
+    try:
+        await rag.ingest_records(
+            [
+                {
+                    "text": (
+                        "NASA launched the Saturn V rocket from Kennedy "
+                        "Space Center. Congress funded NASA that decade."
+                    ),
+                    "source_id": "e2e-lede:1",
+                }
+            ],
+            namespace=ns,
+        )
+        status = await rag.status(ns)
+        assert status["entities"] > 0, (
+            "lede_spacy must build a graph without an LLM (no degrade path)"
+        )
+        result = await rag.query("NASA", mode="naive", namespace=ns)
+        assert result.chunks, "ingested lede_spacy doc must be retrievable"
+    finally:
+        await rag.delete(ns)
+        await rag.close()
