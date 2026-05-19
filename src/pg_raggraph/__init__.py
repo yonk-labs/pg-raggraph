@@ -1412,9 +1412,66 @@ class GraphRAG:
         """Delete all data in a namespace."""
         _validate_namespace(namespace)
         with self.db.tenant(namespace):
-            await self.db.execute("DELETE FROM documents WHERE namespace = %s", (namespace,))
-            await self.db.execute("DELETE FROM entities WHERE namespace = %s", (namespace,))
-            await self.db.execute("DELETE FROM relationships WHERE namespace = %s", (namespace,))
+            async with self.db.transaction() as tx:
+                await tx.execute(
+                    "DELETE FROM document_versions WHERE namespace = %s",
+                    (namespace,),
+                )
+                await tx.execute("DELETE FROM facts WHERE namespace = %s", (namespace,))
+                await tx.execute("DELETE FROM relationships WHERE namespace = %s", (namespace,))
+                await tx.execute("DELETE FROM entities WHERE namespace = %s", (namespace,))
+                await tx.execute("DELETE FROM documents WHERE namespace = %s", (namespace,))
+
+    async def export_namespace(self, namespace: str):
+        """Yield documents and chunks for a namespace."""
+        _validate_namespace(namespace)
+        with self.db.tenant(namespace):
+            rows = await self.db.fetch_all(
+                "SELECT d.id AS document_id, d.content_hash, d.source_path, "
+                "d.metadata AS document_metadata, d.effective_from, d.effective_to, "
+                "d.retracted, d.version_label, d.created_at AS document_created_at, "
+                "c.id AS chunk_id, c.content, c.embedded_content, c.token_count, "
+                "c.metadata AS chunk_metadata, c.created_at AS chunk_created_at "
+                "FROM documents d "
+                "LEFT JOIN chunks c ON c.document_id = d.id "
+                "WHERE d.namespace = %s "
+                "ORDER BY d.id, c.id",
+                (namespace,),
+            )
+
+        current_id = None
+        current_doc = None
+        for row in rows:
+            if row["document_id"] != current_id:
+                if current_doc is not None:
+                    yield current_doc
+                current_id = row["document_id"]
+                current_doc = {
+                    "namespace": namespace,
+                    "document_id": row["document_id"],
+                    "content_hash": row["content_hash"],
+                    "source_path": row["source_path"],
+                    "metadata": row["document_metadata"] or {},
+                    "effective_from": row["effective_from"],
+                    "effective_to": row["effective_to"],
+                    "retracted": row["retracted"],
+                    "version_label": row["version_label"],
+                    "created_at": row["document_created_at"],
+                    "chunks": [],
+                }
+            if row["chunk_id"] is not None:
+                current_doc["chunks"].append(
+                    {
+                        "chunk_id": row["chunk_id"],
+                        "content": row["content"],
+                        "embedded_content": row["embedded_content"],
+                        "token_count": row["token_count"],
+                        "metadata": row["chunk_metadata"] or {},
+                        "created_at": row["chunk_created_at"],
+                    }
+                )
+        if current_doc is not None:
+            yield current_doc
 
     async def delete_document(self, source_path: str, namespace: str | None = None) -> int:
         """Delete a document and all its chunks by source path.
