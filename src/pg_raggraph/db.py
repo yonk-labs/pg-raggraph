@@ -76,11 +76,20 @@ class Database:
         """Check if the database connection is healthy."""
         try:
             async with self.pool.connection() as conn:
+                await self._prepare_connection(conn)
                 await conn.execute("SELECT 1")
             return True
         except Exception as e:
             logger.debug("health_check failed: %s", e)
             return False
+
+    async def _prepare_connection(self, conn) -> None:
+        await register_vector_async(conn)
+        if self.config.statement_timeout_ms > 0:
+            await conn.execute(
+                "SELECT set_config('statement_timeout', %s, false)",
+                (str(self.config.statement_timeout_ms),),
+            )
 
     async def _ensure_schema(self, conn) -> None:
         """Create or migrate schema to current version.
@@ -207,14 +216,14 @@ class Database:
 
     async def execute(self, query_str: str, params: tuple | dict | None = None) -> Any:
         async with self.pool.connection() as conn:
-            await register_vector_async(conn)
+            await self._prepare_connection(conn)
             result = await conn.execute(query_str, params)
             await conn.commit()
             return result
 
     async def fetch_all(self, query_str: str, params: tuple | dict | None = None) -> list[dict]:
         async with self.pool.connection() as conn:
-            await register_vector_async(conn)
+            await self._prepare_connection(conn)
             cur = await conn.execute(query_str, params, prepare=False)
             if cur.description is None:
                 return []
@@ -228,7 +237,7 @@ class Database:
 
     async def insert_returning_id(self, query_str: str, params: tuple | dict | None = None) -> int:
         async with self.pool.connection() as conn:
-            await register_vector_async(conn)
+            await self._prepare_connection(conn)
             result = await conn.execute(query_str, params)
             row = await result.fetchone()
             await conn.commit()
@@ -252,7 +261,7 @@ class Database:
             sql.SQL(", ").join(sql.Placeholder() * len(columns)),
         )
         async with self.pool.connection() as conn:
-            await register_vector_async(conn)
+            await self._prepare_connection(conn)
             cur = conn.cursor()
             await cur.executemany(query_obj, rows)
             await conn.commit()
@@ -293,7 +302,7 @@ class Transaction:
     async def __aenter__(self) -> Transaction:
         self._cm = self._db.pool.connection()
         self._conn = await self._cm.__aenter__()
-        await register_vector_async(self._conn)
+        await self._db._prepare_connection(self._conn)
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
