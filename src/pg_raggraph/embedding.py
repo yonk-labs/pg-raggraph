@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import logging
 import time
 from pathlib import Path
@@ -30,8 +31,6 @@ class FastEmbedProvider:
     """Local embedding using fastembed (ONNX-based, no PyTorch)."""
 
     def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5", threads: int | None = None):
-        from fastembed import TextEmbedding
-
         # PR-111: surface the first-run model download instead of silently
         # blocking for ~30 s while ~30 MB is fetched. fastembed has a
         # tqdm-based progress bar internally, but it's easy to miss when
@@ -46,7 +45,7 @@ class FastEmbedProvider:
                 _FASTEMBED_CACHE,
             )
         t0 = time.perf_counter()
-        self._model = TextEmbedding(model_name=model_name, threads=threads)
+        self._model = _get_fastembed_model(model_name, threads)
         # Infer dimension from a test embedding
         test = list(self._model.embed(["test"]))[0]
         self._dim = len(test)
@@ -72,6 +71,13 @@ class FastEmbedProvider:
     def _embed_sync(self, texts: list[str]) -> list[list[float]]:
         embeddings = list(self._model.embed(texts))
         return [e.tolist() for e in embeddings]
+
+
+@functools.lru_cache(maxsize=None)
+def _get_fastembed_model(model_name: str, threads: int | None):
+    from fastembed import TextEmbedding
+
+    return TextEmbedding(model_name=model_name, threads=threads)
 
 
 class HttpxEmbeddingProvider:

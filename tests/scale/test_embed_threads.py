@@ -1,7 +1,7 @@
 """Tests for bounding local embedding ONNX threads."""
 
 from pg_raggraph.config import PGRGConfig
-from pg_raggraph.embedding import FastEmbedProvider, get_embedding_provider
+from pg_raggraph.embedding import FastEmbedProvider, _get_fastembed_model, get_embedding_provider
 
 
 class DummyTextEmbedding:
@@ -15,6 +15,7 @@ class DummyTextEmbedding:
 
 
 def test_fastembed_provider_passes_threads(monkeypatch):
+    _get_fastembed_model.cache_clear()
     DummyTextEmbedding.calls = []
     monkeypatch.setattr("fastembed.TextEmbedding", DummyTextEmbedding)
 
@@ -26,6 +27,7 @@ def test_fastembed_provider_passes_threads(monkeypatch):
 
 
 def test_get_embedding_provider_passes_configured_threads(monkeypatch):
+    _get_fastembed_model.cache_clear()
     DummyTextEmbedding.calls = []
     monkeypatch.setattr("fastembed.TextEmbedding", DummyTextEmbedding)
 
