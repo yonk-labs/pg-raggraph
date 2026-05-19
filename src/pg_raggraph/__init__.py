@@ -484,6 +484,8 @@ class GraphRAG:
         records,
         namespace: str | None = None,
         on_progress=None,
+        *,
+        max_concurrent_docs: int | None = None,
     ):
         """Ingest documents from in-memory records — no disk roundtrip.
 
@@ -546,6 +548,8 @@ class GraphRAG:
                   See docs/cookbook/chunkshop-integration.md Pattern C.
             namespace: Namespace for data isolation.
             on_progress: Optional callback(message: str) for progress.
+            max_concurrent_docs: Optional per-call document concurrency cap.
+                Defaults to ``config.doc_concurrency``.
 
         Returns: same stats shape as ``ingest()``.
 
@@ -605,7 +609,12 @@ class GraphRAG:
 
         from pg_raggraph.lede_extraction import select_extractor
 
-        doc_sem = asyncio.Semaphore(self.config.doc_concurrency)
+        doc_concurrency = (
+            self.config.doc_concurrency if max_concurrent_docs is None else max_concurrent_docs
+        )
+        if doc_concurrency < 1:
+            raise ValueError("max_concurrent_docs must be >= 1")
+        doc_sem = asyncio.Semaphore(doc_concurrency)
         llm = None
         lede_fn, _needs_llm = select_extractor(self.config)
         if lede_fn is not None:
