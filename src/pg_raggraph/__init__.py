@@ -7,6 +7,7 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
+from hashlib import sha256
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 
@@ -262,6 +263,60 @@ class GraphRAG:
 
             self._embedder = get_embedding_provider(self.config)
         return self._embedder
+
+    @staticmethod
+    def _embedding_cache_key(text: str) -> str:
+        return sha256(text.encode("utf-8")).hexdigest()
+
+    def _embedding_cache_namespace(self) -> str:
+        if self.config.embedding_provider == "http":
+            endpoint = self.config.embedding_base_url
+        elif self.config.embedding_provider in ("openai", "ollama"):
+            endpoint = self.config.llm_base_url
+        else:
+            endpoint = ""
+        raw = (
+            f"provider={self.config.embedding_provider}\n"
+            f"model={self.config.embedding_model}\n"
+            f"dim={self.config.embedding_dim}\n"
+            f"endpoint={endpoint.rstrip('/')}"
+        )
+        return sha256(raw.encode("utf-8")).hexdigest()
+
+    async def _embed_texts_with_cache(self, texts: list[str], embedder) -> list[list[float]]:
+        """Embed texts, backed by the process-shared Postgres embedding cache."""
+        if not texts:
+            return []
+
+        cache_ns = self._embedding_cache_namespace()
+        keys = [self._embedding_cache_key(text) for text in texts]
+        rows = await self.db.fetch_all(
+            "SELECT text_sha256, embedding FROM pgrg_embedding_cache_get(%s, %s::text[])",
+            (cache_ns, keys),
+        )
+        cached = {row["text_sha256"]: row["embedding"] for row in rows}
+
+        miss_keys: list[str] = []
+        miss_texts: list[str] = []
+        seen = set(cached)
+        for key, text in zip(keys, texts):
+            if key in seen:
+                continue
+            seen.add(key)
+            miss_keys.append(key)
+            miss_texts.append(text)
+
+        if miss_texts:
+            miss_embeddings = await embedder.embed(miss_texts)
+            async with self.db.transaction() as tx:
+                for key, embedding in zip(miss_keys, miss_embeddings):
+                    cached[key] = embedding
+                    await tx.execute(
+                        "SELECT pgrg_embedding_cache_put(%s, %s, %s::vector)",
+                        (cache_ns, key, embedding),
+                    )
+
+        return [cached[key] for key in keys]
 
     async def ingest(
         self,
@@ -886,7 +941,7 @@ class GraphRAG:
             # heading prefix (hierarchy strategy) or any future neighbor/summary
             # decoration; for auto strategy this equals content.
             texts = [c["embedded_content"] for c in chunks]
-            chunk_embeddings = await embedder.embed(texts)
+            chunk_embeddings = await self._embed_texts_with_cache(texts, embedder)
 
         # Extract entities/relationships via LLM (cache reads OK outside txn).
         # If llm is None or skip_llm_for_this_doc is set, skip extraction
@@ -994,7 +1049,7 @@ class GraphRAG:
             entity_texts = [
                 f"{name} {unique_entities[name]['description']}" for name in entity_names_list
             ]
-            entity_embeddings = await embedder.embed(entity_texts)
+            entity_embeddings = await self._embed_texts_with_cache(entity_texts, embedder)
         else:
             entity_names_list = []
             entity_embeddings = []

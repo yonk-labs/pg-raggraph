@@ -27,6 +27,7 @@ _ALLOWED_TABLES = frozenset(
         "relationships",
         "entity_chunks",
         "relationship_chunks",
+        "embedding_cache",
         "pgrg_llm_cache",
         "pgrg_meta",
     }
