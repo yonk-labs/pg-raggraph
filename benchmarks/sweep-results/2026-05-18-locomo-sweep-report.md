@@ -53,26 +53,33 @@ backend.
 
 ## Ablation ladder — answer-span recall@20 (%)
 
-Marginal lift is vs **L1 (naive = vector+BM25 fusion)**, the lexical/vector base.
+Marginal lift is vs **L1 (naive = vector+BM25 fusion)**, the lexical/vector
+base. Three ingest configs: I1_none (no graph), I2_lede (thin spaCy
+co-occurrence graph: 41/19 ent), I3_llm (rich gpt-4o-mini graph: 184/103
+ent, 476/396 rel).
 
-| Level | Pathway | I1_none | I2_lede | Δ vs L1 | p50 ms | avg chunks |
-|---|---|---:|---:|---:|---:|---:|
-| L0 | FTS/BM25 only (raw `ts_rank`) | 51.9 | 51.9 | +0.8 | ~0 | 20 |
-| **L1** | **naive (vec+BM25)** | **51.1** | **51.1** | **—** | 47–56 | 20 |
-| L2 | naive_boost · gbf 1.2 | 51.1 | 51.1 | **+0.0** | 43–55 | 20 |
-| L2 | naive_boost · gbf 1.5 | 51.1 | 51.1 | **+0.0** | 46–55 | 20 |
-| L2 | naive_boost · gbf 2.0 | 51.1 | 51.1 | **+0.0** | 43–55 | 20 |
-| L3 | smart · b0.7/e0.4 (default) | 9.9 | 41.6 | −9.5 to −41.2 | 53–110 | 3.5 / 20 |
-| L3 | smart · b0.6/e0.3 | 49.8 | 50.6 | −0.5 to −1.3 | 50–64 | ~20 |
-| L3 | smart · b0.8/e0.5 | 0.0 | 37.8 | −13.3 to −51.1 | 59–120 | 0 / 20 |
-| **L4** | **rerank · naive_boost gbf1.5** | **53.2** | **53.2** | **+2.1** | 72–85 | 20 |
-| L4 | rerank · smart default | 9.9 | 43.8 | −7.3 to −41.2 | 79–166 | 3.5 / 20 |
-| GP | local · h1/h2 | 0.0 | 37.8 | −13.3 to −51.1 | 7 / 60 | 0 / 20 |
-| GP | global · h1/h2 | 0.0 | 24.9 | −26.2 to −51.1 | 7 / 58 | 0 / 14 |
-| GP | hybrid · h1/h2 | 0.0 | 37.8 | −13.3 to −51.1 | 14 / 64 | 0 / 20 |
+| Level | Pathway | I1_none | I2_lede | I3_llm | p50 ms |
+|---|---|---:|---:|---:|---:|
+| L0 | FTS/BM25 only (raw `ts_rank`) | 51.9 | 51.9 | 52.8 | ~0 |
+| **L1** | **naive (vec+BM25)** | **51.1** | **51.1** | **51.1** | 47–89 |
+| L2 | naive_boost · gbf 1.2/1.5/2.0 | 51.1 | 51.1 | 51.1 | 43–88 |
+| L3 | smart · b0.7/e0.4 (default) | 9.9 | 41.6 | **51.1** | 53–187 |
+| L3 | smart · b0.6/e0.3 | 49.8 | 50.6 | **51.1** | 50–93 |
+| L3 | smart · b0.8/e0.5 | 0.0 | 37.8 | **51.1** | 59–194 |
+| **L4** | **rerank · naive_boost gbf1.5** | **53.2** | **53.2** | **52.8** | 72–117 |
+| L4 | rerank · smart default | 9.9 | 43.8 | 52.8 | 79–244 |
+| GP | local · h1/h2 | 0.0 | 37.8 | **50.2–51.1** | 7–107 |
+| GP | global · h1/h2 | 0.0 | 24.9 | **49.8** | 7–89 |
+| GP | hybrid · h1/h2 | 0.0 | 37.8 | **50.2–51.1** | 14–110 |
 
-(I1_none has no graph, so all graph-dependent arms collapse to 0 — expected,
-and a useful negative control.)
+Marginal lifts vs L1 (51.1, all configs): **L2 = +0.0** (every gbf, every
+ingest); **L4 = +1.7 to +2.1** (the only positive lift; it is the
+cross-encoder, not the graph); **smart ≤ 0**; **graph-primary** = −13 to
+−26pp on the thin lede graph but **≈ parity (−1pp)** on the rich LLM graph.
+
+(I1_none has no graph, so all graph-dependent arms collapse to 0 — an
+intentional negative control. The I1→I2→I3 progression *is* the
+graph-quality axis.)
 
 ## H1 verdict
 
@@ -81,42 +88,54 @@ and a useful negative control.)
 > (`naive_boost`/`smart`) beats **both** graph-primary retrieval **and**
 > lexical-only — on LoCoMo answer-span.
 
-**Verdict: split — CONFIRMED vs graph-primary; REFUTED vs lexical-only; and
-the re-rank-enhancer clause is INCONCLUSIVE BY METRIC CONSTRUCTION.**
+**Verdict: REFUTED as stated. The re-rank-enhancer clause is INCONCLUSIVE
+BY METRIC CONSTRUCTION. The "≫ graph-primary" claim holds only when the
+graph is weak — it collapses to parity once the graph is good, which is
+the opposite of what H1 predicts.**
 
-1. **Enhancer topology ≫ graph-primary — CONFIRMED, decisively.**
-   naive_boost 51.1% vs graph-primary 24.9–37.8% (I2_lede). Using the graph
-   as an enhancer on a lexical base is +13 to +26pp over making the graph the
-   primary retriever. The corollary H1 implies — *graph-primary is the wrong
-   topology* — is strongly supported.
+1. **Enhancer ≫ graph-primary — only an artifact of graph quality, NOT a
+   topology law.** On the thin lede graph, naive_boost 51.1% vs
+   graph-primary 24.9–37.8% (+13 to +26pp — looks like H1 confirmed). But
+   on the **rich LLM graph (I3)**, graph-primary rises to **49.8–51.1%** —
+   statistical parity with the lexical base and the enhancer. The
+   enhancer's apparent dominance was the lede graph being too sparse to
+   traverse, not a structural advantage of the enhancer topology. With a
+   good graph there is **no meaningful gap** between graph-primary and
+   enhancer on this metric. H1's "beats graph-primary" is **not robust**.
 
-2. **Enhancer vs lexical-only — REFUTED on the merits available.**
-   `(L2 − L1) = +0.0pp` for **every** `graph_boost_factor` (1.2/1.5/2.0) on
-   **both** ingest configs, including the real lede graph (I2). The graph
-   enhancer adds nothing over the lexical base. The only lift over L1 is
-   **L4 = +2.1pp**, and that lift is the **cross-encoder reranker — not the
-   graph**.
+2. **Enhancer vs lexical-only — REFUTED.** `(L2 − L1) = +0.0pp` for
+   **every** `graph_boost_factor` (1.2/1.5/2.0) on **all three** ingest
+   configs, including the rich LLM graph. The graph enhancer adds nothing
+   over the lexical base. The only lift over L1 is **L4 = +1.7 to +2.1pp**,
+   and that lift is the **cross-encoder reranker — not the graph**.
 
-3. **Why clause 2 is really "inconclusive by construction," not a clean
-   refutation.** `_answer_hit` tests whether the gold span appears *anywhere*
-   in the concatenated top-k context — it is **set-membership, order-blind**.
-   `naive_boost` only **re-ranks the same candidate set** it inherits from
-   `naive`; it does not change set membership at `k=20`. Therefore the metric
-   is **provably incapable** of registering a pure re-rank enhancer. The exact
-   `L2 ≡ L1` flatline across 3 boost factors × 2 ingest configs is structural
-   proof, not noise. Only **set-changing** operations move the number:
-   - the reranker (fetches `top_k×rerank_factor`, re-trims → different set):
-     **+2.1pp**;
-   - smart's expansion escalation (changes the set): here it **collapses**.
+3. **Why clause 2 is "inconclusive by construction," not a clean
+   refutation.** `_answer_hit` tests whether the gold span appears
+   *anywhere* in the concatenated top-k context — it is **set-membership,
+   order-blind**. `naive_boost` only **re-ranks the same candidate set** it
+   inherits from `naive`; it does not change set membership at `k=20`.
+   The metric is **provably incapable** of registering a pure re-rank
+   enhancer. The exact `L2 ≡ L1` flatline across 3 boost factors × **3**
+   ingest configs is structural proof, not noise. Only **set-changing**
+   ops move the number: the reranker (different candidate pool → +~2pp);
+   smart's expansion (changes the set — collapses on thin graphs, harmless
+   on the rich one).
 
-   So the graph enhancer's only plausible value on this metric — ranking
-   quality — is invisible to answer-span@k. H1's re-rank clause cannot be
-   decided with this scorer; it is not evidence the graph is useless.
+4. **The deeper finding: the metric saturates — strategy barely matters
+   at k=20.** FTS-only (51.9–52.8), naive (51.1), naive_boost (51.1),
+   smart-on-rich-graph (51.1), and graph-primary-on-rich-graph
+   (49.8–51.1) **all land in a ~51 ± 1.5 band**. At depth 20 the 20-chunk
+   set contains the gold span ~51% of the time almost regardless of how
+   it was selected. The only lever that escapes the band is the
+   cross-encoder reranker, and only by ~2pp. "Optimal pathway by
+   answer-span@k on LoCoMo" is **largely not differentiable** at this k.
 
-**Net:** the topology H1 advocates is the correct one (graph-primary is far
-worse), but on the pre-registered primary metric the re-rank enhancer's
-contribution is unmeasurable-and-zero, and the only real lift is a non-graph
-cross-encoder. No spin: the graph did not earn answer-span points here.
+**Net:** no spin. The pre-registered topology hypothesis does not survive
+contact with a good graph: graph-primary catches up to the enhancer once
+extraction is decent, and the enhancer never beat the plain lexical base
+on this metric in the first place. The single robust, positive lever is a
+non-graph cross-encoder reranker (+~2pp). The graph earned **zero**
+answer-span points in any configuration.
 
 ## Recommended pathways
 
@@ -171,41 +190,46 @@ res = await rag.query(question, mode="naive", namespace=ns)   # 51.1% @ ~50 ms
 
 ## Honest negatives & caveats
 
-- **Smart mode is a regression on this workload.** Default thresholds
-  (b0.7/e0.4) tank to 9.9% (I1) / 41.6% (I2); b0.8/e0.5 → 0% (I1). Its
-  escalation routes *away* from a strong naive result into graph expansion
-  that loses answer-span. b0.6/e0.3 is least-bad but still ≤ naive. Smart
-  should not be the default on LoCoMo-like conversational recall.
-- **The primary metric cannot see re-rank enhancers** (the central finding
-  above). Any future "does the graph help ranking" question on LoCoMo needs a
+- **Smart-mode collapse is a graph-sparsity artifact, not universal.** On
+  no/thin graphs smart tanks (I1: 0–9.9% at default/high thresholds; I2:
+  37.8–41.6%) because escalation routes into a graph that can't be
+  traversed. On the **rich LLM graph it does not collapse** — steady 51.1%
+  at every threshold. So the honest statement is: *smart is unsafe unless
+  the graph is dense; even then it only matches naive (never beats it) at
+  higher latency.* Default thresholds remain a poor choice on
+  conversational recall regardless.
+- **The primary metric cannot see re-rank enhancers** (the central finding).
+  Any future "does the graph help ranking" question on LoCoMo needs a
   rank-sensitive metric (MRR / nDCG / answer-in-top-1), not answer-span@k.
-- **Graph-primary underperformance is partly the scorer artifact** the brief
-  pre-registered: graph modes return entity neighborhoods, not verbatim
-  spans, so a substring/token-overlap scorer structurally penalizes them.
-  24.9–37.8% is not "graph is useless" — it is "answer-span can't grade
-  neighborhoods." This is *why* graph-as-enhancer ≠ graph-primary.
-- **lede_spacy graph did not change any answer-span number vs none.** L0–L4
-  are byte-identical between I1_none and I2_lede. Consistent with the metric
-  blindness — the lede graph only feeds boost/expansion, which the metric
-  can't see (boost) or which collapses (expand).
-- **LLM arm (I3/I4) cannot change the H1 primary-metric verdict.**
-  answer-span@k's blindness to re-rank is independent of extraction quality;
-  better entities only help graph-primary (already disqualified by topology)
-  and smart-expansion (already collapsing). I3 (gpt-4o-mini) is being
-  completed for a confirmatory contrast row. **I4 (gpt-4o) is gated**:
-  spending the larger model's budget to re-confirm a metric-construction
-  result is not justified by the data — recommend skipping unless a
-  rank-sensitive metric is added first.
+- **Graph-primary underperformance is graph-quality first, scorer-artifact
+  second.** The brief pre-registered the scorer artifact (graph returns
+  neighborhoods, not verbatim spans). True — but the I1→I2→I3 progression
+  shows the *dominant* factor is graph density: thin lede graph 24.9–37.8%,
+  rich LLM graph 49.8–51.1%. Most of the gap closes with better extraction,
+  not a better scorer. Do not over-attribute to the scorer.
+- **Graph contributed zero answer-span points in every configuration.**
+  L0–L4 are identical across I1_none / I2_lede / I3_llm at the enhancer
+  levels. The graph only feeds boost (metric-blind) or expansion
+  (collapses on thin, harmless on rich). Better extraction bought graph-
+  *primary* parity, not any *enhancer* lift.
+- **I4_llm_4o intentionally NOT run — gated on data, surfaced to user.**
+  I3 (gpt-4o-mini) already drove graph-primary to lexical parity; gpt-4o
+  could at best nudge ~50→~51%, still inside the ±1.5 saturation band and
+  still below the reranked 52.8%. No verdict-changing power. Spending the
+  larger-model budget to re-confirm a metric-construction result is not
+  justified. Recommend a rank-sensitive metric instead of I4.
 - **Subset scale.** Wide pass is the disclosed 2-sample subset (233
-  answerable Qs). A full-10 narrow pass is unlikely to overturn an effect
-  this structural (exact 0.0pp flatline, not a small-n wobble), but the
-  recommended pathways should be re-validated on the full set before any
-  external claim.
+  answerable Qs, 3 ingest configs). The core effects are structural (exact
+  0.0pp enhancer flatline across 3×3; saturation band) — not small-n
+  wobble. Narrow pass (below) re-validates on the full set and probes
+  whether a tighter `k` finally differentiates strategy.
 
 ## Status
 
-- ✅ Wide-pass ablation ladder, I1_none + I2_lede, k=20 — 32 cells persisted.
-- ⏳ I3_llm_mini re-staging (tracked `bblai609x`); I3 sweep then folds in.
-- ⛔ I4_llm_4o gated on cost/value (see Honest Negatives).
-- ⏳ Narrow pass (top-3/objective × full 1540-Q × k∈{10,20,40}) — pending; the
-  H1 verdict above is already robust without it (structural, not small-n).
+- ✅ Wide-pass ablation ladder — I1_none + I2_lede + I3_llm_mini, k=20 —
+  48 cells persisted + committed.
+- ⛔ I4_llm_4o gated on data/cost (see Honest Negatives) — awaiting user
+  call; recommendation is to skip in favor of a rank-sensitive metric.
+- ⏳ Narrow pass: full 10-sample, k∈{10,20,40}, on I1_none + I2_lede
+  (zero extra LLM spend) — re-validates pathways and tests whether smaller
+  `k` escapes the saturation band. Verdict above is already robust.
