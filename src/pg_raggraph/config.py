@@ -59,6 +59,7 @@ class PGRGConfig(BaseSettings):
     pool_min: int = 2
     pool_max: int = 10
     statement_timeout_ms: int = 0
+    rls_enabled: bool = False
 
     # Namespace
     namespace: str = "default"

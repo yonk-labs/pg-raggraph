@@ -334,8 +334,9 @@ def create_app(**kwargs) -> FastAPI:
             ent_params = (ns,)
             rel_params = (ns,)
 
-        entities = await rag.db.fetch_all(ent_sql, ent_params)
-        relationships = await rag.db.fetch_all(rel_sql, rel_params)
+        with rag.db.tenant(ns):
+            entities = await rag.db.fetch_all(ent_sql, ent_params)
+            relationships = await rag.db.fetch_all(rel_sql, rel_params)
         nodes = [{"id": e["id"], "label": e["name"], "group": e["entity_type"]} for e in entities]
         edges = [
             {

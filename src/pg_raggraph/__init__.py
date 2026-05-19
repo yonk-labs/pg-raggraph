@@ -462,7 +462,8 @@ class GraphRAG:
                         stats["failed"] += 1
                         return
 
-        await asyncio.gather(*[_process_file(i + 1, fp) for i, fp in enumerate(file_paths)])
+        with self.db.tenant(ns):
+            await asyncio.gather(*[_process_file(i + 1, fp) for i, fp in enumerate(file_paths)])
 
         notes = []
         if stats["failed"]:
@@ -695,7 +696,8 @@ class GraphRAG:
                         stats["failed"] += 1
                         return
 
-        await asyncio.gather(*[_process_record(i + 1, rec) for i, rec in enumerate(records)])
+        with self.db.tenant(ns):
+            await asyncio.gather(*[_process_record(i + 1, rec) for i, rec in enumerate(records)])
 
         notes_msg = []
         if stats["failed"]:
@@ -1205,27 +1207,30 @@ class GraphRAG:
 
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
-        embedder = self._get_embedder()
-        top_k_override = self.config.top_k * self.config.rerank_factor if rerank else None
-        result = await retrieval_query(
-            question=question,
-            db=self.db,
-            embedder=embedder,
-            config=self.config,
-            mode=mode,
-            namespace=ns,
-            as_of=as_of,
-            version_filter=version_filter,
-            evolution_aware=evolution_aware,
-            top_k_override=top_k_override,
-        )
-        if rerank:
-            from pg_raggraph.reranker import FastEmbedReranker, apply_reranker
+        with self.db.tenant(ns):
+            embedder = self._get_embedder()
+            top_k_override = self.config.top_k * self.config.rerank_factor if rerank else None
+            result = await retrieval_query(
+                question=question,
+                db=self.db,
+                embedder=embedder,
+                config=self.config,
+                mode=mode,
+                namespace=ns,
+                as_of=as_of,
+                version_filter=version_filter,
+                evolution_aware=evolution_aware,
+                top_k_override=top_k_override,
+            )
+            if rerank:
+                from pg_raggraph.reranker import FastEmbedReranker, apply_reranker
 
-            if self._reranker is None:
-                self._reranker = FastEmbedReranker(self.config.rerank_model)
-            result = await apply_reranker(self._reranker, question, result, self.config.top_k)
-        return result
+                if self._reranker is None:
+                    self._reranker = FastEmbedReranker(self.config.rerank_model)
+                result = await apply_reranker(
+                    self._reranker, question, result, self.config.top_k
+                )
+            return result
 
     async def ask(
         self,
@@ -1283,30 +1288,35 @@ class GraphRAG:
     async def status(self, namespace: str | None = None) -> dict:
         """Get graph statistics."""
         ns = namespace or self.config.namespace
-        return {
-            "schema_version": int(await self.db.get_meta("schema_version") or 0),
-            "embedding_dim": int(await self.db.get_meta("embedding_dim") or 0),
-            "namespace": ns,
-            "documents": await self.db.count("documents", ns),
-            # Chunks table has no namespace column — scope via documents join.
-            "chunks": (
-                await self.db.fetch_one(
-                    "SELECT count(*) AS cnt FROM chunks c "
-                    "JOIN documents d ON d.id = c.document_id "
-                    "WHERE d.namespace = %s",
-                    (ns,),
-                )
-            )["cnt"],
-            "entities": await self.db.count("entities", ns),
-            "relationships": await self.db.count("relationships", ns),
-        }
+        _validate_namespace(ns)
+        with self.db.tenant(ns):
+            return {
+                "schema_version": int(await self.db.get_meta("schema_version") or 0),
+                "embedding_dim": int(await self.db.get_meta("embedding_dim") or 0),
+                "namespace": ns,
+                "documents": await self.db.count("documents", ns),
+                # Chunks table has no namespace column — scope via documents join.
+                "chunks": (
+                    await self.db.fetch_one(
+                        "SELECT count(*) AS cnt FROM chunks c "
+                        "JOIN documents d ON d.id = c.document_id "
+                        "WHERE d.namespace = %s",
+                        (ns,),
+                    )
+                )["cnt"],
+                "entities": await self.db.count("entities", ns),
+                "relationships": await self.db.count("relationships", ns),
+            }
 
     async def delete(self, namespace: str):
         """Delete all data in a namespace."""
         _validate_namespace(namespace)
-        await self.db.execute("DELETE FROM documents WHERE namespace = %s", (namespace,))
-        await self.db.execute("DELETE FROM entities WHERE namespace = %s", (namespace,))
-        await self.db.execute("DELETE FROM relationships WHERE namespace = %s", (namespace,))
+        with self.db.tenant(namespace):
+            await self.db.execute("DELETE FROM documents WHERE namespace = %s", (namespace,))
+            await self.db.execute("DELETE FROM entities WHERE namespace = %s", (namespace,))
+            await self.db.execute(
+                "DELETE FROM relationships WHERE namespace = %s", (namespace,)
+            )
 
     async def delete_document(self, source_path: str, namespace: str | None = None) -> int:
         """Delete a document and all its chunks by source path.
@@ -1319,10 +1329,11 @@ class GraphRAG:
         """
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
-        result = await self.db.fetch_one(
-            "DELETE FROM documents WHERE namespace = %s AND source_path = %s RETURNING id",
-            (ns, source_path),
-        )
+        with self.db.tenant(ns):
+            result = await self.db.fetch_one(
+                "DELETE FROM documents WHERE namespace = %s AND source_path = %s RETURNING id",
+                (ns, source_path),
+            )
         return 1 if result else 0
 
     async def retract(
@@ -1357,41 +1368,42 @@ class GraphRAG:
                 "naive datetimes silently misbehave against timestamptz columns"
             )
 
-        async with self.db.transaction() as tx:
-            if doc_id is not None:
-                target_rows = await tx.fetch_all(
-                    "SELECT id FROM documents WHERE id = %s AND namespace = %s",
-                    (doc_id, ns),
-                )
-            else:
-                target_rows = await tx.fetch_all(
-                    "SELECT id FROM documents "
-                    "WHERE namespace = %s AND source_path = %s",
-                    (ns, source_path),
-                )
-            ids = [r["id"] for r in target_rows]
-            if not ids:
-                return {"retracted_count": 0}
+        with self.db.tenant(ns):
+            async with self.db.transaction() as tx:
+                if doc_id is not None:
+                    target_rows = await tx.fetch_all(
+                        "SELECT id FROM documents WHERE id = %s AND namespace = %s",
+                        (doc_id, ns),
+                    )
+                else:
+                    target_rows = await tx.fetch_all(
+                        "SELECT id FROM documents "
+                        "WHERE namespace = %s AND source_path = %s",
+                        (ns, source_path),
+                    )
+                ids = [r["id"] for r in target_rows]
+                if not ids:
+                    return {"retracted_count": 0}
 
-            await tx.execute(
-                "UPDATE documents SET retracted = true WHERE id = ANY(%s)",
-                (ids,),
-            )
-            updated = await tx.fetch_all(
-                "UPDATE document_versions "
-                "SET retracted = true, retracted_at = %s, retraction_reason = %s "
-                "WHERE document_id = ANY(%s) RETURNING document_id",
-                (retracted_at, reason, ids),
-            )
-            have_version = {r["document_id"] for r in updated}
-            for mid in (i for i in ids if i not in have_version):
                 await tx.execute(
-                    "INSERT INTO document_versions "
-                    "(namespace, document_id, retracted, retracted_at, "
-                    " retraction_reason) "
-                    "VALUES (%s, %s, true, %s, %s)",
-                    (ns, mid, retracted_at, reason),
+                    "UPDATE documents SET retracted = true WHERE id = ANY(%s)",
+                    (ids,),
                 )
+                updated = await tx.fetch_all(
+                    "UPDATE document_versions "
+                    "SET retracted = true, retracted_at = %s, retraction_reason = %s "
+                    "WHERE document_id = ANY(%s) RETURNING document_id",
+                    (retracted_at, reason, ids),
+                )
+                have_version = {r["document_id"] for r in updated}
+                for mid in (i for i in ids if i not in have_version):
+                    await tx.execute(
+                        "INSERT INTO document_versions "
+                        "(namespace, document_id, retracted, retracted_at, "
+                        " retraction_reason) "
+                        "VALUES (%s, %s, true, %s, %s)",
+                        (ns, mid, retracted_at, reason),
+                    )
 
         return {"retracted_count": len(ids)}
 
@@ -1442,95 +1454,97 @@ class GraphRAG:
                 "exactly one of new_doc_id / new_source_path is required"
             )
 
-        async with self.db.transaction() as tx:
+        with self.db.tenant(ns):
+            async with self.db.transaction() as tx:
 
-            async def _resolve(side: str, did: int | None, spath: str | None) -> int:
-                if (did is None) == (spath is None):
-                    raise ValueError(
-                        f"exactly one of {side}_doc_id / {side}_source_path "
-                        "is required"
-                    )
-                if did is not None:
-                    row = await tx.fetch_one(
-                        "SELECT id FROM documents "
-                        "WHERE id = %s AND namespace = %s",
-                        (did, ns),
-                    )
-                    if row is None:
+                async def _resolve(side: str, did: int | None, spath: str | None) -> int:
+                    if (did is None) == (spath is None):
                         raise ValueError(
-                            f"{side} document id {did} not found in "
-                            f"namespace {ns!r}"
+                            f"exactly one of {side}_doc_id / {side}_source_path "
+                            "is required"
                         )
-                    return row["id"]
-                rows = await tx.fetch_all(
-                    "SELECT id FROM documents "
-                    "WHERE namespace = %s AND source_path = %s",
-                    (ns, spath),
+                    if did is not None:
+                        row = await tx.fetch_one(
+                            "SELECT id FROM documents "
+                            "WHERE id = %s AND namespace = %s",
+                            (did, ns),
+                        )
+                        if row is None:
+                            raise ValueError(
+                                f"{side} document id {did} not found in "
+                                f"namespace {ns!r}"
+                            )
+                        return row["id"]
+                    rows = await tx.fetch_all(
+                        "SELECT id FROM documents "
+                        "WHERE namespace = %s AND source_path = %s",
+                        (ns, spath),
+                    )
+                    if len(rows) != 1:
+                        raise ValueError(
+                            f"{side}_source_path {spath!r} resolved to "
+                            f"{len(rows)} documents (need exactly 1); pass "
+                            f"{side}_doc_id to disambiguate"
+                        )
+                    return rows[0]["id"]
+
+                old_id = await _resolve("old", old_doc_id, old_source_path)
+                new_id = await _resolve("new", new_doc_id, new_source_path)
+                if old_id == new_id:
+                    raise ValueError("old and new resolve to the same document")
+
+                existing = await tx.fetch_one(
+                    "SELECT id FROM document_versions WHERE document_id = %s "
+                    "AND retracted = false ORDER BY id DESC LIMIT 1",
+                    (new_id,),
                 )
-                if len(rows) != 1:
-                    raise ValueError(
-                        f"{side}_source_path {spath!r} resolved to "
-                        f"{len(rows)} documents (need exactly 1); pass "
-                        f"{side}_doc_id to disambiguate"
-                    )
-                return rows[0]["id"]
-
-            old_id = await _resolve("old", old_doc_id, old_source_path)
-            new_id = await _resolve("new", new_doc_id, new_source_path)
-            if old_id == new_id:
-                raise ValueError("old and new resolve to the same document")
-
-            existing = await tx.fetch_one(
-                "SELECT id FROM document_versions WHERE document_id = %s "
-                "AND retracted = false ORDER BY id DESC LIMIT 1",
-                (new_id,),
-            )
-            if existing is not None:
-                if reason is not None:
-                    await tx.execute(
-                        "UPDATE document_versions "
-                        "SET supersedes_document_id = %s, "
-                        "    metadata = COALESCE(metadata, '{}'::jsonb) "
-                        "              || %s::jsonb "
-                        "WHERE id = %s",
-                        (
-                            old_id,
-                            json.dumps({"supersede_reason": reason}),
-                            existing["id"],
-                        ),
-                    )
+                if existing is not None:
+                    if reason is not None:
+                        await tx.execute(
+                            "UPDATE document_versions "
+                            "SET supersedes_document_id = %s, "
+                            "    metadata = COALESCE(metadata, '{}'::jsonb) "
+                            "              || %s::jsonb "
+                            "WHERE id = %s",
+                            (
+                                old_id,
+                                json.dumps({"supersede_reason": reason}),
+                                existing["id"],
+                            ),
+                        )
+                    else:
+                        await tx.execute(
+                            "UPDATE document_versions "
+                            "SET supersedes_document_id = %s WHERE id = %s",
+                            (old_id, existing["id"]),
+                        )
                 else:
-                    await tx.execute(
-                        "UPDATE document_versions "
-                        "SET supersedes_document_id = %s WHERE id = %s",
-                        (old_id, existing["id"]),
+                    meta_json = (
+                        json.dumps({"supersede_reason": reason})
+                        if reason is not None
+                        else "{}"
                     )
-            else:
-                meta_json = (
-                    json.dumps({"supersede_reason": reason})
-                    if reason is not None
-                    else "{}"
-                )
-                await tx.execute(
-                    "INSERT INTO document_versions "
-                    "(namespace, document_id, supersedes_document_id, metadata) "
-                    "VALUES (%s, %s, %s, %s::jsonb)",
-                    (ns, new_id, old_id, meta_json),
-                )
+                    await tx.execute(
+                        "INSERT INTO document_versions "
+                        "(namespace, document_id, supersedes_document_id, metadata) "
+                        "VALUES (%s, %s, %s, %s::jsonb)",
+                        (ns, new_id, old_id, meta_json),
+                    )
 
-            updated = await tx.fetch_all(
-                "UPDATE documents SET effective_to = %s WHERE id = %s "
-                "RETURNING id",
-                (effective_at, old_id),
-            )
+                updated = await tx.fetch_all(
+                    "UPDATE documents SET effective_to = %s WHERE id = %s "
+                    "RETURNING id",
+                    (effective_at, old_id),
+                )
 
         return {"updated": len(updated)}
 
     async def delete_entity(self, entity_id: int) -> bool:
         """Delete an entity and its relationships by id."""
-        result = await self.db.fetch_one(
-            "DELETE FROM entities WHERE id = %s RETURNING id", (entity_id,)
-        )
+        with self.db.tenant(self.config.namespace):
+            result = await self.db.fetch_one(
+                "DELETE FROM entities WHERE id = %s RETURNING id", (entity_id,)
+            )
         return result is not None
 
     async def merge_entities(self, keep_id: int, merge_ids: list[int]) -> dict:
@@ -1551,63 +1565,65 @@ class GraphRAG:
                 "that would delete the canonical entity"
             )
 
-        async with self.db.transaction() as tx:
-            # Verify all entities exist and share a namespace. Cross-namespace
-            # merges are almost always a bug.
-            rows = await tx.fetch_all(
-                "SELECT id, namespace FROM entities WHERE id = ANY(%s)",
-                ([keep_id, *merge_ids],),
-            )
-            found_ids = {r["id"] for r in rows}
-            missing = set([keep_id, *merge_ids]) - found_ids
-            if missing:
-                raise ValueError(f"entities not found: {sorted(missing)}")
-            namespaces = {r["namespace"] for r in rows}
-            if len(namespaces) > 1:
-                raise ValueError(f"cross-namespace merge refused: {sorted(namespaces)}")
+        with self.db.tenant(self.config.namespace):
+            async with self.db.transaction() as tx:
+                # Verify all entities exist and share a namespace. Cross-namespace
+                # merges are almost always a bug.
+                rows = await tx.fetch_all(
+                    "SELECT id, namespace FROM entities WHERE id = ANY(%s)",
+                    ([keep_id, *merge_ids],),
+                )
+                found_ids = {r["id"] for r in rows}
+                missing = set([keep_id, *merge_ids]) - found_ids
+                if missing:
+                    raise ValueError(f"entities not found: {sorted(missing)}")
+                namespaces = {r["namespace"] for r in rows}
+                if len(namespaces) > 1:
+                    raise ValueError(f"cross-namespace merge refused: {sorted(namespaces)}")
 
-            # Repoint relationships. After rewriting src_id and dst_id, any
-            # edge whose src and dst both collapse to keep_id becomes a
-            # self-loop — delete those. Remaining duplicates (same src, dst,
-            # rel_type after the rewrite) collapse to one row each.
-            await tx.execute(
-                "UPDATE relationships SET src_id = %s WHERE src_id = ANY(%s)",
-                (keep_id, merge_ids),
-            )
-            await tx.execute(
-                "UPDATE relationships SET dst_id = %s WHERE dst_id = ANY(%s)",
-                (keep_id, merge_ids),
-            )
-            # Drop self-loops created by the merge.
-            await tx.execute(
-                "DELETE FROM relationships WHERE src_id = dst_id AND (src_id = %s OR dst_id = %s)",
-                (keep_id, keep_id),
-            )
-            # Collapse duplicate edges (keep the lowest id per group).
-            await tx.execute(
-                "DELETE FROM relationships a USING relationships b "
-                "WHERE a.id > b.id AND a.src_id = b.src_id AND "
-                "a.dst_id = b.dst_id AND a.rel_type = b.rel_type AND "
-                "a.namespace = b.namespace AND (a.src_id = %s OR a.dst_id = %s)",
-                (keep_id, keep_id),
-            )
+                # Repoint relationships. After rewriting src_id and dst_id, any
+                # edge whose src and dst both collapse to keep_id becomes a
+                # self-loop — delete those. Remaining duplicates (same src, dst,
+                # rel_type after the rewrite) collapse to one row each.
+                await tx.execute(
+                    "UPDATE relationships SET src_id = %s WHERE src_id = ANY(%s)",
+                    (keep_id, merge_ids),
+                )
+                await tx.execute(
+                    "UPDATE relationships SET dst_id = %s WHERE dst_id = ANY(%s)",
+                    (keep_id, merge_ids),
+                )
+                # Drop self-loops created by the merge.
+                await tx.execute(
+                    "DELETE FROM relationships WHERE src_id = dst_id AND "
+                    "(src_id = %s OR dst_id = %s)",
+                    (keep_id, keep_id),
+                )
+                # Collapse duplicate edges (keep the lowest id per group).
+                await tx.execute(
+                    "DELETE FROM relationships a USING relationships b "
+                    "WHERE a.id > b.id AND a.src_id = b.src_id AND "
+                    "a.dst_id = b.dst_id AND a.rel_type = b.rel_type AND "
+                    "a.namespace = b.namespace AND (a.src_id = %s OR a.dst_id = %s)",
+                    (keep_id, keep_id),
+                )
 
-            # Copy entity_chunks rows from merged entities to keep_id,
-            # deduping via ON CONFLICT, then delete the old rows.
-            await tx.execute(
-                "INSERT INTO entity_chunks (entity_id, chunk_id, confidence, provenance) "
-                "SELECT %s, chunk_id, confidence, provenance FROM entity_chunks "
-                "WHERE entity_id = ANY(%s) "
-                "ON CONFLICT DO NOTHING",
-                (keep_id, merge_ids),
-            )
-            await tx.execute(
-                "DELETE FROM entity_chunks WHERE entity_id = ANY(%s)",
-                (merge_ids,),
-            )
+                # Copy entity_chunks rows from merged entities to keep_id,
+                # deduping via ON CONFLICT, then delete the old rows.
+                await tx.execute(
+                    "INSERT INTO entity_chunks (entity_id, chunk_id, confidence, provenance) "
+                    "SELECT %s, chunk_id, confidence, provenance FROM entity_chunks "
+                    "WHERE entity_id = ANY(%s) "
+                    "ON CONFLICT DO NOTHING",
+                    (keep_id, merge_ids),
+                )
+                await tx.execute(
+                    "DELETE FROM entity_chunks WHERE entity_id = ANY(%s)",
+                    (merge_ids,),
+                )
 
-            # Delete merged entities.
-            await tx.execute("DELETE FROM entities WHERE id = ANY(%s)", (merge_ids,))
+                # Delete merged entities.
+                await tx.execute("DELETE FROM entities WHERE id = ANY(%s)", (merge_ids,))
 
         return {"kept": keep_id, "merged_count": len(merge_ids)}
 
@@ -1615,30 +1631,31 @@ class GraphRAG:
         """Delete entities and relationships with no chunk links."""
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
-        # Count first, then delete — gives a clean int return value that's
-        # easy to assert on in tests and log in production.
-        ent_row = await self.db.fetch_one(
-            "SELECT count(*) AS cnt FROM entities WHERE namespace = %s "
-            "AND id NOT IN (SELECT DISTINCT entity_id FROM entity_chunks)",
-            (ns,),
-        )
-        rel_row = await self.db.fetch_one(
-            "SELECT count(*) AS cnt FROM relationships WHERE namespace = %s "
-            "AND id NOT IN (SELECT DISTINCT relationship_id FROM relationship_chunks)",
-            (ns,),
-        )
-        entities_pruned = ent_row["cnt"] if ent_row else 0
-        relationships_pruned = rel_row["cnt"] if rel_row else 0
-        await self.db.execute(
-            "DELETE FROM entities WHERE namespace = %s AND id NOT IN "
-            "(SELECT DISTINCT entity_id FROM entity_chunks)",
-            (ns,),
-        )
-        await self.db.execute(
-            "DELETE FROM relationships WHERE namespace = %s AND id NOT IN "
-            "(SELECT DISTINCT relationship_id FROM relationship_chunks)",
-            (ns,),
-        )
+        with self.db.tenant(ns):
+            # Count first, then delete — gives a clean int return value that's
+            # easy to assert on in tests and log in production.
+            ent_row = await self.db.fetch_one(
+                "SELECT count(*) AS cnt FROM entities WHERE namespace = %s "
+                "AND id NOT IN (SELECT DISTINCT entity_id FROM entity_chunks)",
+                (ns,),
+            )
+            rel_row = await self.db.fetch_one(
+                "SELECT count(*) AS cnt FROM relationships WHERE namespace = %s "
+                "AND id NOT IN (SELECT DISTINCT relationship_id FROM relationship_chunks)",
+                (ns,),
+            )
+            entities_pruned = ent_row["cnt"] if ent_row else 0
+            relationships_pruned = rel_row["cnt"] if rel_row else 0
+            await self.db.execute(
+                "DELETE FROM entities WHERE namespace = %s AND id NOT IN "
+                "(SELECT DISTINCT entity_id FROM entity_chunks)",
+                (ns,),
+            )
+            await self.db.execute(
+                "DELETE FROM relationships WHERE namespace = %s AND id NOT IN "
+                "(SELECT DISTINCT relationship_id FROM relationship_chunks)",
+                (ns,),
+            )
         return {
             "entities_pruned": entities_pruned,
             "relationships_pruned": relationships_pruned,
