@@ -74,6 +74,7 @@ class PGRGConfig(BaseSettings):
 
     # Database
     dsn: str = _DEFAULT_DSN
+    read_dsn: str = ""
     pool_min: int = 2
     pool_max: int = 10
     statement_timeout_ms: int = 0

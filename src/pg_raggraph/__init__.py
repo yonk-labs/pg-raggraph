@@ -1304,18 +1304,19 @@ class GraphRAG:
         with self.db.tenant(ns):
             embedder = self._get_embedder()
             top_k_override = self.config.top_k * self.config.rerank_factor if rerank else None
-            result = await retrieval_query(
-                question=question,
-                db=self.db,
-                embedder=embedder,
-                config=self.config,
-                mode=mode,
-                namespace=ns,
-                as_of=as_of,
-                version_filter=version_filter,
-                evolution_aware=evolution_aware,
-                top_k_override=top_k_override,
-            )
+            with self.db.readonly():
+                result = await retrieval_query(
+                    question=question,
+                    db=self.db,
+                    embedder=embedder,
+                    config=self.config,
+                    mode=mode,
+                    namespace=ns,
+                    as_of=as_of,
+                    version_filter=version_filter,
+                    evolution_aware=evolution_aware,
+                    top_k_override=top_k_override,
+                )
             if rerank:
                 from pg_raggraph.reranker import FastEmbedReranker, apply_reranker
 
