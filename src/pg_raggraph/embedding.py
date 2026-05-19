@@ -29,7 +29,7 @@ class EmbeddingProvider(Protocol):
 class FastEmbedProvider:
     """Local embedding using fastembed (ONNX-based, no PyTorch)."""
 
-    def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5"):
+    def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5", threads: int | None = None):
         from fastembed import TextEmbedding
 
         # PR-111: surface the first-run model download instead of silently
@@ -46,7 +46,7 @@ class FastEmbedProvider:
                 _FASTEMBED_CACHE,
             )
         t0 = time.perf_counter()
-        self._model = TextEmbedding(model_name=model_name)
+        self._model = TextEmbedding(model_name=model_name, threads=threads)
         # Infer dimension from a test embedding
         test = list(self._model.embed(["test"]))[0]
         self._dim = len(test)
@@ -108,7 +108,10 @@ class HttpxEmbeddingProvider:
 def get_embedding_provider(config: PGRGConfig) -> EmbeddingProvider:
     """Factory to create the right embedding provider from config."""
     if config.embedding_provider == "local":
-        return FastEmbedProvider(model_name=config.embedding_model)
+        return FastEmbedProvider(
+            model_name=config.embedding_model,
+            threads=config.embedding_threads,
+        )
     elif config.embedding_provider in ("openai", "ollama"):
         base_url = config.llm_base_url
         if config.embedding_provider == "openai":

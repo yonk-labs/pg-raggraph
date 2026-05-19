@@ -65,6 +65,7 @@ class PGRGConfig(BaseSettings):
     embedding_dim: int = 384
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     embedding_provider: str = "local"  # local | openai | ollama
+    embedding_threads: int = 1
 
     # LLM (OpenAI-compatible API)
     llm_base_url: str = "http://localhost:11434/v1"  # Ollama default
