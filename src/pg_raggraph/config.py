@@ -197,6 +197,9 @@ class PGRGConfig(BaseSettings):
     # A/B control (byte-identical to the pre-K1 path).
     two_stage_retrieval: bool = True
     retrieval_candidate_k: int = 200
+    hnsw_m: int = 16
+    hnsw_ef_construction: int = 64
+    hnsw_ef_search: int = 40
 
     # Cross-encoder reranking (off by default; opt-in per-query via rerank=True).
     # When enabled, retrieval fetches top_k * rerank_factor candidates, then a

@@ -119,8 +119,12 @@ CREATE INDEX IF NOT EXISTS idx_doc_ns_hash ON documents(namespace, content_hash)
 CREATE INDEX IF NOT EXISTS idx_doc_ns ON documents(namespace);
 
 -- Vector indexes (HNSW)
-CREATE INDEX IF NOT EXISTS idx_entity_embed ON entities USING hnsw (embedding vector_cosine_ops);
-CREATE INDEX IF NOT EXISTS idx_chunk_embed ON chunks USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS idx_entity_embed
+    ON entities USING hnsw (embedding vector_cosine_ops)
+    WITH (m = {hnsw_m}, ef_construction = {hnsw_ef_construction});
+CREATE INDEX IF NOT EXISTS idx_chunk_embed
+    ON chunks USING hnsw (embedding vector_cosine_ops)
+    WITH (m = {hnsw_m}, ef_construction = {hnsw_ef_construction});
 
 -- Trigram index for entity resolution
 CREATE INDEX IF NOT EXISTS idx_entity_name_trgm ON entities USING gin (name gin_trgm_ops);

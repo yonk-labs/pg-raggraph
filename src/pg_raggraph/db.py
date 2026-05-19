@@ -113,6 +113,11 @@ class Database:
                 "SELECT set_config('statement_timeout', %s, false)",
                 (str(self.config.statement_timeout_ms),),
             )
+        if self.config.hnsw_ef_search > 0:
+            await conn.execute(
+                "SELECT set_config('hnsw.ef_search', %s, false)",
+                (str(self.config.hnsw_ef_search),),
+            )
         if self.config.rls_enabled:
             tenant = self._tenant.get() or self.config.namespace
             current = await conn.execute("SELECT current_user")
@@ -140,6 +145,13 @@ class Database:
                 "migration-capable role before using rls_enabled=True with an app role."
             )
 
+    def _render_sql_template(self, sql_text: str) -> str:
+        return (
+            sql_text.replace("{dim}", str(self.config.embedding_dim))
+            .replace("{hnsw_m}", str(self.config.hnsw_m))
+            .replace("{hnsw_ef_construction}", str(self.config.hnsw_ef_construction))
+        )
+
     async def _ensure_schema(self, conn) -> None:
         """Create or migrate schema to current version.
 
@@ -159,7 +171,7 @@ class Database:
 
             if not exists:
                 sql_text = files("pg_raggraph.sql").joinpath("schema.sql").read_text()
-                sql_text = sql_text.replace("{dim}", str(self.config.embedding_dim))
+                sql_text = self._render_sql_template(sql_text)
                 await conn.execute(sql_text)
                 await conn.execute(
                     "INSERT INTO pgrg_meta (key, value) VALUES ('schema_version', %s) "
@@ -229,8 +241,26 @@ class Database:
         for version, name in pending:
             logger.info(f"Applying migration {name}")
             sql_text = files("pg_raggraph.sql.migrations").joinpath(name).read_text()
+            sql_text = self._render_sql_template(sql_text)
             try:
-                await conn.execute(sql_text)
+                if "CONCURRENTLY" in sql_text.upper():
+                    await conn.commit()
+                    original_autocommit = conn.autocommit
+                    await conn.set_autocommit(True)
+                    try:
+                        executable_sql = "\n".join(
+                            line
+                            for line in sql_text.splitlines()
+                            if not line.lstrip().startswith("--")
+                        )
+                        for statement in executable_sql.split(";"):
+                            statement = statement.strip()
+                            if statement:
+                                await conn.execute(statement)
+                    finally:
+                        await conn.set_autocommit(original_autocommit)
+                else:
+                    await conn.execute(sql_text)
                 await conn.execute(
                     "INSERT INTO pgrg_applied_migrations (filename, version) VALUES (%s, %s) "
                     "ON CONFLICT (filename) DO NOTHING",
