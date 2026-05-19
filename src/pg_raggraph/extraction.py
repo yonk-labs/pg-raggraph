@@ -251,6 +251,10 @@ def _cache_key(chunk_content: str, prompt_name: str = "default") -> str:
     return hashlib.sha256(f"extract_v1:{prompt_name}:{chunk_content}".encode()).hexdigest()
 
 
+def _is_insufficient_privilege(exc: Exception) -> bool:
+    return getattr(exc, "sqlstate", None) == "42501"
+
+
 async def _extract_single(
     chunk: dict,
     llm: LLMProvider,
@@ -267,7 +271,16 @@ async def _extract_single(
     cache_k = _cache_key(content, prompt_name)
 
     # Check cache first (no semaphore needed — DB call is cheap)
-    cached = await db.fetch_one("SELECT response FROM pgrg_llm_cache WHERE key = %s", (cache_k,))
+    try:
+        cached = await db.fetch_one(
+            "SELECT response FROM pgrg_llm_cache WHERE key = %s",
+            (cache_k,),
+        )
+    except Exception as e:
+        if not _is_insufficient_privilege(e):
+            raise
+        logger.debug("LLM cache read skipped: %s", e)
+        cached = None
     if cached:
         return filter_extraction(ExtractionResult.model_validate(cached["response"]))
 
@@ -300,7 +313,7 @@ async def _extract_single(
                 (cache_k, json.dumps(result.model_dump())),
             )
         except Exception as e:
-            logger.debug("LLM cache write failed: %s", e)
+            logger.debug("LLM cache write skipped: %s", e)
 
     return result
 

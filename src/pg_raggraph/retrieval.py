@@ -100,6 +100,75 @@ LIMIT %(top_k)s
     return sql, extra_params
 
 
+def _build_naive_query_twostage(
+    cfg: PGRGConfig,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
+) -> tuple[str, dict]:
+    """Two-stage naive retrieval (K1).
+
+    Stage 1 — a candidate CTE whose ORDER BY is the *bare* distance
+    ``c.embedding <=> %(embedding)s::vector`` (no composite arithmetic),
+    which is HNSW-eligible so the planner can serve it from
+    ``idx_chunk_embed`` instead of Seq-Scanning the namespace.
+
+    Stage 2 — the EXISTING composite ``score`` expression from
+    ``_build_naive_query`` re-scores only the <= retrieval_candidate_k
+    candidates, then trims to top_k. The scoring expression and the
+    PRG-1 consumer-surface columns are kept byte-identical to the
+    single-stage builder so ranking is the same when the candidate set
+    is a superset of the true top-k (it is, since w_sem dominates).
+
+    The candidate CTE re-joins ``documents`` (it only carries
+    ``document_id``) so the re-score block can expose every column
+    ``query()``'s row consumer reads. ``evolution_where_clauses`` is
+    reused exactly as ``_build_naive_query`` does and applies to the
+    CTE's ``documents`` join — when evolution_tier == "off" the clauses
+    list is empty and both builders are byte-stable.
+    """
+    base = (
+        "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
+        "%(w_bm25)s * ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) + "
+        "%(w_graph)s * 0"  # naive has no graph leg
+    )
+    clauses, extra_params = evolution_where_clauses(
+        cfg,
+        doc_alias="d",
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
+    )
+    extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
+    sql = f"""
+WITH candidates AS (
+    SELECT c.id, c.embedding, c.search_vector,
+           COALESCE(c.embedded_content, c.content) AS content,
+           c.metadata, c.document_id
+    FROM chunks c
+    JOIN documents d ON d.id = c.document_id
+    WHERE d.namespace = %(namespace)s{extra_where}
+    ORDER BY c.embedding <=> %(embedding)s::vector
+    LIMIT %(candidate_k)s
+)
+SELECT cand.id, cand.content, cand.metadata,
+       d.source_path,
+       d.metadata AS doc_metadata,
+       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       (SELECT dv.document_id FROM document_versions dv
+        WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
+           AS superseded_by_id,
+       1 - (cand.embedding <=> %(embedding)s::vector) AS vec_score,
+       ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score,
+       {evolution_score_expr(base, cfg, evolution_aware)} AS score
+FROM candidates cand
+JOIN documents d ON d.id = cand.document_id
+ORDER BY score DESC
+LIMIT %(top_k)s
+"""
+    return sql, extra_params
+
+
 def _build_local_query(
     cfg: PGRGConfig,
     as_of: datetime | None = None,
@@ -302,6 +371,7 @@ async def query(
     start = time.perf_counter()
     ns = namespace or config.namespace
     effective_top_k = top_k_override or config.top_k
+    candidate_k = max(config.retrieval_candidate_k, effective_top_k)
 
     # Embed the question
     q_embedding = (await embedder.embed([question]))[0]
@@ -314,6 +384,7 @@ async def query(
         "tsquery": tsquery,
         "namespace": ns,
         "top_k": effective_top_k,
+        "candidate_k": candidate_k,
         "seed_k": min(effective_top_k, 5),
         "max_hops": config.max_hops,
         "w_sem": config.w_sem,
@@ -323,7 +394,12 @@ async def query(
     }
 
     if mode == "naive":
-        sql, extra = _build_naive_query(config, as_of, version_filter, evolution_aware)
+        if config.two_stage_retrieval:
+            sql, extra = _build_naive_query_twostage(
+                config, as_of, version_filter, evolution_aware
+            )
+        else:
+            sql, extra = _build_naive_query(config, as_of, version_filter, evolution_aware)
         rows = await db.fetch_all(sql, _merge_params(params, extra))
     elif mode == "local":
         sql, extra = _build_local_query(config, as_of, version_filter, evolution_aware)

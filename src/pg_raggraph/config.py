@@ -11,6 +11,7 @@ from pydantic_settings import BaseSettings
 _logger = logging.getLogger("pg_raggraph.config")
 _DEFAULT_DSN = "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
 _default_dsn_warned = False
+_pool_max_warned = False
 
 # Ingestion throttle profiles — pick one based on your hardware and how much
 # headroom you want to leave for other processes.
@@ -57,6 +58,8 @@ class PGRGConfig(BaseSettings):
     dsn: str = _DEFAULT_DSN
     pool_min: int = 2
     pool_max: int = 10
+    statement_timeout_ms: int = 0
+    rls_enabled: bool = False
 
     # Namespace
     namespace: str = "default"
@@ -64,7 +67,10 @@ class PGRGConfig(BaseSettings):
     # Embedding
     embedding_dim: int = 384
     embedding_model: str = "BAAI/bge-small-en-v1.5"
-    embedding_provider: str = "local"  # local | openai | ollama
+    embedding_provider: str = "local"  # local | openai | ollama | http
+    embedding_threads: int = 1
+    embedding_base_url: str = ""
+    embedding_api_key: str = ""
 
     # LLM (OpenAI-compatible API)
     llm_base_url: str = "http://localhost:11434/v1"  # Ollama default
@@ -141,6 +147,17 @@ class PGRGConfig(BaseSettings):
                 )
                 _default_dsn_warned = True
 
+        if self.pool_max > 10:
+            global _pool_max_warned
+            if not _pool_max_warned:
+                _logger.warning(
+                    "Configured pool_max=%d. For multi-tenant deployments, "
+                    "prefer pool_max<=10 per process and put PgBouncer in "
+                    "front of PostgreSQL for larger fleets.",
+                    self.pool_max,
+                )
+                _pool_max_warned = True
+
         # PR-215: nice_level is no longer applied at config-init time.
         # Importing PGRGConfig must not mutate process priority (the prior
         # behavior surprised callers who imported the package under tests
@@ -170,6 +187,19 @@ class PGRGConfig(BaseSettings):
     max_hops: int = 2
     top_k: int = 10
     similarity_threshold: float = 0.3
+
+    # Two-stage naive retrieval (K1). When True (default), mode="naive"
+    # first fetches `retrieval_candidate_k` nearest chunks via a bare
+    # `ORDER BY embedding <=> q` (HNSW-eligible), then re-scores that
+    # candidate set with the full composite weight expression. This makes
+    # the HNSW index `idx_chunk_embed` usable instead of a Seq Scan +
+    # top-N sort over the whole namespace. Set False for the single-stage
+    # A/B control (byte-identical to the pre-K1 path).
+    two_stage_retrieval: bool = True
+    retrieval_candidate_k: int = 200
+    hnsw_m: int = 16
+    hnsw_ef_construction: int = 64
+    hnsw_ef_search: int = 40
 
     # Cross-encoder reranking (off by default; opt-in per-query via rerank=True).
     # When enabled, retrieval fetches top_k * rerank_factor candidates, then a

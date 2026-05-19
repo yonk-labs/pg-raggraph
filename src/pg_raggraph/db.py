@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import contextvars
 import logging
+from contextlib import contextmanager
 from importlib.resources import files
 from typing import Any
 
@@ -37,6 +39,10 @@ class Database:
     def __init__(self, config: PGRGConfig):
         self.config = config
         self._pool: AsyncConnectionPool | None = None
+        self._tenant: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+            "pg_raggraph_tenant",
+            default=None,
+        )
 
     async def connect(self) -> None:
         self._pool = AsyncConnectionPool(
@@ -51,7 +57,10 @@ class Database:
         await self._pool.wait(timeout=5.0)
         async with self._pool.connection() as conn:
             await register_vector_async(conn)
-            await self._ensure_schema(conn)
+            if await self._should_skip_schema_bootstrap(conn):
+                await self._verify_schema_ready(conn)
+            else:
+                await self._ensure_schema(conn)
         logger.debug("Database connected and schema verified.")
 
     async def close(self) -> None:
@@ -72,15 +81,76 @@ class Database:
             raise RuntimeError("Database not connected. Call connect() first.")
         return self._pool
 
+    def set_tenant(self, namespace: str | None) -> contextvars.Token:
+        return self._tenant.set(namespace)
+
+    def reset_tenant(self, token: contextvars.Token) -> None:
+        self._tenant.reset(token)
+
+    @contextmanager
+    def tenant(self, namespace: str | None):
+        token = self._tenant.set(namespace)
+        try:
+            yield
+        finally:
+            self._tenant.reset(token)
+
     async def health_check(self) -> bool:
         """Check if the database connection is healthy."""
         try:
             async with self.pool.connection() as conn:
+                await self._prepare_connection(conn)
                 await conn.execute("SELECT 1")
             return True
         except Exception as e:
             logger.debug("health_check failed: %s", e)
             return False
+
+    async def _prepare_connection(self, conn) -> None:
+        await register_vector_async(conn)
+        if self.config.statement_timeout_ms > 0:
+            await conn.execute(
+                "SELECT set_config('statement_timeout', %s, false)",
+                (str(self.config.statement_timeout_ms),),
+            )
+        if self.config.hnsw_ef_search > 0:
+            await conn.execute(
+                "SELECT set_config('hnsw.ef_search', %s, false)",
+                (str(self.config.hnsw_ef_search),),
+            )
+        if self.config.rls_enabled:
+            tenant = self._tenant.get() or self.config.namespace
+            current = await conn.execute("SELECT current_user")
+            row = await current.fetchone()
+            if row and row[0] != "pgrg_app":
+                await conn.execute("SET LOCAL ROLE pgrg_app")
+            await conn.execute("SELECT set_config('app.tenant', %s, true)", (tenant,))
+
+    async def _should_skip_schema_bootstrap(self, conn) -> bool:
+        if not self.config.rls_enabled:
+            return False
+        result = await conn.execute("SELECT current_user = 'pgrg_app'")
+        row = await result.fetchone()
+        return bool(row and row[0])
+
+    async def _verify_schema_ready(self, conn) -> None:
+        result = await conn.execute(
+            "SELECT EXISTS (SELECT FROM pg_tables WHERE tablename = 'pgrg_meta') "
+            "AND EXISTS (SELECT FROM pg_tables WHERE tablename = 'pgrg_applied_migrations')"
+        )
+        row = await result.fetchone()
+        if not row or not row[0]:
+            raise RuntimeError(
+                "Database schema is not initialized. Run `pgrg migrate` with a "
+                "migration-capable role before using rls_enabled=True with an app role."
+            )
+
+    def _render_sql_template(self, sql_text: str) -> str:
+        return (
+            sql_text.replace("{dim}", str(self.config.embedding_dim))
+            .replace("{hnsw_m}", str(self.config.hnsw_m))
+            .replace("{hnsw_ef_construction}", str(self.config.hnsw_ef_construction))
+        )
 
     async def _ensure_schema(self, conn) -> None:
         """Create or migrate schema to current version.
@@ -101,7 +171,7 @@ class Database:
 
             if not exists:
                 sql_text = files("pg_raggraph.sql").joinpath("schema.sql").read_text()
-                sql_text = sql_text.replace("{dim}", str(self.config.embedding_dim))
+                sql_text = self._render_sql_template(sql_text)
                 await conn.execute(sql_text)
                 await conn.execute(
                     "INSERT INTO pgrg_meta (key, value) VALUES ('schema_version', %s) "
@@ -171,8 +241,26 @@ class Database:
         for version, name in pending:
             logger.info(f"Applying migration {name}")
             sql_text = files("pg_raggraph.sql.migrations").joinpath(name).read_text()
+            sql_text = self._render_sql_template(sql_text)
             try:
-                await conn.execute(sql_text)
+                if "CONCURRENTLY" in sql_text.upper():
+                    await conn.commit()
+                    original_autocommit = conn.autocommit
+                    await conn.set_autocommit(True)
+                    try:
+                        executable_sql = "\n".join(
+                            line
+                            for line in sql_text.splitlines()
+                            if not line.lstrip().startswith("--")
+                        )
+                        for statement in executable_sql.split(";"):
+                            statement = statement.strip()
+                            if statement:
+                                await conn.execute(statement)
+                    finally:
+                        await conn.set_autocommit(original_autocommit)
+                else:
+                    await conn.execute(sql_text)
                 await conn.execute(
                     "INSERT INTO pgrg_applied_migrations (filename, version) VALUES (%s, %s) "
                     "ON CONFLICT (filename) DO NOTHING",
@@ -207,14 +295,14 @@ class Database:
 
     async def execute(self, query_str: str, params: tuple | dict | None = None) -> Any:
         async with self.pool.connection() as conn:
-            await register_vector_async(conn)
+            await self._prepare_connection(conn)
             result = await conn.execute(query_str, params)
             await conn.commit()
             return result
 
     async def fetch_all(self, query_str: str, params: tuple | dict | None = None) -> list[dict]:
         async with self.pool.connection() as conn:
-            await register_vector_async(conn)
+            await self._prepare_connection(conn)
             cur = await conn.execute(query_str, params, prepare=False)
             if cur.description is None:
                 return []
@@ -228,7 +316,7 @@ class Database:
 
     async def insert_returning_id(self, query_str: str, params: tuple | dict | None = None) -> int:
         async with self.pool.connection() as conn:
-            await register_vector_async(conn)
+            await self._prepare_connection(conn)
             result = await conn.execute(query_str, params)
             row = await result.fetchone()
             await conn.commit()
@@ -252,7 +340,7 @@ class Database:
             sql.SQL(", ").join(sql.Placeholder() * len(columns)),
         )
         async with self.pool.connection() as conn:
-            await register_vector_async(conn)
+            await self._prepare_connection(conn)
             cur = conn.cursor()
             await cur.executemany(query_obj, rows)
             await conn.commit()
@@ -293,7 +381,7 @@ class Transaction:
     async def __aenter__(self) -> Transaction:
         self._cm = self._db.pool.connection()
         self._conn = await self._cm.__aenter__()
-        await register_vector_async(self._conn)
+        await self._db._prepare_connection(self._conn)
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
