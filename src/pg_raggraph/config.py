@@ -12,6 +12,9 @@ _logger = logging.getLogger("pg_raggraph.config")
 _DEFAULT_DSN = "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
 _default_dsn_warned = False
 _pool_max_warned = False
+_pool_fleet_warned = False
+_POOL_FLEET_CONNECTION_LIMIT = 80
+_WORKER_ENV_VARS = ("PGRG_WORKERS", "WEB_CONCURRENCY", "GUNICORN_WORKERS", "UVICORN_WORKERS")
 
 # Ingestion throttle profiles — pick one based on your hardware and how much
 # headroom you want to leave for other processes.
@@ -47,6 +50,21 @@ INGEST_PROFILES = {
         "embed_batch_size": 64,
     },
 }
+
+
+def _observed_worker_count() -> int:
+    """Best-effort worker count from common deployment env vars."""
+    for env_var in _WORKER_ENV_VARS:
+        value = os.environ.get(env_var)
+        if not value:
+            continue
+        try:
+            workers = int(value)
+        except ValueError:
+            continue
+        if workers > 0:
+            return workers
+    return 1
 
 
 class PGRGConfig(BaseSettings):
@@ -153,10 +171,28 @@ class PGRGConfig(BaseSettings):
                 _logger.warning(
                     "Configured pool_max=%d. For multi-tenant deployments, "
                     "prefer pool_max<=10 per process and put PgBouncer in "
-                    "front of PostgreSQL for larger fleets.",
+                    "front of PostgreSQL for larger fleets. See "
+                    "docs/deployment-embedding-scaling.md F6.",
                     self.pool_max,
                 )
                 _pool_max_warned = True
+
+        workers = _observed_worker_count()
+        fleet_connections = self.pool_max * workers
+        if fleet_connections > _POOL_FLEET_CONNECTION_LIMIT:
+            global _pool_fleet_warned
+            if not _pool_fleet_warned:
+                _logger.warning(
+                    "Configured pool_max=%d across %d observed worker(s) can open "
+                    "up to %d PostgreSQL connections. Keep pool_max*workers <= %d "
+                    "or put PgBouncer in front of PostgreSQL. See "
+                    "docs/deployment-embedding-scaling.md F6.",
+                    self.pool_max,
+                    workers,
+                    fleet_connections,
+                    _POOL_FLEET_CONNECTION_LIMIT,
+                )
+                _pool_fleet_warned = True
 
         # PR-215: nice_level is no longer applied at config-init time.
         # Importing PGRGConfig must not mutate process priority (the prior
