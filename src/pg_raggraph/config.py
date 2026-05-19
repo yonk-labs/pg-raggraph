@@ -11,6 +11,7 @@ from pydantic_settings import BaseSettings
 _logger = logging.getLogger("pg_raggraph.config")
 _DEFAULT_DSN = "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
 _default_dsn_warned = False
+_pool_max_warned = False
 
 # Ingestion throttle profiles — pick one based on your hardware and how much
 # headroom you want to leave for other processes.
@@ -142,6 +143,17 @@ class PGRGConfig(BaseSettings):
                     "Override with PGRG_DSN before any non-local deployment."
                 )
                 _default_dsn_warned = True
+
+        if self.pool_max > 10:
+            global _pool_max_warned
+            if not _pool_max_warned:
+                _logger.warning(
+                    "Configured pool_max=%d. For multi-tenant deployments, "
+                    "prefer pool_max<=10 per process and put PgBouncer in "
+                    "front of PostgreSQL for larger fleets.",
+                    self.pool_max,
+                )
+                _pool_max_warned = True
 
         # PR-215: nice_level is no longer applied at config-init time.
         # Importing PGRGConfig must not mutate process priority (the prior

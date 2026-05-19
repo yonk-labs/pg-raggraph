@@ -72,6 +72,23 @@ def init(ctx):
 
 @main.command()
 @click.pass_context
+def migrate(ctx):
+    """Apply pending database migrations and exit."""
+
+    async def _migrate():
+        rag = GraphRAG(**ctx.obj["kwargs"])
+        await rag.connect()
+        await rag.close()
+        click.echo("Migrations applied.")
+
+    try:
+        run_async(_migrate())
+    except (ConnectionError, Exception) as e:
+        _handle_error(e)
+
+
+@main.command()
+@click.pass_context
 def status(ctx):
     """Show graph statistics."""
 
