@@ -171,6 +171,16 @@ class PGRGConfig(BaseSettings):
     top_k: int = 10
     similarity_threshold: float = 0.3
 
+    # Two-stage naive retrieval (K1). When True (default), mode="naive"
+    # first fetches `retrieval_candidate_k` nearest chunks via a bare
+    # `ORDER BY embedding <=> q` (HNSW-eligible), then re-scores that
+    # candidate set with the full composite weight expression. This makes
+    # the HNSW index `idx_chunk_embed` usable instead of a Seq Scan +
+    # top-N sort over the whole namespace. Set False for the single-stage
+    # A/B control (byte-identical to the pre-K1 path).
+    two_stage_retrieval: bool = True
+    retrieval_candidate_k: int = 200
+
     # Cross-encoder reranking (off by default; opt-in per-query via rerank=True).
     # When enabled, retrieval fetches top_k * rerank_factor candidates, then a
     # cross-encoder scores each (question, chunk) pair and trims to top_k.
