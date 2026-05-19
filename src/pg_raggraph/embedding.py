@@ -128,5 +128,14 @@ def get_embedding_provider(config: PGRGConfig) -> EmbeddingProvider:
             api_key=config.llm_api_key,
             dimension=config.embedding_dim,
         )
+    elif config.embedding_provider == "http":
+        if not config.embedding_base_url:
+            raise ValueError("embedding_provider='http' requires embedding_base_url")
+        return HttpxEmbeddingProvider(
+            base_url=config.embedding_base_url,
+            model=config.embedding_model,
+            api_key=config.embedding_api_key,
+            dimension=config.embedding_dim,
+        )
     else:
         raise ValueError(f"Unknown embedding provider: {config.embedding_provider}")
