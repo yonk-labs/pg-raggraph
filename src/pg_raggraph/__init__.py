@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import time
 from datetime import datetime, timezone
 from hashlib import sha256
 from importlib.metadata import PackageNotFoundError
@@ -46,6 +47,7 @@ __all__ = [
 ]
 
 logger = logging.getLogger("pg_raggraph")
+metrics_logger = logging.getLogger("pg_raggraph.metrics")
 
 
 def _json_default(obj):
@@ -264,6 +266,9 @@ class GraphRAG:
             self._embedder = get_embedding_provider(self.config)
         return self._embedder
 
+    def _emit_metric(self, event: str, **fields) -> None:
+        metrics_logger.info(event, extra={"event": event, **fields})
+
     @staticmethod
     def _embedding_cache_key(text: str) -> str:
         return sha256(text.encode("utf-8")).hexdigest()
@@ -353,6 +358,7 @@ class GraphRAG:
 
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        started = time.perf_counter()
         # PR-215: apply nice_level here (was previously in config init,
         # which surprised callers by mutating process priority on import).
         self.config.apply_nice_level()
@@ -533,6 +539,16 @@ class GraphRAG:
             f"{suffix}. "
             f"{stats['entities']} entities, {stats['rels']} relationships."
         )
+        self._emit_metric(
+            "pgrg.ingest",
+            namespace=ns,
+            mode="files",
+            latency_ms=(time.perf_counter() - started) * 1000,
+            documents=len(file_paths),
+            ingested=stats["ingested"],
+            skipped=stats["skipped"],
+            failed=stats["failed"],
+        )
 
     async def ingest_records(
         self,
@@ -636,6 +652,7 @@ class GraphRAG:
         records = list(records)
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        started = time.perf_counter()
         self.config.apply_nice_level()
         embedder = self._get_embedder()
 
@@ -774,6 +791,16 @@ class GraphRAG:
         _progress(
             f"Done: {stats['ingested']} ingested, {stats['skipped']} skipped"
             f"{suffix}. {stats['entities']} entities, {stats['rels']} relationships."
+        )
+        self._emit_metric(
+            "pgrg.ingest",
+            namespace=ns,
+            mode="records",
+            latency_ms=(time.perf_counter() - started) * 1000,
+            documents=len(records),
+            ingested=stats["ingested"],
+            skipped=stats["skipped"],
+            failed=stats["failed"],
         )
 
     async def _ingest_one_file(
@@ -1273,6 +1300,7 @@ class GraphRAG:
 
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        started = time.perf_counter()
         with self.db.tenant(ns):
             embedder = self._get_embedder()
             top_k_override = self.config.top_k * self.config.rerank_factor if rerank else None
@@ -1294,6 +1322,14 @@ class GraphRAG:
                 if self._reranker is None:
                     self._reranker = FastEmbedReranker(self.config.rerank_model)
                 result = await apply_reranker(self._reranker, question, result, self.config.top_k)
+            self._emit_metric(
+                "pgrg.query",
+                namespace=ns,
+                mode=mode,
+                latency_ms=(time.perf_counter() - started) * 1000,
+                top_k=len(result.chunks),
+                rerank=rerank,
+            )
             return result
 
     async def ask(
