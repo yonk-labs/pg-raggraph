@@ -236,10 +236,12 @@ class GraphRAG:
         if self._db:
             await self._db.close()
             self._db = None
+        if self._embedder is not None and hasattr(self._embedder, "aclose"):
+            await self._embedder.aclose()
+        self._embedder = None
         if self._llm is not None and hasattr(self._llm, "aclose"):
             await self._llm.aclose()
             self._llm = None
-        self._embedder = None
 
     async def __aenter__(self):
         await self.connect()

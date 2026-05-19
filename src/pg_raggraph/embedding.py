@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+import httpx
+
 from pg_raggraph.config import PGRGConfig
 
 _logger = logging.getLogger("pg_raggraph.embedding")
@@ -83,32 +85,47 @@ def _get_fastembed_model(model_name: str, threads: int | None):
 class HttpxEmbeddingProvider:
     """OpenAI-compatible embedding provider via httpx."""
 
-    def __init__(self, base_url: str, model: str, api_key: str = "", dimension: int = 384):
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        api_key: str = "",
+        dimension: int = 384,
+        batch_size: int = 16,
+    ):
         self._base_url = base_url.rstrip("/")
         self._model = model
         self._api_key = api_key
         self._dim = dimension
+        self._batch_size = max(1, batch_size)
+        self._headers: dict[str, str] = {"Content-Type": "application/json"}
+        if self._api_key:
+            self._headers["Authorization"] = f"Bearer {self._api_key}"
+        self._client = httpx.AsyncClient(
+            timeout=60,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+        )
 
     @property
     def dimension(self) -> int:
         return self._dim
 
+    async def aclose(self) -> None:
+        await self._client.aclose()
+
     async def embed(self, texts: list[str]) -> list[list[float]]:
-        import httpx
-
-        headers = {"Content-Type": "application/json"}
-        if self._api_key:
-            headers["Authorization"] = f"Bearer {self._api_key}"
-
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(
+        embeddings: list[list[float]] = []
+        for start in range(0, len(texts), self._batch_size):
+            batch = texts[start : start + self._batch_size]
+            resp = await self._client.post(
                 f"{self._base_url}/embeddings",
-                headers=headers,
-                json={"model": self._model, "input": texts},
+                headers=self._headers,
+                json={"model": self._model, "input": batch},
             )
             resp.raise_for_status()
             data = resp.json()
-            return [item["embedding"] for item in data["data"]]
+            embeddings.extend(item["embedding"] for item in data["data"])
+        return embeddings
 
 
 def get_embedding_provider(config: PGRGConfig) -> EmbeddingProvider:
@@ -127,6 +144,7 @@ def get_embedding_provider(config: PGRGConfig) -> EmbeddingProvider:
             model=config.embedding_model,
             api_key=config.llm_api_key,
             dimension=config.embedding_dim,
+            batch_size=config.embed_batch_size,
         )
     elif config.embedding_provider == "http":
         if not config.embedding_base_url:
@@ -136,6 +154,7 @@ def get_embedding_provider(config: PGRGConfig) -> EmbeddingProvider:
             model=config.embedding_model,
             api_key=config.embedding_api_key,
             dimension=config.embedding_dim,
+            batch_size=config.embed_batch_size,
         )
     else:
         raise ValueError(f"Unknown embedding provider: {config.embedding_provider}")
