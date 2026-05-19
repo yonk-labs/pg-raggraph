@@ -50,15 +50,9 @@ async def scale_rag():
     # cross-test namespace pollution occurs.
     try:
         for pattern in _SCALE_NS_PATTERNS:
-            await rag.db.execute(
-                "DELETE FROM relationships WHERE namespace LIKE %s", (pattern,)
-            )
-            await rag.db.execute(
-                "DELETE FROM entities WHERE namespace LIKE %s", (pattern,)
-            )
-            await rag.db.execute(
-                "DELETE FROM documents WHERE namespace LIKE %s", (pattern,)
-            )
+            await rag.db.execute("DELETE FROM relationships WHERE namespace LIKE %s", (pattern,))
+            await rag.db.execute("DELETE FROM entities WHERE namespace LIKE %s", (pattern,))
+            await rag.db.execute("DELETE FROM documents WHERE namespace LIKE %s", (pattern,))
     except Exception:
         pass
     await rag.close()

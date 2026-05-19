@@ -62,11 +62,7 @@ def test_hnsw_build_params_config_defaults():
 def test_hnsw_build_params_render_into_schema_and_migration():
     db = Database(PGRGConfig(hnsw_m=32, hnsw_ef_construction=128))
     schema = files("pg_raggraph.sql").joinpath("schema.sql").read_text()
-    migration = (
-        files("pg_raggraph.sql.migrations")
-        .joinpath("004_hnsw_params.sql")
-        .read_text()
-    )
+    migration = files("pg_raggraph.sql.migrations").joinpath("004_hnsw_params.sql").read_text()
 
     rendered_schema = db._render_sql_template(schema)
     rendered_migration = db._render_sql_template(migration)

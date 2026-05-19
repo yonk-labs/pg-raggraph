@@ -18,10 +18,7 @@ from pg_raggraph.retrieval import (
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_twostage_uses_hnsw_and_preserves_topk(scale_rag):
-    rows = [
-        {"text": f"doc {i} about topic {i % 7}", "source_id": f"t{i}"}
-        for i in range(5000)
-    ]
+    rows = [{"text": f"doc {i} about topic {i % 7}", "source_id": f"t{i}"} for i in range(5000)]
     await scale_rag.ingest_records(rows, namespace="ts")
 
     r = await scale_rag.query("topic 3", mode="naive", namespace="ts")
@@ -92,10 +89,7 @@ async def test_real_builders_two_stage_uses_hnsw_single_stage_seqscans(scale_rag
     the plan: two-stage walks idx_chunk_embed (HNSW), single-stage Seq-Scans.
     """
     ns = f"ts_guard_{uuid4().hex}"  # ts% prefix, fixture teardown owns it
-    rows = [
-        {"text": f"doc {i} about topic {i % 7}", "source_id": f"tg{i}"}
-        for i in range(3000)
-    ]
+    rows = [{"text": f"doc {i} about topic {i % 7}", "source_id": f"tg{i}"} for i in range(3000)]
     await scale_rag.ingest_records(rows, namespace=ns)
 
     # Immediately-post-ingest queries can transiently miss HNSW until
@@ -108,9 +102,7 @@ async def test_real_builders_two_stage_uses_hnsw_single_stage_seqscans(scale_rag
 
     # Two-stage: the real builder must EXPLAIN onto the HNSW index.
     two_sql, two_extra = _build_naive_query_twostage(config, None, None, None)
-    two_plan = await scale_rag.db.fetch_all(
-        "EXPLAIN " + two_sql, _merge_params(params, two_extra)
-    )
+    two_plan = await scale_rag.db.fetch_all("EXPLAIN " + two_sql, _merge_params(params, two_extra))
     two_text = "\n".join(str(r) for r in two_plan)
     assert "idx_chunk_embed" in two_text, (
         f"two-stage builder did NOT use HNSW idx_chunk_embed.\nPLAN:\n{two_text}"
@@ -127,17 +119,14 @@ async def test_real_builders_two_stage_uses_hnsw_single_stage_seqscans(scale_rag
     # Seq-Scans + sorts. This proves config.two_stage_retrieval changes
     # the plan rather than the assertion above being trivially true.
     one_sql, one_extra = _build_naive_query(config, None, None, None)
-    one_plan = await scale_rag.db.fetch_all(
-        "EXPLAIN " + one_sql, _merge_params(params, one_extra)
-    )
+    one_plan = await scale_rag.db.fetch_all("EXPLAIN " + one_sql, _merge_params(params, one_extra))
     one_text = "\n".join(str(r) for r in one_plan)
     assert "idx_chunk_embed" not in one_text, (
         f"single-stage UNEXPECTEDLY used HNSW idx_chunk_embed; the flag no "
         f"longer changes the plan, A/B control is void.\nPLAN:\n{one_text}"
     )
     assert "Seq Scan on chunks" in one_text, (
-        f"single-stage control did not Seq-Scan chunks as expected.\n"
-        f"PLAN:\n{one_text}"
+        f"single-stage control did not Seq-Scan chunks as expected.\nPLAN:\n{one_text}"
     )
 
 

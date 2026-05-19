@@ -28,6 +28,6 @@ async def test_query_returns_chunks_baseline(scale_rag):
         namespace="base",
     )
     assert r.chunks, "expected at least one chunk returned by naive retrieval"
-    assert any(
-        "Paris" in c.content for c in r.chunks
-    ), f"expected 'Paris' in at least one chunk; got: {[c.content[:80] for c in r.chunks]}"
+    assert any("Paris" in c.content for c in r.chunks), (
+        f"expected 'Paris' in at least one chunk; got: {[c.content[:80] for c in r.chunks]}"
+    )
