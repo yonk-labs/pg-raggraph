@@ -67,6 +67,5 @@ async def test_http_embedding_batches_and_reuses_client(monkeypatch):
         for post in _FakeAsyncClient.posts
     )
     assert all(
-        post["headers"]["Authorization"] == "Bearer secret"
-        for post in _FakeAsyncClient.posts
+        post["headers"]["Authorization"] == "Bearer secret" for post in _FakeAsyncClient.posts
     )

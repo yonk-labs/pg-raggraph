@@ -1238,9 +1238,7 @@ class GraphRAG:
 
                 if self._reranker is None:
                     self._reranker = FastEmbedReranker(self.config.rerank_model)
-                result = await apply_reranker(
-                    self._reranker, question, result, self.config.top_k
-                )
+                result = await apply_reranker(self._reranker, question, result, self.config.top_k)
             return result
 
     async def ask(
@@ -1325,9 +1323,7 @@ class GraphRAG:
         with self.db.tenant(namespace):
             await self.db.execute("DELETE FROM documents WHERE namespace = %s", (namespace,))
             await self.db.execute("DELETE FROM entities WHERE namespace = %s", (namespace,))
-            await self.db.execute(
-                "DELETE FROM relationships WHERE namespace = %s", (namespace,)
-            )
+            await self.db.execute("DELETE FROM relationships WHERE namespace = %s", (namespace,))
 
     async def delete_document(self, source_path: str, namespace: str | None = None) -> int:
         """Delete a document and all its chunks by source path.
@@ -1388,8 +1384,7 @@ class GraphRAG:
                     )
                 else:
                     target_rows = await tx.fetch_all(
-                        "SELECT id FROM documents "
-                        "WHERE namespace = %s AND source_path = %s",
+                        "SELECT id FROM documents WHERE namespace = %s AND source_path = %s",
                         (ns, source_path),
                     )
                 ids = [r["id"] for r in target_rows]
@@ -1457,13 +1452,9 @@ class GraphRAG:
         # consistent with retract()'s pre-transaction validation. DB
         # resolution (not-found / source_path->!=1) still happens in _resolve.
         if (old_doc_id is None) == (old_source_path is None):
-            raise ValueError(
-                "exactly one of old_doc_id / old_source_path is required"
-            )
+            raise ValueError("exactly one of old_doc_id / old_source_path is required")
         if (new_doc_id is None) == (new_source_path is None):
-            raise ValueError(
-                "exactly one of new_doc_id / new_source_path is required"
-            )
+            raise ValueError("exactly one of new_doc_id / new_source_path is required")
 
         with self.db.tenant(ns):
             async with self.db.transaction() as tx:
@@ -1471,24 +1462,20 @@ class GraphRAG:
                 async def _resolve(side: str, did: int | None, spath: str | None) -> int:
                     if (did is None) == (spath is None):
                         raise ValueError(
-                            f"exactly one of {side}_doc_id / {side}_source_path "
-                            "is required"
+                            f"exactly one of {side}_doc_id / {side}_source_path is required"
                         )
                     if did is not None:
                         row = await tx.fetch_one(
-                            "SELECT id FROM documents "
-                            "WHERE id = %s AND namespace = %s",
+                            "SELECT id FROM documents WHERE id = %s AND namespace = %s",
                             (did, ns),
                         )
                         if row is None:
                             raise ValueError(
-                                f"{side} document id {did} not found in "
-                                f"namespace {ns!r}"
+                                f"{side} document id {did} not found in namespace {ns!r}"
                             )
                         return row["id"]
                     rows = await tx.fetch_all(
-                        "SELECT id FROM documents "
-                        "WHERE namespace = %s AND source_path = %s",
+                        "SELECT id FROM documents WHERE namespace = %s AND source_path = %s",
                         (ns, spath),
                     )
                     if len(rows) != 1:
@@ -1531,9 +1518,7 @@ class GraphRAG:
                         )
                 else:
                     meta_json = (
-                        json.dumps({"supersede_reason": reason})
-                        if reason is not None
-                        else "{}"
+                        json.dumps({"supersede_reason": reason}) if reason is not None else "{}"
                     )
                     await tx.execute(
                         "INSERT INTO document_versions "
@@ -1543,8 +1528,7 @@ class GraphRAG:
                     )
 
                 updated = await tx.fetch_all(
-                    "UPDATE documents SET effective_to = %s WHERE id = %s "
-                    "RETURNING id",
+                    "UPDATE documents SET effective_to = %s WHERE id = %s RETURNING id",
                     (effective_at, old_id),
                 )
 

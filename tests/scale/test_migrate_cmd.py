@@ -36,8 +36,6 @@ def test_pool_max_over_ten_warns_once(caplog):
     PGRGConfig(pool_max=11)
     PGRGConfig(pool_max=12)
 
-    warnings = [
-        rec.message for rec in caplog.records if "Configured pool_max=" in rec.message
-    ]
+    warnings = [rec.message for rec in caplog.records if "Configured pool_max=" in rec.message]
     assert len(warnings) == 1
     assert "pool_max=11" in warnings[0]

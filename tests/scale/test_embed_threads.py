@@ -21,9 +21,7 @@ def test_fastembed_provider_passes_threads(monkeypatch):
 
     FastEmbedProvider("BAAI/bge-small-en-v1.5", threads=1)
 
-    assert DummyTextEmbedding.calls == [
-        {"model_name": "BAAI/bge-small-en-v1.5", "threads": 1}
-    ]
+    assert DummyTextEmbedding.calls == [{"model_name": "BAAI/bge-small-en-v1.5", "threads": 1}]
 
 
 def test_get_embedding_provider_passes_configured_threads(monkeypatch):
@@ -40,6 +38,4 @@ def test_get_embedding_provider_passes_configured_threads(monkeypatch):
     )
 
     assert isinstance(provider, FastEmbedProvider)
-    assert DummyTextEmbedding.calls == [
-        {"model_name": "BAAI/bge-small-en-v1.5", "threads": 3}
-    ]
+    assert DummyTextEmbedding.calls == [{"model_name": "BAAI/bge-small-en-v1.5", "threads": 3}]

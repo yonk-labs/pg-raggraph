@@ -48,6 +48,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --all-extras --frozen
+      - name: Install spaCy model
+        run: uv run python -m spacy download en_core_web_sm
       - name: Enable extensions
         env:
           PGPASSWORD: postgres

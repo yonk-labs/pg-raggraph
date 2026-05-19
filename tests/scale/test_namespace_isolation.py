@@ -121,9 +121,7 @@ async def test_rls_blocks_namespace_blind_query():
         edge_rows = await rag.db.fetch_all(
             "SELECT src_fact_id, dst_fact_id FROM fact_edges ORDER BY id"
         )
-        assert edge_rows == [
-            {"src_fact_id": ten_a_ids[0], "dst_fact_id": ten_a_ids[1]}
-        ]
+        assert edge_rows == [{"src_fact_id": ten_a_ids[0], "dst_fact_id": ten_a_ids[1]}]
     finally:
         await rag.close()
         await _cleanup_tenants()
@@ -143,10 +141,7 @@ class _CacheDeniedDB:
 
 class _FakeLLM:
     async def complete(self, messages):
-        return (
-            '{"entities":[{"name":"Alpha","entity_type":"concept"}],'
-            '"relationships":[]}'
-        )
+        return '{"entities":[{"name":"Alpha","entity_type":"concept"}],"relationships":[]}'
 
 
 @pytest.mark.asyncio
@@ -220,9 +215,7 @@ async def test_empty_tenant_after_set_local_reset_is_unbound_on_same_session():
             assert {row[0] async for row in rows} == {"tenA"}
             await conn.commit()
 
-            rows = await conn.execute(
-                "SELECT current_setting('app.tenant', true), pgrg_tenant()"
-            )
+            rows = await conn.execute("SELECT current_setting('app.tenant', true), pgrg_tenant()")
             setting, tenant = await rows.fetchone()
             assert setting == ""
             assert tenant is None
@@ -243,12 +236,10 @@ async def test_tenant_context_is_scoped_for_id_only_mutators():
     await _cleanup_tenants()
     with psycopg.connect(TEST_DSN) as conn:
         ten_a_id = conn.execute(
-            "INSERT INTO entities (namespace, name) VALUES ('tenA', 'Alpha Entity') "
-            "RETURNING id"
+            "INSERT INTO entities (namespace, name) VALUES ('tenA', 'Alpha Entity') RETURNING id"
         ).fetchone()[0]
         ten_b_id = conn.execute(
-            "INSERT INTO entities (namespace, name) VALUES ('tenB', 'Beta Entity') "
-            "RETURNING id"
+            "INSERT INTO entities (namespace, name) VALUES ('tenB', 'Beta Entity') RETURNING id"
         ).fetchone()[0]
         conn.commit()
 

@@ -13,10 +13,7 @@ from pg_raggraph import GraphRAG  # noqa: F401  (fixture provides instance)
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_twostage_recall_matches_singlestage(scale_rag):
-    rows = [
-        {"text": f"doc {i} about topic {i % 7}", "source_id": f"t{i}"}
-        for i in range(5000)
-    ]
+    rows = [{"text": f"doc {i} about topic {i % 7}", "source_id": f"t{i}"} for i in range(5000)]
     await scale_rag.ingest_records(rows, namespace="ts")
 
     # Two-stage (default True).
