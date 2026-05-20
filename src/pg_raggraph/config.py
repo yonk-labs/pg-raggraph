@@ -286,6 +286,28 @@ class PGRGConfig(BaseSettings):
     # Default is empty — zero schema change for callers who don't opt in.
     metadata_indexes: list[str] = []
 
+    # Companion to metadata_indexes: when True, also create a GIN index on
+    # the whole chunks.metadata JSONB column. Use this when you have ad-hoc
+    # JSONB-containment predicates (`metadata @> '{"tag":"x"}'`), key-
+    # existence checks (`metadata ? 'k'`), or multi-key matches
+    # (`metadata ?| ARRAY[...]`) — none of which the per-key btree indexes
+    # from metadata_indexes can serve.
+    #
+    # GIN is larger than btree (~2-4x the bytes per indexed row) and
+    # writes are slower (the GIN insertion fast-update path is fine for
+    # bulk ingest but it's not free). Only enable when you actually have
+    # the predicate shapes.
+    #
+    # The btree (metadata_indexes) and GIN (metadata_indexes_gin) indexes
+    # are independent — having both is fine and often optimal: btree for
+    # equality on hot keys, GIN for the long tail of ad-hoc containment
+    # queries.
+    #
+    # Same retrofit story as metadata_indexes: connect()'s CREATE INDEX is
+    # non-CONCURRENTLY; for production retrofitting use the manual recipe
+    # in docs/cookbook/metadata-indexes.md first.
+    metadata_indexes_gin: bool = False
+
     # Cross-encoder reranking (off by default; opt-in per-query via rerank=True).
     # When enabled, retrieval fetches top_k * rerank_factor candidates, then a
     # cross-encoder scores each (question, chunk) pair and trims to top_k.
