@@ -302,19 +302,65 @@ Both coexist: config sets the baseline at deploy time; runtime API tunes per wor
 
 ## Production retrofit guide
 
-The DDL is **non-CONCURRENTLY** by design — it runs inside the same flow as schema bootstrap and grabs an `ACCESS EXCLUSIVE` lock for the duration. For fresh deployments the chunks table is empty and the lock is invisible. For retrofitting an existing production database with millions of rows, do this manually first, BEFORE adding the key to `metadata_indexes`:
+The auto-create DDL inside `connect()` is **non-CONCURRENTLY** by design — it runs inside the schema-bootstrap flow with an `ACCESS EXCLUSIVE` lock for the duration of each `CREATE INDEX`. For fresh deployments the chunks/documents tables are empty and the lock is invisible. For retrofitting an existing production database with millions of rows, you have two options.
+
+### Option 1 (recommended) — `rag.apply_metadata_indexes_concurrently()`
+
+Pg-raggraph exposes a maintenance helper that reads the same config fields and issues `CREATE INDEX CONCURRENTLY` from a fresh autocommit connection (outside the pool's transaction context):
+
+```python
+# In a maintenance shell or one-off job — NOT during application startup.
+from pg_raggraph import GraphRAG
+
+rag = GraphRAG(
+    dsn="postgresql://prod/...",
+    # The config the running app will eventually use:
+    metadata_indexes=["tier", "session_id"],
+    document_metadata_indexes=["salesperson", "product", "customer"],
+    metadata_indexes_gin=True,
+    document_metadata_indexes_gin=True,
+)
+await rag.connect()   # connect() is a no-op for config keys whose
+                      # indexes don't exist yet — won't fire the
+                      # non-concurrent path because the connect() helpers
+                      # only see the current config; if you've already
+                      # deployed the new config, just call this method
+                      # *before* the app restart.
+results = await rag.apply_metadata_indexes_concurrently()
+for r in results:
+    print(r)
+await rag.close()
+```
+
+Each result is a dict: `{"ok": bool, "table": ..., "kind": ..., "key": ..., "object_name": ..., "error": ...}`. Mirrors the runtime API shape. Writes continue to flow throughout — `CREATE INDEX CONCURRENTLY` does NOT take the `ACCESS EXCLUSIVE` lock; it does two passes and a brief metadata lock at the end.
+
+After the helper returns, restart the app normally. `connect()`'s `IF NOT EXISTS` finds each index already present and the loop is a no-op.
+
+**What this method does NOT support:**
+
+- **Generated columns** — Postgres has no concurrent `ALTER TABLE ADD COLUMN` variant. The helper reports each generated-column entry with `ok=False` so the operator sees what was skipped. Add those during a real maintenance window, or use the manual recipe below.
+
+### Option 2 — manual `CREATE INDEX CONCURRENTLY` via psql
+
+If you'd rather drive the retrofit yourself (e.g., from a DBA-controlled migration tool), the underlying SQL is straightforward:
 
 ```bash
-# Run this once, outside of any transaction, against your live database.
-# CREATE INDEX CONCURRENTLY is online — no blocking writes.
 psql $PGRG_DSN <<SQL
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_chunks_metadata_tenant_id
-    ON chunks ((metadata->>'tenant_id'));
-ANALYZE chunks;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_documents_metadata_salesperson
+    ON documents ((metadata->>'salesperson'));
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_documents_metadata_gin
+    ON documents USING GIN (metadata);
+ANALYZE documents;
 SQL
 ```
 
-Then add `tenant_id` to `metadata_indexes` in your config. On the next `connect()`, pg-raggraph's `IF NOT EXISTS` finds the existing index and the loop is a no-op.
+Then add `"salesperson"` to `document_metadata_indexes` (and/or set `document_metadata_indexes_gin=True`) in your config. On the next app restart, pg-raggraph's `IF NOT EXISTS` finds the existing indexes.
+
+### CONCURRENTLY caveats (either option)
+
+- A CONCURRENTLY index that **fails midway** leaves an INVALID index in `pg_index`. Monitor for them with `SELECT relname FROM pg_class JOIN pg_index ON indexrelid = pg_class.oid WHERE NOT indisvalid;` and DROP + retry.
+- CONCURRENTLY is **roughly 2× slower** than the non-concurrent variant (two table scans instead of one) but doesn't block writes — the right tradeoff for live tables.
+- The helper opens a **separate connection per index** (autocommit, outside the pool) because CONCURRENTLY can't run in a transaction.
 
 ## GIN on full `chunks.metadata` (ad-hoc JSONB predicates)
 

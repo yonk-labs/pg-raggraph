@@ -1552,6 +1552,51 @@ class GraphRAG:
             table=table,  # type: ignore[arg-type]
         )
 
+    async def apply_metadata_indexes_concurrently(self) -> list[dict]:
+        """Create the configured metadata indexes using
+        ``CREATE INDEX CONCURRENTLY`` so they don't block writes.
+
+        **Production retrofit path.** Use from a separate maintenance
+        script, NOT during application startup. The default
+        ``connect()`` flow uses non-concurrent CREATE INDEX which
+        takes an ACCESS EXCLUSIVE lock — fine on fresh deployments
+        but blocks all writes on live tables with millions of rows.
+
+        Typical flow:
+
+        1. Deploy a config update adding keys to ``metadata_indexes`` /
+           ``document_metadata_indexes`` / ``metadata_indexes_gin`` /
+           ``document_metadata_indexes_gin``. Don't restart the app yet
+           (the non-concurrent path in ``connect()`` would fire).
+        2. From a maintenance shell or one-off job::
+
+               rag = GraphRAG(...)
+               await rag.connect()  # skips empty config slots
+               results = await rag.apply_metadata_indexes_concurrently()
+               for r in results:
+                   print(r)
+               await rag.close()
+
+        3. After it returns, restart the app normally. ``connect()``'s
+           ``IF NOT EXISTS`` finds the indexes and is a no-op.
+
+        **Generated columns are NOT supported** by this method —
+        Postgres doesn't have a concurrent ``ADD COLUMN`` variant.
+        Add those via the connect-time path during a maintenance
+        window. The returned list reports each generated-column key
+        with ``ok=False`` so the operator sees what was skipped.
+
+        Returns a list of dicts (one per attempted index) with
+        ``{"ok": bool, "table": ..., "kind": ..., "key": ...,
+        "object_name": ..., "error": ...}``. Same shape as
+        ``rag.add_metadata_index()`` so callers can render results
+        uniformly.
+
+        See ``docs/cookbook/metadata-indexes.md`` → "Production
+        retrofit guide" for the full recipe.
+        """
+        return await self.db.apply_metadata_indexes_concurrently()
+
     async def status(self, namespace: str | None = None) -> dict:
         """Get graph statistics."""
         ns = namespace or self.config.namespace
