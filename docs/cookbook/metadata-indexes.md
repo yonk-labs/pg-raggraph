@@ -140,6 +140,79 @@ SELECT * FROM chunks WHERE meta_priority > 5;  -- uses idx_chunks_meta_priority
 
 **Index naming.** The generated column is `meta_<key>` (distinct namespace from `chunks.metadata`). The index is `idx_chunks_meta_<key>`. A key can have BOTH `metadata_indexes=["priority"]` AND `metadata_generated_columns={"priority": "int"}` — they don't collide and serve different predicate shapes (text equality vs numeric range).
 
+## Runtime API: recommend / add / remove (UI-friendly)
+
+The config-driven knobs above (`metadata_indexes`, `metadata_indexes_gin`, `metadata_generated_columns`) apply at `connect()` and need a restart to change. For runtime use — admin UI, REPL, ops script — pg-raggraph also exposes the same DDL surface as runtime-callable methods:
+
+```python
+# Recommend: sample chunks.metadata AND documents.metadata, return ranked suggestions
+recs = await rag.recommend_metadata_indexes()
+for r in recs:
+    print(f"{r.table}.{r.key} ({r.kind}, {r.sql_type or '-'}) — "
+          f"{r.confidence} — {r.rationale}")
+
+# Apply one — on chunks (default) or documents
+await rag.add_metadata_index("salesperson", kind="btree",     table="documents")
+await rag.add_metadata_index("priority",    kind="generated", sql_type="int")
+await rag.add_metadata_index("",            kind="gin",       table="documents")
+
+# Drop one
+await rag.remove_metadata_index("salesperson", kind="btree", table="documents")
+
+# List currently-installed
+indexes = await rag.list_metadata_indexes()  # both tables; pass table= to scope
+```
+
+### Why two tables matter
+
+When you ingest from a structured source (sales notes, support tickets, anything pulled from a PG table):
+
+```python
+await rag.ingest_records([
+    {
+        "text": "Met with Acme about Widget Pro. ...",
+        "source_id": "sales_note:123",
+        "metadata": {
+            "salesperson": "alice", "product": "Widget Pro",
+            "customer": "Acme", "date": "2026-05-20",
+        },
+    },
+])
+```
+
+`salesperson` / `product` / `customer` / `date` land on **`documents.metadata`** (one row per record). `chunks.metadata` only gets mechanical fields (source_path, chunk_index). So `metadata_indexes=["salesperson"]` (the chunks-only config knob) **doesn't help** — it would index the wrong table.
+
+The runtime API takes `table="documents"` so you can index where the data actually lives. `recommend()` scans BOTH tables by default and tags each suggestion with its table.
+
+### IndexRecommendation shape
+
+```python
+@dataclass
+class IndexRecommendation:
+    table: Literal["chunks", "documents"]
+    key: str
+    kind: Literal["btree", "gin", "generated"]
+    sql_type: str | None           # populated when kind == "generated"
+    rationale: str                 # human-readable why
+    selectivity: float             # rows_with_key / total_rows
+    cardinality_ratio: float       # distinct_values / rows_with_key
+    sample_size: int
+    sample_values: list[str]       # first 5 distinct sampled values
+    confidence: Literal["high", "medium", "low"]
+    already_exists: bool           # True when an index already covers this key
+```
+
+### When to use config vs runtime
+
+| Use config (`metadata_indexes`, ...) | Use runtime API |
+|---|---|
+| Known-good index set baked into deployment | Exploratory — let the DB tell you what's worth indexing |
+| Reproducible across environments | Admin UI where a non-engineer decides |
+| Schema-as-code style | Long-lived deployments where index needs evolve |
+| CI / tests need a fixed schema | Multi-tenant where each tenant has different hot keys |
+
+Both coexist: config sets the baseline at deploy time; runtime API tunes per workload after observing real predicates.
+
 ## Production retrofit guide
 
 The DDL is **non-CONCURRENTLY** by design — it runs inside the same flow as schema bootstrap and grabs an `ACCESS EXCLUSIVE` lock for the duration. For fresh deployments the chunks table is empty and the lock is invisible. For retrofitting an existing production database with millions of rows, do this manually first, BEFORE adding the key to `metadata_indexes`:
