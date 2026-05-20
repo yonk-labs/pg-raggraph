@@ -160,6 +160,73 @@ SELECT * FROM chunks WHERE meta_priority > 5;  -- uses idx_chunks_meta_priority
 
 **Index naming.** The generated column is `meta_<key>` (distinct namespace from `chunks.metadata`). The index is `idx_chunks_meta_<key>`. A key can have BOTH `metadata_indexes=["priority"]` AND `metadata_generated_columns={"priority": "int"}` — they don't collide and serve different predicate shapes (text equality vs numeric range).
 
+## Indexing documents.metadata (Option A — config-driven)
+
+For deployments that want config-driven indexes on `documents.metadata` (e.g., the sales-notes case where `salesperson`, `product`, `date` land on `documents.metadata`, not `chunks.metadata`), three parallel config fields mirror the chunks-side knobs:
+
+```python
+rag = GraphRAG(
+    dsn=...,
+    # Chunks-side (mechanical fields the chunker writes)
+    metadata_indexes=["tier"],
+    metadata_indexes_gin=False,
+    metadata_generated_columns={},
+    # Documents-side (caller-supplied per-record fields)
+    document_metadata_indexes=["salesperson", "product", "customer"],
+    document_metadata_indexes_gin=True,
+    document_metadata_generated_columns={
+        "priority": "int",
+        "created_at": "timestamptz",
+    },
+)
+await rag.connect()
+```
+
+On every `connect()`, pg-raggraph issues:
+
+```sql
+-- chunks-side (unchanged, idempotent)
+CREATE INDEX IF NOT EXISTS idx_chunks_metadata_tier
+    ON chunks ((metadata->>'tier'));
+
+-- documents-side (new)
+CREATE INDEX IF NOT EXISTS idx_documents_metadata_salesperson
+    ON documents ((metadata->>'salesperson'));
+CREATE INDEX IF NOT EXISTS idx_documents_metadata_product
+    ON documents ((metadata->>'product'));
+CREATE INDEX IF NOT EXISTS idx_documents_metadata_customer
+    ON documents ((metadata->>'customer'));
+CREATE INDEX IF NOT EXISTS idx_documents_metadata_gin
+    ON documents USING GIN (metadata);
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS meta_priority integer
+    GENERATED ALWAYS AS ((metadata->>'priority')::integer) STORED;
+CREATE INDEX IF NOT EXISTS idx_documents_meta_priority ON documents(meta_priority);
+-- ...same for created_at
+ANALYZE documents;
+```
+
+### Naming conventions
+
+| Object | Pattern | Example |
+|---|---|---|
+| Btree on JSONB key | `idx_<table>_metadata_<key>` | `idx_documents_metadata_salesperson` |
+| GIN on whole JSONB | `idx_<table>_metadata_gin` | `idx_documents_metadata_gin` |
+| Generated column | `meta_<key>` (table-independent) | `meta_priority` |
+| Btree on generated column | `idx_<table>_meta_<key>` | `idx_documents_meta_priority` |
+
+The generated column name doesn't encode the table — the column lives on a specific table, so no cross-table collision is possible. The index names DO encode the table so chunks-side and documents-side coexist without conflict.
+
+### When to use config fields vs runtime API
+
+| Use config fields | Use runtime API (below) |
+|---|---|
+| Known-good index set baked into deployment | Exploratory — let `recommend()` tell you what's worth indexing |
+| Reproducible across environments | Admin UI where a non-engineer decides |
+| Schema-as-code style | Long-lived deployments where index needs evolve |
+| CI / tests need a fixed schema | Multi-tenant where each tenant has different hot keys |
+
+Both coexist: config sets the baseline at `connect()` time; runtime API tunes per workload after observing real predicates.
+
 ## Runtime API: recommend / add / remove (UI-friendly)
 
 The config-driven knobs above (`metadata_indexes`, `metadata_indexes_gin`, `metadata_generated_columns`) apply at `connect()` and need a restart to change. For runtime use — admin UI, REPL, ops script — pg-raggraph also exposes the same DDL surface as runtime-callable methods:
