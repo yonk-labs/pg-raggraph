@@ -20,6 +20,24 @@ from pg_raggraph.models import ChunkResult, EntityResult, QueryResult, Relations
 
 QueryMode = Literal["local", "global", "hybrid", "naive", "naive_boost", "smart"]
 
+_RETRIEVAL_STRATEGY_VALUES = ("weighted", "pre_filter", "vector_first")
+
+
+def _effective_retrieval_strategy(cfg: PGRGConfig, override: str | None) -> str:
+    """Resolve retrieval_strategy after applying the per-query override.
+
+    ``None`` falls back to ``cfg.retrieval_strategy`` (today's "weighted"
+    by default — backward-compatible). Validates against the Literal set.
+    """
+    if override is None:
+        return cfg.retrieval_strategy
+    if override not in _RETRIEVAL_STRATEGY_VALUES:
+        raise ValueError(
+            f"Invalid retrieval_strategy {override!r}. "
+            f"Must be one of: {_RETRIEVAL_STRATEGY_VALUES}"
+        )
+    return override
+
 
 def _merge_params(base: dict, extra: dict) -> dict:
     """Merge two bind-param dicts, raising on key collision.
@@ -180,6 +198,149 @@ SELECT cand.id, cand.content, cand.metadata,
        {evolution_score_expr(base, cfg, evolution_aware, retracted_behavior)} AS score
 FROM candidates cand
 JOIN documents d ON d.id = cand.document_id
+ORDER BY score DESC
+LIMIT %(top_k)s
+"""
+    return sql, extra_params
+
+
+def _build_naive_prefilter(
+    cfg: PGRGConfig,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
+    memory_tier: str | None = None,
+) -> tuple[str, dict]:
+    """Naive retrieval, ``retrieval_strategy='pre_filter'`` path.
+
+    Same SQL shape as ``_build_naive_query`` (single-pass), but wraps the
+    namespace + predicates in a CTE so the planner is encouraged to
+    materialize the predicate-matching subset BEFORE the composite-score
+    ORDER BY. When the predicate column is indexed (namespace, future
+    JSONB GIN/generated columns), the CTE materializes a small set fast
+    and the vector compute + sort runs over only matching rows.
+
+    For unindexed predicates (e.g., plain JSONB metadata keys) this
+    devolves to weighted-equivalent latency — the planner still has to
+    scan to identify matches. Use this strategy with an index strategy;
+    see docs/cookbook/retrieval-strategy.md (TODO).
+    """
+    base = (
+        "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
+        "%(w_bm25)s * ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) + "
+        "%(w_graph)s * 0"
+    )
+    clauses, extra_params = evolution_where_clauses(
+        cfg,
+        doc_alias="d",
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
+    )
+    mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="c", override=memory_tier)
+    if mt_clause:
+        clauses.append(mt_clause)
+        extra_params = _merge_params(extra_params, mt_params)
+    extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
+    sql = f"""
+WITH filtered AS (
+    SELECT c.id, c.embedding, c.search_vector,
+           COALESCE(c.embedded_content, c.content) AS content,
+           c.metadata, c.document_id
+    FROM chunks c
+    JOIN documents d ON d.id = c.document_id
+    WHERE d.namespace = %(namespace)s{extra_where}
+)
+SELECT cand.id, cand.content, cand.metadata,
+       d.source_path,
+       d.metadata AS doc_metadata,
+       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       (SELECT dv.document_id FROM document_versions dv
+        WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
+           AS superseded_by_id,
+       1 - (cand.embedding <=> %(embedding)s::vector) AS vec_score,
+       ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score,
+       {evolution_score_expr(base, cfg, evolution_aware, retracted_behavior)} AS score
+FROM filtered cand
+JOIN documents d ON d.id = cand.document_id
+ORDER BY score DESC
+LIMIT %(top_k)s
+"""
+    return sql, extra_params
+
+
+def _build_naive_vector_first(
+    cfg: PGRGConfig,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
+    memory_tier: str | None = None,
+) -> tuple[str, dict]:
+    """Naive retrieval, ``retrieval_strategy='vector_first'`` path.
+
+    The candidate CTE does a BARE ``ORDER BY embedding <=> q`` with NO
+    namespace join — the planner is free to use the HNSW index
+    (``idx_chunk_embed``) directly. Fetches ``top_k * retrieval_oversample_factor``
+    candidates, then the outer query post-filters by namespace +
+    predicates and re-ranks with the composite score.
+
+    Best for: broad/exploratory queries on large single-namespace
+    corpora where HNSW actually beats a namespace-scoped seq scan.
+
+    Worst for: multi-namespace deployments where the HNSW seed may
+    return mostly off-namespace rows that get discarded post-filter
+    (oversample compensates partially; bump ``retrieval_oversample_factor``
+    or switch to "pre_filter" / "weighted" if recall drops).
+
+    NOTE: the post-filter WHERE includes namespace, evolution clauses,
+    and memory_tier — same set as weighted/pre_filter. The trade is
+    "HNSW-fast seed, then trim" vs "scoped scan, single pass."
+    """
+    base = (
+        "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
+        "%(w_bm25)s * ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) + "
+        "%(w_graph)s * 0"
+    )
+    clauses, extra_params = evolution_where_clauses(
+        cfg,
+        doc_alias="d",
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
+    )
+    # vector_first post-filters by chunk metadata, so the alias matters —
+    # in the outer SELECT the chunk metadata lives on `cand`.
+    mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="cand", override=memory_tier)
+    if mt_clause:
+        clauses.append(mt_clause)
+        extra_params = _merge_params(extra_params, mt_params)
+    extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
+    sql = f"""
+WITH candidates AS (
+    SELECT c.id, c.embedding, c.search_vector,
+           COALESCE(c.embedded_content, c.content) AS content,
+           c.metadata, c.document_id
+    FROM chunks c
+    ORDER BY c.embedding <=> %(embedding)s::vector
+    LIMIT %(vector_first_k)s
+)
+SELECT cand.id, cand.content, cand.metadata,
+       d.source_path,
+       d.metadata AS doc_metadata,
+       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       (SELECT dv.document_id FROM document_versions dv
+        WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
+           AS superseded_by_id,
+       1 - (cand.embedding <=> %(embedding)s::vector) AS vec_score,
+       ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score,
+       {evolution_score_expr(base, cfg, evolution_aware, retracted_behavior)} AS score
+FROM candidates cand
+JOIN documents d ON d.id = cand.document_id
+WHERE d.namespace = %(namespace)s{extra_where}
 ORDER BY score DESC
 LIMIT %(top_k)s
 """
@@ -366,6 +527,7 @@ async def query(
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
     memory_tier: str | None = None,
+    retrieval_strategy: str | None = None,
     top_k_override: int | None = None,
 ) -> QueryResult:
     """Execute a retrieval query against the knowledge graph.
@@ -391,6 +553,7 @@ async def query(
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
             memory_tier=memory_tier,
+            retrieval_strategy=retrieval_strategy,
             top_k_override=top_k_override,
         )
     if mode == "naive_boost":
@@ -405,6 +568,7 @@ async def query(
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
             memory_tier=memory_tier,
+            retrieval_strategy=retrieval_strategy,
             top_k_override=top_k_override,
         )
 
@@ -434,7 +598,24 @@ async def query(
     }
 
     if mode == "naive":
-        if config.two_stage_retrieval:
+        # retrieval_strategy router (Scope A, #4 follow-up):
+        # - "pre_filter": CTE-materialized predicate subset → rank.
+        # - "vector_first": HNSW-seed CTE (no namespace join) → post-filter.
+        # - "weighted" (default): preserves existing two_stage_retrieval flow.
+        effective_strategy = _effective_retrieval_strategy(config, retrieval_strategy)
+        if effective_strategy == "pre_filter":
+            sql, extra = _build_naive_prefilter(
+                config, as_of, version_filter, evolution_aware,
+                retracted_behavior, memory_tier,
+            )
+        elif effective_strategy == "vector_first":
+            sql, extra = _build_naive_vector_first(
+                config, as_of, version_filter, evolution_aware,
+                retracted_behavior, memory_tier,
+            )
+            # vector_first needs an extra bind param for its oversample CTE.
+            params["vector_first_k"] = effective_top_k * config.retrieval_oversample_factor
+        elif config.two_stage_retrieval:
             sql, extra = _build_naive_query_twostage(
                 config, as_of, version_filter, evolution_aware,
                 retracted_behavior, memory_tier,
@@ -623,6 +804,7 @@ async def _naive_boost_query(
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
     memory_tier: str | None = None,
+    retrieval_strategy: str | None = None,
     top_k_override: int | None = None,
 ) -> QueryResult:
     """Naive vector+BM25 retrieval followed by cheap 1-hop graph boost."""
@@ -638,6 +820,7 @@ async def _naive_boost_query(
         evolution_aware=evolution_aware,
         retracted_behavior=retracted_behavior,
         memory_tier=memory_tier,
+        retrieval_strategy=retrieval_strategy,
         top_k_override=top_k_override,
     )
     ns = namespace or config.namespace
@@ -744,6 +927,7 @@ async def _smart_query(
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
     memory_tier: str | None = None,
+    retrieval_strategy: str | None = None,
     top_k_override: int | None = None,
 ) -> QueryResult:
     """Confidence + question-shape routing that improves accuracy across corpora.
@@ -790,6 +974,7 @@ async def _smart_query(
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
             memory_tier=memory_tier,
+            retrieval_strategy=retrieval_strategy,
             top_k_override=top_k_override,
         )
         agg.query_mode = "smart[global]"
@@ -808,6 +993,7 @@ async def _smart_query(
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
             memory_tier=memory_tier,
+            retrieval_strategy=retrieval_strategy,
             top_k_override=top_k_override,
         )
         syn.query_mode = "smart[hybrid]"
@@ -850,6 +1036,7 @@ async def _smart_query(
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
             memory_tier=memory_tier,
+            retrieval_strategy=retrieval_strategy,
             top_k_override=top_k_override,
         )
         expanded.query_mode = "smart[expanded]"
