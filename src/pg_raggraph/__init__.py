@@ -1273,6 +1273,7 @@ class GraphRAG:
         version_filter: str | None = None,
         evolution_aware: bool | None = None,
         retracted_behavior: str | None = None,
+        supersession_behavior: str | None = None,
         memory_tier: str | None = None,
         retrieval_strategy: str | None = None,
         rerank: bool = False,
@@ -1299,6 +1300,13 @@ class GraphRAG:
                 ``GraphRAG`` instance serves multiple tenants/scenarios that
                 each want different retraction policies without mutating
                 ``config.retracted_behavior`` under contention.
+            supersession_behavior: per-call override of
+                ``config.supersession_behavior``. One of ``"hide"`` /
+                ``"prefer_new"`` / ``"surface_both"``. ``None`` (default)
+                falls back to the config value. Same race-safe shape as
+                ``retracted_behavior`` — multi-tenant deployments can
+                choose to hide superseded documents per-call without
+                mutating the shared config.
             memory_tier: per-call override of ``config.memory_tier`` for
                 chunkshop SP-A agent-memory corpora. One of ``"provisional"``
                 / ``"consolidated"`` / ``"both"``. ``None`` (default) falls
@@ -1341,6 +1349,7 @@ class GraphRAG:
                     version_filter=version_filter,
                     evolution_aware=evolution_aware,
                     retracted_behavior=retracted_behavior,
+                    supersession_behavior=supersession_behavior,
                     memory_tier=memory_tier,
                     retrieval_strategy=retrieval_strategy,
                     top_k_override=top_k_override,
@@ -1371,6 +1380,7 @@ class GraphRAG:
         version_filter: str | None = None,
         evolution_aware: bool | None = None,
         retracted_behavior: str | None = None,
+        supersession_behavior: str | None = None,
         memory_tier: str | None = None,
         retrieval_strategy: str | None = None,
         short_answer: bool = False,
@@ -1390,9 +1400,9 @@ class GraphRAG:
         cross-encoder before answer generation. Adds ~30-80 ms p50 latency,
         zero per-query LLM cost.
 
-        ``retracted_behavior`` and ``memory_tier`` override the matching
-        ``config.*`` fields for this call only — see ``GraphRAG.query()``
-        for details.
+        ``retracted_behavior``, ``supersession_behavior``, and ``memory_tier``
+        override the matching ``config.*`` fields for this call only — see
+        ``GraphRAG.query()`` for details.
         """
         from pg_raggraph.answer import generate_answer
 
@@ -1404,6 +1414,7 @@ class GraphRAG:
             version_filter=version_filter,
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
+            supersession_behavior=supersession_behavior,
             memory_tier=memory_tier,
             retrieval_strategy=retrieval_strategy,
             rerank=rerank,

@@ -70,21 +70,17 @@ rag.config.retracted_behavior = "hide"
 result = await rag.ask(q)
 ```
 
-`supersession_behavior` is still config-only — same mutate-and-restore
-pattern applies if you need it per-query:
+`supersession_behavior` works the same way (per-call kwarg on both
+`rag.query()` and `rag.ask()`):
 
 ```python
-old = rag.config.supersession_behavior
-rag.config.supersession_behavior = "hide"
-try:
-    result = await rag.query(q)
-finally:
-    rag.config.supersession_behavior = old
+result = await rag.ask(q, supersession_behavior="hide")
 ```
 
 The kwargs that *are* per-query on `rag.query()` and `rag.ask()`: `mode`,
 `namespace`, `as_of`, `version_filter`, `evolution_aware`,
-`retracted_behavior`.
+`retracted_behavior`, `supersession_behavior`, `memory_tier`,
+`retrieval_strategy`.
 
 ### 4. Override top-K per query
 

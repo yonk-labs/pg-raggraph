@@ -83,6 +83,7 @@ def _build_naive_query(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
     memory_tier: str | None = None,
 ) -> tuple[str, dict]:
     base = (
@@ -97,6 +98,7 @@ def _build_naive_query(
         version_filter=version_filter,
         evolution_aware=evolution_aware,
         retracted_behavior=retracted_behavior,
+        supersession_behavior=supersession_behavior,
     )
     mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="c", override=memory_tier)
     if mt_clause:
@@ -132,6 +134,7 @@ def _build_naive_query_twostage(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
     memory_tier: str | None = None,
 ) -> tuple[str, dict]:
     """Two-stage naive retrieval (K1).
@@ -167,6 +170,7 @@ def _build_naive_query_twostage(
         version_filter=version_filter,
         evolution_aware=evolution_aware,
         retracted_behavior=retracted_behavior,
+        supersession_behavior=supersession_behavior,
     )
     # memory_tier filter applies to the candidate CTE's chunk alias `c`,
     # so HNSW seek-ahead can still skip non-matching chunks.
@@ -210,6 +214,7 @@ def _build_naive_prefilter(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
     memory_tier: str | None = None,
 ) -> tuple[str, dict]:
     """Naive retrieval, ``retrieval_strategy='pre_filter'`` path.
@@ -238,6 +243,7 @@ def _build_naive_prefilter(
         version_filter=version_filter,
         evolution_aware=evolution_aware,
         retracted_behavior=retracted_behavior,
+        supersession_behavior=supersession_behavior,
     )
     mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="c", override=memory_tier)
     if mt_clause:
@@ -277,6 +283,7 @@ def _build_naive_vector_first(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
     memory_tier: str | None = None,
 ) -> tuple[str, dict]:
     """Naive retrieval, ``retrieval_strategy='vector_first'`` path.
@@ -311,6 +318,7 @@ def _build_naive_vector_first(
         version_filter=version_filter,
         evolution_aware=evolution_aware,
         retracted_behavior=retracted_behavior,
+        supersession_behavior=supersession_behavior,
     )
     # vector_first post-filters by chunk metadata, so the alias matters —
     # in the outer SELECT the chunk metadata lives on `cand`.
@@ -353,6 +361,7 @@ def _build_local_query(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
     memory_tier: str | None = None,
 ) -> tuple[str, dict]:
     base = (
@@ -367,6 +376,7 @@ def _build_local_query(
         version_filter=version_filter,
         evolution_aware=evolution_aware,
         retracted_behavior=retracted_behavior,
+        supersession_behavior=supersession_behavior,
     )
     # memory_tier applies to the post-graph chunk set — alias `rc` in the
     # outer SELECT preserves c.metadata from the relevant_chunks CTE.
@@ -425,6 +435,7 @@ def _build_global_query(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
     memory_tier: str | None = None,
 ) -> tuple[str, dict]:
     base = (
@@ -439,6 +450,7 @@ def _build_global_query(
         version_filter=version_filter,
         evolution_aware=evolution_aware,
         retracted_behavior=retracted_behavior,
+        supersession_behavior=supersession_behavior,
     )
     # Same memory_tier alias as local — `rc` in the outer SELECT.
     mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="rc", override=memory_tier)
@@ -526,6 +538,7 @@ async def query(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
     memory_tier: str | None = None,
     retrieval_strategy: str | None = None,
     top_k_override: int | None = None,
@@ -552,6 +565,7 @@ async def query(
             version_filter=version_filter,
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
+            supersession_behavior=supersession_behavior,
             memory_tier=memory_tier,
             retrieval_strategy=retrieval_strategy,
             top_k_override=top_k_override,
@@ -567,6 +581,7 @@ async def query(
             version_filter=version_filter,
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
+            supersession_behavior=supersession_behavior,
             memory_tier=memory_tier,
             retrieval_strategy=retrieval_strategy,
             top_k_override=top_k_override,
@@ -610,6 +625,7 @@ async def query(
                 version_filter,
                 evolution_aware,
                 retracted_behavior,
+                supersession_behavior,
                 memory_tier,
             )
         elif effective_strategy == "vector_first":
@@ -619,6 +635,7 @@ async def query(
                 version_filter,
                 evolution_aware,
                 retracted_behavior,
+                supersession_behavior,
                 memory_tier,
             )
             # vector_first needs an extra bind param for its oversample CTE.
@@ -630,6 +647,7 @@ async def query(
                 version_filter,
                 evolution_aware,
                 retracted_behavior,
+                supersession_behavior,
                 memory_tier,
             )
         else:
@@ -639,6 +657,7 @@ async def query(
                 version_filter,
                 evolution_aware,
                 retracted_behavior,
+                supersession_behavior,
                 memory_tier,
             )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
@@ -649,6 +668,7 @@ async def query(
             version_filter,
             evolution_aware,
             retracted_behavior,
+            supersession_behavior,
             memory_tier,
         )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
@@ -659,6 +679,7 @@ async def query(
             version_filter,
             evolution_aware,
             retracted_behavior,
+            supersession_behavior,
             memory_tier,
         )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
@@ -670,6 +691,7 @@ async def query(
             version_filter,
             evolution_aware,
             retracted_behavior,
+            supersession_behavior,
             memory_tier,
         )
         global_sql, global_extra = _build_global_query(
@@ -678,6 +700,7 @@ async def query(
             version_filter,
             evolution_aware,
             retracted_behavior,
+            supersession_behavior,
             memory_tier,
         )
         local_rows = await db.fetch_all(local_sql, _merge_params(params, local_extra))
@@ -835,6 +858,7 @@ async def _naive_boost_query(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
     memory_tier: str | None = None,
     retrieval_strategy: str | None = None,
     top_k_override: int | None = None,
@@ -851,6 +875,7 @@ async def _naive_boost_query(
         version_filter=version_filter,
         evolution_aware=evolution_aware,
         retracted_behavior=retracted_behavior,
+        supersession_behavior=supersession_behavior,
         memory_tier=memory_tier,
         retrieval_strategy=retrieval_strategy,
         top_k_override=top_k_override,
@@ -958,6 +983,7 @@ async def _smart_query(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
     memory_tier: str | None = None,
     retrieval_strategy: str | None = None,
     top_k_override: int | None = None,
@@ -1005,6 +1031,7 @@ async def _smart_query(
             version_filter=version_filter,
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
+            supersession_behavior=supersession_behavior,
             memory_tier=memory_tier,
             retrieval_strategy=retrieval_strategy,
             top_k_override=top_k_override,
@@ -1024,6 +1051,7 @@ async def _smart_query(
             version_filter=version_filter,
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
+            supersession_behavior=supersession_behavior,
             memory_tier=memory_tier,
             retrieval_strategy=retrieval_strategy,
             top_k_override=top_k_override,
@@ -1067,6 +1095,7 @@ async def _smart_query(
             version_filter=version_filter,
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
+            supersession_behavior=supersession_behavior,
             memory_tier=memory_tier,
             retrieval_strategy=retrieval_strategy,
             top_k_override=top_k_override,
