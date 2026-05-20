@@ -46,8 +46,7 @@ def _effective_memory_tier(cfg: PGRGConfig, override: str | None) -> str:
         return cfg.memory_tier
     if override not in _MEMORY_TIER_VALUES:
         raise ValueError(
-            f"Invalid memory_tier {override!r}. "
-            f"Must be one of: {_MEMORY_TIER_VALUES}"
+            f"Invalid memory_tier {override!r}. Must be one of: {_MEMORY_TIER_VALUES}"
         )
     return override
 

@@ -58,9 +58,7 @@ from psycopg.rows import dict_row
 from pg_raggraph import GraphRAG
 from pg_raggraph.memory_bridge import SP_A_MEMORY_COLUMNS, rows_to_records
 
-PGRG_DSN = os.environ.get(
-    "PGRG_DSN", "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
-)
+PGRG_DSN = os.environ.get("PGRG_DSN", "postgresql://postgres:postgres@localhost:5434/pg_raggraph")
 SP_A_DSN = os.environ.get("SP_A_DSN", PGRG_DSN)  # often the same database
 NAMESPACE = os.environ.get("PGRG_NAMESPACE", "agent_memory")
 SP_A_TABLE = os.environ.get("SP_A_TABLE", "agent_memory.memory")
@@ -95,8 +93,10 @@ async def main() -> None:
         rows = list(conn.execute(SQL_FETCH_MEMORY, {"namespace": NAMESPACE}).fetchall())
 
     if not rows:
-        print(f"No rows found in {SP_A_TABLE} for namespace={NAMESPACE!r}. "
-              f"Run chunkshop's `memory/consolidate.yaml` cell first.")
+        print(
+            f"No rows found in {SP_A_TABLE} for namespace={NAMESPACE!r}. "
+            f"Run chunkshop's `memory/consolidate.yaml` cell first."
+        )
         return
 
     records = rows_to_records(rows)
@@ -116,8 +116,10 @@ async def main() -> None:
     )
     print(f"\nask(memory_tier='consolidated') → {len(result.chunks)} chunks")
     if result.chunks:
-        print(f"  top chunk tier: "
-              f"{(result.chunks[0].metadata or {}).get('tier', '(no tier metadata)')}")
+        print(
+            f"  top chunk tier: "
+            f"{(result.chunks[0].metadata or {}).get('tier', '(no tier metadata)')}"
+        )
 
     await rag.close()
 

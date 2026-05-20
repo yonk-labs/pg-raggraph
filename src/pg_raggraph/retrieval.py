@@ -605,48 +605,80 @@ async def query(
         effective_strategy = _effective_retrieval_strategy(config, retrieval_strategy)
         if effective_strategy == "pre_filter":
             sql, extra = _build_naive_prefilter(
-                config, as_of, version_filter, evolution_aware,
-                retracted_behavior, memory_tier,
+                config,
+                as_of,
+                version_filter,
+                evolution_aware,
+                retracted_behavior,
+                memory_tier,
             )
         elif effective_strategy == "vector_first":
             sql, extra = _build_naive_vector_first(
-                config, as_of, version_filter, evolution_aware,
-                retracted_behavior, memory_tier,
+                config,
+                as_of,
+                version_filter,
+                evolution_aware,
+                retracted_behavior,
+                memory_tier,
             )
             # vector_first needs an extra bind param for its oversample CTE.
             params["vector_first_k"] = effective_top_k * config.retrieval_oversample_factor
         elif config.two_stage_retrieval:
             sql, extra = _build_naive_query_twostage(
-                config, as_of, version_filter, evolution_aware,
-                retracted_behavior, memory_tier,
+                config,
+                as_of,
+                version_filter,
+                evolution_aware,
+                retracted_behavior,
+                memory_tier,
             )
         else:
             sql, extra = _build_naive_query(
-                config, as_of, version_filter, evolution_aware,
-                retracted_behavior, memory_tier,
+                config,
+                as_of,
+                version_filter,
+                evolution_aware,
+                retracted_behavior,
+                memory_tier,
             )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
     elif mode == "local":
         sql, extra = _build_local_query(
-            config, as_of, version_filter, evolution_aware,
-            retracted_behavior, memory_tier,
+            config,
+            as_of,
+            version_filter,
+            evolution_aware,
+            retracted_behavior,
+            memory_tier,
         )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
     elif mode == "global":
         sql, extra = _build_global_query(
-            config, as_of, version_filter, evolution_aware,
-            retracted_behavior, memory_tier,
+            config,
+            as_of,
+            version_filter,
+            evolution_aware,
+            retracted_behavior,
+            memory_tier,
         )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
     elif mode == "hybrid":
         # Run local and global, merge results
         local_sql, local_extra = _build_local_query(
-            config, as_of, version_filter, evolution_aware,
-            retracted_behavior, memory_tier,
+            config,
+            as_of,
+            version_filter,
+            evolution_aware,
+            retracted_behavior,
+            memory_tier,
         )
         global_sql, global_extra = _build_global_query(
-            config, as_of, version_filter, evolution_aware,
-            retracted_behavior, memory_tier,
+            config,
+            as_of,
+            version_filter,
+            evolution_aware,
+            retracted_behavior,
+            memory_tier,
         )
         local_rows = await db.fetch_all(local_sql, _merge_params(params, local_extra))
         global_rows = await db.fetch_all(global_sql, _merge_params(params, global_extra))
