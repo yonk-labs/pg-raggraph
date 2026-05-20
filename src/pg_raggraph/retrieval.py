@@ -63,6 +63,7 @@ def _build_naive_query(
     as_of: datetime | None = None,
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
 ) -> tuple[str, dict]:
     base = (
         "%(w_sem)s * (1 - (c.embedding <=> %(embedding)s::vector)) + "
@@ -75,6 +76,7 @@ def _build_naive_query(
         as_of=as_of,
         version_filter=version_filter,
         evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
     )
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     # PRG-1 consumer-surface columns (d.metadata/retracted/version_label/
@@ -90,7 +92,7 @@ SELECT c.id, COALESCE(c.embedded_content, c.content) AS content, c.metadata,
            AS superseded_by_id,
        1 - (c.embedding <=> %(embedding)s::vector) AS vec_score,
        ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score,
-       {evolution_score_expr(base, cfg, evolution_aware)} AS score
+       {evolution_score_expr(base, cfg, evolution_aware, retracted_behavior)} AS score
 FROM chunks c
 JOIN documents d ON d.id = c.document_id
 WHERE d.namespace = %(namespace)s{extra_where}
@@ -105,6 +107,7 @@ def _build_naive_query_twostage(
     as_of: datetime | None = None,
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
 ) -> tuple[str, dict]:
     """Two-stage naive retrieval (K1).
 
@@ -138,6 +141,7 @@ def _build_naive_query_twostage(
         as_of=as_of,
         version_filter=version_filter,
         evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
     )
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     sql = f"""
@@ -160,7 +164,7 @@ SELECT cand.id, cand.content, cand.metadata,
            AS superseded_by_id,
        1 - (cand.embedding <=> %(embedding)s::vector) AS vec_score,
        ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score,
-       {evolution_score_expr(base, cfg, evolution_aware)} AS score
+       {evolution_score_expr(base, cfg, evolution_aware, retracted_behavior)} AS score
 FROM candidates cand
 JOIN documents d ON d.id = cand.document_id
 ORDER BY score DESC
@@ -174,6 +178,7 @@ def _build_local_query(
     as_of: datetime | None = None,
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
 ) -> tuple[str, dict]:
     base = (
         "%(w_sem)s * (1 - (rc.embedding <=> %(embedding)s::vector)) + "
@@ -186,6 +191,7 @@ def _build_local_query(
         as_of=as_of,
         version_filter=version_filter,
         evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
     )
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     sql = f"""
@@ -222,7 +228,7 @@ SELECT rc.id, rc.content, rc.metadata,
        (SELECT dv.document_id FROM document_versions dv
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
-       {evolution_score_expr(base, cfg, evolution_aware)} AS score
+       {evolution_score_expr(base, cfg, evolution_aware, retracted_behavior)} AS score
 FROM relevant_chunks rc
 JOIN documents d ON d.id = rc.document_id
 WHERE d.namespace = %(namespace)s{extra_where}
@@ -237,6 +243,7 @@ def _build_global_query(
     as_of: datetime | None = None,
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
 ) -> tuple[str, dict]:
     base = (
         "%(w_sem)s * (1 - (rc.embedding <=> %(embedding)s::vector)) + "
@@ -249,6 +256,7 @@ def _build_global_query(
         as_of=as_of,
         version_filter=version_filter,
         evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
     )
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     sql = f"""
@@ -286,7 +294,7 @@ SELECT rc.id, rc.content, rc.metadata,
        (SELECT dv.document_id FROM document_versions dv
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
-       {evolution_score_expr(base, cfg, evolution_aware)} AS score
+       {evolution_score_expr(base, cfg, evolution_aware, retracted_behavior)} AS score
 FROM relevant_chunks rc
 JOIN documents d ON d.id = rc.document_id
 WHERE d.namespace = %(namespace)s{extra_where}
@@ -330,6 +338,7 @@ async def query(
     as_of: datetime | None = None,
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
     top_k_override: int | None = None,
 ) -> QueryResult:
     """Execute a retrieval query against the knowledge graph.
@@ -353,6 +362,7 @@ async def query(
             as_of=as_of,
             version_filter=version_filter,
             evolution_aware=evolution_aware,
+            retracted_behavior=retracted_behavior,
             top_k_override=top_k_override,
         )
     if mode == "naive_boost":
@@ -365,6 +375,7 @@ async def query(
             as_of=as_of,
             version_filter=version_filter,
             evolution_aware=evolution_aware,
+            retracted_behavior=retracted_behavior,
             top_k_override=top_k_override,
         )
 
@@ -396,22 +407,30 @@ async def query(
     if mode == "naive":
         if config.two_stage_retrieval:
             sql, extra = _build_naive_query_twostage(
-                config, as_of, version_filter, evolution_aware
+                config, as_of, version_filter, evolution_aware, retracted_behavior
             )
         else:
-            sql, extra = _build_naive_query(config, as_of, version_filter, evolution_aware)
+            sql, extra = _build_naive_query(
+                config, as_of, version_filter, evolution_aware, retracted_behavior
+            )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
     elif mode == "local":
-        sql, extra = _build_local_query(config, as_of, version_filter, evolution_aware)
+        sql, extra = _build_local_query(
+            config, as_of, version_filter, evolution_aware, retracted_behavior
+        )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
     elif mode == "global":
-        sql, extra = _build_global_query(config, as_of, version_filter, evolution_aware)
+        sql, extra = _build_global_query(
+            config, as_of, version_filter, evolution_aware, retracted_behavior
+        )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
     elif mode == "hybrid":
         # Run local and global, merge results
-        local_sql, local_extra = _build_local_query(config, as_of, version_filter, evolution_aware)
+        local_sql, local_extra = _build_local_query(
+            config, as_of, version_filter, evolution_aware, retracted_behavior
+        )
         global_sql, global_extra = _build_global_query(
-            config, as_of, version_filter, evolution_aware
+            config, as_of, version_filter, evolution_aware, retracted_behavior
         )
         local_rows = await db.fetch_all(local_sql, _merge_params(params, local_extra))
         global_rows = await db.fetch_all(global_sql, _merge_params(params, global_extra))
@@ -567,6 +586,7 @@ async def _naive_boost_query(
     as_of: datetime | None = None,
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
     top_k_override: int | None = None,
 ) -> QueryResult:
     """Naive vector+BM25 retrieval followed by cheap 1-hop graph boost."""
@@ -580,6 +600,7 @@ async def _naive_boost_query(
         as_of=as_of,
         version_filter=version_filter,
         evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
         top_k_override=top_k_override,
     )
     ns = namespace or config.namespace
@@ -684,6 +705,7 @@ async def _smart_query(
     as_of: datetime | None = None,
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
     top_k_override: int | None = None,
 ) -> QueryResult:
     """Confidence + question-shape routing that improves accuracy across corpora.
@@ -728,6 +750,7 @@ async def _smart_query(
             as_of=as_of,
             version_filter=version_filter,
             evolution_aware=evolution_aware,
+            retracted_behavior=retracted_behavior,
             top_k_override=top_k_override,
         )
         agg.query_mode = "smart[global]"
@@ -744,6 +767,7 @@ async def _smart_query(
             as_of=as_of,
             version_filter=version_filter,
             evolution_aware=evolution_aware,
+            retracted_behavior=retracted_behavior,
             top_k_override=top_k_override,
         )
         syn.query_mode = "smart[hybrid]"
@@ -762,6 +786,7 @@ async def _smart_query(
         as_of=as_of,
         version_filter=version_filter,
         evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
         top_k_override=top_k_override,
     )
 
@@ -783,6 +808,7 @@ async def _smart_query(
             as_of=as_of,
             version_filter=version_filter,
             evolution_aware=evolution_aware,
+            retracted_behavior=retracted_behavior,
             top_k_override=top_k_override,
         )
         expanded.query_mode = "smart[expanded]"

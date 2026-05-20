@@ -50,27 +50,41 @@ row = await rag.db.fetch_one(
 
 ### 3. Toggle retraction-hide per query
 
-| ✗ Common attempt | ✓ Actual API |
+| ✓ Per-call (recommended) | ✓ Config default |
 |---|---|
 | `await rag.query(q, retracted_behavior="hide")` | `rag.config.retracted_behavior = "hide"` |
 
-`retracted_behavior` is **config-only**, not a per-call query kwarg.
-Mutate `rag.config.retracted_behavior` before the query and restore
-after. Same for `supersession_behavior`. The pydantic-settings model
-is non-frozen, so direct mutation is fine.
+Both ``rag.query()`` and ``rag.ask()`` accept ``retracted_behavior`` as a
+keyword-only per-call override (since pg-raggraph 0.3.x, [#1](https://github.com/yonk-labs/pg-raggraph/issues/1)).
+``None`` (default) falls back to ``config.retracted_behavior``. Pass an
+explicit value to override for the current call only — useful when one
+``GraphRAG`` instance serves multiple tenants/scenarios that each want
+different retraction policies.
 
 ```python
-# Per-query toggle pattern
-old = rag.config.retracted_behavior
+# Per-call override (preferred for multi-tenant servers)
+result = await rag.ask(q, retracted_behavior="hide")
+
+# Config default still works (sets policy for every call that doesn't override)
 rag.config.retracted_behavior = "hide"
+result = await rag.ask(q)
+```
+
+`supersession_behavior` is still config-only — same mutate-and-restore
+pattern applies if you need it per-query:
+
+```python
+old = rag.config.supersession_behavior
+rag.config.supersession_behavior = "hide"
 try:
     result = await rag.query(q)
 finally:
-    rag.config.retracted_behavior = old
+    rag.config.supersession_behavior = old
 ```
 
-The kwargs that *are* per-query on `rag.query()`: `mode`, `namespace`,
-`as_of`, `version_filter`, `evolution_aware`. That's the whole list.
+The kwargs that *are* per-query on `rag.query()` and `rag.ask()`: `mode`,
+`namespace`, `as_of`, `version_filter`, `evolution_aware`,
+`retracted_behavior`.
 
 ### 4. Override top-K per query
 

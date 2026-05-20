@@ -22,6 +22,26 @@ def _effective_tier(cfg: PGRGConfig, evolution_aware: bool | None) -> str:
     return cfg.evolution_tier
 
 
+_RETRACTED_BEHAVIOR_VALUES = ("hide", "flag", "surface_both")
+
+
+def _effective_retracted_behavior(cfg: PGRGConfig, override: str | None) -> str:
+    """Resolve retracted_behavior after applying the per-query override.
+
+    ``None`` falls back to ``cfg.retracted_behavior`` (the today's behavior).
+    Validates against the same Literal set as the config field so callers
+    get a clear error at the boundary instead of a silent SQL no-op.
+    """
+    if override is None:
+        return cfg.retracted_behavior
+    if override not in _RETRACTED_BEHAVIOR_VALUES:
+        raise ValueError(
+            f"Invalid retracted_behavior {override!r}. "
+            f"Must be one of: {_RETRACTED_BEHAVIOR_VALUES}"
+        )
+    return override
+
+
 def temporal_boost_expr(doc_alias: str = "d") -> str:
     """SQL fragment: exp(-ln(2) * age_years / half_life). Neutral when
     effective_from is NULL (falls back to created_at then now() → 0 years
@@ -58,6 +78,7 @@ def evolution_score_expr(
     base_score_sql: str,
     cfg: PGRGConfig,
     evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
 ) -> str:
     """Wrap a base score expression with temporal + supersession terms,
     plus an optional hard retraction multiplier. Gate: only applied when
@@ -67,6 +88,9 @@ def evolution_score_expr(
     `retracted_behavior == "hide"` — there as defense-in-depth alongside
     the WHERE clause. Under `"flag"` and `"surface_both"`, retracted docs
     keep their natural rank so the caller can decide what to do.
+
+    ``retracted_behavior`` overrides ``cfg.retracted_behavior`` for this
+    call only (per-call override; ``None`` = config default).
     """
     tier = _effective_tier(cfg, evolution_aware)
     if tier == "off":
@@ -76,7 +100,7 @@ def evolution_score_expr(
         f"  + %(w_recent)s * {temporal_boost_expr()}"
         f"  + %(w_supersession)s  * {supersession_penalty_expr()}"
     )
-    if cfg.retracted_behavior == "hide":
+    if _effective_retracted_behavior(cfg, retracted_behavior) == "hide":
         return f"({retraction_filter_expr()} * ({body}))"
     return f"({body})"
 
@@ -87,6 +111,7 @@ def evolution_where_clauses(
     as_of: datetime | None = None,
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
 ) -> tuple[list[str], dict]:
     """Returns (where_clauses, bind_params_for_clauses) based on evolution
     behavior modes plus per-query overrides. Caller joins clauses with
@@ -109,7 +134,7 @@ def evolution_where_clauses(
         return [], {}
     clauses: list[str] = []
     params: dict = {}
-    if cfg.retracted_behavior == "hide":
+    if _effective_retracted_behavior(cfg, retracted_behavior) == "hide":
         clauses.append(f"NOT {doc_alias}.retracted")
     if cfg.supersession_behavior == "hide":
         if as_of is not None:

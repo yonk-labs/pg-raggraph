@@ -1272,6 +1272,7 @@ class GraphRAG:
         as_of: datetime | None = None,
         version_filter: str | None = None,
         evolution_aware: bool | None = None,
+        retracted_behavior: str | None = None,
         rerank: bool = False,
     ) -> QueryResult:
         """Query the knowledge graph.
@@ -1290,6 +1291,12 @@ class GraphRAG:
             version_filter: restrict to documents with matching version_label.
             evolution_aware: when False, ignore evolution_tier for this query
                 (forces classic retrieval). When None, honors config.
+            retracted_behavior: per-call override of ``config.retracted_behavior``.
+                One of ``"hide"`` / ``"flag"`` / ``"surface_both"``. ``None``
+                (default) falls back to the config value. Useful when one
+                ``GraphRAG`` instance serves multiple tenants/scenarios that
+                each want different retraction policies without mutating
+                ``config.retracted_behavior`` under contention.
             rerank: when True, fetch top_k * rerank_factor candidates and
                 re-rank with a cross-encoder before trimming to top_k.
                 Adds ~30-80 ms p50 latency, zero per-query LLM cost.
@@ -1315,6 +1322,7 @@ class GraphRAG:
                     as_of=as_of,
                     version_filter=version_filter,
                     evolution_aware=evolution_aware,
+                    retracted_behavior=retracted_behavior,
                     top_k_override=top_k_override,
                 )
             if rerank:
@@ -1342,6 +1350,7 @@ class GraphRAG:
         as_of: datetime | None = None,
         version_filter: str | None = None,
         evolution_aware: bool | None = None,
+        retracted_behavior: str | None = None,
         short_answer: bool = False,
         rerank: bool = False,
     ) -> QueryResult:
@@ -1358,6 +1367,9 @@ class GraphRAG:
         When ``rerank=True``, the retrieved chunks are re-ranked with a
         cross-encoder before answer generation. Adds ~30-80 ms p50 latency,
         zero per-query LLM cost.
+
+        ``retracted_behavior`` overrides ``config.retracted_behavior`` for
+        this call only — see ``GraphRAG.query()`` for details.
         """
         from pg_raggraph.answer import generate_answer
 
@@ -1368,6 +1380,7 @@ class GraphRAG:
             as_of=as_of,
             version_filter=version_filter,
             evolution_aware=evolution_aware,
+            retracted_behavior=retracted_behavior,
             rerank=rerank,
         )
         # Reuse the shared LLM client (same pool as ingestion).
