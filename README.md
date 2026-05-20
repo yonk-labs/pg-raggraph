@@ -2,7 +2,7 @@
 
 > **PostgreSQL-native GraphRAG.** Vector search, full-text search, and knowledge-graph traversal — all in a single SQL query. No Neo4j. No Pinecone. No Apache AGE. Just the Postgres you already run.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Tests](https://img.shields.io/badge/tests-204%20passing-brightgreen)](#tests-and-benchmarks) [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](pyproject.toml) [![Status: alpha](https://img.shields.io/badge/status-alpha%20(0.3.0a3)-orange)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Tests](https://img.shields.io/badge/tests-385%20passing-brightgreen)](#tests-and-benchmarks) [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](pyproject.toml) [![Status: alpha](https://img.shields.io/badge/status-alpha%20(0.3.0a3)-orange)]()
 
 ---
 
@@ -149,7 +149,7 @@ Real numbers from real corpora. No cherry-picking.
 
 Full bake-off report: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](benchmarks/age-bakeoff/results/REPORT-VERDICT.md).
 
-**Test suite:** 195 passing tests across `tests/unit/` and `tests/integration/`, including a 15-test error-path suite that asserts specific exception types on bad DSNs, naive `as_of`, oversize `/ingest`, path traversal, etc. CI runs the full suite against pgvector containers on Python 3.12 and 3.13.
+**Test suite:** 385 passing tests (260 unit + 125 integration) across `tests/unit/` and `tests/integration/`, including a 15-test error-path suite that asserts specific exception types on bad DSNs, naive `as_of`, oversize `/ingest`, path traversal, etc. CI runs the full suite against pgvector containers on Python 3.12 and 3.13.
 
 ## Where to go next
 
@@ -175,6 +175,9 @@ Full bake-off report: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](bench
 | [`docs/blogs/03-path-b-medical-retractions.md`](docs/blogs/03-path-b-medical-retractions.md) | Walkthrough: ingest PubMed HRT abstracts, demonstrate `retracted_behavior` and `as_of`. |
 | [`docs/cookbook/evolution-tracking.md`](docs/cookbook/evolution-tracking.md) | Tier 1 quickstart — `effective_from`, `retracted`, `version_label` ingest + query patterns. |
 | [`docs/EVOLUTION-API-QUICKREF.md`](docs/EVOLUTION-API-QUICKREF.md) | Common assumptions vs reality for the Tier 1 API (which kwargs are per-query vs config-only, schema column locations, semantics of `as_of` × `retracted_at`). |
+| [`docs/cookbook/per-call-kwargs.md`](docs/cookbook/per-call-kwargs.md) | Per-call overrides on `query()`/`ask()` — `retracted_behavior`, `supersession_behavior`, `memory_tier`, `retrieval_strategy`, `as_of`, `version_filter`, `evolution_aware`. Multi-tenant-safe (no config mutation). |
+| [`docs/cookbook/retrieval-strategy.md`](docs/cookbook/retrieval-strategy.md) | Three SQL shapes for metadata + vector queries — `weighted` (default), `pre_filter`, `vector_first`. When to pick which; recall-shortfall metric. |
+| [`docs/cookbook/metadata-indexes.md`](docs/cookbook/metadata-indexes.md) | Btree / GIN / generated-column indexes on `chunks.metadata` and `documents.metadata`. Runtime API (`recommend_metadata_indexes()`, `apply_metadata_indexes_concurrently()`). |
 | [`docs/user-guide.md`](docs/user-guide.md) | Full user guide. Installation, all 6 modes, configuration, REST API, production deployment, troubleshooting. |
 | [`docs/devmem-guide.md`](docs/devmem-guide.md) | `pgrg devmem` — the developer-knowledge-base flavor with code-aware chunking + dev-tuned extraction. |
 | [`research/`](research/) | Architecture rationale, vs-AGE evaluation, competitor analyses (LightRAG, Neo4j, Zep). |
