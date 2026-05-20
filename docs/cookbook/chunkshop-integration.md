@@ -513,7 +513,71 @@ This pathology — pg-raggraph's single-pass plan doing post-filter when a pre-f
 - Performance at >100K chunks. EXPLAIN says the filter is post-scan against a namespace-scoped index seek, so it should stay linear; not benchmarked at 1M+.
 - HNSW interaction. The bench had no vector index — production would. Filter is composable with HNSW (it's a post-vector-seek predicate), but not separately measured.
 - Long-session stability. Smoke test was 10 sessions × 6 turns each. No multi-day soak.
-- Consolidator drift. The default extractive consolidator emits sparse SPO triples (all 80 facts came back with NULL subject/predicate/object). The bridge correctly skips graph edges for sparse triples but keeps them as chunks. With an LLM-wired consolidator you'd get proper graph relationships; we haven't validated that path end-to-end.
+- Consolidator drift. The default extractive consolidator emits sparse SPO triples (all 80 facts came back with NULL subject/predicate/object). The bridge correctly skips graph edges for sparse triples but keeps them as chunks. With an LLM-wired consolidator you'd get proper graph relationships — **validated end-to-end** in the LLM-wired path below (closes the gap from the earlier honest-read note).
+
+### LLM-wired consolidator — the typed-SPO path
+
+The default extractive consolidator is zero-network and good enough for the chunk-level vector retrieval (the `support_span` is embedded as a chunk and stays vector-retrievable). But you lose the graph-edge story — all `kind='fact'` rows arrive with NULL subject/predicate/object, the bridge correctly skips them at the relationships step.
+
+For real graph relationships, wire chunkshop's consolidator slot to an LLM. The chunkshop `consolidator` config accepts any importable Python callable matching this shape:
+
+```python
+def consolidate(text: str, **kw) -> dict:
+    return {
+        "summary": "<one paragraph>",
+        "facts": [
+            {
+                "subject":      "postgres_pool_size",
+                "predicate":    "recommended_setting",
+                "object":       "2x_cpu_cores",
+                "support_span": "Set pool_max_size to 2x cpu cores for postgres.",
+                "confidence":   0.95,
+            },
+            ...
+        ],
+    }
+```
+
+[`benchmarks/agent-memory-demo/llm_consolidator_demo.py`](../../benchmarks/agent-memory-demo/llm_consolidator_demo.py) ships two implementations:
+
+1. **`consolidate()`** — deterministic SPO extractor over a fixed pattern set. No network. Used by the smoke test below.
+2. **`openai_consolidate()`** (commented out) — reference LLM-wired version using OpenAI's structured-output mode. Uncomment and set `OPENAI_API_KEY` to use in a real deployment.
+
+Wire one in via chunkshop's `consolidate.yaml`:
+
+```yaml
+chunker:
+  type: consolidation
+  base:
+    type: sentence_aware
+    max_chars: 2000
+  consolidator:
+    mode: callable
+    module: benchmarks.agent_memory_demo.llm_consolidator_demo
+    function: consolidate            # or openai_consolidate
+  fact_max_chars: 1200
+```
+
+### Validated end-to-end (2026-05-20)
+
+The pg-raggraph side was smoke-tested with non-sparse triples directly injected into `agent_memory.memory` (bypassing chunkshop — validates the bridge, not the consolidator):
+
+| Check | Result |
+|---|---|
+| 3 SP-A rows (1 episode + 2 typed-SPO facts) → bridge → ingest | ✅ |
+| chunks landed (1 doc, 3 chunks — episode + 2 fact-as-chunk for vector retrieval) | ✅ |
+| **`relationships` table populated** (2 rows — the typed SPO triples become graph edges) | ✅ |
+| Entities derived from subject/object (4 entities) | ✅ |
+| EXPLAIN of `local`/`global` retrieval uses the new edges | ✅ |
+
+```
+postgres_pool_size --[recommended_setting]--> 2x_cpu_cores
+pgbouncer          --[recommended_mode]-----> transaction_pooling
+```
+
+So: with an LLM-wired consolidator producing typed SPO triples, pg-raggraph's bridge populates the full graph (chunks + entities + relationships). The extractive default's "chunks-only" mode is a deliberate fallback for zero-network deployments; for graph-aware retrieval you wire an LLM.
+
+Smoke test source: `/tmp/test_pattern_m_llm.py` (not committed — same pattern as the chunks-side benches).
 
 ### Limitations and gaps (honest read)
 
