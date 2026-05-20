@@ -75,7 +75,27 @@ Nested Loop
 Execution Time: 53.2 ms
 ```
 
-**Honest read:** the index works as designed, but the planner's cost model on this particular bench shape (one document for all chunks) makes `idx_chunk_doc` look cheap enough that it wins. Real workloads with tens or hundreds of documents per namespace will see the planner switch — but you should run your own EXPLAIN before assuming `metadata_indexes` automatically lights up `pre_filter`. If EXPLAIN says the index isn't being picked, the usual fixes are:
+**Honest read:** the index works as designed, but the planner's cost model on this particular bench shape (one document for all chunks) makes `idx_chunk_doc` look cheap enough that it wins. Real workloads with tens or hundreds of documents per namespace will see the planner switch — see the realistic-shape bench below.
+
+## Realistic-shape bench (10K docs × 10 chunks, 2026-05-20)
+
+Same 0.1% predicate selectivity, but with the chunks spread across **10,000 documents** (10 chunks each) instead of all under one doc. This is closer to typical GraphRAG corpora (each ingested file becomes a document, each document chunks down to 5-50 chunks).
+
+| Setup | p50 | p95 | Plan |
+|---|---|---|---|
+| No metadata index | **1.29 ms** | 2.37 ms | HNSW (`idx_chunk_embed`) + post-filter |
+| With `metadata_indexes=["selective_tag"]` | **0.10 ms** | 0.21 ms | Index Scan on `idx_chunks_metadata_selective_tag` |
+
+**Two findings that flip the degenerate-bench story:**
+
+1. **The baseline is dramatically faster in realistic shape** (1.29 ms vs 77 ms in the 1-doc bench). When no single document dominates the namespace, the planner picks HNSW + post-filter inside the `pre_filter` CTE — the SQL shape itself buys a 60× win even without a metadata index.
+2. **The metadata index still helps** — 12-13× faster than the no-index baseline (0.10 ms vs 1.29 ms). Real workloads see BOTH wins compound: HNSW for vector ranking, metadata-index for predicate seek.
+
+EXPLAIN ANALYZE confirms `idx_chunks_metadata_selective_tag` is the seed scan; the docs table joins via PK lookup at near-zero cost.
+
+The earlier "modest 30% gain" caveat applies only when the namespace + document filter is already near-singleton (the degenerate bench). For typical GraphRAG ingest shapes, expect the realistic numbers.
+
+If EXPLAIN still says the index isn't being picked, the usual fixes are:
 
 1. **`ANALYZE chunks`** after bulk ingest so stats reflect the current metadata distribution.
 2. **Bump statistics target** for the JSONB column: `ALTER TABLE chunks ALTER COLUMN metadata SET STATISTICS 1000;` then `ANALYZE chunks`.
