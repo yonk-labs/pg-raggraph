@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextvars
 import logging
+import re
 from contextlib import contextmanager
 from importlib.resources import files
 from typing import Any
@@ -17,6 +18,48 @@ from pg_raggraph.config import PGRGConfig
 SCHEMA_VERSION = 1
 
 logger = logging.getLogger("pg_raggraph.db")
+
+# Postgres identifier shape — letters/digits/underscores, must start with
+# letter/underscore. We cap at 50 chars (well under Postgres's 63-byte limit)
+# to leave room for the `idx_chunks_metadata_` prefix in the generated index
+# name. Belt-and-suspenders alongside psycopg's sql.Identifier escaping —
+# the regex also blocks valid-but-suspicious shapes (Unicode identifiers,
+# quoted identifiers) so the failure mode is "reject at config init" rather
+# than "create a strangely-named index in production."
+_METADATA_INDEX_KEY_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,49}$")
+
+
+def _validate_metadata_index_key(key: str) -> str:
+    """Reject metadata_indexes keys that aren't safe Postgres identifiers.
+
+    Raises ValueError with a precise message; called eagerly during
+    ``connect()`` so the failure surfaces at startup, not on the first
+    query. Even though we use ``psycopg.sql.Identifier`` for DDL
+    composition (which handles escaping correctly), narrowing the
+    allowed shape here keeps generated index names predictable and
+    rejects accidental injections / typos.
+    """
+    if not isinstance(key, str):
+        raise ValueError(
+            f"metadata_indexes entries must be strings, got {type(key).__name__}: {key!r}"
+        )
+    if not _METADATA_INDEX_KEY_RE.match(key):
+        raise ValueError(
+            f"metadata_indexes key {key!r} is not a valid identifier. "
+            f"Must match {_METADATA_INDEX_KEY_RE.pattern} (letters, digits, "
+            "underscores; start with letter or underscore; max 50 chars)."
+        )
+    return key
+
+
+def _metadata_index_name(key: str) -> str:
+    """Build the canonical index name for a metadata key.
+
+    The name is stable across runs (idempotent CREATE INDEX IF NOT EXISTS)
+    and discoverable in psql via the ``idx_chunks_metadata_`` prefix.
+    """
+    return f"idx_chunks_metadata_{key}"
+
 
 # Whitelist of tables for safe SQL composition
 _ALLOWED_TABLES = frozenset(
@@ -67,6 +110,13 @@ class Database:
                 await self._verify_schema_ready(conn)
             else:
                 await self._ensure_schema(conn)
+            # Apply user-configured metadata indexes after the base schema
+            # is guaranteed present. Skips silently when the list is empty
+            # (the default), so callers who don't opt in see no schema
+            # change. CREATE INDEX IF NOT EXISTS makes this idempotent
+            # across reconnects.
+            if self.config.metadata_indexes:
+                await self._apply_metadata_indexes(conn)
         if self.config.read_dsn:
             self._read_pool = AsyncConnectionPool(
                 self.config.read_dsn,
@@ -246,6 +296,64 @@ class Database:
             await self._apply_migrations(conn)
         finally:
             await conn.execute("SELECT pg_advisory_unlock(%s)", (0x70677267,))
+
+    async def _apply_metadata_indexes(self, conn) -> None:
+        """Create btree indexes on ``chunks.metadata->>'<key>'`` per config.
+
+        For each key in ``config.metadata_indexes``: ``CREATE INDEX IF NOT
+        EXISTS idx_chunks_metadata_<key> ON chunks ((metadata->>'<key>'))``.
+        Followed by ``ANALYZE chunks`` so the planner picks up the new
+        index immediately.
+
+        Uses non-CONCURRENTLY because:
+
+        - We're inside ``connect()`` which holds the bootstrap advisory
+          lock; CONCURRENTLY would fail in that context (it can't run in a
+          transaction).
+        - For fresh deployments the chunks table is empty or tiny — the
+          ACCESS EXCLUSIVE lock is invisible.
+        - Production retrofitters should create the index manually with
+          CONCURRENTLY first (see docs/cookbook/metadata-indexes.md), then
+          add the key to ``metadata_indexes`` so this loop's
+          ``IF NOT EXISTS`` is a no-op.
+
+        Keys are validated against ``_METADATA_INDEX_KEY_RE`` first so a
+        bad config raises a clear error at startup, not a SQL syntax
+        error mid-CREATE.
+        """
+        for raw_key in self.config.metadata_indexes:
+            key = _validate_metadata_index_key(raw_key)
+            index_name = _metadata_index_name(key)
+            # sql.Identifier handles escaping for both the index name and
+            # the JSONB key string. We don't need to interpolate the key
+            # into a string literal directly — psycopg renders it safely.
+            stmt = sql.SQL(
+                "CREATE INDEX IF NOT EXISTS {idx} ON chunks ((metadata->>{key}))"
+            ).format(
+                idx=sql.Identifier(index_name),
+                key=sql.Literal(key),
+            )
+            try:
+                await conn.execute(stmt)
+                logger.info("Ensured metadata index %s on chunks.metadata->>%r", index_name, key)
+            except Exception as e:
+                # Don't crash connect() over an index failure — the rest of
+                # pg-raggraph still works without the optimization. But log
+                # loudly so the operator sees it.
+                logger.warning(
+                    "Failed to create metadata index %s on chunks.metadata->>%r: %s. "
+                    "Retrieval still works; pre_filter on this key will not benefit "
+                    "from indexing until the cause is resolved.",
+                    index_name,
+                    key,
+                    e,
+                )
+        # Refresh planner stats so the new indexes are picked up without
+        # waiting for autovacuum.
+        try:
+            await conn.execute("ANALYZE chunks")
+        except Exception as e:  # noqa: BLE001 — diagnostic only
+            logger.debug("ANALYZE chunks after metadata-index apply failed: %s", e)
 
     async def _apply_migrations(self, conn) -> None:
         """Apply numbered migration files from sql/migrations/.

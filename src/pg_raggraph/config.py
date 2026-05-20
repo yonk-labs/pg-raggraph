@@ -266,6 +266,26 @@ class PGRGConfig(BaseSettings):
     # predicate selectivity.
     retrieval_oversample_factor: int = 10
 
+    # Scope B: auto-create btree indexes on `chunks.metadata->>'<key>'` for
+    # each key listed here. Lands as `idx_chunks_metadata_<key>` during
+    # connect() via CREATE INDEX IF NOT EXISTS. Keys must match the identifier
+    # whitelist `^[a-zA-Z_][a-zA-Z0-9_]*$` and be <=63 chars (Postgres
+    # identifier limit). Idempotent — calling connect() repeatedly is safe.
+    # Pairs with retrieval_strategy='pre_filter' for selective-predicate
+    # queries: an indexed predicate flips pre_filter from "no-op SQL shape"
+    # to "actual speedup." See docs/cookbook/retrieval-strategy.md →
+    # "Picking a retrieval_strategy" and docs/cookbook/metadata-indexes.md.
+    #
+    # WARNING: non-CONCURRENTLY CREATE INDEX takes an ACCESS EXCLUSIVE lock
+    # for the duration of the build — fine for fresh deployments, brutal
+    # on a live table with millions of rows. For retrofitting against
+    # existing data, run the CONCURRENTLY recipe in
+    # docs/cookbook/metadata-indexes.md manually first, then add the key
+    # to this list so connect() finds the existing index.
+    #
+    # Default is empty — zero schema change for callers who don't opt in.
+    metadata_indexes: list[str] = []
+
     # Cross-encoder reranking (off by default; opt-in per-query via rerank=True).
     # When enabled, retrieval fetches top_k * rerank_factor candidates, then a
     # cross-encoder scores each (question, chunk) pair and trims to top_k.
