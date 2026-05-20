@@ -24,6 +24,55 @@ def _effective_tier(cfg: PGRGConfig, evolution_aware: bool | None) -> str:
 
 _RETRACTED_BEHAVIOR_VALUES = ("hide", "flag", "surface_both")
 
+# --- chunkshop SP-A agent-memory tier filter ---
+#
+# Separate concern from evolution_tier (the document-evolution feature). This
+# filter is read-side enforcement of SP-A's O2 "consolidated-wins" rule when
+# chunks have been bridged from chunkshop's agent_memory.memory table (see
+# Pattern M in docs/cookbook/chunkshop-integration.md). Chunks WITHOUT a
+# `tier` key in their metadata always pass through — keeps mixed corpora and
+# pre-memory chunks unaffected.
+
+_MEMORY_TIER_VALUES = ("provisional", "consolidated", "both")
+
+
+def _effective_memory_tier(cfg: PGRGConfig, override: str | None) -> str:
+    """Resolve memory_tier after applying the per-query override.
+
+    ``None`` falls back to ``cfg.memory_tier``. Validates against the same
+    Literal set as the config field.
+    """
+    if override is None:
+        return cfg.memory_tier
+    if override not in _MEMORY_TIER_VALUES:
+        raise ValueError(
+            f"Invalid memory_tier {override!r}. "
+            f"Must be one of: {_MEMORY_TIER_VALUES}"
+        )
+    return override
+
+
+def memory_tier_clause(
+    cfg: PGRGConfig,
+    chunk_alias: str = "c",
+    override: str | None = None,
+) -> tuple[str, dict]:
+    """SQL WHERE fragment + bind params for the SP-A memory_tier filter.
+
+    Returns ``("", {})`` when the effective tier is "both" (no filter). For
+    "provisional" / "consolidated", returns a clause that admits chunks
+    whose ``metadata->>'tier'`` is NULL (non-memory chunks) OR matches the
+    allowed tier. Callers append to their extra_where.
+    """
+    tier = _effective_memory_tier(cfg, override)
+    if tier == "both":
+        return "", {}
+    return (
+        f"({chunk_alias}.metadata->>'tier' IS NULL "
+        f" OR {chunk_alias}.metadata->>'tier' = %(memory_tier)s)",
+        {"memory_tier": tier},
+    )
+
 
 def _effective_retracted_behavior(cfg: PGRGConfig, override: str | None) -> str:
     """Resolve retracted_behavior after applying the per-query override.

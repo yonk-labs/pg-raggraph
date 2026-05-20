@@ -290,6 +290,16 @@ class PGRGConfig(BaseSettings):
     supersession_behavior: Literal["hide", "prefer_new", "surface_both"] = "surface_both"
     contradiction_detection: bool = True
 
+    # chunkshop SP-A agent-memory tier filter (read-side enforcement of the
+    # SP-A "consolidated-wins" O2 rule). When chunks carry a `tier` key in
+    # their JSONB metadata (e.g., bridged from chunkshop.agent_memory.memory
+    # via the Pattern M cookbook), this filter restricts retrieval to chunks
+    # with the matching tier(s). Default "both" applies no filter, so
+    # non-memory corpora and pre-SP-A chunks are unaffected. Per-call
+    # override available on rag.query()/.ask(). See
+    # docs/cookbook/chunkshop-integration.md#pattern-m-agent-memory.
+    memory_tier: Literal["provisional", "consolidated", "both"] = "both"
+
     # Context assembly (used when Tier 2+ populates facts)
     fact_dedup_threshold: float = 0.8
     diversity_backfill: bool = True

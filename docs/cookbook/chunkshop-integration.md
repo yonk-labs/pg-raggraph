@@ -369,23 +369,112 @@ If you do go with chunkshop, the data here suggests:
 
 **Caveats worth re-reading:** n=5 is noisy; the per-mode dispatch math is the same across pipelines; the LLM extractor and judge are identical; only the chunker differs. The result is real but the explanation needs more data — a 50-question set on a larger corpus would tell us whether this is a real regression or sample-size noise. Captured for follow-up; not actively chasing it.
 
-## Pattern M — agent memory (chunkshop SP-A, preview)
+## Pattern M — agent memory (chunkshop SP-A bridge)
 
-> **Status:** stub. The reader/bridge work is tracked in [#4](https://github.com/yonk-labs/pg-raggraph/issues/4). chunkshop's writer side (SP-A) shipped in 0.4.3 and is production-ready today.
+> **Status:** ✅ Shipped (pg-raggraph PR closing [#4](https://github.com/yonk-labs/pg-raggraph/issues/4)). chunkshop's writer side (SP-A) shipped in 0.4.3.
 
-chunkshop 0.4.3 added the **SP-A memory primitives** — a two-tier `agent_memory.memory` table (Postgres) that stores both episode chunks (`kind='episode'`) and atomic SPO fact rows (`kind='fact'`), tagged `tier='provisional'` or `tier='consolidated'`, with bi-temporal `effective_from`/`effective_to` and soft-invalidation via `retracted`/`retracted_at`. This is chunkshop's *write* side of an agent-memory layer.
+chunkshop 0.4.3's **SP-A memory primitives** write a two-tier `agent_memory.memory` table (Postgres) that holds both episode chunks (`kind='episode'`) and atomic SPO fact rows (`kind='fact'`), tagged `tier='provisional'` or `tier='consolidated'`, with bi-temporal `effective_from` / `effective_to` and soft-invalidation via `retracted` / `retracted_at`.
 
-The *read* side — bridging `agent_memory.memory` into pg-raggraph's `documents` / `chunks` / `entities` / `relationships` — is **Pattern M** (issue [#4](https://github.com/yonk-labs/pg-raggraph/issues/4)). It extends Pattern C's `pre_chunked` seam with a new `pre_extracted_relationships=` argument so SP-A's already-extracted fact triples (`subject`/`predicate`/`object`/`support_span`/`confidence`) populate the graph directly, bypassing pg-raggraph's LLM extractor. A `memory_tier` config mirrors `retracted_behavior` for the provisional/consolidated read-time filter.
+Pattern M is the **reader**: it bridges those rows into pg-raggraph's `documents` / `chunks` / `entities` / `relationships` tables via the existing `ingest_records(pre_chunked=…, relationships=…, skip_llm=True)` seams plus a new `memory_tier` config / per-call kwarg that enforces SP-A's O2 consolidated-wins rule at read time.
 
-Until the bridge lands, the recommended path for SP-A consumers is:
+### Architecture
 
-1. Use chunkshop 0.4.3 to write `agent_memory.memory` (covered by chunkshop's docs).
-2. For `kind='episode'` rows: pipe through Pattern C's existing `pre_chunked` ingest seam today — the LLM will re-extract entities (wasted work for SP-A `kind='fact'` rows, which is the whole reason Pattern M exists).
-3. Track [#4](https://github.com/yonk-labs/pg-raggraph/issues/4) for the proper bridge.
+```
+chunkshop SP-A (writer)                   pg-raggraph (Pattern M reader)
+
+ live agent events
+        │
+        ▼
+ chunkshop.memory.stage_event
+        │
+        ▼
+ staging table  ──realtime cell─▶  tier=provisional ┐
+                                                     │
+                ──consolidate cell─▶  tier=consolidated ─▶ agent_memory.memory
+                                       kind=episode | fact     │
+                                                                │
+                                        ┌──── psycopg SELECT ──┘
+                                        ▼
+                            memory_bridge.rows_to_records()
+                                        │
+                                        ▼
+                            rag.ingest_records(
+                                pre_chunked=[...],   ← episode + fact chunks
+                                relationships=[...], ← fact SPO triples
+                                skip_llm=True,       ← SP-A already extracted
+                            )
+                                        │
+                                        ▼
+                            pg-raggraph documents/chunks/
+                            entities/relationships
+                                        │
+                                        ▼
+                            rag.ask(q, memory_tier='consolidated')
+                                  ↳ O2 enforcement at read path
+```
+
+### Schema mapping
+
+The bridge reads the SP-A column set, which is CI-pinned on both sides — [`pg_raggraph.memory_bridge.SP_A_MEMORY_COLUMNS`](../../src/pg_raggraph/memory_bridge.py) and chunkshop's `test_pgraggraph_contract_columns_present`. A drift on either side fails CI on both sides.
+
+| SP-A column | pg-raggraph destination | Notes |
+|---|---|---|
+| `session_id` | `record["source_id"]` (`f"agent_memory:{session_id}"`) | One pg-raggraph document per session |
+| `tier` (`provisional`/`consolidated`) | `chunk.metadata.tier` | Drives `memory_tier` read-side filter (O2) |
+| `kind` (`episode`/`fact`) | `chunk.metadata.kind` | Both kinds become chunks; facts also become relationships |
+| `original_content` / `embedded_content` / `embedding` | `pre_chunked` entry | Pass-through; no re-embedding |
+| `metadata` (jsonb) | merged into `chunk.metadata` (SP-A promoted cols win on conflict) | |
+| `subject` / `predicate` / `object` (`kind='fact'`) | `relationships` entry (`src` / `rel_type` / `dst`) | Sparse triples are dropped from `relationships` but kept as chunks |
+| `support_span` (`kind='fact'`) | `relationships[*].description` + `chunk.metadata.support_span` | |
+| `confidence` (`kind='fact'`) | `relationships[*].weight` (float) + `chunk.metadata.confidence` | |
+| `effective_from` / `effective_to` / `retracted` / `retracted_at` | `chunk.metadata.*` (ISO strings) | See gap note below |
+| `extractor` / `namespace` / `recorded_at` | `chunk.metadata.*` | Provenance |
+
+### Worked example
+
+[`benchmarks/agent-memory-demo/ingest_chunkshop_sp_a.py`](../../benchmarks/agent-memory-demo/ingest_chunkshop_sp_a.py) is the runnable bridge — it reads `agent_memory.memory` via psycopg, transforms via `rows_to_records()`, and ingests:
+
+```bash
+# Pre-req: SP-A populates agent_memory.memory from your agent traces
+# (chunkshop configs/memory/{realtime,consolidate}.yaml).
+
+SP_A_DSN="postgresql://postgres:postgres@localhost:5434/pg_raggraph" \
+PGRG_DSN="postgresql://postgres:postgres@localhost:5434/pg_raggraph" \
+PGRG_NAMESPACE="agent_memory" \
+  uv run python benchmarks/agent-memory-demo/ingest_chunkshop_sp_a.py
+```
+
+At read time the `memory_tier` filter (config or per-call) enforces SP-A's O2 consolidated-wins:
+
+```python
+# Default config — both tiers, ranked naturally
+await rag.ask("what did the agent decide about postgres?")
+
+# Per-call override — only consolidated facts (multi-tenant safe;
+# same pattern as retracted_behavior, #1)
+await rag.ask("what did the agent decide?", memory_tier="consolidated")
+
+# Or set on the config for every call
+rag.config.memory_tier = "consolidated"
+```
+
+The filter only fires on chunks whose `metadata->>'tier'` is non-NULL, so a mixed corpus (non-memory documents + SP-A-bridged chunks in the same namespace) is safe — non-memory chunks always pass through.
+
+### Limitations and gaps (honest read)
+
+| Gap | Where it shows | When it matters |
+|---|---|---|
+| **No per-fact temporal columns on `relationships`** | SP-A's `effective_from` / `effective_to` / `retracted` are stashed in `chunk.metadata`, queryable via JSONB but they don't drive ranking. | When you want time-travel queries against the fact graph specifically. Document-level evolution (existing `evolution_tier` work) still applies. |
+| **Sparse SPO triples are dropped from `relationships`** | chunkshop's extractive-default consolidator may emit `support_span`-only fact rows with null subject/predicate/object. The bridge keeps these as chunks (so vector retrieval still works) but skips the graph edge. | When the consolidation cell is wired to a real LLM that always produces full triples, this is a no-op. |
+| **No fact-level retraction enforcement** | A `retracted=true` fact row still becomes a chunk and a relationship. The existing `retracted_behavior="hide"` config doesn't apply (that's document-level). | Filter out retracted fact rows in your SP-A SELECT (`WHERE NOT retracted`) until first-class fact retraction lands in pg-raggraph. |
+| **Read-side latency overhead** | The `memory_tier` filter adds `WHERE c.metadata->>'tier' IS NULL OR c.metadata->>'tier' = $1` per query. Negligible at <100K chunks; benchmark for larger corpora. | Most agent-memory deployments are well under this scale; flagged for completeness. |
+
+These are tracked as follow-ups; none block the Pattern M MVP shipping.
 
 **References:**
 - chunkshop SP-A design spec: [`docs/superpowers/specs/2026-05-19-chunkshop-memory-primitives-sp-a-design.md`](https://github.com/yonk-labs/chunkshop/blob/main/docs/superpowers/specs/2026-05-19-chunkshop-memory-primitives-sp-a-design.md)
 - chunkshop agent-memory section: [`docs/incremental.md#agent-memory-sp-a`](https://github.com/yonk-labs/chunkshop/blob/main/docs/incremental.md#agent-memory-sp-a)
+- pg-raggraph bridge module: [`src/pg_raggraph/memory_bridge.py`](../../src/pg_raggraph/memory_bridge.py)
 - Backend note: SP-A's `agent_memory.memory` is Postgres-only by spec — the [§Backend compatibility](#backend-compatibility-chunkshop-04-is-multi-engine) multi-engine matrix doesn't apply to Pattern M.
 
 ## Choosing a pattern
@@ -394,7 +483,7 @@ Until the bridge lands, the recommended path for SP-A consumers is:
 |---|---|
 | Better chunking, minimal install, no extra moving pieces | **Pattern D** ⭐ |
 | Better chunking + chunkshop's metadata extractors | Pattern C |
-| Bridge chunkshop's agent-memory layer (SP-A) into the graph | Pattern M (preview — [#4](https://github.com/yonk-labs/pg-raggraph/issues/4)) |
+| Bridge chunkshop's agent-memory layer (SP-A) into the graph | **Pattern M** |
 | Just-want-it-to-work | Default `chunk_strategy="auto"` (no chunkshop) |
 | Maximum reproducibility with chunkshop's own benchmarks | Pattern C with the same YAML chunkshop uses for its bake-offs |
 
