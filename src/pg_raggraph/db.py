@@ -581,6 +581,187 @@ class Database:
         except Exception as e:  # noqa: BLE001 — diagnostic only
             logger.debug("ANALYZE %s after metadata-generated-columns apply failed: %s", table, e)
 
+    async def apply_metadata_indexes_concurrently(self) -> list[dict[str, Any]]:
+        """Create the same set of metadata indexes as ``connect()`` does,
+        but using ``CREATE INDEX CONCURRENTLY`` so the operation doesn't
+        block writes.
+
+        This is the **production retrofit** path. The default ``connect()``
+        flow uses ``CREATE INDEX IF NOT EXISTS`` (non-concurrent, takes
+        an ``ACCESS EXCLUSIVE`` lock for the duration of the build).
+        That's fine for fresh deployments where the chunks/documents
+        tables are empty or tiny, but on a live table with millions of
+        rows the lock blocks all writes — often minutes.
+
+        Use this method instead from a **separate maintenance script**
+        (NOT during application startup). Typical flow:
+
+        1. Deploy a new config that adds keys to ``metadata_indexes`` /
+           ``document_metadata_indexes`` / etc. (but don't restart the
+           app yet, or the non-concurrent path will fire).
+        2. From a maintenance shell or one-off job, instantiate a
+           ``GraphRAG`` and call this method.
+        3. After it returns, restart the app — ``connect()``'s
+           ``CREATE INDEX IF NOT EXISTS`` finds the existing index and
+           the loop is a no-op.
+
+        Generated columns (``ALTER TABLE ... ADD COLUMN ... STORED``)
+        are NOT supported by this method — Postgres doesn't have a
+        concurrent ADD COLUMN variant. Add those via the connect-time
+        path during a maintenance window, or via a DBA-supervised
+        migration.
+
+        CONCURRENTLY caveats:
+
+        - Runs **outside** any transaction. We acquire a fresh
+          autocommit connection (not from the pool) per index because
+          the pool's connections may be inside transactions.
+        - A CONCURRENTLY index that fails leaves an INVALID index in
+          ``pg_index``. Operators should monitor for invalid indexes
+          and DROP + retry if needed.
+        - Slower than the non-concurrent variant (two table scans
+          instead of one) but doesn't block writes.
+
+        Returns a list of dicts (one per attempted index) with
+        ``{"ok": bool, "table": ..., "kind": ..., "key": ...,
+        "object_name": ..., "error": ...}``. Mirrors the shape of
+        ``rag.add_metadata_index()`` so callers can render results
+        uniformly.
+        """
+        results: list[dict[str, Any]] = []
+        # Walk the same six config slots that connect() applies, but
+        # only the ones that have a CONCURRENTLY equivalent.
+        for table_name, raw_keys in (
+            ("chunks", self.config.metadata_indexes),
+            ("documents", self.config.document_metadata_indexes),
+        ):
+            for raw_key in raw_keys:
+                results.append(await self._create_btree_concurrently(table_name, raw_key))
+
+        for table_name, want_gin in (
+            ("chunks", self.config.metadata_indexes_gin),
+            ("documents", self.config.document_metadata_indexes_gin),
+        ):
+            if want_gin:
+                results.append(await self._create_gin_concurrently(table_name))
+
+        # generated_columns: ADD COLUMN can't be CONCURRENTLY. Caller
+        # must use the connect()-time path or do it manually with DBA
+        # supervision. Report this in the results so the UI can show
+        # the operator what was skipped.
+        for table_name, gen_cols in (
+            ("chunks", self.config.metadata_generated_columns),
+            ("documents", self.config.document_metadata_generated_columns),
+        ):
+            for raw_key in gen_cols:
+                results.append(
+                    {
+                        "ok": False,
+                        "table": table_name,
+                        "kind": "generated",
+                        "key": raw_key,
+                        "error": (
+                            "Generated columns require ALTER TABLE ADD COLUMN "
+                            "which Postgres does not support CONCURRENTLY. "
+                            "Apply via connect() during a maintenance window."
+                        ),
+                    }
+                )
+        return results
+
+    async def _create_btree_concurrently(self, table: str, raw_key: str) -> dict[str, Any]:
+        try:
+            table = _validate_metadata_table(table)
+            key = _validate_metadata_index_key(raw_key)
+        except ValueError as e:
+            return {"ok": False, "table": table, "kind": "btree", "key": raw_key, "error": str(e)}
+        index_name = _metadata_index_name(key, table=table)
+        # CONCURRENTLY can't run in a transaction. Acquire an autocommit
+        # connection outside the pool's transactional context.
+        try:
+            async with await self._connection_autocommit() as conn:
+                stmt = sql.SQL(
+                    "CREATE INDEX CONCURRENTLY IF NOT EXISTS {idx} ON {tbl} ((metadata->>{key}))"
+                ).format(
+                    idx=sql.Identifier(index_name),
+                    tbl=sql.Identifier(table),
+                    key=sql.Literal(key),
+                )
+                await conn.execute(stmt)
+            logger.info(
+                "CONCURRENTLY created btree %s on %s.metadata->>%r",
+                index_name,
+                table,
+                key,
+            )
+            return {
+                "ok": True,
+                "table": table,
+                "kind": "btree",
+                "key": key,
+                "object_name": index_name,
+            }
+        except Exception as e:
+            logger.warning(
+                "CONCURRENTLY btree %s on %s.metadata->>%r failed: %s",
+                index_name,
+                table,
+                key,
+                e,
+            )
+            return {
+                "ok": False,
+                "table": table,
+                "kind": "btree",
+                "key": key,
+                "error": str(e),
+            }
+
+    async def _create_gin_concurrently(self, table: str) -> dict[str, Any]:
+        try:
+            table = _validate_metadata_table(table)
+        except ValueError as e:
+            return {"ok": False, "table": table, "kind": "gin", "key": None, "error": str(e)}
+        index_name = _metadata_gin_index_name(table)
+        try:
+            async with await self._connection_autocommit() as conn:
+                stmt = sql.SQL(
+                    "CREATE INDEX CONCURRENTLY IF NOT EXISTS {idx} ON {tbl} USING GIN (metadata)"
+                ).format(
+                    idx=sql.Identifier(index_name),
+                    tbl=sql.Identifier(table),
+                )
+                await conn.execute(stmt)
+            logger.info("CONCURRENTLY created GIN %s on %s.metadata", index_name, table)
+            return {
+                "ok": True,
+                "table": table,
+                "kind": "gin",
+                "key": None,
+                "object_name": index_name,
+            }
+        except Exception as e:
+            logger.warning("CONCURRENTLY GIN %s on %s.metadata failed: %s", index_name, table, e)
+            return {
+                "ok": False,
+                "table": table,
+                "kind": "gin",
+                "key": None,
+                "error": str(e),
+            }
+
+    async def _connection_autocommit(self):
+        """Fresh autocommit connection for CONCURRENTLY DDL.
+
+        Pool connections may be inside transactions; CONCURRENTLY DDL
+        needs to run outside any transaction. Open a one-off
+        connection with autocommit=True and let the caller's
+        ``async with`` close it.
+        """
+        from psycopg import AsyncConnection
+
+        return AsyncConnection.connect(self.config.dsn, autocommit=True)
+
     async def _apply_migrations(self, conn) -> None:
         """Apply numbered migration files from sql/migrations/.
 
