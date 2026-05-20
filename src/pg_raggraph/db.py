@@ -61,6 +61,59 @@ def _metadata_index_name(key: str) -> str:
     return f"idx_chunks_metadata_{key}"
 
 
+# Whitelist of SQL types allowed for generated-column scaffolding.
+# Limited to the common typed-metadata cases — numeric (int/bigint/numeric),
+# temporal (timestamptz), boolean, and text. Adding more types (e.g. uuid,
+# json) is straightforward; the constraint is intentional so users can't
+# trigger surprising casts (date vs timestamptz, real vs double precision).
+# Maps from the user-facing name to the canonical SQL keyword we emit.
+_ALLOWED_METADATA_GENERATED_TYPES = {
+    "text": "text",
+    "int": "integer",
+    "integer": "integer",
+    "bigint": "bigint",
+    "numeric": "numeric",
+    "timestamptz": "timestamptz",
+    "boolean": "boolean",
+    "bool": "boolean",
+}
+
+
+def _validate_metadata_generated_type(type_name: str) -> str:
+    """Whitelist-check + canonicalize a generated-column type name.
+
+    Same boundary-rejection pattern as ``_validate_metadata_index_key`` —
+    typos / unsupported types fail at connect() time, not at SQL parse.
+    """
+    if not isinstance(type_name, str):
+        raise ValueError(
+            f"metadata_generated_columns types must be strings, "
+            f"got {type(type_name).__name__}: {type_name!r}"
+        )
+    canon = _ALLOWED_METADATA_GENERATED_TYPES.get(type_name.lower())
+    if canon is None:
+        raise ValueError(
+            f"metadata_generated_columns type {type_name!r} is not supported. "
+            f"Allowed: {sorted(set(_ALLOWED_METADATA_GENERATED_TYPES))}"
+        )
+    return canon
+
+
+def _metadata_generated_column_name(key: str) -> str:
+    """Canonical generated-column name for a metadata key.
+
+    Lands under ``meta_<key>`` on ``chunks``. Distinct namespace from the
+    btree ``idx_chunks_metadata_`` prefix so a key can have BOTH a
+    generated column AND a btree index without name collision.
+    """
+    return f"meta_{key}"
+
+
+def _metadata_generated_index_name(key: str) -> str:
+    """Btree index name on the generated column."""
+    return f"idx_chunks_meta_{key}"
+
+
 # Whitelist of tables for safe SQL composition
 _ALLOWED_TABLES = frozenset(
     {
@@ -119,6 +172,8 @@ class Database:
                 await self._apply_metadata_indexes(conn)
             if self.config.metadata_indexes_gin:
                 await self._apply_metadata_gin_index(conn)
+            if self.config.metadata_generated_columns:
+                await self._apply_metadata_generated_columns(conn)
         if self.config.read_dsn:
             self._read_pool = AsyncConnectionPool(
                 self.config.read_dsn,
@@ -392,6 +447,84 @@ class Database:
                 index_name,
                 e,
             )
+
+    async def _apply_metadata_generated_columns(self, conn) -> None:
+        """Add STORED generated columns + btree indexes from JSONB metadata.
+
+        For each ``{key: type}`` in ``config.metadata_generated_columns``:
+
+        1. ``ALTER TABLE chunks ADD COLUMN IF NOT EXISTS meta_<key> <type>
+           GENERATED ALWAYS AS ((metadata->>'<key>')::<type>) STORED``
+        2. ``CREATE INDEX IF NOT EXISTS idx_chunks_meta_<key>
+           ON chunks(meta_<key>)``
+        3. ``ANALYZE chunks``
+
+        The STORED generated column means every existing AND future row
+        gets the typed value automatically — no application-side backfill
+        code. The cast is evaluated on insert/update; a row whose
+        ``metadata->>'<key>'`` doesn't parse as the chosen type fails the
+        write. Loud failure beats silent corruption.
+
+        **Idempotent on key + type match.** If the column already exists
+        with the configured type, ``ADD COLUMN IF NOT EXISTS`` is a no-op.
+        If it exists with a DIFFERENT type, the no-op leaves the old type —
+        operator must manually ``ALTER TABLE chunks DROP COLUMN meta_<key>``
+        before the new type takes effect (documented in the cookbook).
+
+        Same non-CONCURRENTLY caveat as the btree path — ``ADD COLUMN``
+        STORED rewrites every row on Postgres < 12 and locks the table on
+        all versions. For production retrofit, use the manual recipe
+        in ``docs/cookbook/metadata-indexes.md``.
+        """
+        for raw_key, raw_type in self.config.metadata_generated_columns.items():
+            key = _validate_metadata_index_key(raw_key)
+            sql_type = _validate_metadata_generated_type(raw_type)
+            col = _metadata_generated_column_name(key)
+            idx = _metadata_generated_index_name(key)
+            # We can't parameterize column names or types via bind params;
+            # both have been validated against whitelists. sql.Identifier
+            # escapes the identifier; sql.SQL embeds the type keyword
+            # (one of a fixed safe-string set), sql.Literal handles the
+            # JSONB key string.
+            add_col = sql.SQL(
+                "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS {col} {sqltype} "
+                "GENERATED ALWAYS AS ((metadata->>{key})::{sqltype}) STORED"
+            ).format(
+                col=sql.Identifier(col),
+                sqltype=sql.SQL(sql_type),
+                key=sql.Literal(key),
+            )
+            create_idx = sql.SQL("CREATE INDEX IF NOT EXISTS {idx} ON chunks({col})").format(
+                idx=sql.Identifier(idx),
+                col=sql.Identifier(col),
+            )
+            try:
+                await conn.execute(add_col)
+                await conn.execute(create_idx)
+                logger.info(
+                    "Ensured generated column %s (%s) + index %s",
+                    col,
+                    sql_type,
+                    idx,
+                )
+            except Exception as e:
+                # Same don't-crash pattern as other helpers. Most common
+                # cause: column already exists with a different type, or
+                # the cast rejected an existing row's metadata value.
+                logger.warning(
+                    "Failed to create generated column %s (%s) for key %r: %s. "
+                    "Retrieval still works on metadata->>%r; range queries "
+                    "fall back to lexical comparison until resolved.",
+                    col,
+                    sql_type,
+                    key,
+                    e,
+                    key,
+                )
+        try:
+            await conn.execute("ANALYZE chunks")
+        except Exception as e:  # noqa: BLE001 — diagnostic only
+            logger.debug("ANALYZE chunks after metadata-generated-columns apply failed: %s", e)
 
     async def _apply_migrations(self, conn) -> None:
         """Apply numbered migration files from sql/migrations/.

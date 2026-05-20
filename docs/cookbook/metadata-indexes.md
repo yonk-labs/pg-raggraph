@@ -82,6 +82,64 @@ Execution Time: 53.2 ms
 3. **Add a partial index** for the most selective values: `CREATE INDEX ... WHERE metadata->>'tier' = 'consolidated'`.
 4. **Bigger hammer**: split the metadata key into a generated column. Index a real column, not a JSONB expression. Pg-raggraph doesn't auto-do this; design call per column.
 
+## Realistic-shape bench update (2026-05-20)
+
+The headline "1250×" number above is from a **degenerate** bench (1 document × 100K chunks). For a more realistic GraphRAG shape (10K documents × 10 chunks each, same 0.1% predicate selectivity):
+
+| Setup | p50 | Plan |
+|---|---|---|
+| No metadata index | **1.29 ms** | HNSW (`idx_chunk_embed`) + post-filter |
+| With `metadata_indexes=["selective_tag"]` | **0.10 ms** | Index Scan on `idx_chunks_metadata_selective_tag` |
+
+**Two findings:**
+
+1. **The baseline is dramatically faster in realistic shape** (1.29 ms vs 77 ms in the degenerate case) because the planner picks HNSW + post-filter when no single document dominates the namespace. The pre_filter SQL shape itself helps here, even without a metadata index — the CTE materialization gives the planner room to choose HNSW.
+2. **The metadata index still helps** — 12-13× faster than the no-index baseline. Real workloads see both wins.
+
+The earlier "modest 30% gain" from the degenerate bench was a worst case; realistic data shapes get the bigger speedup AND a faster baseline.
+
+## Typed generated columns (numeric / timestamp / boolean predicates)
+
+The btree indexes above only help equality on text-extracted JSONB. Range and order queries on numeric or timestamp metadata require **typed** columns. pg-raggraph exposes this as a third opt-in:
+
+```python
+rag = GraphRAG(
+    dsn=...,
+    metadata_generated_columns={
+        "priority": "int",
+        "created_at": "timestamptz",
+        "is_premium": "boolean",
+    },
+)
+await rag.connect()
+```
+
+Per entry, connect() issues:
+
+```sql
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS meta_priority integer
+    GENERATED ALWAYS AS ((metadata->>'priority')::integer) STORED;
+CREATE INDEX IF NOT EXISTS idx_chunks_meta_priority ON chunks(meta_priority);
+```
+
+After that, query against `meta_priority` instead of `metadata->>'priority'`:
+
+```sql
+-- Wrong (lexical): '10' < '5'
+SELECT * FROM chunks WHERE (metadata->>'priority')::int > 5;  -- works but no index
+
+-- Right (typed + indexed):
+SELECT * FROM chunks WHERE meta_priority > 5;  -- uses idx_chunks_meta_priority
+```
+
+**Allowed types:** `text`, `int` / `integer`, `bigint`, `numeric`, `timestamptz`, `boolean` / `bool`. Anything outside that set rejects at `connect()` with `ValueError` — no surprise casts.
+
+**Cast failure on existing rows.** STORED generated columns compute the cast on every INSERT/UPDATE. If you add `"priority": "int"` and an existing row has `metadata.priority = "high"`, the ALTER fails. The library logs WARNING and moves on — operator must clean the data, then reconnect.
+
+**Type changes require manual DROP.** `ADD COLUMN IF NOT EXISTS` skips when the column already exists — even if the existing column has a different type. To change `priority` from `int` to `bigint`, run `ALTER TABLE chunks DROP COLUMN meta_priority;` manually first, then update the config.
+
+**Index naming.** The generated column is `meta_<key>` (distinct namespace from `chunks.metadata`). The index is `idx_chunks_meta_<key>`. A key can have BOTH `metadata_indexes=["priority"]` AND `metadata_generated_columns={"priority": "int"}` — they don't collide and serve different predicate shapes (text equality vs numeric range).
+
 ## Production retrofit guide
 
 The DDL is **non-CONCURRENTLY** by design — it runs inside the same flow as schema bootstrap and grabs an `ACCESS EXCLUSIVE` lock for the duration. For fresh deployments the chunks table is empty and the lock is invisible. For retrofitting an existing production database with millions of rows, do this manually first, BEFORE adding the key to `metadata_indexes`:
