@@ -63,6 +63,17 @@ The narrow-predicate row in the bench above is **misleading on its own** — vec
 
 vector_first fetches `top_k × oversample_factor` (default 10 × 10 = 100) nearest-by-vector candidates BEFORE applying the post-filter. If your predicate matches only 0.1% of chunks (the Star Wars case), the top-100 nearest-by-vector candidates might contain **zero matching rows**, and the query returns < `top_k` results — or no results at all.
 
+> **Runtime guard.** When `vector_first` returns fewer rows than requested after post-filter, pg-raggraph logs a structured WARNING on `pg_raggraph.retrieval`:
+>
+> ```
+> vector_first recall shortfall: returned 3 rows, requested 10.
+> HNSW seeded 100 candidates (top_k=10 × oversample=10); post-filter dropped to 3.
+> Bump config.retrieval_oversample_factor or switch to
+> retrieval_strategy='pre_filter' for this call shape.
+> ```
+>
+> Configure log shipping to alert on this — it's the only signal that vector_first is silently degrading recall for a particular query shape.
+
 Mitigations, in increasing order of severity:
 
 1. **Bump `retrieval_oversample_factor`** to 50 or 100 for known-selective predicates. Latency stays acceptable (HNSW is logarithmic in the limit) and recall improves.

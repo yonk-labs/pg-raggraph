@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime
 from typing import Literal
@@ -18,9 +19,42 @@ from pg_raggraph.evolution import (
 )
 from pg_raggraph.models import ChunkResult, EntityResult, QueryResult, RelationshipResult
 
+logger = logging.getLogger("pg_raggraph.retrieval")
+
 QueryMode = Literal["local", "global", "hybrid", "naive", "naive_boost", "smart"]
 
 _RETRIEVAL_STRATEGY_VALUES = ("weighted", "pre_filter", "vector_first")
+
+
+def _warn_vector_first_recall_shortfall(
+    rows_returned: int,
+    top_k: int,
+    oversample_k: int,
+    oversample_factor: int,
+) -> None:
+    """Emit a structured log warning when vector_first post-filter trims
+    below ``top_k``.
+
+    Extracted from ``query()`` so the predicate (rows_returned < top_k) is
+    unit-testable in isolation. Fires only when called from the vector_first
+    branch; caller controls the gating.
+
+    Mitigation guidance lives in
+    ``docs/cookbook/retrieval-strategy.md#recall-caveat-for-vector_first``.
+    """
+    logger.warning(
+        "vector_first recall shortfall: returned %d rows, requested %d. "
+        "HNSW seeded %d candidates (top_k=%d × oversample=%d); post-filter "
+        "dropped to %d. Bump config.retrieval_oversample_factor or switch to "
+        "retrieval_strategy='pre_filter' for this call shape. "
+        "See docs/cookbook/retrieval-strategy.md#recall-caveat-for-vector_first.",
+        rows_returned,
+        top_k,
+        oversample_k,
+        top_k,
+        oversample_factor,
+        rows_returned,
+    )
 
 
 def _effective_retrieval_strategy(cfg: PGRGConfig, override: str | None) -> str:
@@ -623,6 +657,7 @@ async def query(
             )
             # vector_first needs an extra bind param for its oversample CTE.
             params["vector_first_k"] = effective_top_k * config.retrieval_oversample_factor
+            _vector_first_oversample_k = params["vector_first_k"]
         elif config.two_stage_retrieval:
             sql, extra = _build_naive_query_twostage(
                 config,
@@ -642,6 +677,15 @@ async def query(
                 memory_tier,
             )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
+        # Recall guard for vector_first — when post-filter trims below top_k,
+        # the oversample wasn't aggressive enough for the predicate selectivity.
+        if effective_strategy == "vector_first" and len(rows) < effective_top_k:
+            _warn_vector_first_recall_shortfall(
+                rows_returned=len(rows),
+                top_k=effective_top_k,
+                oversample_k=_vector_first_oversample_k,
+                oversample_factor=config.retrieval_oversample_factor,
+            )
     elif mode == "local":
         sql, extra = _build_local_query(
             config,
