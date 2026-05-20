@@ -108,6 +108,82 @@ def test_metadata_indexes_gin_accepts_bool() -> None:
     assert PGRGConfig(metadata_indexes_gin=False).metadata_indexes_gin is False
 
 
+# --- metadata_generated_columns type validation ---
+
+
+@pytest.mark.parametrize(
+    "raw,canonical",
+    [
+        ("text", "text"),
+        ("int", "integer"),
+        ("integer", "integer"),
+        ("INT", "integer"),  # case-insensitive
+        ("bigint", "bigint"),
+        ("numeric", "numeric"),
+        ("timestamptz", "timestamptz"),
+        ("boolean", "boolean"),
+        ("bool", "boolean"),
+        ("BOOL", "boolean"),
+    ],
+)
+def test_valid_generated_types_canonicalize(raw: str, canonical: str) -> None:
+    from pg_raggraph.db import _validate_metadata_generated_type
+
+    assert _validate_metadata_generated_type(raw) == canonical
+
+
+@pytest.mark.parametrize(
+    "raw,why",
+    [
+        ("uuid", "not in whitelist"),
+        ("json", "use real JSONB column, not generated"),
+        ("date", "use timestamptz"),
+        ("real", "use numeric"),
+        ("double precision", "use numeric"),
+        ("smallint", "use int"),
+        ("integer; DROP TABLE chunks", "injection canary"),
+        ("", "empty"),
+        ("INT4", "Postgres internal alias not in whitelist"),
+    ],
+)
+def test_invalid_generated_types_rejected(raw: str, why: str) -> None:
+    from pg_raggraph.db import _validate_metadata_generated_type
+
+    with pytest.raises(ValueError, match="not supported"):
+        _validate_metadata_generated_type(raw)
+
+
+def test_non_string_generated_type_rejected() -> None:
+    from pg_raggraph.db import _validate_metadata_generated_type
+
+    with pytest.raises(ValueError, match="must be strings"):
+        _validate_metadata_generated_type(123)  # type: ignore[arg-type]
+
+
+def test_generated_column_name_uses_meta_prefix() -> None:
+    """Discoverable: SELECT meta_priority FROM chunks. Distinct from the
+    btree index prefix idx_chunks_metadata_ so a key can have BOTH a
+    generated column AND a btree index."""
+    from pg_raggraph.db import _metadata_generated_column_name, _metadata_generated_index_name
+
+    assert _metadata_generated_column_name("priority") == "meta_priority"
+    assert _metadata_generated_index_name("priority") == "idx_chunks_meta_priority"
+
+
+def test_metadata_generated_columns_default_empty() -> None:
+    """Opt-in: no schema change for callers who don't set the config."""
+    from pg_raggraph.config import PGRGConfig
+
+    assert PGRGConfig().metadata_generated_columns == {}
+
+
+def test_metadata_generated_columns_accepts_dict() -> None:
+    from pg_raggraph.config import PGRGConfig
+
+    cfg = PGRGConfig(metadata_generated_columns={"priority": "int", "created_at": "timestamptz"})
+    assert cfg.metadata_generated_columns == {"priority": "int", "created_at": "timestamptz"}
+
+
 def test_index_name_fits_postgres_identifier_limit() -> None:
     """Postgres truncates identifiers > 63 bytes silently — generated names
     must stay safely under that. ``idx_chunks_metadata_`` is 20 chars + key

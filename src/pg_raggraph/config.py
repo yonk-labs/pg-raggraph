@@ -308,6 +308,27 @@ class PGRGConfig(BaseSettings):
     # in docs/cookbook/metadata-indexes.md first.
     metadata_indexes_gin: bool = False
 
+    # Typed generated columns from JSONB metadata. Map of metadata key →
+    # SQL type. For each entry, connect() creates a STORED generated
+    # column ``meta_<key>`` of the given type, populated from
+    # ``(metadata->>'<key>')::<type>``, AND a btree index on it. This is
+    # the right answer for numeric / timestamp predicates that don't
+    # work correctly via ``metadata->>`` alone (text comparison says
+    # ``'10' < '5'``).
+    #
+    # Allowed types: text, int, bigint, numeric, timestamptz, boolean.
+    # The cast is evaluated on every INSERT/UPDATE — a row whose
+    # metadata->>'<key>' doesn't parse as the chosen type fails the
+    # write. Loud failure beats silent corruption.
+    #
+    # Idempotent across reconnects (uses ALTER TABLE ... ADD COLUMN
+    # IF NOT EXISTS). Type changes are not supported via this knob —
+    # operator must manually DROP + re-ADD. See
+    # docs/cookbook/metadata-indexes.md → "Typed generated columns".
+    #
+    # Example: ``{"priority": "int", "created_at": "timestamptz"}``
+    metadata_generated_columns: dict[str, str] = {}
+
     # Cross-encoder reranking (off by default; opt-in per-query via rerank=True).
     # When enabled, retrieval fetches top_k * rerank_factor candidates, then a
     # cross-encoder scores each (question, chunk) pair and trims to top_k.
