@@ -16,13 +16,15 @@ Thanks for considering a contribution. This is a small, focused library and we w
 - New behavior has a test. New config knobs are documented in `docs/user-guide.md` and the `README.md` config table.
 - Benchmark numbers in the PR description cite a raw result file, not a summary paragraph.
 
-> **Pre-commit hook (recommended).** This repo ships a `.pre-commit-config.yaml` that runs both ruff invocations on every `git commit`. Install once:
+> **Pre-commit hook (recommended).** This repo ships a `.pre-commit-config.yaml` that runs lint + unit tests on every `git commit`, and the full test suite on `git push` (opt-in). Install once:
 >
 > ```bash
-> uv tool install pre-commit && pre-commit install
+> uv tool install pre-commit
+> pre-commit install                              # commit-stage: ruff + unit tests
+> pre-commit install --hook-type pre-push         # push-stage: + integration tests (requires DB)
 > ```
 >
-> After that, `git commit` blocks if either ruff check fails — matching CI's lint job exactly. Saves the round-trip of "merged with red CI, push a follow-up fix."
+> Commit-stage hooks: `ruff check`, `ruff format --check`, `pytest tests/unit/` (under 1 s). Push-stage adds the integration tests, which need Postgres running (`docker compose up -d`). Catches the "merged with red CI" failure mode that hit PR #11→#12→#13 — and now also the "tests broke but I didn't run them" mode.
 
 ## Local development setup
 
@@ -34,9 +36,10 @@ cd pg-raggraph
 # 2. Install dependencies (Python 3.12+ required)
 uv sync --all-extras
 
-# 2a. (Recommended) install the pre-commit hook
+# 2a. (Recommended) install the pre-commit hooks
 uv tool install pre-commit
-pre-commit install
+pre-commit install                          # ruff + unit tests on git commit
+pre-commit install --hook-type pre-push     # + integration tests on git push (needs DB)
 
 # 3. Start PostgreSQL with pgvector + pg_trgm
 docker compose up -d
