@@ -462,6 +462,72 @@ When NOT to use: 1.0 — equivalent to deleting old knowledge.
 
 ---
 
+## Retrieval — strategy and metadata indexes
+
+These knobs control the SQL shape of vector + metadata queries and the indexes that make selective predicates cheap. All have safe defaults — opt in only when you have caller-supplied metadata you want to filter on.
+
+### `retrieval_strategy` (`"weighted" | "pre_filter" | "vector_first"`, default: `weighted`)
+Env var: `PGRG_RETRIEVAL_STRATEGY`
+
+What: SQL shape for combining vector similarity with metadata predicates. `weighted` joins documents/chunks then ranks (today's default; works on every plan). `pre_filter` filters documents BEFORE the vector seek — fastest when the predicate is selective AND indexed. `vector_first` runs HNSW first, then post-filters — best for single-namespace HNSW-eligible corpora where the planner picks the index.
+
+Per-call override: `rag.query(..., retrieval_strategy="pre_filter")` (multi-tenant safe; no config mutation).
+
+Pros: lets you match the SQL shape to your data shape. `pre_filter` is dramatic on selective metadata predicates with indexes.
+Cons: `vector_first` can recall-shortfall under selective predicates — bump `retrieval_oversample_factor` or switch to `pre_filter`.
+When to use: `pre_filter` for sales-CRM / per-tenant / per-version corpora. `vector_first` for single-namespace, broad-predicate. `weighted` when in doubt.
+See: [`docs/cookbook/retrieval-strategy.md`](cookbook/retrieval-strategy.md).
+
+### `retrieval_oversample_factor` (int, default: `10`)
+Env var: `PGRG_RETRIEVAL_OVERSAMPLE_FACTOR`
+
+What: for `vector_first`, how many candidates to fetch from HNSW before applying the post-filter. Effective seed size = `top_k × retrieval_oversample_factor`.
+Pros: higher = better recall under selective predicates.
+Cons: higher = slower vector seek.
+When to use: tune up when you observe `pgrg.vector_first.recall_shortfall` events in the metrics logger.
+
+### `metadata_indexes` (list[str], default: `[]`)
+Env var: `PGRG_METADATA_INDEXES` (comma-separated)
+
+What: per-key btree indexes on `chunks.metadata->>'<key>'`. For each key in the list, `connect()` runs `CREATE INDEX IF NOT EXISTS idx_chunks_metadata_<key>`.
+Pros: makes selective equality predicates on chunk metadata cheap; pairs with `retrieval_strategy="pre_filter"`.
+Cons: non-CONCURRENTLY `CREATE INDEX` takes an `ACCESS EXCLUSIVE` lock during initial build — fine on fresh deploys, brutal on a live multi-million-row table. For retrofits, use the `apply_metadata_indexes_concurrently()` runtime API instead, then add the key here so `connect()` finds the existing index.
+Key whitelist: `^[a-zA-Z_][a-zA-Z0-9_]*$`, ≤63 chars.
+
+### `metadata_indexes_gin` (bool, default: `False`)
+Env var: `PGRG_METADATA_INDEXES_GIN`
+
+What: GIN index over the whole `chunks.metadata` JSONB column. Use when you have JSONB containment predicates (`metadata @> '{"tag":"x"}'`), key-existence (`metadata ? 'k'`), or multi-key matches (`metadata ?| ARRAY[...]`) — none of which the per-key btrees can serve.
+Pros: covers the long tail of ad-hoc JSONB predicates.
+Cons: ~2–4× the bytes per indexed row vs btree; slower writes.
+When to use: alongside `metadata_indexes` — btree for hot equality keys, GIN for the long tail.
+
+### `metadata_generated_columns` (dict[str, str], default: `{}`)
+Env var: not env-configurable (dict).
+
+What: STORED generated columns + btree indexes derived from `chunks.metadata`. Map of metadata key → SQL type. For each entry, `connect()` creates `meta_<key>` of the given type (cast from `metadata->>'<key>'`) and a btree on it. Allowed types: `text`, `int`, `bigint`, `numeric`, `timestamptz`, `boolean`.
+Pros: the only correct way to index numeric / timestamp predicates from JSONB — text comparison says `'10' < '5'`.
+Cons: the cast runs on every write; a row whose `metadata->>'<key>'` doesn't parse fails the write. Loud failure beats silent corruption.
+Example: `{"priority": "int", "created_at": "timestamptz"}`.
+
+### `document_metadata_indexes` (list[str], default: `[]`)
+Env var: `PGRG_DOCUMENT_METADATA_INDEXES` (comma-separated)
+
+What: per-key btree indexes on `documents.metadata->>'<key>'`. The chunks-side mirror (above) targets chunker-written fields; this targets caller-supplied per-record fields (salesperson, product, customer_id, etc.) that land on `documents.metadata` via `ingest_records()`. For the common GraphRAG-from-DB pattern (sales notes, support tickets, anything pulled from a PG table), the USEFUL indexes are on `documents.metadata`, not `chunks.metadata`.
+See: [`docs/cookbook/metadata-indexes.md`](cookbook/metadata-indexes.md) → "Why two tables matter".
+
+### `document_metadata_indexes_gin` (bool, default: `False`)
+Env var: `PGRG_DOCUMENT_METADATA_INDEXES_GIN`
+
+What: GIN index over `documents.metadata` JSONB. Same shape and trade-offs as `metadata_indexes_gin` but for the documents side.
+
+### `document_metadata_generated_columns` (dict[str, str], default: `{}`)
+Env var: not env-configurable.
+
+What: STORED generated columns + btree indexes on `documents` (column: `meta_<key>`; index: `idx_documents_meta_<key>`). Same allowed types and trade-offs as the chunks-side `metadata_generated_columns`.
+
+---
+
 ## Evolution / Tier 1 (versioning + retraction)
 
 ### `evolution_tier` (`"off" | "structural" | "fact_aware" | "full"`, default: `off`)
@@ -490,6 +556,18 @@ Pros: tune how aggressively old knowledge is suppressed.
 Cons: `hide` makes "what changed?" queries hard.
 When to use: `prefer_new` for general user-facing search; `hide` for "current docs only" requirements.
 When NOT to use: `hide` when historical context matters (e.g., "what was the API in v1.2?").
+
+### `memory_tier` (`"provisional" | "consolidated" | "both"`, default: `both`)
+Env var: `PGRG_MEMORY_TIER`
+
+What: read-side filter for chunkshop SP-A agent-memory tier (Pattern M cookbook). When chunks carry a `tier` key in their JSONB metadata (bridged from `chunkshop.agent_memory.memory`), this restricts retrieval to chunks with the matching tier(s). Default `both` applies no filter — non-memory corpora and pre-SP-A chunks are unaffected.
+
+Per-call override: `rag.query(..., memory_tier="consolidated")`.
+
+Pros: enforces SP-A's "consolidated-wins" O2 rule at read time without mutating ingest.
+Cons: filter is predicate-based; highly selective predicates may benefit from a dedicated namespace per tenant instead.
+When to use: any agent-memory deployment via the SP-A bridge.
+See: [`docs/cookbook/chunkshop-integration.md#pattern-m-agent-memory`](cookbook/chunkshop-integration.md#pattern-m-agent-memory).
 
 ### `contradiction_detection` (bool, default: `True`)
 Env var: `PGRG_CONTRADICTION_DETECTION`

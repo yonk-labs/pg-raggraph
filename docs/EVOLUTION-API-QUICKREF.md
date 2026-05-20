@@ -28,6 +28,15 @@ UNIQUE on `documents`, so re-runs are idempotent.
 filtering. Same applies to `effective_from`, `effective_to`, and
 `retracted` — all are dedicated columns, not JSONB.
 
+**As of migration 006 (2026-05-20)** the same four temporal fields
+(`effective_from`, `effective_to`, `retracted`, `retracted_at`) also
+exist as dedicated columns on `relationships`, so per-fact temporal
+info gets a typed home, not just a JSONB stash. The chunkshop SP-A
+bridge populates them automatically for `kind='fact'` rows; manual
+`known_relationships` dicts can opt in by passing the same keys. See
+[`docs/cookbook/chunkshop-integration.md`](cookbook/chunkshop-integration.md)
+→ Pattern M.
+
 The ingest API still accepts them via the `metadata` dict — pgrg
 *promotes* them to columns at upsert time. The asymmetry is intentional
 (metadata is a generous-input contract; the schema is strict) but

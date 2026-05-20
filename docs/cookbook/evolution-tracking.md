@@ -49,6 +49,15 @@ Supported keys: `effective_from`, `effective_to`, `retracted`,
 `retracted_at`, `retraction_reason`, `version_label`,
 `supersedes_document_id`.
 
+These four temporal keys (`effective_from`, `effective_to`,
+`retracted`, `retracted_at`) ALSO exist on the `relationships` row
+as of migration 006. Manual `known_relationships` dicts and the
+chunkshop SP-A bridge can populate them per-fact; the columns are
+queryable today (ranking integration is a Tier 3 follow-up). See
+[`per-call-kwargs.md`](per-call-kwargs.md) for the per-call read
+overrides and [`chunkshop-integration.md`](chunkshop-integration.md)
+→ Pattern M for the bridge.
+
 ## 3. Query
 
 Retrieval automatically respects your tier config:
@@ -127,6 +136,13 @@ Upgrading from `0.2.x` applies `002_evolution_tracking.sql` automatically
 on first `rag.connect()`. Three new tables (`facts`, `fact_edges`,
 `document_versions`) are created but empty at Tier 1. Four new columns are
 added to `documents`, all nullable. No existing data migrates.
+
+Migration 006 (2026-05-20) adds the same four temporal columns
+(`effective_from`, `effective_to`, `retracted`, `retracted_at`) to
+`relationships`, plus two partial indexes (`idx_relationships_retracted`,
+`idx_relationships_effective`). All nullable; existing relationships
+keep NULL across the board and behave identically to pre-006. Applied
+automatically on `rag.connect()` along with the other migrations.
 
 ## What's not in Tier 1
 

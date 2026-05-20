@@ -424,6 +424,17 @@ your config untouched. Unknown weight names raise `ValueError`.
 | `prefer_new` | n/a | Score penalty (additive bonus to non-superseded docs) |
 | `surface_both` (default for supersession) | Return both | Return both |
 
+Both `retracted_behavior` and `supersession_behavior` are also per-call kwargs on `query()` / `ask()` for multi-tenant servers that need a different policy per request. See [`docs/cookbook/per-call-kwargs.md`](cookbook/per-call-kwargs.md) for the full list (also includes `memory_tier`, `retrieval_strategy`, `as_of`, `version_filter`, `evolution_aware`).
+
+### Per-fact temporal columns on `relationships` (migration 006)
+
+The same four temporal fields (`effective_from`, `effective_to`, `retracted`, `retracted_at`) that exist on `documents` ALSO exist as typed columns on the `relationships` table as of migration 006 (2026-05-20). `RelationshipResult` surfaces them on the read side. Populated by:
+
+- The chunkshop SP-A bridge automatically for `kind='fact'` rows (see [`docs/cookbook/chunkshop-integration.md`](cookbook/chunkshop-integration.md) → Pattern M).
+- Manual `known_relationships` dicts in `ingest_records()` — pass the same four optional keys.
+
+Columns are queryable today. Default scoring does not yet consume them (Tier 3 follow-up).
+
 ### What's NOT in Tier 1
 
 - Fact-level extraction into the `facts` table (Tier 2 — still a follow-up). NOTE: `fact_extractor="lede_spacy"` is implemented and builds a deterministic LLM-free graph (NER entities + co-occurrence `RELATED_TO` edges, no LLM/network); it does **not** populate the `facts` table yet. Requires `pip install 'pg-raggraph[lede_spacy]'` + `python -m spacy download en_core_web_sm`.
@@ -506,7 +517,21 @@ Heading-prefixed chunker ported from the AGE bake-off. Each section body is pref
 export PGRG_MAX_HOPS=2                # Graph traversal depth
 export PGRG_TOP_K=10                  # Results per query
 export PGRG_SIMILARITY_THRESHOLD=0.3  # Minimum similarity score
+export PGRG_RETRIEVAL_STRATEGY=weighted        # weighted | pre_filter | vector_first
+export PGRG_RETRIEVAL_OVERSAMPLE_FACTOR=10     # vector_first candidate sizing
 ```
+
+`retrieval_strategy` controls the SQL shape of vector + metadata queries. The default `weighted` works everywhere; `pre_filter` is fastest when you have selective indexed predicates; `vector_first` is fastest for broad/no-predicate queries on single-namespace HNSW-eligible corpora. See [`docs/cookbook/retrieval-strategy.md`](cookbook/retrieval-strategy.md). Also available as a per-call kwarg.
+
+### Metadata indexes (JSONB)
+```bash
+export PGRG_METADATA_INDEXES=tag,priority           # btree per-key on chunks.metadata
+export PGRG_METADATA_INDEXES_GIN=true               # GIN on full chunks.metadata
+export PGRG_DOCUMENT_METADATA_INDEXES=salesperson,product   # btree per-key on documents.metadata
+export PGRG_DOCUMENT_METADATA_INDEXES_GIN=true              # GIN on full documents.metadata
+```
+
+Three index kinds (btree per-key / GIN whole-JSONB / typed generated columns) × two tables (`chunks` / `documents`). Auto-created at `connect()` time, idempotent. For production retrofit against live tables, use `rag.apply_metadata_indexes_concurrently()` instead (runs `CREATE INDEX CONCURRENTLY`). The full picture (including the runtime `recommend_metadata_indexes()` / `add_metadata_index()` / `list_metadata_indexes()` API and the chunks-vs-documents two-table model) is in [`docs/cookbook/metadata-indexes.md`](cookbook/metadata-indexes.md).
 
 ### Entity Resolution
 ```bash

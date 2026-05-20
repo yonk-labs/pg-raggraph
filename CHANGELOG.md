@@ -99,9 +99,36 @@ Read-side bridge from chunkshop's `agent_memory.memory` table into pg-raggraph's
 - `docs/cookbook/chunkshop-integration.md` — Pattern M (SP-A bridge), `chunkshop>=0.4.3` migration, multi-engine backend compatibility
 - `docs/EVOLUTION-API-QUICKREF.md` — per-call kwargs (retracted_behavior, supersession_behavior) marked as recommended pattern; config form documented as fallback
 
+### Added — per-fact temporal columns on `relationships` (migration 006, PR #35)
+
+The last gap in the Pattern M honest-read closes here. Migration 006 adds `effective_from`, `effective_to`, `retracted`, `retracted_at` as typed columns on the `relationships` table (mirror of the document-level columns from migration 002, applied at fact granularity).
+
+- **Schema:** `ALTER TABLE relationships ADD COLUMN ...` — all four columns nullable; default `retracted = FALSE`. Existing rows behave identically to pre-006.
+- **Bridge:** `memory_bridge._fact_row_to_relationship()` promotes SP-A row temporals onto the relationship dict.
+- **Manual ingest:** `known_relationships` dicts accept the same four optional keys.
+- **Read surface:** `RelationshipResult` gains `effective_from`, `effective_to`, `retracted`, `retracted_at` (all optional).
+- **Indexes:** partial `idx_relationships_retracted` (`WHERE retracted = TRUE`) and `idx_relationships_effective` (`(effective_from, effective_to) WHERE effective_from IS NOT NULL`) — narrow footprint, cheap as_of and retraction scans.
+
+Out of scope (deferred to Tier 3): consuming these columns in evolution scoring weights. Columns exist and survive round-trip; ranking integration is a separate work item.
+
+### Added — concurrent metadata-index helper (PR #32)
+
+`rag.apply_metadata_indexes_concurrently()` — runtime API for production retrofit. Iterates `metadata_indexes`, `metadata_indexes_gin`, `metadata_generated_columns` (and document-side mirrors), running `CREATE INDEX CONCURRENTLY` from a fresh autocommit connection. Idempotent (`IF NOT EXISTS`). Returns a list of result dicts for UI surfaces.
+
+See `docs/cookbook/metadata-indexes.md` → Production retrofit guide.
+
+### Added — Pattern M LLM-wired consolidator demo + real-data validation (PR #34)
+
+`benchmarks/agent-memory-demo/llm_consolidator_demo.py` — deterministic regex-pattern consolidator that emits typed SPO triples (commented OpenAI reference implementation alongside). Validates that the bridge handles non-sparse triples end-to-end → 2 graph edges from 2 typed-SPO facts. Updated cookbook validation block.
+
+### Notes — operability (additions)
+
+- **Pytest pre-commit hook** (PR #30) — opt-in `pytest tests/unit/` on commit, full suite on push (`--hook-stage push`). Documented in CONTRIBUTING.md.
+
 ### Tracked follow-ups
 
 - **#24** — Explore: ingest-time denormalization of `document.metadata` onto `chunks.metadata`. P3, revisit when there's workload data showing the two-table mental model causes friction.
+- **Tier 3 ranking integration for per-fact temporals** — `relationships.retracted` / `effective_from` / `effective_to` exist as columns but the default scorer doesn't yet demote retracted edges or filter the temporal window. Open scoring work.
 
 ## 0.3.0a3 — 2026-05-17 (consumer surface)
 
