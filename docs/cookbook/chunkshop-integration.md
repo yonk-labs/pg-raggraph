@@ -22,6 +22,20 @@ The downsides are honest:
 - **Two tools to learn** if you go full Pattern C — chunkshop's YAML format on top of pg-raggraph's API.
 - **The built-in chunker is genuinely fine** for many corpora. If you don't have a clear reason to switch, don't.
 
+## Backend compatibility (chunkshop 0.4 is multi-engine)
+
+chunkshop 0.4 added modular backends. As of `chunkshop>=0.4.3` it supports **four sink backends** — Postgres + pgvector, MariaDB 11.7+, SQLite + sqlite-vec, and ClickHouse 24.10+ — plus nine sources (`files`, `json_corpus`, `http`, `s3`, `inline`, `pg_table`, `mariadb_table`, `sqlite_table`, `clickhouse_table`). The full matrix is pinned in chunkshop CI.
+
+pg-raggraph is **PostgreSQL-only by design** (pgvector + adjacency tables + recursive CTEs). That constrains where each integration pattern can land chunkshop's output:
+
+| Pattern | Backend constraint |
+|---|---|
+| **Pattern D** (chunker-only via `chunk_strategy="chunkshop:*"`) | Backend-agnostic. chunkshop's chunker runs in-process; no sink is involved. Pick any chunkshop sink for your *other* consumers — it doesn't affect this pattern. |
+| **Pattern C** (full chunkshop pipeline + bridge) | chunkshop's sink **must be Postgres + pgvector** in the same database pg-raggraph reads from. The bridge connects via psycopg. chunkshop can fan out to MariaDB/SQLite/ClickHouse for other consumers *in parallel*, but the bridge into pg-raggraph requires the PG sink. |
+| **Pattern M** (agent memory, SP-A — [#4](https://github.com/yonk-labs/pg-raggraph/issues/4)) | Postgres-only. SP-A's `agent_memory.memory` table is defined in PG per spec; no multi-engine variants. |
+
+If you're running chunkshop bake-offs across all four backends (Python supports this; Rust bakeoff is PG-only today), only the PG cell can feed pg-raggraph. Bake-off comparisons across backends are still useful — they tell you whether to use pg-raggraph at all, or whether a non-graph SQLite/MariaDB consumer fits your use case better.
+
 ## Pattern D — chunker-only via `chunk_strategy="chunkshop:*"`
 
 The 1-line integration. Pg-raggraph still owns ingest end-to-end; chunkshop just chunks.
@@ -31,8 +45,10 @@ The 1-line integration. Pg-raggraph still owns ingest end-to-end; chunkshop just
 ```bash
 pip install 'pg-raggraph[chunkshop]'
 # or in pyproject.toml:
-#   "pg-raggraph[chunkshop]>=0.3"
+#   "pg-raggraph[chunkshop]>=0.4.3"
 ```
+
+The floor is `chunkshop>=0.4.3` (bumped from 0.3 alongside the chunkshop 0.4 multi-engine release — see [§Backend compatibility](#backend-compatibility-chunkshop-04-is-multi-engine)).
 
 The dep is **optional** — pg-raggraph imports chunkshop lazily, only if you use a `chunkshop:*` strategy. If you don't install the extra and don't pass a chunkshop strategy, nothing changes.
 
@@ -271,7 +287,9 @@ Bottom line: **Pattern D is the right starting point** (one-line config change, 
 
 ### Bakeoff: what actually wins per corpus (don't guess — measure)
 
-chunkshop ships a `bakeoff` subcommand that runs a factorial chunker × embedder matrix over your corpus, measures Recall@k + MRR using gold queries you author, and emits a leaderboard plus a runnable `recommended.yaml`. We ran it on two of our corpora to see whether "chunkshop:hierarchy + bge-base" actually wins everywhere. **It doesn't.**
+chunkshop ships a `bakeoff` subcommand that runs a factorial chunker × embedder matrix over your corpus, measures Recall@k, MRR, and (as of chunkshop 0.4.3) **NDCG@k** using gold queries you author, and emits a leaderboard plus a runnable `recommended.yaml`. With 0.4.3's multi-engine support, the matrix can also fan across all four sink backends in one run (Python; Rust bakeoff is PG-only). We ran it on two of our corpora to see whether "chunkshop:hierarchy + bge-base" actually wins everywhere. **It doesn't.**
+
+> The Recall@k / MRR numbers in the leaderboards below were captured before chunkshop 0.4.3 added NDCG@k. A re-run against `chunkshop>=0.4.3` using the existing reproducer configs ([`samples/chunkshop-bakeoff-crm.yaml`](samples/chunkshop-bakeoff-crm.yaml), [`samples/chunkshop-bakeoff-musique.yaml`](samples/chunkshop-bakeoff-musique.yaml)) will emit NDCG@k columns automatically — no config change needed. Tracked in [#6](https://github.com/yonk-labs/pg-raggraph/issues/6).
 
 Both bakeoffs ran 3 embedders × 3 chunkers = 9 combos. Embedders: `bge-small-en-v1.5` (384d), `bge-base-en-v1.5` (768d fp32), `Xenova/bge-base-en-v1.5-int8` (768d int8). Chunkers: `hierarchy`, `sentence_aware`, `fixed_overlap`. (Reproducer configs: [`samples/chunkshop-bakeoff-crm.yaml`](samples/chunkshop-bakeoff-crm.yaml) and [`samples/chunkshop-bakeoff-musique.yaml`](samples/chunkshop-bakeoff-musique.yaml).)
 
@@ -351,12 +369,32 @@ If you do go with chunkshop, the data here suggests:
 
 **Caveats worth re-reading:** n=5 is noisy; the per-mode dispatch math is the same across pipelines; the LLM extractor and judge are identical; only the chunker differs. The result is real but the explanation needs more data — a 50-question set on a larger corpus would tell us whether this is a real regression or sample-size noise. Captured for follow-up; not actively chasing it.
 
+## Pattern M — agent memory (chunkshop SP-A, preview)
+
+> **Status:** stub. The reader/bridge work is tracked in [#4](https://github.com/yonk-labs/pg-raggraph/issues/4). chunkshop's writer side (SP-A) shipped in 0.4.3 and is production-ready today.
+
+chunkshop 0.4.3 added the **SP-A memory primitives** — a two-tier `agent_memory.memory` table (Postgres) that stores both episode chunks (`kind='episode'`) and atomic SPO fact rows (`kind='fact'`), tagged `tier='provisional'` or `tier='consolidated'`, with bi-temporal `effective_from`/`effective_to` and soft-invalidation via `retracted`/`retracted_at`. This is chunkshop's *write* side of an agent-memory layer.
+
+The *read* side — bridging `agent_memory.memory` into pg-raggraph's `documents` / `chunks` / `entities` / `relationships` — is **Pattern M** (issue [#4](https://github.com/yonk-labs/pg-raggraph/issues/4)). It extends Pattern C's `pre_chunked` seam with a new `pre_extracted_relationships=` argument so SP-A's already-extracted fact triples (`subject`/`predicate`/`object`/`support_span`/`confidence`) populate the graph directly, bypassing pg-raggraph's LLM extractor. A `memory_tier` config mirrors `retracted_behavior` for the provisional/consolidated read-time filter.
+
+Until the bridge lands, the recommended path for SP-A consumers is:
+
+1. Use chunkshop 0.4.3 to write `agent_memory.memory` (covered by chunkshop's docs).
+2. For `kind='episode'` rows: pipe through Pattern C's existing `pre_chunked` ingest seam today — the LLM will re-extract entities (wasted work for SP-A `kind='fact'` rows, which is the whole reason Pattern M exists).
+3. Track [#4](https://github.com/yonk-labs/pg-raggraph/issues/4) for the proper bridge.
+
+**References:**
+- chunkshop SP-A design spec: [`docs/superpowers/specs/2026-05-19-chunkshop-memory-primitives-sp-a-design.md`](https://github.com/yonk-labs/chunkshop/blob/main/docs/superpowers/specs/2026-05-19-chunkshop-memory-primitives-sp-a-design.md)
+- chunkshop agent-memory section: [`docs/incremental.md#agent-memory-sp-a`](https://github.com/yonk-labs/chunkshop/blob/main/docs/incremental.md#agent-memory-sp-a)
+- Backend note: SP-A's `agent_memory.memory` is Postgres-only by spec — the [§Backend compatibility](#backend-compatibility-chunkshop-04-is-multi-engine) multi-engine matrix doesn't apply to Pattern M.
+
 ## Choosing a pattern
 
 | You want | Pick |
 |---|---|
 | Better chunking, minimal install, no extra moving pieces | **Pattern D** ⭐ |
 | Better chunking + chunkshop's metadata extractors | Pattern C |
+| Bridge chunkshop's agent-memory layer (SP-A) into the graph | Pattern M (preview — [#4](https://github.com/yonk-labs/pg-raggraph/issues/4)) |
 | Just-want-it-to-work | Default `chunk_strategy="auto"` (no chunkshop) |
 | Maximum reproducibility with chunkshop's own benchmarks | Pattern C with the same YAML chunkshop uses for its bake-offs |
 
@@ -376,5 +414,5 @@ PGRGConfig(
 
 - **Replacing pg-raggraph's chunker** with chunkshop. The built-in stays the default; chunkshop is opt-in.
 - **Replacing pg-raggraph's embedder.** pg-raggraph's `embedding_provider` is independent of `chunk_strategy`. Pattern C re-embeds; Pattern D uses pg-raggraph's embedder.
-- **Hard-coupling.** chunkshop is on PyPI as `chunkshop>=0.3`. We pin the floor; you pin the version you want.
+- **Hard-coupling.** chunkshop is on PyPI as `chunkshop>=0.4.3`. We pin the floor; you pin the version you want.
 - **Replacing pg-raggraph's LLM extraction** with chunkshop's local extractors. Different roles: pg-raggraph's LLM extraction produces *typed entities and relationships* for the graph; chunkshop's extractors produce *flat keyword/entity lists* for filtering. They compose; they don't substitute.
