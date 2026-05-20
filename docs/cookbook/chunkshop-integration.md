@@ -491,14 +491,22 @@ Smoke run end-to-end against chunkshop SP-A (installed from `chunkshop/python` s
 | **O2 consolidated-wins** — inject a `tier='provisional'` chunk alongside consolidated; `memory_tier='consolidated'` filters it out | ✅ |
 | Mixed corpus safety — chunks with NULL tier metadata pass through under `memory_tier='consolidated'` | ✅ (EXPLAIN confirms `IS NULL OR =` predicate is post-scan, not a tablescan) |
 
-**Filter latency at 100K mixed chunks** (50K with tier metadata, 50K without; Postgres 16, no HNSW, single connection):
+**Filter latency at 100K mixed chunks** (50K with tier metadata, 50K without; Postgres 16, HNSW index present, single connection):
 
 | Mode | `memory_tier=both` | `memory_tier=consolidated` | Delta |
 |---|---|---|---|
 | `naive` (vector + BM25) | p50 **125 ms**, p95 137 ms | p50 **128 ms**, p95 140 ms | +3 ms p50, +3 ms p95 |
 | `local` (graph-expanded) | p50 **10 ms**, p95 16 ms | p50 **10 ms**, p95 16 ms | within noise |
 
-The naive numbers are worst case — no HNSW on this bench so it's a full namespace scan. EXPLAIN confirms the tier filter is a post-scan predicate (`Filter:` on `idx_chunk_doc`), not a separate index lookup, so the "admit NULL" branch is safe at scale. With HNSW deployed the absolute baseline drops and the tier filter overhead stays the same — a rounding error at any scale we've tested.
+**Important honest caveat — these are SEQ-SCAN numbers, not HNSW.** EXPLAIN ANALYZE shows the planner picked `idx_chunk_doc` over the HNSW index because of pg-raggraph's `JOIN documents ON namespace` shape — it estimated the namespace-scoped seq scan cheaper than HNSW for a single-namespace bench. So 125 ms isn't "HNSW + tier filter overhead"; it's "full namespace scan with tier filter as a post-scan predicate."
+
+What this means for you:
+
+- **For broad predicates (tier=consolidated, ~25% selective):** the seq-scan plan is fine. Tier filter is essentially free.
+- **For highly selective predicates** (tier=specific_session, ~0.1% selective): the seq-scan plan is *bad* — it scans all 100K chunks just to throw away 99.9 K of them after the filter. We measured 54 ms for a 0.1%-selective filter, which would be ~0.5 ms if the predicate pre-filtered to 100 rows first.
+- **For HNSW-eligible queries against multi-namespace corpora:** the planner may pick HNSW and the absolute baseline drops; tier filter overhead stays a rounding error.
+
+This pathology — pg-raggraph's single-pass plan doing post-filter when a pre-filter would be 100× faster — is what motivated the `retrieval_strategy` work tracked separately (see [`docs/Config-Reference.md`](../Config-Reference.md#retrieval_strategy) once it lands). For now, if you have a highly selective `memory_tier` use case (e.g., one-tenant-at-a-time queries against a shared agent_memory namespace), use a dedicated namespace per tenant rather than relying on the tier filter for primary selectivity.
 
 ### What we did NOT test
 
