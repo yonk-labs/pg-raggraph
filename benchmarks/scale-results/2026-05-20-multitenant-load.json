@@ -1,0 +1,41 @@
+{
+  "chunks_per_namespace": 2000,
+  "concurrent_queries": 200,
+  "dsn": "postgresql://***:***@localhost:5434/pg_raggraph",
+  "duration_s": 1.9914274499751627,
+  "namespaces": 50,
+  "p99_target_ms": 10000.0,
+  "pool_exhausted": false,
+  "single_stage": {
+    "correctness_failures": 0,
+    "cross_tenant_leaks": 0,
+    "empty_results": 0,
+    "max_ms": 902.8137042187154,
+    "p50_ms": 785.7040406670421,
+    "p95_ms": 898.5327393747866,
+    "p99_ms": 902.0669842138886,
+    "queries": 200,
+    "query_errors": 0,
+    "result_count_failures": 0,
+    "short_results": 0,
+    "two_stage": false
+  },
+  "timestamp": "2026-05-20T00:32:14.570830+00:00",
+  "top_k": 5,
+  "total_chunks": 100000,
+  "two_stage": {
+    "correctness_failures": 0,
+    "cross_tenant_leaks": 0,
+    "empty_results": 0,
+    "max_ms": 884.5884748734534,
+    "p50_ms": 762.8603295888752,
+    "p95_ms": 876.2527559883893,
+    "p99_ms": 880.9645720757544,
+    "queries": 200,
+    "query_errors": 0,
+    "result_count_failures": 0,
+    "short_results": 0,
+    "two_stage": true
+  },
+  "two_stage_vs_single_stage_p99_delta_ms": -21.10241213813424
+}
