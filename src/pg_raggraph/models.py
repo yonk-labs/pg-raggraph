@@ -196,6 +196,14 @@ class RelationshipResult(BaseModel):
     target: str
     rel_type: str
     description: str
+    # Per-fact temporal fields (migration 006). None when the relationship
+    # was extracted from text or supplied without temporal info — caller
+    # should treat them as "always valid, never retracted". Populated for
+    # SP-A bridge-produced facts and for known_relationships that opt in.
+    effective_from: datetime | None = None
+    effective_to: datetime | None = None
+    retracted: bool = False
+    retracted_at: datetime | None = None
 
 
 class QueryResult(BaseModel):
