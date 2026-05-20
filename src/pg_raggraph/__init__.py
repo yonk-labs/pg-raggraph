@@ -1435,6 +1435,123 @@ class GraphRAG:
         )
         return result
 
+    async def recommend_metadata_indexes(
+        self,
+        *,
+        table: str | None = None,
+        sample_size: int = 10_000,
+        max_keys: int = 50,
+        max_recommendations: int = 20,
+    ) -> list:
+        """Scan ``chunks.metadata`` + ``documents.metadata`` and return
+        ranked index suggestions.
+
+        For sales-notes / structured-DB ingest patterns, the most
+        useful indexes typically live on ``documents.metadata`` (where
+        caller-supplied fields like salesperson / product / date
+        land). This call scans BOTH tables by default; set
+        ``table="chunks"`` or ``table="documents"`` to scope.
+
+        Returns a list of ``IndexRecommendation`` dataclasses. A UI
+        renders each as a row with table, key, kind, type, rationale,
+        and an "Apply" button that calls ``add_metadata_index()``.
+        Recommendations with ``already_exists=True`` surface so the
+        UI can show "Already applied" instead of dropping them.
+
+        Read-only; safe to call repeatedly. Sample queries are bounded
+        by ``sample_size`` (default 10K per key).
+        """
+        from pg_raggraph.index_management import recommend
+
+        return await recommend(
+            self.db,
+            table=table,  # type: ignore[arg-type]
+            sample_size=sample_size,
+            max_keys=max_keys,
+            max_recommendations=max_recommendations,
+        )
+
+    async def add_metadata_index(
+        self,
+        key: str,
+        *,
+        kind: str = "btree",
+        sql_type: str | None = None,
+        table: str = "chunks",
+    ) -> dict:
+        """Create one metadata index at runtime, without restart.
+
+        Args:
+            key: JSONB key to index. Validated against the same
+                identifier whitelist as the config-driven paths.
+            kind: ``"btree"`` (per-key on ``metadata->>'<key>'``),
+                ``"gin"`` (one index covering the whole JSONB; ``key``
+                is ignored), or ``"generated"`` (typed STORED column +
+                btree — requires ``sql_type``).
+            sql_type: For ``kind="generated"``: one of ``text``,
+                ``int``, ``bigint``, ``numeric``, ``timestamptz``,
+                ``boolean``. Required for that kind only.
+            table: ``"chunks"`` (default — back-compat with the
+                chunks-only config knobs) or ``"documents"`` (where
+                caller-supplied per-record fields like salesperson /
+                product live).
+
+        Returns ``{"ok": bool, "table": ..., "kind": ..., "key": ...,
+        "object_name": ..., "error": ...}``. Never raises — failures
+        come back as ``ok=False`` so a UI can render them as a row
+        error without try/except.
+        """
+        from pg_raggraph.index_management import add
+
+        return await add(
+            self.db,
+            key,
+            kind=kind,  # type: ignore[arg-type]
+            sql_type=sql_type,
+            table=table,  # type: ignore[arg-type]
+        )
+
+    async def remove_metadata_index(
+        self,
+        key: str,
+        *,
+        kind: str = "btree",
+        table: str = "chunks",
+    ) -> dict:
+        """Drop a metadata index (and the column for
+        ``kind="generated"``).
+
+        Idempotent — uses ``IF EXISTS`` so a no-op drop returns
+        ``ok=True``. ``kind="gin"`` ignores ``key`` (one GIN per
+        table). Same return shape as ``add_metadata_index()``.
+        """
+        from pg_raggraph.index_management import remove
+
+        return await remove(
+            self.db,
+            key,
+            kind=kind,  # type: ignore[arg-type]
+            table=table,  # type: ignore[arg-type]
+        )
+
+    async def list_metadata_indexes(
+        self,
+        *,
+        table: str | None = None,
+    ) -> list[dict]:
+        """Snapshot of currently-installed metadata indexes.
+
+        Returns ``[{"name": ..., "definition": ..., "table": ...}, ...]``
+        for both tables by default; filter by ``table=`` when needed.
+        UI uses this for the "Applied" list / drop confirmation.
+        """
+        from pg_raggraph.index_management import list_existing_metadata_indexes
+
+        return await list_existing_metadata_indexes(
+            self.db,
+            table=table,  # type: ignore[arg-type]
+        )
+
     async def status(self, namespace: str | None = None) -> dict:
         """Get graph statistics."""
         ns = namespace or self.config.namespace
