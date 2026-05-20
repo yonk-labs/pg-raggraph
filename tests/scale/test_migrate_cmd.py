@@ -39,3 +39,22 @@ def test_pool_max_over_ten_warns_once(caplog):
     warnings = [rec.message for rec in caplog.records if "Configured pool_max=" in rec.message]
     assert len(warnings) == 1
     assert "pool_max=11" in warnings[0]
+    assert "docs/deployment-embedding-scaling.md F6" in warnings[0]
+
+
+def test_pool_max_worker_heuristic_warns_once(monkeypatch, caplog):
+    config_mod._pool_fleet_warned = False
+    monkeypatch.setenv("WEB_CONCURRENCY", "9")
+    caplog.set_level(logging.WARNING, logger="pg_raggraph.config")
+
+    PGRGConfig(pool_max=10)
+    PGRGConfig(pool_max=10)
+
+    warnings = [
+        rec.message
+        for rec in caplog.records
+        if "pool_max=10 across 9 observed worker" in rec.message
+    ]
+    assert len(warnings) == 1
+    assert "pool_max*workers <= 80" in warnings[0]
+    assert "docs/deployment-embedding-scaling.md F6" in warnings[0]

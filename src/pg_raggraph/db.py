@@ -27,6 +27,7 @@ _ALLOWED_TABLES = frozenset(
         "relationships",
         "entity_chunks",
         "relationship_chunks",
+        "embedding_cache",
         "pgrg_llm_cache",
         "pgrg_meta",
     }
@@ -39,9 +40,14 @@ class Database:
     def __init__(self, config: PGRGConfig):
         self.config = config
         self._pool: AsyncConnectionPool | None = None
+        self._read_pool: AsyncConnectionPool | None = None
         self._tenant: contextvars.ContextVar[str | None] = contextvars.ContextVar(
             "pg_raggraph_tenant",
             default=None,
+        )
+        self._read_only: contextvars.ContextVar[bool] = contextvars.ContextVar(
+            "pg_raggraph_read_only",
+            default=False,
         )
 
     async def connect(self) -> None:
@@ -61,12 +67,29 @@ class Database:
                 await self._verify_schema_ready(conn)
             else:
                 await self._ensure_schema(conn)
+        if self.config.read_dsn:
+            self._read_pool = AsyncConnectionPool(
+                self.config.read_dsn,
+                min_size=self.config.pool_min,
+                max_size=self.config.pool_max,
+                open=False,
+                timeout=5,
+                num_workers=1,
+            )
+            await self._read_pool.open()
+            await self._read_pool.wait(timeout=5.0)
+            async with self._read_pool.connection() as conn:
+                await register_vector_async(conn)
+                await self._verify_schema_ready(conn)
         logger.debug("Database connected and schema verified.")
 
     async def close(self) -> None:
         if self._pool:
             await self._pool.close()
             self._pool = None
+        if self._read_pool:
+            await self._read_pool.close()
+            self._read_pool = None
 
     async def __aenter__(self) -> Database:
         await self.connect()
@@ -81,6 +104,17 @@ class Database:
             raise RuntimeError("Database not connected. Call connect() first.")
         return self._pool
 
+    @property
+    def read_pool(self) -> AsyncConnectionPool:
+        if self._read_pool is None:
+            return self.pool
+        return self._read_pool
+
+    def _pool_for_read(self) -> AsyncConnectionPool:
+        if self._read_only.get() and self._read_pool is not None:
+            return self._read_pool
+        return self.pool
+
     def set_tenant(self, namespace: str | None) -> contextvars.Token:
         return self._tenant.set(namespace)
 
@@ -94,6 +128,14 @@ class Database:
             yield
         finally:
             self._tenant.reset(token)
+
+    @contextmanager
+    def readonly(self):
+        token = self._read_only.set(True)
+        try:
+            yield
+        finally:
+            self._read_only.reset(token)
 
     async def health_check(self) -> bool:
         """Check if the database connection is healthy."""
@@ -301,7 +343,7 @@ class Database:
             return result
 
     async def fetch_all(self, query_str: str, params: tuple | dict | None = None) -> list[dict]:
-        async with self.pool.connection() as conn:
+        async with self._pool_for_read().connection() as conn:
             await self._prepare_connection(conn)
             cur = await conn.execute(query_str, params, prepare=False)
             if cur.description is None:

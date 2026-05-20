@@ -17,6 +17,7 @@ _logger = logging.getLogger("pg_raggraph.embedding")
 # cache_dir presence as a "is the model already on disk" signal so we know
 # whether to surface a progress hint.
 _FASTEMBED_CACHE = Path.home() / ".cache" / "fastembed"
+_local_provider_warned = False
 
 
 @runtime_checkable
@@ -131,6 +132,15 @@ class HttpxEmbeddingProvider:
 def get_embedding_provider(config: PGRGConfig) -> EmbeddingProvider:
     """Factory to create the right embedding provider from config."""
     if config.embedding_provider == "local":
+        global _local_provider_warned
+        if not _local_provider_warned:
+            _logger.warning(
+                "Using local embedding provider. The local embedder is per-process; "
+                "for multi-worker or multi-tenant deployments, use a shared HTTP "
+                "embedding endpoint instead. See docs/deployment-embedding-scaling.md "
+                "F3/F5."
+            )
+            _local_provider_warned = True
         return FastEmbedProvider(
             model_name=config.embedding_model,
             threads=config.embedding_threads,

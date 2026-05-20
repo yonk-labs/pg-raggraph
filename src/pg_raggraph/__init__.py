@@ -6,7 +6,9 @@ import json
 import logging
 import os
 import re
+import time
 from datetime import datetime, timezone
+from hashlib import sha256
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 
@@ -45,6 +47,7 @@ __all__ = [
 ]
 
 logger = logging.getLogger("pg_raggraph")
+metrics_logger = logging.getLogger("pg_raggraph.metrics")
 
 
 def _json_default(obj):
@@ -263,6 +266,63 @@ class GraphRAG:
             self._embedder = get_embedding_provider(self.config)
         return self._embedder
 
+    def _emit_metric(self, event: str, **fields) -> None:
+        metrics_logger.info(event, extra={"event": event, **fields})
+
+    @staticmethod
+    def _embedding_cache_key(text: str) -> str:
+        return sha256(text.encode("utf-8")).hexdigest()
+
+    def _embedding_cache_namespace(self) -> str:
+        if self.config.embedding_provider == "http":
+            endpoint = self.config.embedding_base_url
+        elif self.config.embedding_provider in ("openai", "ollama"):
+            endpoint = self.config.llm_base_url
+        else:
+            endpoint = ""
+        raw = (
+            f"provider={self.config.embedding_provider}\n"
+            f"model={self.config.embedding_model}\n"
+            f"dim={self.config.embedding_dim}\n"
+            f"endpoint={endpoint.rstrip('/')}"
+        )
+        return sha256(raw.encode("utf-8")).hexdigest()
+
+    async def _embed_texts_with_cache(self, texts: list[str], embedder) -> list[list[float]]:
+        """Embed texts, backed by the process-shared Postgres embedding cache."""
+        if not texts:
+            return []
+
+        cache_ns = self._embedding_cache_namespace()
+        keys = [self._embedding_cache_key(text) for text in texts]
+        rows = await self.db.fetch_all(
+            "SELECT text_sha256, embedding FROM pgrg_embedding_cache_get(%s, %s::text[])",
+            (cache_ns, keys),
+        )
+        cached = {row["text_sha256"]: row["embedding"] for row in rows}
+
+        miss_keys: list[str] = []
+        miss_texts: list[str] = []
+        seen = set(cached)
+        for key, text in zip(keys, texts):
+            if key in seen:
+                continue
+            seen.add(key)
+            miss_keys.append(key)
+            miss_texts.append(text)
+
+        if miss_texts:
+            miss_embeddings = await embedder.embed(miss_texts)
+            async with self.db.transaction() as tx:
+                for key, embedding in zip(miss_keys, miss_embeddings):
+                    cached[key] = embedding
+                    await tx.execute(
+                        "SELECT pgrg_embedding_cache_put(%s, %s, %s::vector)",
+                        (cache_ns, key, embedding),
+                    )
+
+        return [cached[key] for key in keys]
+
     async def ingest(
         self,
         paths: list[str],
@@ -298,6 +358,7 @@ class GraphRAG:
 
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        started = time.perf_counter()
         # PR-215: apply nice_level here (was previously in config init,
         # which surprised callers by mutating process priority on import).
         self.config.apply_nice_level()
@@ -478,6 +539,16 @@ class GraphRAG:
             f"{suffix}. "
             f"{stats['entities']} entities, {stats['rels']} relationships."
         )
+        self._emit_metric(
+            "pgrg.ingest",
+            namespace=ns,
+            mode="files",
+            latency_ms=(time.perf_counter() - started) * 1000,
+            documents=len(file_paths),
+            ingested=stats["ingested"],
+            skipped=stats["skipped"],
+            failed=stats["failed"],
+        )
 
     async def ingest_records(
         self,
@@ -581,6 +652,7 @@ class GraphRAG:
         records = list(records)
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        started = time.perf_counter()
         self.config.apply_nice_level()
         embedder = self._get_embedder()
 
@@ -719,6 +791,16 @@ class GraphRAG:
         _progress(
             f"Done: {stats['ingested']} ingested, {stats['skipped']} skipped"
             f"{suffix}. {stats['entities']} entities, {stats['rels']} relationships."
+        )
+        self._emit_metric(
+            "pgrg.ingest",
+            namespace=ns,
+            mode="records",
+            latency_ms=(time.perf_counter() - started) * 1000,
+            documents=len(records),
+            ingested=stats["ingested"],
+            skipped=stats["skipped"],
+            failed=stats["failed"],
         )
 
     async def _ingest_one_file(
@@ -886,7 +968,7 @@ class GraphRAG:
             # heading prefix (hierarchy strategy) or any future neighbor/summary
             # decoration; for auto strategy this equals content.
             texts = [c["embedded_content"] for c in chunks]
-            chunk_embeddings = await embedder.embed(texts)
+            chunk_embeddings = await self._embed_texts_with_cache(texts, embedder)
 
         # Extract entities/relationships via LLM (cache reads OK outside txn).
         # If llm is None or skip_llm_for_this_doc is set, skip extraction
@@ -994,7 +1076,7 @@ class GraphRAG:
             entity_texts = [
                 f"{name} {unique_entities[name]['description']}" for name in entity_names_list
             ]
-            entity_embeddings = await embedder.embed(entity_texts)
+            entity_embeddings = await self._embed_texts_with_cache(entity_texts, embedder)
         else:
             entity_names_list = []
             entity_embeddings = []
@@ -1218,27 +1300,37 @@ class GraphRAG:
 
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        started = time.perf_counter()
         with self.db.tenant(ns):
             embedder = self._get_embedder()
             top_k_override = self.config.top_k * self.config.rerank_factor if rerank else None
-            result = await retrieval_query(
-                question=question,
-                db=self.db,
-                embedder=embedder,
-                config=self.config,
-                mode=mode,
-                namespace=ns,
-                as_of=as_of,
-                version_filter=version_filter,
-                evolution_aware=evolution_aware,
-                top_k_override=top_k_override,
-            )
+            with self.db.readonly():
+                result = await retrieval_query(
+                    question=question,
+                    db=self.db,
+                    embedder=embedder,
+                    config=self.config,
+                    mode=mode,
+                    namespace=ns,
+                    as_of=as_of,
+                    version_filter=version_filter,
+                    evolution_aware=evolution_aware,
+                    top_k_override=top_k_override,
+                )
             if rerank:
                 from pg_raggraph.reranker import FastEmbedReranker, apply_reranker
 
                 if self._reranker is None:
                     self._reranker = FastEmbedReranker(self.config.rerank_model)
                 result = await apply_reranker(self._reranker, question, result, self.config.top_k)
+            self._emit_metric(
+                "pgrg.query",
+                namespace=ns,
+                mode=mode,
+                latency_ms=(time.perf_counter() - started) * 1000,
+                top_k=len(result.chunks),
+                rerank=rerank,
+            )
             return result
 
     async def ask(
@@ -1321,9 +1413,66 @@ class GraphRAG:
         """Delete all data in a namespace."""
         _validate_namespace(namespace)
         with self.db.tenant(namespace):
-            await self.db.execute("DELETE FROM documents WHERE namespace = %s", (namespace,))
-            await self.db.execute("DELETE FROM entities WHERE namespace = %s", (namespace,))
-            await self.db.execute("DELETE FROM relationships WHERE namespace = %s", (namespace,))
+            async with self.db.transaction() as tx:
+                await tx.execute(
+                    "DELETE FROM document_versions WHERE namespace = %s",
+                    (namespace,),
+                )
+                await tx.execute("DELETE FROM facts WHERE namespace = %s", (namespace,))
+                await tx.execute("DELETE FROM relationships WHERE namespace = %s", (namespace,))
+                await tx.execute("DELETE FROM entities WHERE namespace = %s", (namespace,))
+                await tx.execute("DELETE FROM documents WHERE namespace = %s", (namespace,))
+
+    async def export_namespace(self, namespace: str):
+        """Yield documents and chunks for a namespace."""
+        _validate_namespace(namespace)
+        with self.db.tenant(namespace):
+            rows = await self.db.fetch_all(
+                "SELECT d.id AS document_id, d.content_hash, d.source_path, "
+                "d.metadata AS document_metadata, d.effective_from, d.effective_to, "
+                "d.retracted, d.version_label, d.created_at AS document_created_at, "
+                "c.id AS chunk_id, c.content, c.embedded_content, c.token_count, "
+                "c.metadata AS chunk_metadata, c.created_at AS chunk_created_at "
+                "FROM documents d "
+                "LEFT JOIN chunks c ON c.document_id = d.id "
+                "WHERE d.namespace = %s "
+                "ORDER BY d.id, c.id",
+                (namespace,),
+            )
+
+        current_id = None
+        current_doc = None
+        for row in rows:
+            if row["document_id"] != current_id:
+                if current_doc is not None:
+                    yield current_doc
+                current_id = row["document_id"]
+                current_doc = {
+                    "namespace": namespace,
+                    "document_id": row["document_id"],
+                    "content_hash": row["content_hash"],
+                    "source_path": row["source_path"],
+                    "metadata": row["document_metadata"] or {},
+                    "effective_from": row["effective_from"],
+                    "effective_to": row["effective_to"],
+                    "retracted": row["retracted"],
+                    "version_label": row["version_label"],
+                    "created_at": row["document_created_at"],
+                    "chunks": [],
+                }
+            if row["chunk_id"] is not None:
+                current_doc["chunks"].append(
+                    {
+                        "chunk_id": row["chunk_id"],
+                        "content": row["content"],
+                        "embedded_content": row["embedded_content"],
+                        "token_count": row["token_count"],
+                        "metadata": row["chunk_metadata"] or {},
+                        "created_at": row["chunk_created_at"],
+                    }
+                )
+        if current_doc is not None:
+            yield current_doc
 
     async def delete_document(self, source_path: str, namespace: str | None = None) -> int:
         """Delete a document and all its chunks by source path.
