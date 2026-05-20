@@ -29,36 +29,38 @@ from typing import Any
 # chunkshop's `test_pgraggraph_contract_columns_present` — drift on
 # either side fails CI on both sides. See
 # tests/unit/test_sp_a_memory_contract.py.
-SP_A_MEMORY_COLUMNS: frozenset[str] = frozenset({
-    # Identity / classification
-    "session_id",
-    "tier",
-    "kind",
-    # Episode payload (pgvector shape)
-    "doc_id",
-    "seq_num",
-    "original_content",
-    "embedded_content",
-    "embedding",
-    "metadata",
-    # Fact payload — populated when kind='fact'
-    "subject",
-    "predicate",
-    "object",
-    "support_span",
-    "confidence",  # promoted as text by SP-A; parsed to float in this bridge
-    "source_chunk_seq",  # parent episode's seq_num (fact → episode pointer)
-    # Bi-temporal
-    "effective_from",
-    "effective_to",
-    # Soft-invalidation
-    "retracted",
-    "retracted_at",
-    # Provenance
-    "extractor",
-    "namespace",
-    "recorded_at",
-})
+SP_A_MEMORY_COLUMNS: frozenset[str] = frozenset(
+    {
+        # Identity / classification
+        "session_id",
+        "tier",
+        "kind",
+        # Episode payload (pgvector shape)
+        "doc_id",
+        "seq_num",
+        "original_content",
+        "embedded_content",
+        "embedding",
+        "metadata",
+        # Fact payload — populated when kind='fact'
+        "subject",
+        "predicate",
+        "object",
+        "support_span",
+        "confidence",  # promoted as text by SP-A; parsed to float in this bridge
+        "source_chunk_seq",  # parent episode's seq_num (fact → episode pointer)
+        # Bi-temporal
+        "effective_from",
+        "effective_to",
+        # Soft-invalidation
+        "retracted",
+        "retracted_at",
+        # Provenance
+        "extractor",
+        "namespace",
+        "recorded_at",
+    }
+)
 
 KIND_EPISODE = "episode"
 KIND_FACT = "fact"
@@ -106,9 +108,7 @@ def _parse_embedding(value: Any) -> list[float]:
     if isinstance(value, str):
         s = value.strip()
         if not (s.startswith("[") and s.endswith("]")):
-            raise ValueError(
-                f"pgvector text format must be '[v1,v2,...]', got: {s[:40]!r}..."
-            )
+            raise ValueError(f"pgvector text format must be '[v1,v2,...]', got: {s[:40]!r}...")
         return [float(x) for x in s[1:-1].split(",") if x.strip()]
     return [float(x) for x in value]
 
@@ -125,28 +125,32 @@ def _row_to_pre_chunked(row: dict[str, Any]) -> dict[str, Any]:
     upstream_meta = dict(row.get("metadata") or {})
     # SP-A's promoted columns are authoritative; let them override anything
     # already in the chunkshop metadata jsonb of the same name.
-    upstream_meta.update({
-        "session_id": row["session_id"],
-        "tier": row["tier"],
-        "kind": row["kind"],
-        "effective_from": _iso(row.get("effective_from")),
-        "effective_to": _iso(row.get("effective_to")),
-        "retracted": bool(row.get("retracted", False)),
-        "retracted_at": _iso(row.get("retracted_at")),
-        "extractor": row.get("extractor"),
-        "recorded_at": _iso(row.get("recorded_at")),
-    })
+    upstream_meta.update(
+        {
+            "session_id": row["session_id"],
+            "tier": row["tier"],
+            "kind": row["kind"],
+            "effective_from": _iso(row.get("effective_from")),
+            "effective_to": _iso(row.get("effective_to")),
+            "retracted": bool(row.get("retracted", False)),
+            "retracted_at": _iso(row.get("retracted_at")),
+            "extractor": row.get("extractor"),
+            "recorded_at": _iso(row.get("recorded_at")),
+        }
+    )
     if row["kind"] == KIND_FACT:
         # Carry the SPO triple + provenance into chunk metadata too, so
         # callers can introspect a fact-chunk without re-querying.
-        upstream_meta.update({
-            "subject": row.get("subject"),
-            "predicate": row.get("predicate"),
-            "object": row.get("object"),
-            "support_span": row.get("support_span"),
-            "confidence": _parse_confidence(row.get("confidence")),
-            "source_chunk_seq": row.get("source_chunk_seq"),
-        })
+        upstream_meta.update(
+            {
+                "subject": row.get("subject"),
+                "predicate": row.get("predicate"),
+                "object": row.get("object"),
+                "support_span": row.get("support_span"),
+                "confidence": _parse_confidence(row.get("confidence")),
+                "source_chunk_seq": row.get("source_chunk_seq"),
+            }
+        )
     return {
         "content": row["original_content"],
         "embedded_content": row.get("embedded_content"),
@@ -206,9 +210,7 @@ def rows_to_records(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     for row in rows:
         sid = row.get("session_id")
         if not sid:
-            raise ValueError(
-                "SP-A memory row missing 'session_id' — required for grouping."
-            )
+            raise ValueError("SP-A memory row missing 'session_id' — required for grouping.")
         by_session.setdefault(sid, []).append(row)
 
     records: list[dict[str, Any]] = []
@@ -242,22 +244,27 @@ def rows_to_records(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
         # here. Use a stable concatenation of episode contents so
         # content-hash dedup is stable across re-ingests of the same
         # session state.
-        text = "\n\n".join(
-            r["original_content"] for r in session_rows if r.get("kind") == KIND_EPISODE
-        ) or session_id  # fall back to session_id when there are no episode rows yet
+        text = (
+            "\n\n".join(
+                r["original_content"] for r in session_rows if r.get("kind") == KIND_EPISODE
+            )
+            or session_id
+        )  # fall back to session_id when there are no episode rows yet
 
-        records.append({
-            "text": text,
-            "source_id": f"agent_memory:{session_id}",
-            "metadata": {
-                "session_id": session_id,
-                "source": "chunkshop_sp_a",
-            },
-            "pre_chunked": pre_chunked,
-            "relationships": relationships,
-            "entities": entities,
-            "skip_llm": True,
-        })
+        records.append(
+            {
+                "text": text,
+                "source_id": f"agent_memory:{session_id}",
+                "metadata": {
+                    "session_id": session_id,
+                    "source": "chunkshop_sp_a",
+                },
+                "pre_chunked": pre_chunked,
+                "relationships": relationships,
+                "entities": entities,
+                "skip_llm": True,
+            }
+        )
     return records
 
 

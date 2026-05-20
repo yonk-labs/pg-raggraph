@@ -17,36 +17,38 @@ from pg_raggraph.memory_bridge import SP_A_MEMORY_COLUMNS
 # pg-raggraph's bridge can choose to read it (and this set grows); if
 # chunkshop renames or drops a column, this test fails before the bridge
 # silently breaks at runtime.
-EXPECTED_SP_A_COLUMNS = frozenset({
-    # Identity / classification
-    "session_id",
-    "tier",  # 'provisional' | 'consolidated'
-    "kind",  # 'episode' | 'fact'
-    # Episode payload (chunkshop-canonical pgvector shape)
-    "doc_id",
-    "seq_num",
-    "original_content",
-    "embedded_content",
-    "embedding",
-    "metadata",  # jsonb; carries session_id, namespace, tier, recorded_at
-    # Fact payload — SPO triple + provenance (only populated when kind='fact')
-    "subject",
-    "predicate",
-    "object",
-    "support_span",
-    "confidence",  # SP-A promotes as text; bridge parses to float
-    "source_chunk_seq",  # parent episode pointer for facts (int)
-    # Bi-temporal — episode and fact rows
-    "effective_from",
-    "effective_to",
-    # Soft-invalidation — fact rows
-    "retracted",
-    "retracted_at",
-    # Provenance
-    "extractor",
-    "namespace",
-    "recorded_at",
-})
+EXPECTED_SP_A_COLUMNS = frozenset(
+    {
+        # Identity / classification
+        "session_id",
+        "tier",  # 'provisional' | 'consolidated'
+        "kind",  # 'episode' | 'fact'
+        # Episode payload (chunkshop-canonical pgvector shape)
+        "doc_id",
+        "seq_num",
+        "original_content",
+        "embedded_content",
+        "embedding",
+        "metadata",  # jsonb; carries session_id, namespace, tier, recorded_at
+        # Fact payload — SPO triple + provenance (only populated when kind='fact')
+        "subject",
+        "predicate",
+        "object",
+        "support_span",
+        "confidence",  # SP-A promotes as text; bridge parses to float
+        "source_chunk_seq",  # parent episode pointer for facts (int)
+        # Bi-temporal — episode and fact rows
+        "effective_from",
+        "effective_to",
+        # Soft-invalidation — fact rows
+        "retracted",
+        "retracted_at",
+        # Provenance
+        "extractor",
+        "namespace",
+        "recorded_at",
+    }
+)
 
 
 def test_bridge_contract_matches_sp_a_published_columns():
