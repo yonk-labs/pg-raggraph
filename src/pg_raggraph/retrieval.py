@@ -576,7 +576,8 @@ WHERE ec.chunk_id = ANY(%(chunk_ids)s)
 
 RELATIONSHIPS_FOR_ENTITIES = """
 SELECT DISTINCT e_src.name AS source, e_dst.name AS target,
-       r.rel_type, r.description
+       r.rel_type, r.description,
+       r.effective_from, r.effective_to, r.retracted, r.retracted_at
 FROM relationships r
 JOIN entities e_src ON e_src.id = r.src_id
 JOIN entities e_dst ON e_dst.id = r.dst_id
@@ -842,6 +843,10 @@ async def query(
                 target=r["target"],
                 rel_type=r["rel_type"],
                 description=r["description"] or "",
+                effective_from=r.get("effective_from"),
+                effective_to=r.get("effective_to"),
+                retracted=bool(r.get("retracted")) if r.get("retracted") is not None else False,
+                retracted_at=r.get("retracted_at"),
             )
             for r in rel_rows
         ]

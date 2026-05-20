@@ -73,7 +73,16 @@ CREATE TABLE IF NOT EXISTS relationships (
     weight FLOAT DEFAULT 1.0,
     description TEXT DEFAULT '',
     properties JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT now()
+    created_at TIMESTAMPTZ DEFAULT now(),
+    -- Per-fact temporal columns (migration 006). Mirror the document-
+    -- level fields on `documents` for fact-level evolution / retraction.
+    -- Nullable: relationships from non-temporal sources (LLM extraction,
+    -- known_relationships without temporal info) keep NULL across the
+    -- board and behave identically to pre-temporal.
+    effective_from TIMESTAMPTZ,
+    effective_to   TIMESTAMPTZ,
+    retracted      BOOLEAN DEFAULT FALSE,
+    retracted_at   TIMESTAMPTZ
 );
 
 -- Provenance: entity <-> chunk

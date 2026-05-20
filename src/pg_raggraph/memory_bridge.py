@@ -182,6 +182,19 @@ def _fact_row_to_relationship(row: dict[str, Any]) -> dict[str, Any] | None:
     confidence = _parse_confidence(row.get("confidence"))
     if confidence is not None:
         rel["weight"] = confidence
+    # Per-fact temporal fields (migration 006). Promote SP-A row temporals
+    # onto the relationship row so they're typed/queryable, not just JSONB.
+    # `effective_from`/`effective_to` are SP-A's fact-validity window;
+    # `retracted` + `retracted_at` are explicit retraction markers. Pre-006
+    # these only lived in chunk JSONB; now also live on the graph edge.
+    if row.get("effective_from"):
+        rel["effective_from"] = row["effective_from"]
+    if row.get("effective_to"):
+        rel["effective_to"] = row["effective_to"]
+    if row.get("retracted"):
+        rel["retracted"] = bool(row["retracted"])
+    if row.get("retracted_at"):
+        rel["retracted_at"] = row["retracted_at"]
     return rel
 
 

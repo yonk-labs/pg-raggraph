@@ -443,7 +443,7 @@ The bridge reads the SP-A column set, which is CI-pinned on both sides — [`pg_
 | `subject` / `predicate` / `object` (`kind='fact'`) | `relationships` entry (`src` / `rel_type` / `dst`) | Sparse triples are dropped from `relationships` but kept as chunks |
 | `support_span` (`kind='fact'`) | `relationships[*].description` + `chunk.metadata.support_span` | |
 | `confidence` (`kind='fact'`) | `relationships[*].weight` (float) + `chunk.metadata.confidence` | |
-| `effective_from` / `effective_to` / `retracted` / `retracted_at` | `chunk.metadata.*` (ISO strings) | See gap note below |
+| `effective_from` / `effective_to` / `retracted` / `retracted_at` | `chunk.metadata.*` (ISO strings) **+** typed columns on the `relationships` row | Stamped on both surfaces post-migration 006: JSONB on the chunk for introspection, typed columns on the graph edge for ranking/time-travel queries |
 | `extractor` / `namespace` / `recorded_at` | `chunk.metadata.*` | Provenance |
 
 ### Worked example
@@ -519,7 +519,7 @@ This pathology — pg-raggraph's single-pass plan doing post-filter when a pre-f
 
 | Gap | Where it shows | When it matters |
 |---|---|---|
-| **No per-fact temporal columns on `relationships`** | SP-A's `effective_from` / `effective_to` / `retracted` are stashed in `chunk.metadata`, queryable via JSONB but they don't drive ranking. | When you want time-travel queries against the fact graph specifically. Document-level evolution (existing `evolution_tier` work) still applies. |
+| ~~No per-fact temporal columns on `relationships`~~ **Closed in migration 006 (2026-05-20).** | `relationships` now has typed `effective_from` / `effective_to` / `retracted` / `retracted_at` columns; the bridge populates them from SP-A rows; `RelationshipResult` surfaces them. Ranking integration (e.g., demote `retracted=TRUE` edges in graph-mode scoring) is still a Tier 3 work item — the columns exist and are queryable but the default scorer does not yet use them. | Done for storage and read surface. Open: scoring weights that consume these columns. |
 | **Sparse SPO triples are dropped from `relationships`** | chunkshop's extractive-default consolidator may emit `support_span`-only fact rows with null subject/predicate/object. The bridge keeps these as chunks (so vector retrieval still works) but skips the graph edge. | When the consolidation cell is wired to a real LLM that always produces full triples, this is a no-op. |
 | **No fact-level retraction enforcement** | A `retracted=true` fact row still becomes a chunk and a relationship. The existing `retracted_behavior="hide"` config doesn't apply (that's document-level). | Filter out retracted fact rows in your SP-A SELECT (`WHERE NOT retracted`) until first-class fact retraction lands in pg-raggraph. |
 | **Read-side latency overhead** | The `memory_tier` filter adds `WHERE c.metadata->>'tier' IS NULL OR c.metadata->>'tier' = $1` per query. Negligible at <100K chunks; benchmark for larger corpora. | Most agent-memory deployments are well under this scale; flagged for completeness. |

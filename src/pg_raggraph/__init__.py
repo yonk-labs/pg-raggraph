@@ -1013,9 +1013,23 @@ class GraphRAG:
                         unique_entities[ent.name]["description"] += " " + ent.description
                 entity_names.append(ent.name)
             chunk_to_entities.append(entity_names)
+            # 9-tuple shape: (src, dst, rel_type, description, weight,
+            # effective_from, effective_to, retracted, retracted_at).
+            # LLM-extracted relationships don't carry temporal info → the
+            # last four are None/False → INSERT writes NULL/false.
             chunk_to_rels.append(
                 [
-                    (r.source, r.target, r.rel_type, r.description, r.weight)
+                    (
+                        r.source,
+                        r.target,
+                        r.rel_type,
+                        r.description,
+                        r.weight,
+                        None,
+                        None,
+                        False,
+                        None,
+                    )
                     for r in extraction.relationships
                 ]
             )
@@ -1060,12 +1074,21 @@ class GraphRAG:
             for kr in known_relationships:
                 if not (kr.get("src") and kr.get("dst")):
                     raise ValueError("known_relationships entries must include 'src' and 'dst'")
+                # Tuple shape: (src, dst, rel_type, description, weight,
+                # effective_from, effective_to, retracted, retracted_at).
+                # The four temporal fields are optional; absent → NULL in
+                # the relationships row. Mirrors documents-level evolution
+                # tracking for per-fact granularity (Pattern M, migration 006).
                 rel_tuple = (
                     kr["src"],
                     kr["dst"],
                     kr.get("rel_type", "RELATED_TO"),
                     kr.get("description", "") or "",
                     float(kr.get("weight", 1.0)),
+                    kr.get("effective_from"),
+                    kr.get("effective_to"),
+                    bool(kr.get("retracted", False)),
+                    kr.get("retracted_at"),
                 )
                 # Anchor on chunk[0] — relationships are document-level.
                 chunk_to_rels[0].append(rel_tuple)
@@ -1243,11 +1266,30 @@ class GraphRAG:
                     dst_id = entity_name_to_id.get(rel[1])
                     if not (src_id and dst_id):
                         continue
+                    # Tuple shape: (src_name, dst_name, rel_type, description, weight,
+                    # effective_from, effective_to, retracted, retracted_at).
+                    # Older callers may still pass 5-tuples; pad with temporal NULLs.
+                    eff_from = rel[5] if len(rel) > 5 else None
+                    eff_to = rel[6] if len(rel) > 6 else None
+                    retracted = rel[7] if len(rel) > 7 else False
+                    retracted_at = rel[8] if len(rel) > 8 else None
                     rel_id = await tx.insert_returning_id(
                         "INSERT INTO relationships "
-                        "(namespace, src_id, dst_id, rel_type, weight, description) "
-                        "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
-                        (ns, src_id, dst_id, rel[2], rel[4], rel[3]),
+                        "(namespace, src_id, dst_id, rel_type, weight, description, "
+                        "effective_from, effective_to, retracted, retracted_at) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                        (
+                            ns,
+                            src_id,
+                            dst_id,
+                            rel[2],
+                            rel[4],
+                            rel[3],
+                            eff_from,
+                            eff_to,
+                            retracted,
+                            retracted_at,
+                        ),
                     )
                     await tx.execute(
                         "INSERT INTO relationship_chunks "
