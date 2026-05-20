@@ -803,9 +803,17 @@ async def query(
                 # PRG-1: opaque caller metadata is tier-independent.
                 # DEC-4: empty/absent JSONB ('{}') maps to None.
                 metadata=(row.get("doc_metadata") or None),
-                # DEC-5: evolution fields only when effective tier != "off".
+                # DEC-5: evolution-scoring state fields (retracted /
+                # effective_from / effective_to / superseded_by_id) only
+                # surface when the tier is "on" — they participate in the
+                # evolution score expression and are meaningless otherwise.
                 retracted=(row.get("retracted") if evo_on else None),
-                version_label=(row.get("version_label") if evo_on else None),
+                # version_label is caller-supplied opaque data the user wrote
+                # at ingest time — same shape as `metadata` above, not a
+                # scoring signal. Tier-independent so callers can use it for
+                # content scoping without opting into evolution scoring.
+                # See issue #17.
+                version_label=row.get("version_label"),
                 effective_from=(row.get("effective_from") if evo_on else None),
                 effective_to=(row.get("effective_to") if evo_on else None),
                 superseded_by_id=(row.get("superseded_by_id") if evo_on else None),

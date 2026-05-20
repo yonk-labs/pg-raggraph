@@ -185,25 +185,44 @@ def evolution_where_clauses(
 ) -> tuple[list[str], dict]:
     """Returns (where_clauses, bind_params_for_clauses) based on evolution
     behavior modes plus per-query overrides. Caller joins clauses with
-    ' AND ' when composing. Empty list when the effective tier is 'off'.
+    ' AND ' when composing.
+
+    Most clauses are gated by ``evolution_tier != "off"`` because they
+    participate in evolution scoring or in stateful filters
+    (retraction, supersession) that only make sense when the tier is on.
+
+    Exception — ``version_filter`` is content scoping, not evolution
+    scoring. Filtering "restrict to documents with version_label='3.12'"
+    is meaningful at any tier; callers shouldn't have to opt into the
+    full evolution path just to scope by version. So this clause emits
+    even when tier == "off". See issue #18.
 
     Current fragments:
-      - retracted_behavior='hide' → filter out retracted documents.
-      - supersession_behavior='hide' → filter out documents that have been
-        superseded by a newer document (per document_versions pointer).
-      - as_of=DATE → filter to documents whose effective window covers the
-        given timestamp.
-      - version_filter='X' → restrict to documents with version_label='X'.
+      - version_filter='X' → restrict to documents with version_label='X'
+        (tier-independent — see above).
+      - retracted_behavior='hide' → filter out retracted documents
+        (tier-gated).
+      - supersession_behavior='hide' → filter out documents that have
+        been superseded (tier-gated).
+      - as_of=DATE → filter to documents whose effective window covers
+        the given timestamp (tier-gated).
 
     Other modes ('flag', 'prefer_new', 'surface_both') return no filter —
     'flag' annotates results; 'prefer_new' relies on the SQL scoring penalty
     in evolution_score_expr; 'surface_both' is deferred to Tier 3.
     """
-    tier = _effective_tier(cfg, evolution_aware)
-    if tier == "off":
-        return [], {}
     clauses: list[str] = []
     params: dict = {}
+    # version_filter is content scoping — emit regardless of tier so the
+    # public GraphRAG.ask(version_filter=...) kwarg works out of the box.
+    if version_filter is not None:
+        clauses.append(f"{doc_alias}.version_label = %(version_filter)s")
+        params["version_filter"] = version_filter
+
+    tier = _effective_tier(cfg, evolution_aware)
+    if tier == "off":
+        return clauses, params
+
     if _effective_retracted_behavior(cfg, retracted_behavior) == "hide":
         clauses.append(f"NOT {doc_alias}.retracted")
     if _effective_supersession_behavior(cfg, supersession_behavior) == "hide":
@@ -243,9 +262,8 @@ def evolution_where_clauses(
             f"      OR {doc_alias}.effective_to > %(as_of)s))"
         )
         params["as_of"] = as_of
-    if version_filter is not None:
-        clauses.append(f"{doc_alias}.version_label = %(version_filter)s")
-        params["version_filter"] = version_filter
+    # NOTE: version_filter is emitted ABOVE the tier-off short-circuit so
+    # it applies at any tier. See the dedicated branch up top.
     return clauses, params
 
 
