@@ -19,7 +19,6 @@ from pg_raggraph.retrieval import (
     _effective_retrieval_strategy,
 )
 
-
 # --- helper resolution ---
 
 
