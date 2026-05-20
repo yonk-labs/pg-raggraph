@@ -14,6 +14,7 @@ from pg_raggraph.evolution import (
     evolution_bind_params,
     evolution_score_expr,
     evolution_where_clauses,
+    memory_tier_clause,
 )
 from pg_raggraph.models import ChunkResult, EntityResult, QueryResult, RelationshipResult
 
@@ -64,6 +65,7 @@ def _build_naive_query(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    memory_tier: str | None = None,
 ) -> tuple[str, dict]:
     base = (
         "%(w_sem)s * (1 - (c.embedding <=> %(embedding)s::vector)) + "
@@ -78,6 +80,10 @@ def _build_naive_query(
         evolution_aware=evolution_aware,
         retracted_behavior=retracted_behavior,
     )
+    mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="c", override=memory_tier)
+    if mt_clause:
+        clauses.append(mt_clause)
+        extra_params = _merge_params(extra_params, mt_params)
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     # PRG-1 consumer-surface columns (d.metadata/retracted/version_label/
     # effective_from/effective_to/superseded_by_id) are intentionally repeated
@@ -108,6 +114,7 @@ def _build_naive_query_twostage(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    memory_tier: str | None = None,
 ) -> tuple[str, dict]:
     """Two-stage naive retrieval (K1).
 
@@ -143,6 +150,12 @@ def _build_naive_query_twostage(
         evolution_aware=evolution_aware,
         retracted_behavior=retracted_behavior,
     )
+    # memory_tier filter applies to the candidate CTE's chunk alias `c`,
+    # so HNSW seek-ahead can still skip non-matching chunks.
+    mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="c", override=memory_tier)
+    if mt_clause:
+        clauses.append(mt_clause)
+        extra_params = _merge_params(extra_params, mt_params)
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     sql = f"""
 WITH candidates AS (
@@ -179,6 +192,7 @@ def _build_local_query(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    memory_tier: str | None = None,
 ) -> tuple[str, dict]:
     base = (
         "%(w_sem)s * (1 - (rc.embedding <=> %(embedding)s::vector)) + "
@@ -193,6 +207,12 @@ def _build_local_query(
         evolution_aware=evolution_aware,
         retracted_behavior=retracted_behavior,
     )
+    # memory_tier applies to the post-graph chunk set — alias `rc` in the
+    # outer SELECT preserves c.metadata from the relevant_chunks CTE.
+    mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="rc", override=memory_tier)
+    if mt_clause:
+        clauses.append(mt_clause)
+        extra_params = _merge_params(extra_params, mt_params)
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     sql = f"""
 WITH RECURSIVE seeds AS (
@@ -244,6 +264,7 @@ def _build_global_query(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    memory_tier: str | None = None,
 ) -> tuple[str, dict]:
     base = (
         "%(w_sem)s * (1 - (rc.embedding <=> %(embedding)s::vector)) + "
@@ -258,6 +279,11 @@ def _build_global_query(
         evolution_aware=evolution_aware,
         retracted_behavior=retracted_behavior,
     )
+    # Same memory_tier alias as local — `rc` in the outer SELECT.
+    mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="rc", override=memory_tier)
+    if mt_clause:
+        clauses.append(mt_clause)
+        extra_params = _merge_params(extra_params, mt_params)
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     sql = f"""
 WITH rel_matches AS (
@@ -339,6 +365,7 @@ async def query(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    memory_tier: str | None = None,
     top_k_override: int | None = None,
 ) -> QueryResult:
     """Execute a retrieval query against the knowledge graph.
@@ -363,6 +390,7 @@ async def query(
             version_filter=version_filter,
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
+            memory_tier=memory_tier,
             top_k_override=top_k_override,
         )
     if mode == "naive_boost":
@@ -376,6 +404,7 @@ async def query(
             version_filter=version_filter,
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
+            memory_tier=memory_tier,
             top_k_override=top_k_override,
         )
 
@@ -407,30 +436,36 @@ async def query(
     if mode == "naive":
         if config.two_stage_retrieval:
             sql, extra = _build_naive_query_twostage(
-                config, as_of, version_filter, evolution_aware, retracted_behavior
+                config, as_of, version_filter, evolution_aware,
+                retracted_behavior, memory_tier,
             )
         else:
             sql, extra = _build_naive_query(
-                config, as_of, version_filter, evolution_aware, retracted_behavior
+                config, as_of, version_filter, evolution_aware,
+                retracted_behavior, memory_tier,
             )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
     elif mode == "local":
         sql, extra = _build_local_query(
-            config, as_of, version_filter, evolution_aware, retracted_behavior
+            config, as_of, version_filter, evolution_aware,
+            retracted_behavior, memory_tier,
         )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
     elif mode == "global":
         sql, extra = _build_global_query(
-            config, as_of, version_filter, evolution_aware, retracted_behavior
+            config, as_of, version_filter, evolution_aware,
+            retracted_behavior, memory_tier,
         )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
     elif mode == "hybrid":
         # Run local and global, merge results
         local_sql, local_extra = _build_local_query(
-            config, as_of, version_filter, evolution_aware, retracted_behavior
+            config, as_of, version_filter, evolution_aware,
+            retracted_behavior, memory_tier,
         )
         global_sql, global_extra = _build_global_query(
-            config, as_of, version_filter, evolution_aware, retracted_behavior
+            config, as_of, version_filter, evolution_aware,
+            retracted_behavior, memory_tier,
         )
         local_rows = await db.fetch_all(local_sql, _merge_params(params, local_extra))
         global_rows = await db.fetch_all(global_sql, _merge_params(params, global_extra))
@@ -587,6 +622,7 @@ async def _naive_boost_query(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    memory_tier: str | None = None,
     top_k_override: int | None = None,
 ) -> QueryResult:
     """Naive vector+BM25 retrieval followed by cheap 1-hop graph boost."""
@@ -601,6 +637,7 @@ async def _naive_boost_query(
         version_filter=version_filter,
         evolution_aware=evolution_aware,
         retracted_behavior=retracted_behavior,
+        memory_tier=memory_tier,
         top_k_override=top_k_override,
     )
     ns = namespace or config.namespace
@@ -706,6 +743,7 @@ async def _smart_query(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    memory_tier: str | None = None,
     top_k_override: int | None = None,
 ) -> QueryResult:
     """Confidence + question-shape routing that improves accuracy across corpora.
@@ -751,6 +789,7 @@ async def _smart_query(
             version_filter=version_filter,
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
+            memory_tier=memory_tier,
             top_k_override=top_k_override,
         )
         agg.query_mode = "smart[global]"
@@ -768,6 +807,7 @@ async def _smart_query(
             version_filter=version_filter,
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
+            memory_tier=memory_tier,
             top_k_override=top_k_override,
         )
         syn.query_mode = "smart[hybrid]"
@@ -809,6 +849,7 @@ async def _smart_query(
             version_filter=version_filter,
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
+            memory_tier=memory_tier,
             top_k_override=top_k_override,
         )
         expanded.query_mode = "smart[expanded]"
