@@ -27,9 +27,11 @@ Every scaling property below follows from those choices.
 
 ## 2. Known issues at scale (prioritized by blast radius)
 
-### K1 — CRITICAL: the primary semantic path does not use the vector index
+### K1 — CRITICAL: the primary semantic path historically bypassed the vector index
 
-`_build_naive_query` (and `hybrid`, and `smart`'s naive leg) rank by a
+**Status:** implemented in `0d1cae4`.
+
+The legacy single-stage `_build_naive_query` ranks by a
 **composite expression**:
 
 ```sql
@@ -39,11 +41,10 @@ LIMIT top_k
 
 pgvector's HNSW index (`idx_chunk_embed`) can only satisfy a **bare**
 `ORDER BY embedding <=> q LIMIT k`. A weighted arithmetic ORDER BY cannot
-be served by the index, so Postgres computes the distance for **every
-chunk in the namespace** and sorts — an O(rows-in-namespace) scan per
-query. (The `local`/`global` modes' *seed* CTEs do use a bare-distance
-`ORDER BY embedding <=> q LIMIT seed_k` and can hit HNSW; their final
-ranking is still composite.)
+be served by the index, so the legacy single-stage control path computes
+the distance for **every chunk in the namespace** and sorts — an
+O(rows-in-namespace) scan per query. The default two-stage path now first
+gets HNSW candidates, then re-scores them with the composite expression.
 
 **Consequence:** query latency scales with the size of the *largest
 namespace*, not with `top_k`. Small per-tenant namespaces are fine
@@ -51,9 +52,10 @@ namespace*, not with `top_k`. Small per-tenant namespaces are fine
 — or a shared/global namespace — degrades linearly and will dominate p99.
 
 **Verify on your data:** `EXPLAIN (ANALYZE, BUFFERS)` a `naive` query
-against a prod-size namespace; look for `Seq Scan on chunks` /
-`Index Scan using idx_doc_ns` + per-row distance, *not* an HNSW index
-scan.
+against a prod-size namespace; the default two-stage path should show an
+HNSW-backed candidate scan. The legacy single-stage control path
+(`two_stage_retrieval=False`) is expected to show `Seq Scan on chunks` /
+`Index Scan using idx_doc_ns` + per-row distance.
 
 **Mitigations (operator):**
 - Keep namespaces bounded (per-user / per-project), not one giant shared
@@ -62,25 +64,29 @@ scan.
 - Prefer `local` mode where the HNSW-backed seed CTE limits the candidate
   set before composite scoring.
 
-**Mitigation (library, recommended):** two-stage retrieval — fetch a
+**Library fix:** two-stage retrieval — fetch a
 candidate set via bare-distance HNSW (`ORDER BY embedding <=> q LIMIT
 N`), *then* re-score that candidate set with the BM25 + graph weights.
 This is the standard scalable hybrid pattern and would make latency
-`O(N)` instead of `O(namespace)`. Track as a library fix.
+`O(N)` instead of `O(namespace)`. It is enabled by default via
+`two_stage_retrieval=True`; retain the namespace/corpus bounds above for
+older releases and as general capacity discipline.
 
-### K2 — CRITICAL: tenant isolation is application-enforced only
+### K2 — CRITICAL: tenant isolation needs defense-in-depth
 
-`_validate_namespace()` runs on every public entrypoint, but isolation
-is *only* the `WHERE namespace = %(ns)s` clause the query builders add.
-There is **no Postgres RLS, no schema/DB separation, no session tenant
-binding**. One missing filter in any future query path, or a caller
-passing an attacker-influenced namespace, is a cross-tenant data leak
-with no defense-in-depth.
+**Status:** optional RLS defense-in-depth implemented in `6ef5143`.
+
+`_validate_namespace()` runs on every public entrypoint, and query
+builders add `WHERE namespace = %(ns)s`. Optional Postgres RLS now adds
+defense-in-depth via a session tenant GUC when `rls_enabled=True`. Without
+that option, one missing filter in a future query path, or a caller
+passing an attacker-influenced namespace, is still a cross-tenant data
+leak risk.
 
 **Best practice:**
 - Treat `namespace` as a trust boundary: derive it server-side from the
   authenticated principal, never from client input. Validate/whitelist.
-- For untrusted multi-tenant SaaS, add **Postgres RLS** keyed on a
+- For untrusted multi-tenant SaaS, enable **Postgres RLS** keyed on a
   session GUC (`SET app.tenant = ...`) as defense-in-depth, or use
   **schema-per-tenant / DB-per-tenant** (see §4 tenancy table).
 - Audit every code path that builds SQL for the namespace predicate;
@@ -89,6 +95,9 @@ with no defense-in-depth.
   pipeline.
 
 ### K3 — HIGH: connection scaling & auto-migrate contention
+
+**Status:** standalone `pgrg migrate` and pool guard implemented in
+`c27eb38`; expanded pool guardrail implemented in `5fbe231`.
 
 - `pool_max` default 10 × N processes → blows Postgres `max_connections`
   fast. Front with **pgbouncer (transaction pooling)**; keep
@@ -103,6 +112,9 @@ with no defense-in-depth.
   breaks under transaction pooling.
 
 ### K4 — HIGH: ingest is the heavy, contention-prone path
+
+**Status:** per-call `max_concurrent_docs` backpressure implemented in
+`8b666c8`.
 
 Per document: chunk → embed → (LLM extraction, 1 call/chunk) → entity
 resolution (pg_trgm fuzzy + vector) → graph write, in a per-document
@@ -124,10 +136,13 @@ build/repair HNSW after big bulk loads, not during.
 
 ### K5 — HIGH: unbounded tail latency
 
+**Status:** configurable `statement_timeout_ms` implemented in `221d10d`.
+
 `smart` mode escalates to recursive-CTE graph expansion;
 `rerank=True` adds a CPU cross-encoder (measured: a single rerank cell
-over long docs took **619 s** vs ~60 s for non-rerank). Combined with K1
-seq-scan, a single query's cost is highly variable.
+over long docs took **619 s** vs ~60 s for non-rerank). Combined with
+large namespaces, smart-mode graph expansion, or the legacy single-stage
+K1 path, a single query's cost is highly variable.
 
 **Best practice:** set Postgres `statement_timeout`; cap `max_hops`
 (2 is usually enough); keep `rerank=False` on the hot path or bound the
@@ -136,9 +151,11 @@ one tenant's expensive queries can't starve the pool.
 
 ### K6 — MED: HNSW operational characteristics
 
-- Indexes are created with **default parameters** (no `m` /
-  `ef_construction` set) and there is no exposed `ef_search` tuning —
-  recall/latency are un-tuned.
+**Status:** configurable HNSW `m`, `ef_construction`, and per-session
+`ef_search` implemented in `61f2c86`.
+
+- Indexes now expose `m` / `ef_construction`, and connections set
+  `hnsw.ef_search`; tune them for your recall/latency target.
 - The HNSW index is **global**, not per-namespace. Even where it *is*
   used (local-mode seed), filtered ANN over a multi-tenant index has the
   classic pgvector "filter + approximate search" recall problem.
@@ -151,28 +168,36 @@ size `maintenance_work_mem` for index builds; aggressive `autovacuum` on
 `chunks`/`entities`/`relationships` (high churn under evolution);
 periodic `REINDEX CONCURRENTLY` for churned HNSW indexes.
 
-### K7 — MED: no per-tenant quotas, rate limiting, or per-tenant metrics
+### K7 — MED: noisy-neighbor visibility and quota hooks
 
-Nothing in the library bounds a noisy neighbor. One tenant's huge ingest
-or pathological query degrades everyone (shared pool, shared CPU for
-embedding/rerank, shared Postgres).
+**Status:** per-namespace structured metric events implemented in `0fcf8a1`.
+
+Nothing in the library enforces quotas or rate limits. One tenant's huge
+ingest or pathological query can still degrade everyone (shared pool,
+shared CPU for embedding/rerank, shared Postgres).
 
 **Best practice:** enforce quotas/rate limits at your service layer
-(requests/min, ingest docs/min, max corpus size per namespace); emit
-per-namespace metrics (see §5) so noisy tenants are visible.
+(requests/min, ingest docs/min, max corpus size per namespace); use the
+emitted per-namespace metrics (see §5) so noisy tenants are visible.
 
 ### K8 — MED: data lifecycle & compliance
 
+**Status:** namespace purge and export implemented in `349ae6d`.
+
 Multi-tenant SaaS needs per-tenant delete/export (GDPR "delete tenant
-X"). `namespace` makes targeted delete possible (`delete()` exists);
-verify it cascades chunks/entities/relationships/versions. Soft-delete
-via evolution accumulates rows → schedule hard GC. Backups are
-whole-DB; per-namespace point-in-time export needs an app-level job.
+X"). `delete(namespace)` now purges namespace rows transactionally, and
+`export_namespace(namespace)` yields document/chunk records for app-level
+export. The purge covers source-less `facts` rows as well, with
+`fact_edges` removed through foreign-key cascade. Soft-delete via
+evolution still accumulates rows → schedule hard GC. Backups remain
+whole-DB; per-namespace point-in-time export is still an app-level job.
 
 ### K9 — known ceiling: single-writer Postgres
 
-Ingest (writes) is primary-only. Scale path: vertical first; **read
-replicas for the query path** (retrieval is read-only) with the writer
+**Status:** optional `read_dsn` read-replica routing implemented in `0ad5e37`.
+
+Ingest (writes) remains primary-only. Scale path: vertical first; set
+`PGRG_READ_DSN` for read replicas on the query path with the writer
 reserved for ingest; eventually shard by tenant across DBs (see §4).
 
 ---
@@ -271,10 +296,13 @@ invisible until it pages someone.
 ## 7. Status & accuracy
 
 - §1–§3 are verified against the current source. **K1 (composite
-  ORDER BY defeats HNSW)** is a code-level mechanism; quantify the impact
-  on your data with `EXPLAIN (ANALYZE, BUFFERS)` before sizing.
-- Library-side fixes implied here (two-stage retrieval for K1; RLS hook
-  for K2; HNSW param/`ef_search` exposure for K6; ingest backpressure for
-  K4) are recommendations, not yet implemented — companion to the F-list
-  in [`deployment-embedding-scaling.md`](deployment-embedding-scaling.md).
-- Nothing here changes runtime behavior; it is operational guidance.
+  ORDER BY defeats HNSW)** remains the underlying mechanism for the
+  single-stage path; the default two-stage path now avoids it. Quantify
+  impact on your data with `EXPLAIN (ANALYZE, BUFFERS)` before sizing.
+- K1–K9 library fixes are implemented in `0d1cae4`, `6ef5143`,
+  `c27eb38`, `8b666c8`, `221d10d`, `61f2c86`, `0fcf8a1`, `349ae6d`,
+  and `0ad5e37`.
+- The Phase 4 multi-tenant load run (`c63072f`) covered 50 namespaces ×
+  2,000 chunks, 200 concurrent queries, zero cross-tenant leaks, no pool
+  exhaustion, no empty/short top-k result sets, and p99 below the
+  configured target.
