@@ -1,4 +1,6 @@
-# Local pre-commit hooks that mirror CI's lint job exactly.
+# Local pre-commit hooks that mirror CI's lint job exactly, plus a
+# fast unit-test gate that runs on pre-commit (commit-stage) and a
+# slower full-suite gate that only runs on pre-push.
 #
 # Why local (not astral-sh/ruff-pre-commit): the hook reuses the project's
 # uv-locked ruff version, so pre-commit can't drift from CI's ruff version.
@@ -7,13 +9,22 @@
 #
 # Install once per clone:
 #   uv tool install pre-commit
-#   pre-commit install
+#   pre-commit install                              # commit-stage hooks
+#   pre-commit install --hook-type pre-push         # push-stage hook (opt-in)
 #
-# Then ruff check + ruff format --check run automatically on every
-# `git commit`. To run them on the full repo on demand:
-#   pre-commit run --all-files
+# Then on every `git commit`:
+#   - ruff check        (lint rules)
+#   - ruff format --check  (formatting)
+#   - pytest tests/unit/   (unit-only — <1s; no DB needed)
 #
-# CI (`.github/workflows/test.yml`) runs the same two commands; keep them
+# And on every `git push` (if you ran `pre-commit install --hook-type pre-push`):
+#   - pytest tests/unit/ tests/integration/  (requires Postgres up via docker compose)
+#
+# To run on the full repo on demand:
+#   pre-commit run --all-files                       # commit-stage hooks
+#   pre-commit run --all-files --hook-stage pre-push # all stages
+#
+# CI (`.github/workflows/test.yml`) runs the same lint commands; keep them
 # in sync. If you change one, change the other.
 
 repos:
@@ -34,3 +45,29 @@ repos:
         types: [python]
         pass_filenames: false
         require_serial: true
+
+      # Unit-only — runs in <1s, no DB required.
+      # 257+ tests today; if a future refactor pushes that past ~5s,
+      # demote to pre-push and add a faster smoke subset here.
+      - id: pytest-unit
+        name: pytest tests/unit/ (fast, no DB)
+        entry: uv run pytest tests/unit/ -q --no-header
+        language: system
+        types: [python]
+        pass_filenames: false
+        require_serial: true
+        # Only fire when source or test files change — saves a second on
+        # markdown-only commits.
+        files: '\.py$'
+
+      # Full suite — opt-in via `pre-commit install --hook-type pre-push`.
+      # Requires Postgres running (docker compose up -d) because the
+      # integration tests connect to localhost:5434.
+      - id: pytest-full
+        name: pytest tests/unit/ tests/integration/ (requires Postgres)
+        entry: uv run pytest tests/unit/ tests/integration/ -q --no-header
+        language: system
+        types: [python]
+        pass_filenames: false
+        require_serial: true
+        stages: [pre-push]
