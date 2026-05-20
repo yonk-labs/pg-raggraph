@@ -63,16 +63,27 @@ The narrow-predicate row in the bench above is **misleading on its own** — vec
 
 vector_first fetches `top_k × oversample_factor` (default 10 × 10 = 100) nearest-by-vector candidates BEFORE applying the post-filter. If your predicate matches only 0.1% of chunks (the Star Wars case), the top-100 nearest-by-vector candidates might contain **zero matching rows**, and the query returns < `top_k` results — or no results at all.
 
-> **Runtime guard.** When `vector_first` returns fewer rows than requested after post-filter, pg-raggraph logs a structured WARNING on `pg_raggraph.retrieval`:
+> **Runtime guard — paired log + metric.** When `vector_first` returns fewer rows than requested after post-filter, pg-raggraph emits two signals:
 >
-> ```
-> vector_first recall shortfall: returned 3 rows, requested 10.
-> HNSW seeded 100 candidates (top_k=10 × oversample=10); post-filter dropped to 3.
-> Bump config.retrieval_oversample_factor or switch to
-> retrieval_strategy='pre_filter' for this call shape.
-> ```
+> 1. WARNING on `pg_raggraph.retrieval` (human-readable diagnostic):
+>    ```
+>    vector_first recall shortfall: returned 3 rows, requested 10.
+>    HNSW seeded 100 candidates (top_k=10 × oversample=10); post-filter dropped to 3.
+>    Bump config.retrieval_oversample_factor or switch to
+>    retrieval_strategy='pre_filter' for this call shape.
+>    ```
 >
-> Configure log shipping to alert on this — it's the only signal that vector_first is silently degrading recall for a particular query shape.
+> 2. **Structured metric event** on `pg_raggraph.metrics` (INFO level, same shape as `pgrg.query`/`pgrg.ingest`):
+>    ```
+>    event:            pgrg.vector_first.recall_shortfall
+>    rows_returned:    3
+>    top_k:            10
+>    oversample_k:     100
+>    oversample_factor: 10
+>    shortfall_ratio:  0.3
+>    ```
+>
+> Alert on `shortfall_ratio` percentiles (e.g., page when p99 < 0.7 over 5 min). The WARNING is for ad-hoc debugging; the metric is for ongoing observability.
 
 Mitigations, in increasing order of severity:
 

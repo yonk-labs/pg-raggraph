@@ -20,6 +20,10 @@ from pg_raggraph.evolution import (
 from pg_raggraph.models import ChunkResult, EntityResult, QueryResult, RelationshipResult
 
 logger = logging.getLogger("pg_raggraph.retrieval")
+# Reuse the same metrics logger GraphRAG uses for pgrg.query / pgrg.ingest
+# events. Observability pipelines that already filter on this logger name
+# pick up vector_first.recall_shortfall events with no new wiring.
+metrics_logger = logging.getLogger("pg_raggraph.metrics")
 
 QueryMode = Literal["local", "global", "hybrid", "naive", "naive_boost", "smart"]
 
@@ -32,8 +36,17 @@ def _warn_vector_first_recall_shortfall(
     oversample_k: int,
     oversample_factor: int,
 ) -> None:
-    """Emit a structured log warning when vector_first post-filter trims
-    below ``top_k``.
+    """Emit a structured log warning AND a metric event when vector_first
+    post-filter trims below ``top_k``.
+
+    Two signals are emitted on different loggers so observability stacks
+    can route them independently:
+
+    - ``pg_raggraph.retrieval`` (WARNING level) — human-readable diagnostic
+      with mitigation guidance.
+    - ``pg_raggraph.metrics`` (INFO level, ``event="pgrg.vector_first.recall_shortfall"``)
+      — structured for metric ingestion (Datadog / Prometheus exporters
+      that already key off the pg-raggraph metric stream).
 
     Extracted from ``query()`` so the predicate (rows_returned < top_k) is
     unit-testable in isolation. Fires only when called from the vector_first
@@ -54,6 +67,23 @@ def _warn_vector_first_recall_shortfall(
         top_k,
         oversample_factor,
         rows_returned,
+    )
+    # Structured metric — same shape as GraphRAG._emit_metric so existing
+    # pgrg.query / pgrg.ingest consumers can ingest this with no new wiring.
+    event = "pgrg.vector_first.recall_shortfall"
+    metrics_logger.info(
+        event,
+        extra={
+            "event": event,
+            "rows_returned": rows_returned,
+            "top_k": top_k,
+            "oversample_k": oversample_k,
+            "oversample_factor": oversample_factor,
+            # Shortfall ratio is the actionable signal — 0.0 = total miss,
+            # < 1.0 = partial recall, never reaches 1.0 (we don't fire then).
+            # Operators alert on aggregated shortfall_ratio percentiles.
+            "shortfall_ratio": rows_returned / top_k if top_k else 0.0,
+        },
     )
 
 
