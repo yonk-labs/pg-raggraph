@@ -89,6 +89,25 @@ def test_index_name_uses_canonical_prefix() -> None:
     assert _metadata_index_name("session_id") == "idx_chunks_metadata_session_id"
 
 
+# --- metadata_indexes_gin config ---
+
+
+def test_metadata_indexes_gin_default_false() -> None:
+    """Opt-in: GIN index must not land on existing installations that
+    haven't explicitly asked for it. Default False is the contract."""
+    from pg_raggraph.config import PGRGConfig
+
+    assert PGRGConfig().metadata_indexes_gin is False
+
+
+def test_metadata_indexes_gin_accepts_bool() -> None:
+    """Pydantic should accept True/False directly without coercion games."""
+    from pg_raggraph.config import PGRGConfig
+
+    assert PGRGConfig(metadata_indexes_gin=True).metadata_indexes_gin is True
+    assert PGRGConfig(metadata_indexes_gin=False).metadata_indexes_gin is False
+
+
 def test_index_name_fits_postgres_identifier_limit() -> None:
     """Postgres truncates identifiers > 63 bytes silently — generated names
     must stay safely under that. ``idx_chunks_metadata_`` is 20 chars + key

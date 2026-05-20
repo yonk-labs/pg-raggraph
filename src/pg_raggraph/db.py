@@ -117,6 +117,8 @@ class Database:
             # across reconnects.
             if self.config.metadata_indexes:
                 await self._apply_metadata_indexes(conn)
+            if self.config.metadata_indexes_gin:
+                await self._apply_metadata_gin_index(conn)
         if self.config.read_dsn:
             self._read_pool = AsyncConnectionPool(
                 self.config.read_dsn,
@@ -354,6 +356,42 @@ class Database:
             await conn.execute("ANALYZE chunks")
         except Exception as e:  # noqa: BLE001 — diagnostic only
             logger.debug("ANALYZE chunks after metadata-index apply failed: %s", e)
+
+    async def _apply_metadata_gin_index(self, conn) -> None:
+        """Create a GIN index on the whole ``chunks.metadata`` JSONB column.
+
+        Powers ad-hoc containment / key-existence / multi-key predicates
+        that the per-key btree indexes from ``metadata_indexes`` can't
+        serve (e.g., ``metadata @> '{"tag":"x"}'``, ``metadata ? 'k'``).
+
+        Uses the default ``jsonb_ops`` operator class — supports all the
+        common JSONB query operators. The alternative ``jsonb_path_ops``
+        is smaller but only supports ``@>``; we err on the side of
+        flexibility since the bool flag is one knob.
+
+        Same non-CONCURRENTLY caveat as ``_apply_metadata_indexes``. For
+        production retrofit, run ``CREATE INDEX CONCURRENTLY`` manually
+        before flipping ``metadata_indexes_gin=True``.
+        """
+        # Fixed name — there's only one GIN index per chunks table by design.
+        index_name = "idx_chunks_metadata_gin"
+        stmt = sql.SQL("CREATE INDEX IF NOT EXISTS {idx} ON chunks USING GIN (metadata)").format(
+            idx=sql.Identifier(index_name)
+        )
+        try:
+            await conn.execute(stmt)
+            logger.info("Ensured GIN index %s on chunks.metadata", index_name)
+            await conn.execute("ANALYZE chunks")
+        except Exception as e:
+            # Same don't-crash-connect pattern as btree path — the rest of
+            # pg-raggraph works without the GIN; operator sees the warning.
+            logger.warning(
+                "Failed to create GIN index %s on chunks.metadata: %s. "
+                "Retrieval still works; ad-hoc JSONB containment / key-exists "
+                "predicates will not benefit from indexing until resolved.",
+                index_name,
+                e,
+            )
 
     async def _apply_migrations(self, conn) -> None:
         """Apply numbered migration files from sql/migrations/.

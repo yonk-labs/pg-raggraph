@@ -98,9 +98,44 @@ SQL
 
 Then add `tenant_id` to `metadata_indexes` in your config. On the next `connect()`, pg-raggraph's `IF NOT EXISTS` finds the existing index and the loop is a no-op.
 
+## GIN on full `chunks.metadata` (ad-hoc JSONB predicates)
+
+The per-key btree indexes above are great for `metadata->>'key' = 'value'` equality. For ad-hoc JSONB predicates — **containment** (`@>`), **key existence** (`?`), **multi-key match** (`?|`, `?&`) — you need a GIN index instead. pg-raggraph exposes this as a single bool flag:
+
+```python
+rag = GraphRAG(
+    dsn=...,
+    metadata_indexes_gin=True,  # creates idx_chunks_metadata_gin
+)
+await rag.connect()
+```
+
+Produces:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_chunks_metadata_gin
+    ON chunks USING GIN (metadata);
+```
+
+Uses the default `jsonb_ops` operator class — supports all the common JSONB query operators. The alternative `jsonb_path_ops` is smaller but only supports `@>`; we err on the side of flexibility since the config is one knob.
+
+**When to enable GIN:**
+
+| Predicate shape | Indexed by | Notes |
+|---|---|---|
+| `metadata->>'tier' = 'consolidated'` | btree (`metadata_indexes=["tier"]`) | Per-key, optimized for equality |
+| `metadata @> '{"tag":"x"}'` | **GIN** (`metadata_indexes_gin=True`) | Containment — no btree alternative |
+| `metadata ? 'priority'` | **GIN** | Key existence |
+| `metadata ?| ARRAY['a','b']` | **GIN** | Multi-key match |
+| `metadata->>'priority' > '5'` | btree (lexical) | Numeric range needs generated column (see "What this is NOT" below) |
+
+**Cost:** GIN is roughly 2-4× the bytes per indexed row vs btree, and writes are slower (the fast-update path mitigates this for bulk ingest but it's not free). Only enable when you actually have the predicate shapes — the per-key btree from `metadata_indexes` is cheaper for the equality case.
+
+**btree + GIN coexist fine.** Having `metadata_indexes=["tier", "session_id"]` AND `metadata_indexes_gin=True` is a valid combo: the btree wins for hot equality lookups, the GIN catches the long tail of ad-hoc containment queries.
+
 ## What this is NOT
 
-- **Not a GIN index for arbitrary JSONB predicates.** This is btree on a single extracted key, optimized for equality. Range queries (`metadata->>'priority' > '5'`) work but won't be as fast as a typed column.
+- **Btree alone doesn't cover GIN's ground.** This is btree on a single extracted key, optimized for equality. Range queries (`metadata->>'priority' > '5'`) work but won't be as fast as a typed column.
 - **Not type-aware.** `metadata->>` always returns text. If you store numbers, equality still works (`'5' = '5'`) but `<` / `>` compare lexicographically (`'10' < '5'`). For real numeric ranges, generated columns are the right answer.
 - **Not an auto-dropper.** If you remove a key from `metadata_indexes`, the index stays. That's intentional — destructive ops should be explicit. Run `DROP INDEX idx_chunks_metadata_<key>` manually if you want to remove one.
 
