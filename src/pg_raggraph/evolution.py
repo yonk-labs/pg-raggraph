@@ -90,6 +90,27 @@ def _effective_retracted_behavior(cfg: PGRGConfig, override: str | None) -> str:
     return override
 
 
+_SUPERSESSION_BEHAVIOR_VALUES = ("hide", "prefer_new", "surface_both")
+
+
+def _effective_supersession_behavior(cfg: PGRGConfig, override: str | None) -> str:
+    """Resolve supersession_behavior after applying the per-query override.
+
+    Mirror of ``_effective_retracted_behavior``. ``None`` falls back to
+    ``cfg.supersession_behavior``. Validates against the Literal set so an
+    invalid override (typo) raises at the boundary instead of silently
+    no-op'ing in the WHERE clause builder.
+    """
+    if override is None:
+        return cfg.supersession_behavior
+    if override not in _SUPERSESSION_BEHAVIOR_VALUES:
+        raise ValueError(
+            f"Invalid supersession_behavior {override!r}. "
+            f"Must be one of: {_SUPERSESSION_BEHAVIOR_VALUES}"
+        )
+    return override
+
+
 def temporal_boost_expr(doc_alias: str = "d") -> str:
     """SQL fragment: exp(-ln(2) * age_years / half_life). Neutral when
     effective_from is NULL (falls back to created_at then now() → 0 years
@@ -160,6 +181,7 @@ def evolution_where_clauses(
     version_filter: str | None = None,
     evolution_aware: bool | None = None,
     retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
 ) -> tuple[list[str], dict]:
     """Returns (where_clauses, bind_params_for_clauses) based on evolution
     behavior modes plus per-query overrides. Caller joins clauses with
@@ -184,7 +206,7 @@ def evolution_where_clauses(
     params: dict = {}
     if _effective_retracted_behavior(cfg, retracted_behavior) == "hide":
         clauses.append(f"NOT {doc_alias}.retracted")
-    if cfg.supersession_behavior == "hide":
+    if _effective_supersession_behavior(cfg, supersession_behavior) == "hide":
         if as_of is not None:
             # Historical query: a doc superseded via supersede() carries an
             # effective_to, so the as_of window clause added below
