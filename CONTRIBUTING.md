@@ -12,9 +12,17 @@ Thanks for considering a contribution. This is a small, focused library and we w
 ## What to check before opening a PR
 
 - Tests pass: `uv run pytest`
-- Lint clean: `uv run ruff check . && uv run ruff format --check .`
+- Lint clean: `uv run ruff check . && uv run ruff format --check .` (or `pre-commit run --all-files`, see below)
 - New behavior has a test. New config knobs are documented in `docs/user-guide.md` and the `README.md` config table.
 - Benchmark numbers in the PR description cite a raw result file, not a summary paragraph.
+
+> **Pre-commit hook (recommended).** This repo ships a `.pre-commit-config.yaml` that runs both ruff invocations on every `git commit`. Install once:
+>
+> ```bash
+> uv tool install pre-commit && pre-commit install
+> ```
+>
+> After that, `git commit` blocks if either ruff check fails — matching CI's lint job exactly. Saves the round-trip of "merged with red CI, push a follow-up fix."
 
 ## Local development setup
 
@@ -25,6 +33,10 @@ cd pg-raggraph
 
 # 2. Install dependencies (Python 3.12+ required)
 uv sync --all-extras
+
+# 2a. (Recommended) install the pre-commit hook
+uv tool install pre-commit
+pre-commit install
 
 # 3. Start PostgreSQL with pgvector + pg_trgm
 docker compose up -d
