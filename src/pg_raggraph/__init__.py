@@ -1274,6 +1274,7 @@ class GraphRAG:
         evolution_aware: bool | None = None,
         retracted_behavior: str | None = None,
         memory_tier: str | None = None,
+        retrieval_strategy: str | None = None,
         rerank: bool = False,
     ) -> QueryResult:
         """Query the knowledge graph.
@@ -1305,6 +1306,15 @@ class GraphRAG:
                 whose ``metadata->>'tier'`` is non-NULL; non-memory chunks
                 always pass through. See Pattern M in
                 ``docs/cookbook/chunkshop-integration.md``.
+            retrieval_strategy: per-call override of ``config.retrieval_strategy``.
+                One of ``"weighted"`` (today's default), ``"pre_filter"``
+                (predicate-first CTE — best for selective WHERE on indexed
+                columns), or ``"vector_first"`` (HNSW-seed CTE with
+                post-filter — best for broad queries on large
+                single-namespace corpora). ``None`` falls back to config.
+                Applies to naive/naive_boost modes only — local/global/
+                hybrid already pre-narrow via graph traversal and ignore
+                this knob.
             rerank: when True, fetch top_k * rerank_factor candidates and
                 re-rank with a cross-encoder before trimming to top_k.
                 Adds ~30-80 ms p50 latency, zero per-query LLM cost.
@@ -1332,6 +1342,7 @@ class GraphRAG:
                     evolution_aware=evolution_aware,
                     retracted_behavior=retracted_behavior,
                     memory_tier=memory_tier,
+                    retrieval_strategy=retrieval_strategy,
                     top_k_override=top_k_override,
                 )
             if rerank:
@@ -1361,6 +1372,7 @@ class GraphRAG:
         evolution_aware: bool | None = None,
         retracted_behavior: str | None = None,
         memory_tier: str | None = None,
+        retrieval_strategy: str | None = None,
         short_answer: bool = False,
         rerank: bool = False,
     ) -> QueryResult:
@@ -1393,6 +1405,7 @@ class GraphRAG:
             evolution_aware=evolution_aware,
             retracted_behavior=retracted_behavior,
             memory_tier=memory_tier,
+            retrieval_strategy=retrieval_strategy,
             rerank=rerank,
         )
         # Reuse the shared LLM client (same pool as ingestion).

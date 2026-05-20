@@ -238,6 +238,34 @@ class PGRGConfig(BaseSettings):
     hnsw_ef_construction: int = 64
     hnsw_ef_search: int = 40
 
+    # Retrieval pipeline strategy (applies to naive / naive_boost modes).
+    # local / global / hybrid already pre-narrow via graph traversal and
+    # ignore this knob.
+    #
+    # - "weighted" (default): single-pass combined score over namespace.
+    #   Today's behavior. Best for medium-selectivity queries and full
+    #   backward compatibility.
+    # - "pre_filter": CTE materializes predicate-matching subset first,
+    #   then ranks within. Best for HIGHLY SELECTIVE predicates (e.g.,
+    #   exact title/tenant/tier match). Avoids the "scan 100K to discard
+    #   99.9K" pathology — see docs/cookbook/chunkshop-integration.md
+    #   bench notes.
+    # - "vector_first": HNSW-seed CTE without namespace join → post-filter
+    #   in outer query. Best for BROAD/EXPLORATORY queries on large
+    #   single-namespace corpora where HNSW actually beats seq scan.
+    #   Multi-namespace deployments should prefer "weighted" or
+    #   "pre_filter" since the HNSW seed may return mostly off-namespace
+    #   rows that get discarded post-filter.
+    #
+    # Per-call override available on rag.query()/.ask() via
+    # ``retrieval_strategy=`` kwarg.
+    retrieval_strategy: Literal["weighted", "pre_filter", "vector_first"] = "weighted"
+    # For vector_first: how many candidates to fetch from HNSW before
+    # post-filter. Higher = better recall under selective predicates,
+    # higher latency. Default 10x is a starting point — tune to your
+    # predicate selectivity.
+    retrieval_oversample_factor: int = 10
+
     # Cross-encoder reranking (off by default; opt-in per-query via rerank=True).
     # When enabled, retrieval fetches top_k * rerank_factor candidates, then a
     # cross-encoder scores each (question, chunk) pair and trims to top_k.

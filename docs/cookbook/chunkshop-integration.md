@@ -371,7 +371,23 @@ If you do go with chunkshop, the data here suggests:
 
 ## Pattern M — agent memory (chunkshop SP-A bridge)
 
-> **Status:** ✅ Shipped (pg-raggraph PR closing [#4](https://github.com/yonk-labs/pg-raggraph/issues/4)). chunkshop's writer side (SP-A) shipped in 0.4.3.
+> **Status:** Experimental — pg-raggraph PR closing [#4](https://github.com/yonk-labs/pg-raggraph/issues/4) is the read bridge. chunkshop's SP-A writer is in chunkshop main; **not yet on PyPI 0.4.3** (verified 2026-05-20). Install chunkshop from source until SP-A lands in a published release.
+
+### When this is awesome
+
+Pattern M is the right call when **all four** of these are true:
+
+- **Long-lived agent sessions.** You want to remember and retrieve across sessions, not just within a single turn. Pattern M loses to Pattern D when the corpus is static documents.
+- **Two-tier write cadence.** You want a "fast staging" path (chunkshop realtime cell — ~20 min latency) AND a "good consolidation" path (chunkshop consolidate cell — hours/days, supersedes provisional). If you only need one tier, just use Pattern C.
+- **Post-hoc fact extraction.** Your consolidation cell extracts SPO triples (LLM- or rule-based) that you want in pg-raggraph's graph layer for relationship-aware retrieval (`local`/`global`/`hybrid` modes).
+- **Multi-tenant or multi-scenario read paths.** Different callers need different tier policies — `memory_tier="consolidated"` for production answers vs. `memory_tier="provisional"` for "show me what I've seen so far" debug views. The per-call kwarg makes this race-safe without config mutation.
+
+### When this is NOT the right call
+
+- **Static knowledge base.** Use Pattern D (chunker-only) — simpler install, no two-tier overhead.
+- **Single-shot RAG over fixed docs.** Pattern A (built-in chunker) is enough.
+- **You're using chunkshop's extractive-default consolidator.** The bridge correctly drops sparse SPO triples and keeps them as chunks, but you'll get zero graph relationships. Wire chunkshop's `consolidator.module` to a real LLM module (or accept that you're using Pattern M for vector + tier-filtered retrieval only — still useful, but you're not exercising the graph half of pg-raggraph).
+- **You need first-class fact retraction at query time.** Pattern M stashes `retracted` in chunk metadata; it's queryable via JSONB but `retracted_behavior="hide"` (document-level, [#1](https://github.com/yonk-labs/pg-raggraph/issues/1)) doesn't apply to bridged fact rows. Track this as a follow-up.
 
 chunkshop 0.4.3's **SP-A memory primitives** write a two-tier `agent_memory.memory` table (Postgres) that holds both episode chunks (`kind='episode'`) and atomic SPO fact rows (`kind='fact'`), tagged `tier='provisional'` or `tier='consolidated'`, with bi-temporal `effective_from` / `effective_to` and soft-invalidation via `retracted` / `retracted_at`.
 
@@ -459,6 +475,45 @@ rag.config.memory_tier = "consolidated"
 ```
 
 The filter only fires on chunks whose `metadata->>'tier'` is non-NULL, so a mixed corpus (non-memory documents + SP-A-bridged chunks in the same namespace) is safe — non-memory chunks always pass through.
+
+### Validation — what we actually tested (2026-05-20)
+
+Smoke run end-to-end against chunkshop SP-A (installed from `chunkshop/python` source, since the writer side isn't on PyPI 0.4.3 yet) on a local Postgres 16 + pgvector:
+
+| Check | Result |
+|---|---|
+| 60 events staged across 10 sessions via `stage_events()` | ✅ |
+| SP-A `realtime.yaml` cell — 10 docs, 10 chunks, 0.34 s | ✅ |
+| SP-A `consolidate.yaml` cell (default extractive consolidator) — 10 docs, 90 chunks (10 episode + 80 fact), 1.0 s | ✅ |
+| Bridge `rows_to_records()` — 90 SP-A rows → 10 pg-raggraph records | ✅ |
+| `ingest_records(skip_llm=True, …)` writes 10 docs + 90 chunks; all chunks carry `metadata.tier` + `metadata.kind` | ✅ |
+| `memory_tier='consolidated'` returns 10 chunks; `'provisional'` returns 0 | ✅ |
+| **O2 consolidated-wins** — inject a `tier='provisional'` chunk alongside consolidated; `memory_tier='consolidated'` filters it out | ✅ |
+| Mixed corpus safety — chunks with NULL tier metadata pass through under `memory_tier='consolidated'` | ✅ (EXPLAIN confirms `IS NULL OR =` predicate is post-scan, not a tablescan) |
+
+**Filter latency at 100K mixed chunks** (50K with tier metadata, 50K without; Postgres 16, HNSW index present, single connection):
+
+| Mode | `memory_tier=both` | `memory_tier=consolidated` | Delta |
+|---|---|---|---|
+| `naive` (vector + BM25) | p50 **125 ms**, p95 137 ms | p50 **128 ms**, p95 140 ms | +3 ms p50, +3 ms p95 |
+| `local` (graph-expanded) | p50 **10 ms**, p95 16 ms | p50 **10 ms**, p95 16 ms | within noise |
+
+**Important honest caveat — these are SEQ-SCAN numbers, not HNSW.** EXPLAIN ANALYZE shows the planner picked `idx_chunk_doc` over the HNSW index because of pg-raggraph's `JOIN documents ON namespace` shape — it estimated the namespace-scoped seq scan cheaper than HNSW for a single-namespace bench. So 125 ms isn't "HNSW + tier filter overhead"; it's "full namespace scan with tier filter as a post-scan predicate."
+
+What this means for you:
+
+- **For broad predicates (tier=consolidated, ~25% selective):** the seq-scan plan is fine. Tier filter is essentially free.
+- **For highly selective predicates** (tier=specific_session, ~0.1% selective): the seq-scan plan is *bad* — it scans all 100K chunks just to throw away 99.9 K of them after the filter. We measured 54 ms for a 0.1%-selective filter, which would be ~0.5 ms if the predicate pre-filtered to 100 rows first.
+- **For HNSW-eligible queries against multi-namespace corpora:** the planner may pick HNSW and the absolute baseline drops; tier filter overhead stays a rounding error.
+
+This pathology — pg-raggraph's single-pass plan doing post-filter when a pre-filter would be 100× faster — is what motivated the `retrieval_strategy` work tracked separately (see [`docs/Config-Reference.md`](../Config-Reference.md#retrieval_strategy) once it lands). For now, if you have a highly selective `memory_tier` use case (e.g., one-tenant-at-a-time queries against a shared agent_memory namespace), use a dedicated namespace per tenant rather than relying on the tier filter for primary selectivity.
+
+### What we did NOT test
+
+- Performance at >100K chunks. EXPLAIN says the filter is post-scan against a namespace-scoped index seek, so it should stay linear; not benchmarked at 1M+.
+- HNSW interaction. The bench had no vector index — production would. Filter is composable with HNSW (it's a post-vector-seek predicate), but not separately measured.
+- Long-session stability. Smoke test was 10 sessions × 6 turns each. No multi-day soak.
+- Consolidator drift. The default extractive consolidator emits sparse SPO triples (all 80 facts came back with NULL subject/predicate/object). The bridge correctly skips graph edges for sparse triples but keeps them as chunks. With an LLM-wired consolidator you'd get proper graph relationships; we haven't validated that path end-to-end.
 
 ### Limitations and gaps (honest read)
 
