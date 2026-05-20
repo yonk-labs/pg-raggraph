@@ -1,5 +1,108 @@
 # Changelog
 
+## Unreleased — 2026-05-20 (retrieval surface + per-call kwargs + index machinery)
+
+Significant additive arc: per-call config overrides on `query()` / `ask()`, configurable retrieval SQL shape (`weighted` / `pre_filter` / `vector_first`), auto-create + runtime APIs for JSONB metadata indexes on **both** `chunks` and `documents`, a typed-column scaffold for numeric/timestamp range queries, the chunkshop SP-A agent-memory read bridge, an observability metric on `vector_first` recall, and two `version_*` correctness fixes for `evolution_tier="off"`.
+
+All additions are opt-in / backward-compatible. Defaults preserve pre-arc behavior byte-for-byte.
+
+### Added — per-call overrides on `query()` / `ask()`
+
+Mirroring the existing `evolution_aware: bool | None` shape. Pass `None` (default) → falls back to config. Pass an explicit value → overrides for that call only. All race-safe for multi-tenant servers sharing one `GraphRAG`.
+
+- **`retracted_behavior: str | None`** (#1, PR #9) — `"hide"` / `"flag"` / `"surface_both"`.
+- **`supersession_behavior: str | None`** (PR #15) — `"hide"` / `"prefer_new"` / `"surface_both"`. Completes the symmetry with retraction.
+- **`memory_tier: str | None`** (PR #10) — `"provisional"` / `"consolidated"` / `"both"`. Read-side enforcement of chunkshop SP-A's O2 consolidated-wins rule.
+- **`retrieval_strategy: str | None`** (PR #11) — `"weighted"` (default) / `"pre_filter"` / `"vector_first"`.
+
+### Added — configurable retrieval SQL shape (`retrieval_strategy`)
+
+Three named SQL shapes for `naive` / `naive_boost` modes. `local` / `global` / `hybrid` already pre-narrow via graph traversal and ignore this knob.
+
+- **`weighted`** — single-pass combined score; today's behavior; byte-identical default.
+- **`pre_filter`** — CTE materializes predicate-matching subset before ranking; for selective WHERE clauses on **indexed** columns.
+- **`vector_first`** — HNSW-seed CTE without namespace JOIN → post-filter; **60-66× faster** for broad/no-predicate queries on single-namespace corpora (bench at 100K chunks).
+- Paired **`pgrg.vector_first.recall_shortfall` metric** on `pg_raggraph.metrics` logger (PR #20) — emits when post-filter trims below `top_k`. Includes WARNING log + structured event with `shortfall_ratio` for alerting.
+- `retrieval_oversample_factor: int = 10` config for `vector_first` candidate sizing.
+
+### Added — JSONB metadata index machinery (Scope B, three kinds × two tables)
+
+Auto-create at `connect()` time, idempotent via `IF NOT EXISTS`. All default empty / False.
+
+**Chunks-side** (PRs #19, #21, #22):
+
+- `metadata_indexes: list[str]` — btree per-key on `chunks.metadata->>'<key>'`
+- `metadata_indexes_gin: bool` — GIN on full `chunks.metadata` JSONB (for `@>`, `?`, `?|` predicates)
+- `metadata_generated_columns: dict[str, str]` — STORED generated column `meta_<key>` + btree (typed range queries: int, bigint, numeric, timestamptz, boolean, text)
+
+**Documents-side mirrors** (PR #28 — Option A):
+
+- `document_metadata_indexes: list[str]`
+- `document_metadata_indexes_gin: bool`
+- `document_metadata_generated_columns: dict[str, str]`
+
+The documents-side knobs close the chunks-vs-documents gap for the common GraphRAG-from-DB pattern (sales notes / support tickets where structured fields land on `documents.metadata`, not `chunks.metadata`).
+
+**Identifier safety:** key whitelist `^[a-zA-Z_][a-zA-Z0-9_]{0,49}$`; table whitelist `chunks|documents`; type whitelist for generated columns; psycopg `sql.Identifier` for DDL composition. Injection canaries reject at config init.
+
+### Added — runtime metadata-index API (PR #27)
+
+For UI flows and exploratory use; no restart needed.
+
+- **`rag.recommend_metadata_indexes(*, table=None, ...)`** — samples both tables by default, returns `list[IndexRecommendation]` with type inference + cardinality + confidence + `already_exists`. Heuristic ranks high-confidence + selective candidates first.
+- **`rag.add_metadata_index(key, *, kind, sql_type, table)`** — runtime DDL. Returns `dict` (never raises) for UI error display.
+- **`rag.remove_metadata_index(key, *, kind, table)`** — idempotent (`IF EXISTS`). For `kind="generated"` also drops the column.
+- **`rag.list_metadata_indexes(*, table=None)`** — snapshot of currently-installed indexes.
+
+`IndexRecommendation` is a dataclass with `table`, `key`, `kind`, `sql_type`, `rationale`, `selectivity`, `cardinality_ratio`, `sample_size`, `sample_values`, `confidence`, `already_exists` — structured so a UI can render rows without re-parsing prose.
+
+### Added — chunkshop SP-A agent-memory bridge (Pattern M, PR #10)
+
+Read-side bridge from chunkshop's `agent_memory.memory` table into pg-raggraph's graph layer.
+
+- **`pg_raggraph.memory_bridge`** module — `SP_A_MEMORY_COLUMNS` contract (CI-pinned with chunkshop's symmetric `test_pgraggraph_contract_columns_present`) + `rows_to_records()` pure transform.
+- **`benchmarks/agent-memory-demo/ingest_chunkshop_sp_a.py`** — runnable bridge example.
+- Reuses existing `ingest_records(pre_chunked=…, relationships=…, skip_llm=True)` seams — no new ingest API.
+- Smoke-tested end-to-end against chunkshop SP-A populated `agent_memory.memory`; validation findings (embedding parser, contract drift) folded into the bridge.
+- See `docs/cookbook/chunkshop-integration.md` → Pattern M for the full story including the "Honest gaps" section.
+
+### Fixed
+
+- **#17** (PR #26) — `ChunkResult.version_label` was always `None` when `evolution_tier="off"`, even though `documents.version_label` was populated. Treat `version_label` as caller-supplied opaque content (tier-independent), same as `metadata`. State fields (`retracted`, `effective_from`, `effective_to`, `superseded_by_id`) remain tier-gated.
+- **#18** (PR #26) — `GraphRAG.ask(..., version_filter="3.12")` silently no-op'd when `evolution_tier="off"`. `version_filter` is content scoping (a WHERE clause), not evolution scoring. Emit the clause regardless of tier. Other evolution-state filters (`retracted_behavior=hide`, `supersession_behavior=hide`, `as_of`) remain tier-gated.
+
+### Closed (other issues)
+
+- **#4** — SP-B agent-memory bridge (PR #10)
+- **#5** — Bump `chunkshop>=0.4.3` for SP-A memory primitives (PR #8)
+- **#6** — Cookbook refresh for chunkshop 0.4 multi-engine + Pattern M (PR #8)
+- **#1** — `retracted_behavior` per-call kwarg on `ask()` (PR #9)
+- **#17**, **#18** — version-fields tier-independence (PR #26)
+
+### Notes — defaults preserved
+
+- `retrieval_strategy="weighted"` is the default; the `naive` SQL it produces is byte-identical to pre-arc `_build_naive_query`/`_twostage`.
+- `two_stage_retrieval` config still works (controls which `weighted` path).
+- All new metadata-index config fields default empty / False — zero schema change for callers who don't opt in.
+- Per-call kwargs all default `None` → config-driven.
+- All existing benchmarks unchanged.
+
+### Notes — operability
+
+- Pre-commit hook (`.pre-commit-config.yaml`, PR #14) running both `ruff check` + `ruff format --check` so the lint failure mode that hit PR #11→#12→#13 doesn't recur. Install once with `uv tool install pre-commit && pre-commit install`.
+- All auto-create index DDL is **non-CONCURRENTLY** (runs inside `connect()`'s advisory lock). For production retrofit, see `docs/cookbook/metadata-indexes.md` → Production retrofit guide for the manual `CREATE INDEX CONCURRENTLY` recipe.
+
+### Cookbook additions
+
+- `docs/cookbook/retrieval-strategy.md` — picking a `retrieval_strategy` with bench evidence (60-66× win, recall caveat for selective predicates)
+- `docs/cookbook/metadata-indexes.md` — all three index kinds × both tables, runtime API, generated columns, naming conventions, production retrofit
+- `docs/cookbook/chunkshop-integration.md` — Pattern M (SP-A bridge), `chunkshop>=0.4.3` migration, multi-engine backend compatibility
+- `docs/EVOLUTION-API-QUICKREF.md` — per-call kwargs (retracted_behavior, supersession_behavior) marked as recommended pattern; config form documented as fallback
+
+### Tracked follow-ups
+
+- **#24** — Explore: ingest-time denormalization of `document.metadata` onto `chunks.metadata`. P3, revisit when there's workload data showing the two-table mental model causes friction.
+
 ## 0.3.0a3 — 2026-05-17 (consumer surface)
 
 ### Added (all optional, back-compatible)
