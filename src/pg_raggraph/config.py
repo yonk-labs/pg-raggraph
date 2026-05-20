@@ -329,6 +329,34 @@ class PGRGConfig(BaseSettings):
     # Example: ``{"priority": "int", "created_at": "timestamptz"}``
     metadata_generated_columns: dict[str, str] = {}
 
+    # --- documents.metadata mirrors (Option A) ---
+    #
+    # The three knobs above target ``chunks.metadata`` (mechanical fields
+    # the chunker writes: source_path, chunk_index, etc.). The three below
+    # target ``documents.metadata`` — where caller-supplied per-record
+    # fields like salesperson, product, date, customer land when ingesting
+    # from a structured source via ``ingest_records()``.
+    #
+    # For the common GraphRAG-from-DB pattern (sales notes, support
+    # tickets, anything pulled from a PG table with FK-like fields), the
+    # USEFUL indexes are on documents.metadata, not chunks.metadata. These
+    # fields close that gap for purely config-driven deployments; the
+    # runtime ``rag.add_metadata_index(table="documents")`` API is
+    # available for UI flows.
+    #
+    # See docs/cookbook/metadata-indexes.md → "Why two tables matter".
+
+    # Btree per-key on ``documents.metadata->>'<key>'``.
+    document_metadata_indexes: list[str] = []
+
+    # GIN on the whole ``documents.metadata`` JSONB.
+    document_metadata_indexes_gin: bool = False
+
+    # Typed STORED generated columns + btree indexes on ``documents``
+    # (column: ``meta_<key>``; index: ``idx_documents_meta_<key>``).
+    # Same type whitelist as the chunks-side counterpart.
+    document_metadata_generated_columns: dict[str, str] = {}
+
     # Cross-encoder reranking (off by default; opt-in per-query via rerank=True).
     # When enabled, retrieval fetches top_k * rerank_factor candidates, then a
     # cross-encoder scores each (question, chunk) pair and trims to top_k.

@@ -52,13 +52,40 @@ def _validate_metadata_index_key(key: str) -> str:
     return key
 
 
-def _metadata_index_name(key: str) -> str:
-    """Build the canonical index name for a metadata key.
+_METADATA_INDEXED_TABLES = ("chunks", "documents")
 
-    The name is stable across runs (idempotent CREATE INDEX IF NOT EXISTS)
-    and discoverable in psql via the ``idx_chunks_metadata_`` prefix.
+
+def _validate_metadata_table(table: str) -> str:
+    """Whitelist the table name for metadata-index DDL composition.
+
+    Belt-and-suspenders alongside ``sql.Identifier`` escaping — only
+    ``chunks`` and ``documents`` are valid targets for metadata-index
+    auto-create. Other tables (``entities``, ``relationships``, etc.)
+    reject at config init.
     """
-    return f"idx_chunks_metadata_{key}"
+    if table not in _METADATA_INDEXED_TABLES:
+        raise ValueError(
+            f"metadata-index table must be one of {_METADATA_INDEXED_TABLES}, got {table!r}"
+        )
+    return table
+
+
+def _metadata_index_name(key: str, table: str = "chunks") -> str:
+    """Build the canonical btree-on-JSONB index name.
+
+    Returns ``idx_chunks_metadata_<key>`` or ``idx_documents_metadata_<key>``.
+    Stable across runs (idempotent CREATE INDEX IF NOT EXISTS) and
+    discoverable in psql via the ``idx_<table>_metadata_`` prefix.
+
+    ``table`` defaults to ``"chunks"`` for back-compat with pre-Option-A
+    callers that didn't pass a table arg.
+    """
+    return f"idx_{table}_metadata_{key}"
+
+
+def _metadata_gin_index_name(table: str = "chunks") -> str:
+    """Fixed name for the GIN index on the whole JSONB column — one per table."""
+    return f"idx_{table}_metadata_gin"
 
 
 # Whitelist of SQL types allowed for generated-column scaffolding.
@@ -102,16 +129,19 @@ def _validate_metadata_generated_type(type_name: str) -> str:
 def _metadata_generated_column_name(key: str) -> str:
     """Canonical generated-column name for a metadata key.
 
-    Lands under ``meta_<key>`` on ``chunks``. Distinct namespace from the
-    btree ``idx_chunks_metadata_`` prefix so a key can have BOTH a
-    generated column AND a btree index without name collision.
+    Lands under ``meta_<key>``. Table-independent — the column lives on
+    a specific table, so no cross-table name collision is possible.
+    Index names (below) DO encode the table.
     """
     return f"meta_{key}"
 
 
-def _metadata_generated_index_name(key: str) -> str:
-    """Btree index name on the generated column."""
-    return f"idx_chunks_meta_{key}"
+def _metadata_generated_index_name(key: str, table: str = "chunks") -> str:
+    """Btree index name on the generated column.
+
+    Returns ``idx_chunks_meta_<key>`` or ``idx_documents_meta_<key>``.
+    """
+    return f"idx_{table}_meta_{key}"
 
 
 # Whitelist of tables for safe SQL composition
@@ -164,16 +194,28 @@ class Database:
             else:
                 await self._ensure_schema(conn)
             # Apply user-configured metadata indexes after the base schema
-            # is guaranteed present. Skips silently when the list is empty
-            # (the default), so callers who don't opt in see no schema
-            # change. CREATE INDEX IF NOT EXISTS makes this idempotent
-            # across reconnects.
+            # is guaranteed present. Skips silently when the list/dict is
+            # empty (the default), so callers who don't opt in see no
+            # schema change. CREATE INDEX IF NOT EXISTS makes this
+            # idempotent across reconnects.
+            #
+            # Two parallel sets of knobs — chunks.metadata (default for the
+            # mechanical chunker-supplied fields like source_path) and
+            # documents.metadata (caller-supplied per-record fields like
+            # salesperson / product / date from a structured-source ingest).
+            # See docs/cookbook/metadata-indexes.md → "Why two tables matter".
             if self.config.metadata_indexes:
-                await self._apply_metadata_indexes(conn)
+                await self._apply_metadata_indexes(conn, table="chunks")
+            if self.config.document_metadata_indexes:
+                await self._apply_metadata_indexes(conn, table="documents")
             if self.config.metadata_indexes_gin:
-                await self._apply_metadata_gin_index(conn)
+                await self._apply_metadata_gin_index(conn, table="chunks")
+            if self.config.document_metadata_indexes_gin:
+                await self._apply_metadata_gin_index(conn, table="documents")
             if self.config.metadata_generated_columns:
-                await self._apply_metadata_generated_columns(conn)
+                await self._apply_metadata_generated_columns(conn, table="chunks")
+            if self.config.document_metadata_generated_columns:
+                await self._apply_metadata_generated_columns(conn, table="documents")
         if self.config.read_dsn:
             self._read_pool = AsyncConnectionPool(
                 self.config.read_dsn,
@@ -354,12 +396,14 @@ class Database:
         finally:
             await conn.execute("SELECT pg_advisory_unlock(%s)", (0x70677267,))
 
-    async def _apply_metadata_indexes(self, conn) -> None:
-        """Create btree indexes on ``chunks.metadata->>'<key>'`` per config.
+    async def _apply_metadata_indexes(self, conn, *, table: str = "chunks") -> None:
+        """Create btree indexes on ``<table>.metadata->>'<key>'`` per config.
 
-        For each key in ``config.metadata_indexes``: ``CREATE INDEX IF NOT
-        EXISTS idx_chunks_metadata_<key> ON chunks ((metadata->>'<key>'))``.
-        Followed by ``ANALYZE chunks`` so the planner picks up the new
+        For each key in the matching config list (``metadata_indexes`` for
+        ``table="chunks"``, ``document_metadata_indexes`` for
+        ``table="documents"``): ``CREATE INDEX IF NOT EXISTS
+        idx_<table>_metadata_<key> ON <table> ((metadata->>'<key>'))``.
+        Followed by ``ANALYZE <table>`` so the planner picks up the new
         index immediately.
 
         Uses non-CONCURRENTLY because:
@@ -367,57 +411,64 @@ class Database:
         - We're inside ``connect()`` which holds the bootstrap advisory
           lock; CONCURRENTLY would fail in that context (it can't run in a
           transaction).
-        - For fresh deployments the chunks table is empty or tiny — the
+        - For fresh deployments the table is empty or tiny — the
           ACCESS EXCLUSIVE lock is invisible.
         - Production retrofitters should create the index manually with
           CONCURRENTLY first (see docs/cookbook/metadata-indexes.md), then
-          add the key to ``metadata_indexes`` so this loop's
+          add the key to the matching config so this loop's
           ``IF NOT EXISTS`` is a no-op.
 
         Keys are validated against ``_METADATA_INDEX_KEY_RE`` first so a
         bad config raises a clear error at startup, not a SQL syntax
         error mid-CREATE.
         """
-        for raw_key in self.config.metadata_indexes:
+        table = _validate_metadata_table(table)
+        keys = (
+            self.config.metadata_indexes
+            if table == "chunks"
+            else self.config.document_metadata_indexes
+        )
+        for raw_key in keys:
             key = _validate_metadata_index_key(raw_key)
-            index_name = _metadata_index_name(key)
-            # sql.Identifier handles escaping for both the index name and
-            # the JSONB key string. We don't need to interpolate the key
-            # into a string literal directly — psycopg renders it safely.
+            index_name = _metadata_index_name(key, table=table)
             stmt = sql.SQL(
-                "CREATE INDEX IF NOT EXISTS {idx} ON chunks ((metadata->>{key}))"
+                "CREATE INDEX IF NOT EXISTS {idx} ON {tbl} ((metadata->>{key}))"
             ).format(
                 idx=sql.Identifier(index_name),
+                tbl=sql.Identifier(table),
                 key=sql.Literal(key),
             )
             try:
                 await conn.execute(stmt)
-                logger.info("Ensured metadata index %s on chunks.metadata->>%r", index_name, key)
+                logger.info(
+                    "Ensured metadata index %s on %s.metadata->>%r", index_name, table, key
+                )
             except Exception as e:
                 # Don't crash connect() over an index failure — the rest of
                 # pg-raggraph still works without the optimization. But log
                 # loudly so the operator sees it.
                 logger.warning(
-                    "Failed to create metadata index %s on chunks.metadata->>%r: %s. "
+                    "Failed to create metadata index %s on %s.metadata->>%r: %s. "
                     "Retrieval still works; pre_filter on this key will not benefit "
                     "from indexing until the cause is resolved.",
                     index_name,
+                    table,
                     key,
                     e,
                 )
         # Refresh planner stats so the new indexes are picked up without
         # waiting for autovacuum.
         try:
-            await conn.execute("ANALYZE chunks")
+            await conn.execute(sql.SQL("ANALYZE {tbl}").format(tbl=sql.Identifier(table)))
         except Exception as e:  # noqa: BLE001 — diagnostic only
-            logger.debug("ANALYZE chunks after metadata-index apply failed: %s", e)
+            logger.debug("ANALYZE %s after metadata-index apply failed: %s", table, e)
 
-    async def _apply_metadata_gin_index(self, conn) -> None:
-        """Create a GIN index on the whole ``chunks.metadata`` JSONB column.
+    async def _apply_metadata_gin_index(self, conn, *, table: str = "chunks") -> None:
+        """Create a GIN index on the whole ``<table>.metadata`` JSONB column.
 
         Powers ad-hoc containment / key-existence / multi-key predicates
-        that the per-key btree indexes from ``metadata_indexes`` can't
-        serve (e.g., ``metadata @> '{"tag":"x"}'``, ``metadata ? 'k'``).
+        that the per-key btree indexes can't serve
+        (e.g., ``metadata @> '{"tag":"x"}'``, ``metadata ? 'k'``).
 
         Uses the default ``jsonb_ops`` operator class — supports all the
         common JSONB query operators. The alternative ``jsonb_path_ops``
@@ -426,38 +477,41 @@ class Database:
 
         Same non-CONCURRENTLY caveat as ``_apply_metadata_indexes``. For
         production retrofit, run ``CREATE INDEX CONCURRENTLY`` manually
-        before flipping ``metadata_indexes_gin=True``.
+        before flipping the matching bool config field.
         """
-        # Fixed name — there's only one GIN index per chunks table by design.
-        index_name = "idx_chunks_metadata_gin"
-        stmt = sql.SQL("CREATE INDEX IF NOT EXISTS {idx} ON chunks USING GIN (metadata)").format(
-            idx=sql.Identifier(index_name)
+        table = _validate_metadata_table(table)
+        index_name = _metadata_gin_index_name(table)
+        stmt = sql.SQL("CREATE INDEX IF NOT EXISTS {idx} ON {tbl} USING GIN (metadata)").format(
+            idx=sql.Identifier(index_name),
+            tbl=sql.Identifier(table),
         )
         try:
             await conn.execute(stmt)
-            logger.info("Ensured GIN index %s on chunks.metadata", index_name)
-            await conn.execute("ANALYZE chunks")
+            logger.info("Ensured GIN index %s on %s.metadata", index_name, table)
+            await conn.execute(sql.SQL("ANALYZE {tbl}").format(tbl=sql.Identifier(table)))
         except Exception as e:
-            # Same don't-crash-connect pattern as btree path — the rest of
-            # pg-raggraph works without the GIN; operator sees the warning.
             logger.warning(
-                "Failed to create GIN index %s on chunks.metadata: %s. "
+                "Failed to create GIN index %s on %s.metadata: %s. "
                 "Retrieval still works; ad-hoc JSONB containment / key-exists "
                 "predicates will not benefit from indexing until resolved.",
                 index_name,
+                table,
                 e,
             )
 
-    async def _apply_metadata_generated_columns(self, conn) -> None:
+    async def _apply_metadata_generated_columns(self, conn, *, table: str = "chunks") -> None:
         """Add STORED generated columns + btree indexes from JSONB metadata.
 
-        For each ``{key: type}`` in ``config.metadata_generated_columns``:
+        For each ``{key: type}`` in the matching config dict
+        (``metadata_generated_columns`` for ``table="chunks"``,
+        ``document_metadata_generated_columns`` for
+        ``table="documents"``):
 
-        1. ``ALTER TABLE chunks ADD COLUMN IF NOT EXISTS meta_<key> <type>
-           GENERATED ALWAYS AS ((metadata->>'<key>')::<type>) STORED``
-        2. ``CREATE INDEX IF NOT EXISTS idx_chunks_meta_<key>
-           ON chunks(meta_<key>)``
-        3. ``ANALYZE chunks``
+        1. ``ALTER TABLE <table> ADD COLUMN IF NOT EXISTS meta_<key>
+           <type> GENERATED ALWAYS AS ((metadata->>'<key>')::<type>) STORED``
+        2. ``CREATE INDEX IF NOT EXISTS idx_<table>_meta_<key>
+           ON <table>(meta_<key>)``
+        3. ``ANALYZE <table>``
 
         The STORED generated column means every existing AND future row
         gets the typed value automatically — no application-side backfill
@@ -468,41 +522,40 @@ class Database:
         **Idempotent on key + type match.** If the column already exists
         with the configured type, ``ADD COLUMN IF NOT EXISTS`` is a no-op.
         If it exists with a DIFFERENT type, the no-op leaves the old type —
-        operator must manually ``ALTER TABLE chunks DROP COLUMN meta_<key>``
-        before the new type takes effect (documented in the cookbook).
-
-        Same non-CONCURRENTLY caveat as the btree path — ``ADD COLUMN``
-        STORED rewrites every row on Postgres < 12 and locks the table on
-        all versions. For production retrofit, use the manual recipe
-        in ``docs/cookbook/metadata-indexes.md``.
+        operator must manually ``ALTER TABLE <table> DROP COLUMN
+        meta_<key>`` before the new type takes effect.
         """
-        for raw_key, raw_type in self.config.metadata_generated_columns.items():
+        table = _validate_metadata_table(table)
+        items = (
+            self.config.metadata_generated_columns
+            if table == "chunks"
+            else self.config.document_metadata_generated_columns
+        )
+        for raw_key, raw_type in items.items():
             key = _validate_metadata_index_key(raw_key)
             sql_type = _validate_metadata_generated_type(raw_type)
             col = _metadata_generated_column_name(key)
-            idx = _metadata_generated_index_name(key)
-            # We can't parameterize column names or types via bind params;
-            # both have been validated against whitelists. sql.Identifier
-            # escapes the identifier; sql.SQL embeds the type keyword
-            # (one of a fixed safe-string set), sql.Literal handles the
-            # JSONB key string.
+            idx = _metadata_generated_index_name(key, table=table)
             add_col = sql.SQL(
-                "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS {col} {sqltype} "
+                "ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS {col} {sqltype} "
                 "GENERATED ALWAYS AS ((metadata->>{key})::{sqltype}) STORED"
             ).format(
+                tbl=sql.Identifier(table),
                 col=sql.Identifier(col),
                 sqltype=sql.SQL(sql_type),
                 key=sql.Literal(key),
             )
-            create_idx = sql.SQL("CREATE INDEX IF NOT EXISTS {idx} ON chunks({col})").format(
+            create_idx = sql.SQL("CREATE INDEX IF NOT EXISTS {idx} ON {tbl}({col})").format(
                 idx=sql.Identifier(idx),
+                tbl=sql.Identifier(table),
                 col=sql.Identifier(col),
             )
             try:
                 await conn.execute(add_col)
                 await conn.execute(create_idx)
                 logger.info(
-                    "Ensured generated column %s (%s) + index %s",
+                    "Ensured generated column %s.%s (%s) + index %s",
+                    table,
                     col,
                     sql_type,
                     idx,
@@ -512,19 +565,21 @@ class Database:
                 # cause: column already exists with a different type, or
                 # the cast rejected an existing row's metadata value.
                 logger.warning(
-                    "Failed to create generated column %s (%s) for key %r: %s. "
-                    "Retrieval still works on metadata->>%r; range queries "
+                    "Failed to create generated column %s.%s (%s) for key %r: %s. "
+                    "Retrieval still works on %s.metadata->>%r; range queries "
                     "fall back to lexical comparison until resolved.",
+                    table,
                     col,
                     sql_type,
                     key,
                     e,
+                    table,
                     key,
                 )
         try:
-            await conn.execute("ANALYZE chunks")
+            await conn.execute(sql.SQL("ANALYZE {tbl}").format(tbl=sql.Identifier(table)))
         except Exception as e:  # noqa: BLE001 — diagnostic only
-            logger.debug("ANALYZE chunks after metadata-generated-columns apply failed: %s", e)
+            logger.debug("ANALYZE %s after metadata-generated-columns apply failed: %s", table, e)
 
     async def _apply_migrations(self, conn) -> None:
         """Apply numbered migration files from sql/migrations/.
