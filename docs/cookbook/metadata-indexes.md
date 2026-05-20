@@ -1,0 +1,114 @@
+# Auto-creating metadata indexes (Scope B)
+
+> **Status:** new in [PR #17](https://github.com/yonk-labs/pg-raggraph/pull/17). Companion to `retrieval_strategy` ([PR #11](https://github.com/yonk-labs/pg-raggraph/pull/11)).
+
+`metadata_indexes` is an opt-in config field that creates btree indexes on `chunks.metadata->>'<key>'` during `connect()`. It exists so that `retrieval_strategy="pre_filter"` actually delivers on its perf promise for selective JSONB predicates — without the index, `pre_filter` is a SQL-shape no-op (the planner can't seek by an unindexed key, so it falls back to a seq scan).
+
+## Quick start
+
+```python
+from pg_raggraph import GraphRAG
+
+rag = GraphRAG(
+    dsn="postgresql://...",
+    metadata_indexes=["tier", "session_id", "tenant_id"],
+)
+await rag.connect()  # creates idx_chunks_metadata_{tier,session_id,tenant_id}
+```
+
+That's it. On every `connect()` the library issues:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_chunks_metadata_tier
+    ON chunks ((metadata->>'tier'));
+CREATE INDEX IF NOT EXISTS idx_chunks_metadata_session_id
+    ON chunks ((metadata->>'session_id'));
+CREATE INDEX IF NOT EXISTS idx_chunks_metadata_tenant_id
+    ON chunks ((metadata->>'tenant_id'));
+ANALYZE chunks;
+```
+
+Idempotent — calling `connect()` twice is a no-op for already-created indexes.
+
+## Identifier safety
+
+Keys are validated against `^[a-zA-Z_][a-zA-Z0-9_]{0,49}$` before any SQL is composed. Anything that looks like an injection attempt, a quoted identifier, a path, or a non-ASCII shape is rejected with `ValueError` at the boundary, not silently embedded into DDL. The library uses `psycopg.sql.Identifier` for the DDL composition too — belt and suspenders.
+
+If you need to index a JSONB key whose name isn't a plain identifier (e.g., contains dots), create the index manually with whatever name you like — pg-raggraph won't touch indexes it didn't create.
+
+## When the index actually helps
+
+Postgres's planner decides to use the metadata index based on cost estimates, not on the index's existence. The win depends on data shape:
+
+| Workload | Does the planner pick the index? |
+|---|---|
+| Many docs per namespace, selective metadata predicate (1% match) | **Yes — dramatic win** (see bench below). The planner's bitmap-merge of `idx_doc_ns` × `idx_chunks_metadata_<key>` beats a doc-driven seq scan. |
+| One doc with many chunks per namespace | Usually no. The namespace+doc filter already narrows to 1 doc row, so the planner picks `idx_chunk_doc` and applies the metadata predicate post-scan. Adding `ANALYZE chunks` + bumping `STATISTICS TARGET` for the metadata column sometimes flips this. |
+| Standalone metadata predicate, no namespace filter | **Yes — always**. The metadata index is the only seek option. |
+| Predicate is broad (>10% selective) | Usually no. Post-scan filter is cheap when most rows pass; bitmap merge isn't worth the overhead. |
+
+## Bench (2026-05-20, 100K chunks, Postgres 16)
+
+Same fixture as the [retrieval-strategy bench](retrieval-strategy.md#bench-at-100k-chunks-2026-05-20). 100 chunks tagged `selective_tag=rare` (0.1% selectivity).
+
+| Query shape | No metadata index | With `metadata_indexes=["selective_tag"]` |
+|---|---|---|
+| Pure metadata predicate (no namespace JOIN) | p50 ~50 ms (seq scan) | **p50 0.04 ms** (Index Scan on idx_chunks_metadata_selective_tag) — **1250× faster** |
+| `pre_filter` with namespace JOIN (this bench: 1 doc × 100K chunks) | p50 77 ms | p50 54 ms — planner still prefers `idx_chunk_doc`; modest 30% gain from improved stats |
+
+EXPLAIN output for the standalone case after `metadata_indexes` is applied:
+
+```
+Index Scan using idx_chunks_metadata_selective_tag on chunks c
+  Index Cond: ((metadata ->> 'selective_tag'::text) = 'rare'::text)
+Execution Time: 0.040 ms
+```
+
+EXPLAIN output for the namespace-JOIN case (same bench, index present):
+
+```
+Nested Loop
+  ->  Index Scan using idx_doc_ns on documents d        (1 row)
+  ->  Index Scan using idx_chunk_doc on chunks c        (100K rows)
+        Filter: ((metadata ->> 'selective_tag') = 'rare')
+        Rows Removed by Filter: 99900
+Execution Time: 53.2 ms
+```
+
+**Honest read:** the index works as designed, but the planner's cost model on this particular bench shape (one document for all chunks) makes `idx_chunk_doc` look cheap enough that it wins. Real workloads with tens or hundreds of documents per namespace will see the planner switch — but you should run your own EXPLAIN before assuming `metadata_indexes` automatically lights up `pre_filter`. If EXPLAIN says the index isn't being picked, the usual fixes are:
+
+1. **`ANALYZE chunks`** after bulk ingest so stats reflect the current metadata distribution.
+2. **Bump statistics target** for the JSONB column: `ALTER TABLE chunks ALTER COLUMN metadata SET STATISTICS 1000;` then `ANALYZE chunks`.
+3. **Add a partial index** for the most selective values: `CREATE INDEX ... WHERE metadata->>'tier' = 'consolidated'`.
+4. **Bigger hammer**: split the metadata key into a generated column. Index a real column, not a JSONB expression. Pg-raggraph doesn't auto-do this; design call per column.
+
+## Production retrofit guide
+
+The DDL is **non-CONCURRENTLY** by design — it runs inside the same flow as schema bootstrap and grabs an `ACCESS EXCLUSIVE` lock for the duration. For fresh deployments the chunks table is empty and the lock is invisible. For retrofitting an existing production database with millions of rows, do this manually first, BEFORE adding the key to `metadata_indexes`:
+
+```bash
+# Run this once, outside of any transaction, against your live database.
+# CREATE INDEX CONCURRENTLY is online — no blocking writes.
+psql $PGRG_DSN <<SQL
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_chunks_metadata_tenant_id
+    ON chunks ((metadata->>'tenant_id'));
+ANALYZE chunks;
+SQL
+```
+
+Then add `tenant_id` to `metadata_indexes` in your config. On the next `connect()`, pg-raggraph's `IF NOT EXISTS` finds the existing index and the loop is a no-op.
+
+## What this is NOT
+
+- **Not a GIN index for arbitrary JSONB predicates.** This is btree on a single extracted key, optimized for equality. Range queries (`metadata->>'priority' > '5'`) work but won't be as fast as a typed column.
+- **Not type-aware.** `metadata->>` always returns text. If you store numbers, equality still works (`'5' = '5'`) but `<` / `>` compare lexicographically (`'10' < '5'`). For real numeric ranges, generated columns are the right answer.
+- **Not an auto-dropper.** If you remove a key from `metadata_indexes`, the index stays. That's intentional — destructive ops should be explicit. Run `DROP INDEX idx_chunks_metadata_<key>` manually if you want to remove one.
+
+## Failure modes
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `ValueError: metadata_indexes key 'foo-bar' is not a valid identifier` | Key fails the regex (hyphen, dot, space, etc.) | Use snake_case identifiers; for unusual keys, create the index manually |
+| WARNING log: `Failed to create metadata index idx_chunks_metadata_X` | Index DDL raised (permission, name conflict, malformed expression) | Retrieval still works — pre_filter just won't be faster on this key. Inspect the warning message; the most common cause is insufficient role grants. |
+| Index exists but EXPLAIN doesn't use it | Planner cost estimate disagrees | Run `ANALYZE chunks`. Check selectivity with `SELECT metadata->>'key', COUNT(*) FROM chunks GROUP BY 1 LIMIT 20;`. If selectivity is >10% the planner may correctly avoid the index. |
+| Migration system thinks something changed | `metadata_indexes` is NOT part of the migration system | These are runtime-config-driven, not schema-versioned. Same set of keys across deploys = idempotent; different sets is operator's responsibility. |

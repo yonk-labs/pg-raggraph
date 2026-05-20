@@ -93,21 +93,19 @@ The default is `weighted` precisely because it's the safest middle: works regard
 | Selective predicate on **unindexed** JSONB | `weighted` (until Scope B lands JSONB indexing) | pre_filter buys nothing without the index; vector_first risks zero recall. |
 | Multi-tenant API where different tenants want different strategies | per-call kwarg | Same race-safe pattern as `retracted_behavior` and `memory_tier`. |
 
-## What's NOT solved by this
+## What's NOT solved by this (alone)
 
-Selective predicates on **unindexed** JSONB columns still seq-scan, regardless of strategy. The win for `pre_filter` is conditional on having the right index. Scope B (tracked separately) will add an opt-in `metadata_indexes: list[str]` config that creates GIN/btree indexes during `connect()` — so `pre_filter` actually delivers on the selectivity promise.
+Selective predicates on **unindexed** JSONB columns still seq-scan, regardless of strategy. The win for `pre_filter` is conditional on having the right index. **[Scope B (PR #17)](metadata-indexes.md)** adds an opt-in `metadata_indexes: list[str]` config that auto-creates btree indexes during `connect()`:
 
-Until then: if your workload has known-selective metadata predicates (e.g., always filtering by `tenant_id`, `tier`, `language`), you can add the index yourself:
-
-```sql
--- Btree on a JSONB key
-CREATE INDEX idx_chunks_metadata_tier ON chunks ((metadata->>'tier'));
-
--- GIN on full JSONB (catches arbitrary predicates)
-CREATE INDEX idx_chunks_metadata_gin ON chunks USING GIN (metadata);
+```python
+rag = GraphRAG(
+    dsn=...,
+    retrieval_strategy="pre_filter",
+    metadata_indexes=["tier", "tenant_id", "language"],
+)
 ```
 
-After indexing, re-run `ANALYZE chunks` and bench again — `pre_filter` should drop dramatically for indexed predicates.
+See [`docs/cookbook/metadata-indexes.md`](metadata-indexes.md) for the full guide including bench results (1250× speedup on standalone predicates, modest gain on namespace-JOIN'd queries — read it before assuming the index will fire on your data shape), production-retrofit recipe with `CREATE INDEX CONCURRENTLY`, and planner troubleshooting.
 
 ## Backward compatibility
 
