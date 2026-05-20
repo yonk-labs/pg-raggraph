@@ -46,7 +46,8 @@ SP_A_MEMORY_COLUMNS: frozenset[str] = frozenset({
     "predicate",
     "object",
     "support_span",
-    "confidence",
+    "confidence",  # promoted as text by SP-A; parsed to float in this bridge
+    "source_chunk_seq",  # parent episode's seq_num (fact → episode pointer)
     # Bi-temporal
     "effective_from",
     "effective_to",
@@ -70,6 +71,46 @@ def _iso(value: Any) -> str | None:
     if isinstance(value, datetime):
         return value.isoformat()
     return str(value)
+
+
+def _parse_confidence(value: Any) -> float | None:
+    """SP-A promotes `confidence` as text — coerce to float for ranking use.
+
+    Returns None on null / unparseable values so the bridge doesn't blow up
+    on a malformed row (which would otherwise abort the whole ingest_records
+    batch). Sparse extractive triples often omit confidence entirely.
+    """
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_embedding(value: Any) -> list[float]:
+    """Normalize a pgvector embedding to ``list[float]``.
+
+    pgvector's `vector` column comes back from psycopg as a string in the
+    form ``"[v1,v2,...]"`` unless the caller registered
+    ``pgvector.psycopg.register_vector`` (which yields a numpy array). The
+    bridge handles both shapes so consumers don't need the adapter.
+
+    Raises ValueError if the input is neither a sequence nor a parseable
+    pgvector string — a malformed embedding aborts ingest by design,
+    since silently truncating to an empty embedding would produce
+    unranked chunks.
+    """
+    if value is None:
+        raise ValueError("SP-A memory row has NULL embedding — required field")
+    if isinstance(value, str):
+        s = value.strip()
+        if not (s.startswith("[") and s.endswith("]")):
+            raise ValueError(
+                f"pgvector text format must be '[v1,v2,...]', got: {s[:40]!r}..."
+            )
+        return [float(x) for x in s[1:-1].split(",") if x.strip()]
+    return [float(x) for x in value]
 
 
 def _row_to_pre_chunked(row: dict[str, Any]) -> dict[str, Any]:
@@ -103,12 +144,13 @@ def _row_to_pre_chunked(row: dict[str, Any]) -> dict[str, Any]:
             "predicate": row.get("predicate"),
             "object": row.get("object"),
             "support_span": row.get("support_span"),
-            "confidence": float(row["confidence"]) if row.get("confidence") is not None else None,
+            "confidence": _parse_confidence(row.get("confidence")),
+            "source_chunk_seq": row.get("source_chunk_seq"),
         })
     return {
         "content": row["original_content"],
         "embedded_content": row.get("embedded_content"),
-        "embedding": list(row["embedding"]),
+        "embedding": _parse_embedding(row["embedding"]),
         "metadata": upstream_meta,
     }
 
@@ -133,9 +175,9 @@ def _fact_row_to_relationship(row: dict[str, Any]) -> dict[str, Any] | None:
     }
     if row.get("support_span"):
         rel["description"] = row["support_span"]
-    confidence = row.get("confidence")
+    confidence = _parse_confidence(row.get("confidence"))
     if confidence is not None:
-        rel["weight"] = float(confidence)
+        rel["weight"] = confidence
     return rel
 
 

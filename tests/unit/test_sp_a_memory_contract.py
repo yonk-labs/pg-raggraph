@@ -34,7 +34,8 @@ EXPECTED_SP_A_COLUMNS = frozenset({
     "predicate",
     "object",
     "support_span",
-    "confidence",
+    "confidence",  # SP-A promotes as text; bridge parses to float
+    "source_chunk_seq",  # parent episode pointer for facts (int)
     # Bi-temporal — episode and fact rows
     "effective_from",
     "effective_to",
