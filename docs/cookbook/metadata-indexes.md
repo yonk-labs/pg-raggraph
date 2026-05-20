@@ -227,6 +227,24 @@ The generated column name doesn't encode the table — the column lives on a spe
 
 Both coexist: config sets the baseline at `connect()` time; runtime API tunes per workload after observing real predicates.
 
+### Bench (2026-05-20, 10K docs × 10 chunks, Postgres 16)
+
+Same fixture shape as the chunks-side realistic bench: 10,000 documents (100 tagged with `metadata.salesperson="alice"` → 1% selectivity), 10 chunks per document. HNSW present.
+
+| Query | Without `idx_documents_metadata_salesperson` | With it |
+|---|---|---|
+| **Pure doc-metadata predicate** (`WHERE d.namespace=$ns AND d.metadata->>'salesperson'='alice'`) | p50 **0.75 ms** | p50 **0.15 ms** — **5× faster** |
+| **`pre_filter`-shape** (vector × doc-metadata, joins to chunks for ranking) | p50 **1.98 ms** | p50 **1.11 ms** — **2× faster** |
+
+EXPLAIN ANALYZE confirms the planner picks `Bitmap Index Scan on idx_documents_metadata_salesperson` once the index exists. Without it, the planner uses the namespace index (`idx_doc_ns`) and post-filters by `metadata->>'salesperson'` — already pretty fast (10K docs scan is cheap) but not free.
+
+**Two findings:**
+
+1. **The baseline is fast for documents-side predicates** even without the index, because 10K rows in a single namespace is cheap to scan. The win from the index is meaningful (2–5×) but not the 1250× drama from the standalone chunks-side bench in PR #19 — that one ran against 100K chunks in a single document, a more pathological shape.
+2. **The `pre_filter` shape benefits less** than the pure-predicate shape because the vector seek dominates total latency. Both helps compound: doc-metadata index cuts the candidate set, vector compute runs over fewer chunks.
+
+For realistic GraphRAG-from-DB workloads (sales notes, support tickets), expect the documents-side index to help by 2–5× — meaningful for tight latency budgets, less dramatic than the chunks-side case.
+
 ## Runtime API: recommend / add / remove (UI-friendly)
 
 The config-driven knobs above (`metadata_indexes`, `metadata_indexes_gin`, `metadata_generated_columns`) apply at `connect()` and need a restart to change. For runtime use — admin UI, REPL, ops script — pg-raggraph also exposes the same DDL surface as runtime-callable methods:
