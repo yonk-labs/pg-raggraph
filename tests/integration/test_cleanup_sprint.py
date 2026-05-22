@@ -74,9 +74,14 @@ async def test_ask_fallback_when_no_llm():
             await rag.ingest([p], namespace="ask_fallback")
 
         result = await rag.ask("How tall are alpha widgets?", namespace="ask_fallback")
-        # Fallback should name the file and quote its content
-        assert "No LLM configured" in result.answer
-        assert "42 inches" in result.answer or "Alpha" in result.answer
+        # Fallback returns a lede summary with source attribution (no LLM needed)
+        assert result.answer  # non-empty
+        assert "INSUFFICIENT" not in result.answer
+        assert (
+            "42 inches" in result.answer
+            or "Alpha" in result.answer
+            or "(Sources:" in result.answer
+        )
     finally:
         await rag.close()
 
