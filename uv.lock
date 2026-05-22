@@ -1166,24 +1166,29 @@ wheels = [
 
 [[package]]
 name = "lede"
-version = "0.3.0"
+version = "0.4.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/aa/93/8b9582a33e3215578bd07fd89fcbe874f3c356f52a8193a55fdb8685932a/lede-0.3.0.tar.gz", hash = "sha256:640230d60aa2b2dbb21ae608db12ebeedfd0cb8703836fddb6863d08435266b2", size = 103207, upload-time = "2026-04-28T10:01:03.073Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/73/91/3edb1050427aced89327a563074780739aade403c6e11dddb38f9b6b1aa8/lede-0.4.2.tar.gz", hash = "sha256:793bd61748bfda05cb47ebd5434fba4fff22e841512b1ce558fab1061b89956a", size = 134811, upload-time = "2026-05-22T17:19:50.435Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/99/9d657784c31ac9b925d4b13dd8565f4ee68510a97625783bc73413515386/lede-0.3.0-py3-none-any.whl", hash = "sha256:34b1797f9e5e7df57381b1269ade2165dcce42c4e4092584a6e2fb6ccff99a50", size = 54711, upload-time = "2026-04-28T10:01:01.134Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/e8/e4726c202a305106135a96ba139f8655f83d77a06580520171f7dd14843a/lede-0.4.2-py3-none-any.whl", hash = "sha256:3bad85fcde8fbc259615a6cbff1fc4c39cd11ee2f4613e4541def7897fd6a3c5", size = 70864, upload-time = "2026-05-22T17:19:49.246Z" },
 ]
 
 [[package]]
 name = "lede-spacy"
-version = "0.3.0"
+version = "0.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "lede" },
     { name = "spacy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b4/e5/8988c5ea4cdab32e850533bd1fafc1bab7fb03a6fe490a0128cd95289a77/lede_spacy-0.3.0.tar.gz", hash = "sha256:4a153c3c6446250ae7b52ac99f5dfbb2369a963f7a28e06f1cb94d01774ebbff", size = 15923, upload-time = "2026-04-28T10:05:14.155Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b2/71/91ede31827c6361daf724b001ca50bab98c9a56c9768301aa6c1af7fe253/lede_spacy-0.4.2.tar.gz", hash = "sha256:74190cfed9fc38937e983f0150f55ef5a3e575003091141ae5e4bebcefd9302f", size = 21426, upload-time = "2026-05-22T17:19:57.025Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ec/7d/41d5a2ce405e78c3ded0946ea15328dd3b2425af7df8fc68461d3c0a8131/lede_spacy-0.3.0-py3-none-any.whl", hash = "sha256:51ddeb020138184527302c4d2a08948fe475864e9f56a9482e2a6eb3a4367f0b", size = 15716, upload-time = "2026-04-28T10:05:11.992Z" },
+    { url = "https://files.pythonhosted.org/packages/be/9f/dbbe15a7ede95290537b4c66ac515b73084ddd6fc5704e9d687b41857740/lede_spacy-0.4.2-py3-none-any.whl", hash = "sha256:56cb143899d767b6293c889d46e458d37ebbf2347c329cd5a5d5df4a742c5438", size = 21556, upload-time = "2026-05-22T17:19:55.187Z" },
+]
+
+[package.optional-dependencies]
+synonyms = [
+    { name = "nltk" },
 ]
 
 [[package]]
@@ -1864,7 +1869,7 @@ all = [
     { name = "fastapi" },
     { name = "langchain-core" },
     { name = "lede" },
-    { name = "lede-spacy" },
+    { name = "lede-spacy", extra = ["synonyms"] },
     { name = "leidenalg" },
     { name = "llama-index-core" },
     { name = "mcp" },
@@ -1893,7 +1898,7 @@ dev = [
     { name = "beautifulsoup4" },
     { name = "coverage" },
     { name = "lede" },
-    { name = "lede-spacy" },
+    { name = "lede-spacy", extra = ["synonyms"] },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
@@ -1904,7 +1909,7 @@ langchain = [
 ]
 lede-spacy = [
     { name = "lede" },
-    { name = "lede-spacy" },
+    { name = "lede-spacy", extra = ["synonyms"] },
     { name = "spacy" },
 ]
 llamaindex = [
@@ -1930,10 +1935,10 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'bench'", specifier = ">=0.27" },
     { name = "langchain-core", marker = "extra == 'langchain'", specifier = ">=0.2" },
-    { name = "lede", marker = "extra == 'dev'", specifier = ">=0.3" },
-    { name = "lede", marker = "extra == 'lede-spacy'", specifier = ">=0.3" },
-    { name = "lede-spacy", marker = "extra == 'dev'", specifier = ">=0.3" },
-    { name = "lede-spacy", marker = "extra == 'lede-spacy'", specifier = ">=0.3" },
+    { name = "lede", marker = "extra == 'dev'", specifier = ">=0.4.2" },
+    { name = "lede", marker = "extra == 'lede-spacy'", specifier = ">=0.4.2" },
+    { name = "lede-spacy", extras = ["synonyms"], marker = "extra == 'dev'", specifier = ">=0.4.2" },
+    { name = "lede-spacy", extras = ["synonyms"], marker = "extra == 'lede-spacy'", specifier = ">=0.4.2" },
     { name = "leidenalg", marker = "extra == 'community'", specifier = ">=0.10" },
     { name = "llama-index-core", marker = "extra == 'llamaindex'", specifier = ">=0.11" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0" },
