@@ -1,0 +1,17 @@
+{
+  "dataset": "musique",
+  "n": 10,
+  "seed": 42,
+  "qids": [
+    "musique:q:2hop__67660_81007",
+    "musique:q:2hop__92051_827343",
+    "musique:q:2hop__144150_82341",
+    "musique:q:2hop__83938_5666",
+    "musique:q:2hop__167577_31122",
+    "musique:q:2hop__9238_9237",
+    "musique:q:2hop__107905_110222",
+    "musique:q:2hop__145203_34088",
+    "musique:q:2hop__498061_88622",
+    "musique:q:3hop1__33845_42197_18397"
+  ]
+}

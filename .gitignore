@@ -29,3 +29,7 @@ benchmarks/*.log
 benchmarks/age-bakeoff/corpora/msgraph-work/
 benchmarks/python-versioned-docs/_tmp/
 benchmarks/medical-hrt/_tmp/
+benchmarks/e2e/results/
+benchmarks/e2e/snapshots/*.pgcustom
+!benchmarks/e2e/subsets/*.json
+!benchmarks/e2e/snapshots/*.manifest.json

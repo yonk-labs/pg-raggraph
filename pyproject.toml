@@ -56,6 +56,8 @@ dev = [
     "lede-spacy>=0.3",
     "spacy>=3.7",
 ]
+# E2E benchmark harness — datasets pulled as parquet from HuggingFace mirrors.
+bench = ["pyarrow>=17", "httpx>=0.27"]
 all = ["pg-raggraph[server,community,langchain,llamaindex,mcp,chunkshop,lede_spacy]"]
 
 [project.scripts]
