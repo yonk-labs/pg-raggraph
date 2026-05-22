@@ -417,6 +417,13 @@ class PGRGConfig(BaseSettings):
     smart_summary_tier: bool = False
     summary_tier_threshold: float = 0.85
 
+    # #3 soft metadata filtering. Only these fields may be HARD-filtered
+    # (excluded); anything else can only SOFT-bias scores. Prevents the
+    # free-text-keyword hard-filter footgun (chunkshop gotcha #2).
+    structured_metadata_fields: list[str] = Field(default_factory=list)
+    w_meta: float = 0.15  # additive score weight for a soft metadata match
+    prompt_metadata_signals: bool = False  # opt-in prompt-derived SOFT signals
+
     # Entity resolution
     resolution_threshold: float = 0.85
     trgm_weight: float = 0.4
