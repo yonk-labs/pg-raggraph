@@ -78,3 +78,26 @@ async def test_summary_base_mode_selects_substrate(rag):
     naive = await rag.query("county taxes", mode="naive", namespace=rag._test_ns)
     # SC-001b: summary substrate == the named base mode's chunk set
     assert [c.chunk_id for c in summ.chunks] == [c.chunk_id for c in naive.chunks]
+
+
+async def test_smart_tier0_populates_summary_above_threshold(rag):
+    rag.config.smart_summary_tier = True
+    rag.config.summary_tier_threshold = 0.0  # force tier-0 on any high-confidence hit
+    rag.config.boost_confidence_threshold = 0.0  # make naive top score "high"
+    result = await rag.query(
+        "What county does John Smith live in?",
+        mode="smart",
+        namespace=rag._test_ns,
+    )
+    assert result.query_mode == "smart[summary]"  # SC-006
+    assert result.summary
+
+
+async def test_smart_tier0_off_by_default(rag):
+    result = await rag.query(
+        "What county does John Smith live in?",
+        mode="smart",
+        namespace=rag._test_ns,
+    )
+    # Default config.smart_summary_tier is False — no summary path.
+    assert result.query_mode != "smart[summary]"

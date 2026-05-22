@@ -1230,9 +1230,17 @@ async def _smart_query(
         top_k_override=top_k_override,
     )
 
-    # High confidence — ship it
+    # High confidence — ship it. Optional tier-0: ship a deterministic lede
+    # summary instead of raw chunks (no LLM) when the top score clears the
+    # summary tier threshold and the feature is enabled.
     if result.confidence == "high":
-        result.query_mode = "smart[naive]"
+        if config.smart_summary_tier and result.top_score >= config.summary_tier_threshold:
+            from pg_raggraph.summary import summarize_chunks
+
+            result.summary = summarize_chunks(question, result, config)
+            result.query_mode = "smart[summary]"
+        else:
+            result.query_mode = "smart[naive]"
         result.latency_ms = (time.perf_counter() - start) * 1000
         return result
 
