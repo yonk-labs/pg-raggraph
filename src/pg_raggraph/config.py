@@ -394,6 +394,12 @@ class PGRGConfig(BaseSettings):
     # chunker); no-op when no headings are detected. Pinned headings are
     # additive — they don't consume summary_max_length.
     summary_keep_headings: bool = True
+    # #2 response shape.
+    summary_max_length_ceiling: int = 4000  # upper char budget for large result sets
+    summary_length_floor_chunks: int = 5  # <= this many chunks → summary_max_length
+    summary_length_ceiling_chunks: int = 30  # >= this many chunks → ceiling
+    summary_escalation: bool = True  # append "full sources available" affordance
+    result_cache_size: int = 128  # in-process LRU capacity (0 disables caching)
     # Query → hint pipeline.
     query_expansion: Literal["off", "lemma", "moderate", "aggressive"] = "moderate"
     summary_seed_terms: int = 4  # top_terms(question, n=) seed count

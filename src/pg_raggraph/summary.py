@@ -155,6 +155,25 @@ def expand_query_terms(question: str, config: PGRGConfig) -> list[str]:
     return out[: config.max_hints]
 
 
+def adaptive_summary_length(n_chunks: int, config: PGRGConfig) -> int:
+    """Scale the summary char budget by retrieved-chunk count, bounded.
+
+    Returns summary_max_length (floor) at <= summary_length_floor_chunks and
+    summary_max_length_ceiling at >= summary_length_ceiling_chunks, linear
+    between. Non-decreasing in n_chunks.
+    """
+    floor_len = config.summary_max_length
+    ceil_len = max(config.summary_max_length_ceiling, floor_len)
+    lo = config.summary_length_floor_chunks
+    hi = config.summary_length_ceiling_chunks
+    if n_chunks <= lo or hi <= lo:
+        return floor_len
+    if n_chunks >= hi:
+        return ceil_len
+    frac = (n_chunks - lo) / (hi - lo)
+    return int(floor_len + frac * (ceil_len - floor_len))
+
+
 def summarize_chunks(question: str, result: QueryResult, config: PGRGConfig) -> str:
     """Hint-biased lede summary over the retrieved chunks.
 
@@ -173,7 +192,7 @@ def summarize_chunks(question: str, result: QueryResult, config: PGRGConfig) -> 
     hints = build_hints(question, config) or None
     return lede_summarize(
         text,
-        max_length=config.summary_max_length,
+        max_length=adaptive_summary_length(len(result.chunks), config),
         hints=hints,
         hint_focus=config.summary_hint_focus,
         hint_mode="soft",
