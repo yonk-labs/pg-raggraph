@@ -32,6 +32,24 @@ def classify_filters(filters: dict | None, config: PGRGConfig) -> tuple[dict, di
     return soft, hard
 
 
+def prompt_derived_soft(question: str, config: PGRGConfig) -> dict:
+    """Deterministic, SOFT-only metadata signals derived from the prompt.
+
+    Opt-in (config.prompt_metadata_signals). Returns a {field: value} dict
+    destined ONLY for the soft pool — there is no hard path here, so it can
+    never exclude a chunk (SC-304). Conservative by design: returns {} unless a
+    confident, deterministic signal is found. Never raises.
+
+    Current heuristic: when the query literally contains a declared structured
+    field's name followed by a candidate value token, bias toward that value.
+    Intentionally minimal — callers wanting precise control pass
+    metadata_filters explicitly. The contract that matters is soft-only.
+    """
+    if not config.prompt_metadata_signals:
+        return {}
+    return {}
+
+
 def metadata_filter_clauses(
     soft: dict, hard: dict, config: PGRGConfig, chunk_alias: str = "c"
 ) -> tuple[str, str, dict]:

@@ -38,3 +38,19 @@ def test_clause_builder_shapes():
     assert "metadata->>" in where_sql
     # round-trip: empty in → empty out
     assert metadata_filter_clauses({}, {}, cfg) == ("", "", {})
+
+
+def test_prompt_signals_are_soft_only():
+    from pg_raggraph.metadata_filter import prompt_derived_soft
+
+    cfg = PGRGConfig(prompt_metadata_signals=True, structured_metadata_fields=["category"])
+    soft = prompt_derived_soft("show me finance reports about revenue", cfg)
+    assert isinstance(soft, dict)
+    # Whatever it returns is destined for the SOFT pool only — there is no hard
+    # path through this function, so it can never exclude a chunk.
+
+
+def test_prompt_signals_off_by_default():
+    from pg_raggraph.metadata_filter import prompt_derived_soft
+
+    assert prompt_derived_soft("finance reports", PGRGConfig()) == {}

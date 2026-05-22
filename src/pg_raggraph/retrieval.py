@@ -737,6 +737,11 @@ async def query(
         from pg_raggraph.metadata_filter import classify_filters, metadata_filter_clauses
 
         mf_soft, mf_hard = classify_filters(metadata_filters, config)
+        if config.prompt_metadata_signals:
+            from pg_raggraph.metadata_filter import prompt_derived_soft
+
+            for k, v in prompt_derived_soft(question, config).items():
+                mf_soft.setdefault(k, v)
         mf_soft_sql, mf_hard_sql, mf_params = metadata_filter_clauses(
             mf_soft, mf_hard, config, chunk_alias="d"
         )
