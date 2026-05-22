@@ -101,3 +101,19 @@ async def test_smart_tier0_off_by_default(rag):
     )
     # Default config.smart_summary_tier is False — no summary path.
     assert result.query_mode != "smart[summary]"
+
+
+async def test_summary_is_deterministic_across_runs(rag):
+    q = "What county does John Smith live in?"
+    r1 = await rag.query(q, mode="summary", namespace=rag._test_ns)
+    r2 = await rag.query(q, mode="summary", namespace=rag._test_ns)
+    assert r1.summary == r2.summary  # SC-004: byte-identical across runs
+
+
+async def test_summary_with_expansion_off_is_deterministic(rag):
+    rag.config.query_expansion = "off"
+    q = "county taxes"
+    r1 = await rag.query(q, mode="summary", namespace=rag._test_ns)
+    r2 = await rag.query(q, mode="summary", namespace=rag._test_ns)
+    assert r1.summary == r2.summary  # SC-004: no-expansion path is stable
+    assert r1.summary
