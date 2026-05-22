@@ -221,3 +221,31 @@ async def test_e2e_sprint4_summary_mode():
     finally:
         await rag.delete(ns)
         await rag.close()
+
+
+@pytest.mark.skipif(
+    not _lede_model_available(),
+    reason="lede / lede-spacy / en_core_web_sm not available",
+)
+async def test_e2e_sprint5_summary_response_journey():
+    """ask → summary answer + result_id → fetch full chunks by id."""
+    ns = "e2e_summary_response"
+    rag = GraphRAG(dsn=TEST_DSN, namespace=ns, fact_extractor="lede_spacy", llm_base_url="")
+    await rag.connect()
+    try:
+        await rag.ingest_records(
+            [
+                {
+                    "text": "Cook County raised property taxes; John Smith pays them.",
+                    "source_id": "e2e5:1",
+                }
+            ],
+            namespace=ns,
+        )
+        res = await rag.ask("What county taxes does John Smith pay?", mode="summary", namespace=ns)
+        assert res.answer and res.result_id
+        more = rag.get_cached_result(res.result_id)
+        assert more is not None and more.chunks
+    finally:
+        await rag.delete(ns)
+        await rag.close()
