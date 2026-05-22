@@ -13,6 +13,7 @@ Optional deps for expansion — install with:
 from __future__ import annotations
 
 import logging
+import re
 import warnings
 
 from pg_raggraph.config import PGRGConfig
@@ -111,6 +112,47 @@ def build_hints(question: str, config: PGRGConfig) -> dict[str, float]:
         ordered = sorted(hints.items(), key=lambda kv: (-kv[1], kv[0]))
         hints = dict(ordered[: config.max_hints])
     return hints
+
+
+def expand_query_terms(question: str, config: PGRGConfig) -> list[str]:
+    """Expanded BM25 retrieval terms (deterministic, capped). Never raises.
+
+    Combines lexical expansion (lemma/synonym via lede_spacy, gated by
+    config.retrieval_expansion) with config.retrieval_alias_map (named-entity
+    aliases WordNet can't bridge). Returns [] when nothing applies. Degrades to
+    raw seeds when lede-spacy/nltk is unavailable.
+    """
+    terms: set[str] = set()
+    q_lower = question.lower()
+
+    for key, aliases in (config.retrieval_alias_map or {}).items():
+        if re.search(rf"(?<!\w){re.escape(key.lower())}(?!\w)", q_lower):
+            terms.update(a.lower() for a in aliases)
+
+    tier = config.retrieval_expansion
+    if tier != "off":
+        seeds = _seed_weights(question, config.summary_seed_terms)
+        if seeds:
+            resolved = _resolve_expansion_tier(tier)
+            kinds = _EXPANSION_KINDS[resolved]
+            if kinds:
+                try:
+                    from lede_spacy import expand_hints
+
+                    expanded = expand_hints(
+                        seeds,
+                        kinds=kinds,
+                        top_k=config.expand_top_k,
+                        expand_weight=config.expand_weight,
+                    )
+                    terms.update(t.lower() for t in expanded)
+                except ImportError:
+                    terms.update(seeds)
+            else:
+                terms.update(seeds)
+
+    out = sorted(t for t in terms if t and t.strip())
+    return out[: config.max_hints]
 
 
 def summarize_chunks(question: str, result: QueryResult, config: PGRGConfig) -> str:

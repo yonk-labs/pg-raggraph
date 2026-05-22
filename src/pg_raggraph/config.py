@@ -6,6 +6,7 @@ import logging
 import os
 from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 _logger = logging.getLogger("pg_raggraph.config")
@@ -399,6 +400,12 @@ class PGRGConfig(BaseSettings):
     expand_top_k: int = 3  # per-seed synonym/similar cap in expand_hints
     expand_weight: float = 0.5  # expansion-term weight multiplier (dict input)
     max_hints: int = 20  # hard cap on total hints after expansion
+    # --- #1 Expansion → retrieval (separate knob from query_expansion, which
+    # only biases the summary). Default "off" keeps retrieval byte-identical.
+    retrieval_expansion: Literal["off", "lemma", "moderate", "aggressive"] = "off"
+    # Named-entity aliases WordNet can't bridge (e.g. {"Brooklyn": ["Kings County"]}).
+    # Case-insensitive, word-boundary keyed. Applied independent of the lexical tier.
+    retrieval_alias_map: dict[str, list[str]] = Field(default_factory=dict)
     # Smart-mode tier-0: ship a deterministic lede summary (no LLM) when the
     # naive top score clears summary_tier_threshold. Off by default.
     smart_summary_tier: bool = False

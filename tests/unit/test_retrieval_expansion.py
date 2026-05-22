@@ -1,0 +1,40 @@
+"""Unit tests for retrieval-term expansion (SC-101..106)."""
+
+from __future__ import annotations
+
+from pg_raggraph import summary as summary_mod
+from pg_raggraph.config import PGRGConfig
+
+
+def test_expansion_off_returns_empty_without_alias():
+    cfg = PGRGConfig(retrieval_expansion="off")
+    assert summary_mod.expand_query_terms("how do counties work?", cfg) == []
+
+
+def test_alias_map_applies_even_when_expansion_off():
+    cfg = PGRGConfig(
+        retrieval_expansion="off",
+        retrieval_alias_map={"Brooklyn": ["Kings County"]},
+    )
+    terms = summary_mod.expand_query_terms("What is happening in Brooklyn?", cfg)
+    assert "kings county" in terms  # SC-106: alias injected, lowercased
+
+
+def test_alias_map_word_boundary():
+    cfg = PGRGConfig(retrieval_alias_map={"york": ["alias_hit"]})
+    assert "alias_hit" in summary_mod.expand_query_terms("New York news", cfg)
+    assert "alias_hit" not in summary_mod.expand_query_terms("yorkshire pudding", cfg)
+
+
+def test_lexical_expansion_is_deterministic_and_capped():
+    cfg = PGRGConfig(retrieval_expansion="moderate", max_hints=5)
+    q = "automobile insurance policy renewal claims"
+    t1 = summary_mod.expand_query_terms(q, cfg)
+    t2 = summary_mod.expand_query_terms(q, cfg)
+    assert t1 == t2
+    assert len(t1) <= 5
+
+
+def test_expand_query_terms_never_raises_on_empty():
+    cfg = PGRGConfig(retrieval_expansion="moderate")
+    assert summary_mod.expand_query_terms("", cfg) == []
