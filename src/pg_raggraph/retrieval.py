@@ -159,12 +159,14 @@ def _build_naive_query(
     retracted_behavior: str | None = None,
     supersession_behavior: str | None = None,
     memory_tier: str | None = None,
+    mf_soft_sql: str = "",
+    mf_hard_sql: str = "",
 ) -> tuple[str, dict]:
     base = (
         "%(w_sem)s * (1 - (c.embedding <=> %(embedding)s::vector)) + "
         "%(w_bm25)s * ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) + "
         "%(w_graph)s * 0"  # naive has no graph leg
-    )
+    ) + mf_soft_sql
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -178,6 +180,8 @@ def _build_naive_query(
     if mt_clause:
         clauses.append(mt_clause)
         extra_params = _merge_params(extra_params, mt_params)
+    if mf_hard_sql:
+        clauses.append(mf_hard_sql)
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     # PRG-1 consumer-surface columns (d.metadata/retracted/version_label/
     # effective_from/effective_to/superseded_by_id) are intentionally repeated
@@ -210,6 +214,8 @@ def _build_naive_query_twostage(
     retracted_behavior: str | None = None,
     supersession_behavior: str | None = None,
     memory_tier: str | None = None,
+    mf_soft_sql: str = "",
+    mf_hard_sql: str = "",
 ) -> tuple[str, dict]:
     """Two-stage naive retrieval (K1).
 
@@ -236,7 +242,7 @@ def _build_naive_query_twostage(
         "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
         "%(w_bm25)s * ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) + "
         "%(w_graph)s * 0"  # naive has no graph leg
-    )
+    ) + mf_soft_sql
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -252,6 +258,8 @@ def _build_naive_query_twostage(
     if mt_clause:
         clauses.append(mt_clause)
         extra_params = _merge_params(extra_params, mt_params)
+    if mf_hard_sql:
+        clauses.append(mf_hard_sql)
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     sql = f"""
 WITH candidates AS (
@@ -290,6 +298,8 @@ def _build_naive_prefilter(
     retracted_behavior: str | None = None,
     supersession_behavior: str | None = None,
     memory_tier: str | None = None,
+    mf_soft_sql: str = "",
+    mf_hard_sql: str = "",
 ) -> tuple[str, dict]:
     """Naive retrieval, ``retrieval_strategy='pre_filter'`` path.
 
@@ -309,7 +319,7 @@ def _build_naive_prefilter(
         "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
         "%(w_bm25)s * ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) + "
         "%(w_graph)s * 0"
-    )
+    ) + mf_soft_sql
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -323,6 +333,8 @@ def _build_naive_prefilter(
     if mt_clause:
         clauses.append(mt_clause)
         extra_params = _merge_params(extra_params, mt_params)
+    if mf_hard_sql:
+        clauses.append(mf_hard_sql)
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     sql = f"""
 WITH filtered AS (
@@ -359,6 +371,8 @@ def _build_naive_vector_first(
     retracted_behavior: str | None = None,
     supersession_behavior: str | None = None,
     memory_tier: str | None = None,
+    mf_soft_sql: str = "",
+    mf_hard_sql: str = "",
 ) -> tuple[str, dict]:
     """Naive retrieval, ``retrieval_strategy='vector_first'`` path.
 
@@ -384,7 +398,7 @@ def _build_naive_vector_first(
         "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
         "%(w_bm25)s * ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) + "
         "%(w_graph)s * 0"
-    )
+    ) + mf_soft_sql
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -400,6 +414,8 @@ def _build_naive_vector_first(
     if mt_clause:
         clauses.append(mt_clause)
         extra_params = _merge_params(extra_params, mt_params)
+    if mf_hard_sql:
+        clauses.append(mf_hard_sql)
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     sql = f"""
 WITH candidates AS (
@@ -618,6 +634,7 @@ async def query(
     retrieval_strategy: str | None = None,
     top_k_override: int | None = None,
     summary_base_mode: str | None = None,
+    metadata_filters: dict | None = None,
 ) -> QueryResult:
     """Execute a retrieval query against the knowledge graph.
 
@@ -712,6 +729,20 @@ async def query(
     }
 
     if mode == "naive":
+        # Metadata filters: soft=score bias, hard=WHERE exclusion (structured only).
+        # Per-record metadata from ingest_records lands on documents.metadata, so
+        # the clause builder targets document alias "d".  When metadata_filters is
+        # None both sql strings are "" and params unchanged — byte-identical to
+        # today (SC-305).
+        from pg_raggraph.metadata_filter import classify_filters, metadata_filter_clauses
+
+        mf_soft, mf_hard = classify_filters(metadata_filters, config)
+        mf_soft_sql, mf_hard_sql, mf_params = metadata_filter_clauses(
+            mf_soft, mf_hard, config, chunk_alias="d"
+        )
+        if mf_params:
+            params = _merge_params(params, mf_params)
+
         # retrieval_strategy router (Scope A, #4 follow-up):
         # - "pre_filter": CTE-materialized predicate subset → rank.
         # - "vector_first": HNSW-seed CTE (no namespace join) → post-filter.
@@ -726,6 +757,8 @@ async def query(
                 retracted_behavior,
                 supersession_behavior,
                 memory_tier,
+                mf_soft_sql,
+                mf_hard_sql,
             )
         elif effective_strategy == "vector_first":
             sql, extra = _build_naive_vector_first(
@@ -736,6 +769,8 @@ async def query(
                 retracted_behavior,
                 supersession_behavior,
                 memory_tier,
+                mf_soft_sql,
+                mf_hard_sql,
             )
             # vector_first needs an extra bind param for its oversample CTE.
             params["vector_first_k"] = effective_top_k * config.retrieval_oversample_factor
@@ -749,6 +784,8 @@ async def query(
                 retracted_behavior,
                 supersession_behavior,
                 memory_tier,
+                mf_soft_sql,
+                mf_hard_sql,
             )
         else:
             sql, extra = _build_naive_query(
@@ -759,6 +796,8 @@ async def query(
                 retracted_behavior,
                 supersession_behavior,
                 memory_tier,
+                mf_soft_sql,
+                mf_hard_sql,
             )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
         # Recall guard for vector_first — when post-filter trims below top_k,

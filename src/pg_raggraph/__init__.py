@@ -1328,6 +1328,7 @@ class GraphRAG:
         retrieval_strategy: str | None = None,
         summary_base_mode: str | None = None,
         rerank: bool = False,
+        metadata_filters: dict | None = None,
     ) -> QueryResult:
         """Query the knowledge graph.
 
@@ -1407,6 +1408,7 @@ class GraphRAG:
                     retrieval_strategy=retrieval_strategy,
                     summary_base_mode=summary_base_mode,
                     top_k_override=top_k_override,
+                    metadata_filters=metadata_filters,
                 )
             if rerank:
                 from pg_raggraph.reranker import FastEmbedReranker, apply_reranker
@@ -1440,6 +1442,7 @@ class GraphRAG:
         summary_base_mode: str | None = None,
         short_answer: bool = False,
         rerank: bool = False,
+        metadata_filters: dict | None = None,
     ) -> QueryResult:
         """Query + LLM answer synthesis.
 
@@ -1474,6 +1477,7 @@ class GraphRAG:
             retrieval_strategy=retrieval_strategy,
             summary_base_mode=summary_base_mode,
             rerank=rerank,
+            metadata_filters=metadata_filters,
         )
         # Reuse the shared LLM client (same pool as ingestion).
         llm = None
