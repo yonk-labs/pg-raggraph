@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time as _time
+
 import pytest
 
 from pg_raggraph import GraphRAG
@@ -117,3 +119,13 @@ async def test_summary_with_expansion_off_is_deterministic(rag):
     r2 = await rag.query(q, mode="summary", namespace=rag._test_ns)
     assert r1.summary == r2.summary  # SC-004: no-expansion path is stable
     assert r1.summary
+
+
+async def test_summary_mode_latency_budget(rag):
+    q = "What county does John Smith live in?"
+    await rag.query(q, mode="summary", namespace=rag._test_ns)  # warm caches
+    start = _time.perf_counter()
+    await rag.query(q, mode="summary", namespace=rag._test_ns)
+    elapsed_ms = (_time.perf_counter() - start) * 1000
+    # SC-010: loose budget on the dev machine; not a hard prod SLA.
+    assert elapsed_ms < 250, f"summary mode took {elapsed_ms:.0f}ms (budget 250ms)"

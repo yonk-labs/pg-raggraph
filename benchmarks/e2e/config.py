@@ -43,6 +43,7 @@ LADDER: list[tuple[str, dict]] = [
     ("GP_hybrid", {"mode": "hybrid"}),
     ("L4_rerank", {"mode": "naive", "rerank": True}),
     ("smart", {"mode": "smart"}),
+    ("L0_summary", {"mode": "summary"}),
 ]
 
 
