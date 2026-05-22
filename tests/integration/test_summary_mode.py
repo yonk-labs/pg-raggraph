@@ -69,3 +69,12 @@ async def test_summary_mode_returns_nonempty_summary_with_citations(rag):
     assert result.summary  # SC-001: non-empty summary
     assert result.chunks  # SC-001: chunks preserved
     assert all(c.document_source for c in result.chunks)  # source attribution
+
+
+async def test_summary_base_mode_selects_substrate(rag):
+    summ = await rag.query(
+        "county taxes", mode="summary", summary_base_mode="naive", namespace=rag._test_ns
+    )
+    naive = await rag.query("county taxes", mode="naive", namespace=rag._test_ns)
+    # SC-001b: summary substrate == the named base mode's chunk set
+    assert [c.chunk_id for c in summ.chunks] == [c.chunk_id for c in naive.chunks]

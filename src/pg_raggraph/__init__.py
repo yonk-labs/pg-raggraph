@@ -1318,6 +1318,7 @@ class GraphRAG:
         supersession_behavior: str | None = None,
         memory_tier: str | None = None,
         retrieval_strategy: str | None = None,
+        summary_base_mode: str | None = None,
         rerank: bool = False,
     ) -> QueryResult:
         """Query the knowledge graph.
@@ -1329,6 +1330,8 @@ class GraphRAG:
             local - vector seed → graph expansion via entity neighbors
             global - relationship-centric retrieval
             hybrid - local + global combined
+            summary - run summary_base_mode substrate, then return a
+                deterministic lede hint-biased summary in result.summary (no LLM)
 
         Evolution-aware kwargs (keyword-only):
             as_of: time-travel filter — restrict to documents whose effective
@@ -1394,6 +1397,7 @@ class GraphRAG:
                     supersession_behavior=supersession_behavior,
                     memory_tier=memory_tier,
                     retrieval_strategy=retrieval_strategy,
+                    summary_base_mode=summary_base_mode,
                     top_k_override=top_k_override,
                 )
             if rerank:
