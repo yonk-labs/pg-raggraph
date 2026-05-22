@@ -388,6 +388,11 @@ class PGRGConfig(BaseSettings):
     summary_base_mode: Literal["naive", "local", "global", "hybrid"] = "hybrid"
     summary_max_length: int = 2000  # char budget passed to lede.summarize
     summary_hint_focus: float = 0.5  # 0=ignore hints, 1=hints only; 0.5 = "50/50 mix"
+    # Re-inject section headings into the summary (lede 0.4.2). Lifts fact
+    # retention markedly on heading-prefixed corpora (e.g. the hierarchy
+    # chunker); no-op when no headings are detected. Pinned headings are
+    # additive — they don't consume summary_max_length.
+    summary_keep_headings: bool = True
     # Query → hint pipeline.
     query_expansion: Literal["off", "lemma", "moderate", "aggressive"] = "moderate"
     summary_seed_terms: int = 4  # top_terms(question, n=) seed count

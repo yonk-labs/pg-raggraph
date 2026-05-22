@@ -71,3 +71,35 @@ def test_moderate_tier_never_warns(monkeypatch):
     with _w.catch_warnings():
         _w.simplefilter("error")
         assert summary_mod._resolve_expansion_tier("moderate") == "moderate"
+
+
+def test_summarize_chunks_keeps_headings_by_default():
+    cfg = PGRGConfig()  # summary_keep_headings defaults True
+    result = QueryResult(
+        chunks=[
+            ChunkResult(
+                content=(
+                    "# Revenue Report\n\n"
+                    "The company posted record revenue of twelve million dollars in Q3. "
+                    "Revenue grew eighteen percent year over year and margins expanded "
+                    "across every business unit during the reporting period."
+                ),
+                score=0.9,
+            )
+        ]
+    )
+    summary = summary_mod.summarize_chunks("what revenue?", result, cfg)
+    assert "# Revenue Report" in summary  # heading survives extractive compression
+
+
+def test_summarize_chunks_headings_off_is_respected():
+    cfg = PGRGConfig(summary_keep_headings=False)
+    result = QueryResult(
+        chunks=[
+            ChunkResult(content="# Heading\n\nBody sentence one. Body sentence two.", score=0.9)
+        ]
+    )
+    # Must not raise and stays deterministic with the flag off.
+    s1 = summary_mod.summarize_chunks("body", result, cfg)
+    s2 = summary_mod.summarize_chunks("body", result, cfg)
+    assert s1 == s2

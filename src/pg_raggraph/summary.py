@@ -117,7 +117,10 @@ def summarize_chunks(question: str, result: QueryResult, config: PGRGConfig) -> 
     """Hint-biased lede summary over the retrieved chunks.
 
     Concatenates chunk contents and runs lede.summarize with query-derived
-    hints. Returns "" when there are no chunks. Deterministic given the same
+    hints. When config.summary_keep_headings is set, lede re-injects each
+    selected sentence's enclosing heading (and pins the doc title) so section
+    context survives extractive compression — a no-op on heading-less corpora.
+    Returns "" when there are no chunks. Deterministic given the same
     (question, chunk set, config).
     """
     if not result.chunks:
@@ -132,4 +135,5 @@ def summarize_chunks(question: str, result: QueryResult, config: PGRGConfig) -> 
         hints=hints,
         hint_focus=config.summary_hint_focus,
         hint_mode="soft",
+        keep_headings=config.summary_keep_headings,
     ).summary
