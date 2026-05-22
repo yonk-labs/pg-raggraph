@@ -45,15 +45,15 @@ chunkshop = ["chunkshop>=0.4.3"]
 # Deterministic, LLM-free entity + co-occurrence-edge extraction.
 # Requires the spaCy model too: python -m spacy download en_core_web_sm
 # See docs/superpowers/specs/2026-05-18-lede-spacy-extraction-design.md
-lede_spacy = ["lede>=0.3", "lede-spacy>=0.3", "spacy>=3.7"]
+lede_spacy = ["lede>=0.4", "lede-spacy>=0.4", "spacy>=3.7"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "ruff>=0.5",
     "coverage>=7.0",
     "beautifulsoup4>=4.14.3",
-    "lede>=0.3",
-    "lede-spacy>=0.3",
+    "lede>=0.4",
+    "lede-spacy>=0.4",
     "spacy>=3.7",
 ]
 # E2E benchmark harness — datasets pulled as parquet from HuggingFace mirrors.

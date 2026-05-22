@@ -381,6 +381,24 @@ class PGRGConfig(BaseSettings):
     enable_graph_boost: bool = True
     graph_boost_factor: float = 1.2  # multiplier for chunks connected to seed entities
 
+    # --- lede v0.4 hint-biased summary retrieval ---
+    # mode="summary" runs an existing retrieval substrate, then summarizes
+    # its K chunks deterministically (no LLM) via lede's hint-biased
+    # summarize. See docs/superpowers/plans/2026-05-22-lede-hint-summary-retrieval.md.
+    summary_base_mode: Literal["naive", "local", "global", "hybrid"] = "hybrid"
+    summary_max_length: int = 2000  # char budget passed to lede.summarize
+    summary_hint_focus: float = 0.5  # 0=ignore hints, 1=hints only; 0.5 = "50/50 mix"
+    # Query → hint pipeline.
+    query_expansion: Literal["off", "lemma", "moderate", "aggressive"] = "moderate"
+    summary_seed_terms: int = 4  # top_terms(question, n=) seed count
+    expand_top_k: int = 3  # per-seed synonym/similar cap in expand_hints
+    expand_weight: float = 0.5  # expansion-term weight multiplier (dict input)
+    max_hints: int = 20  # hard cap on total hints after expansion
+    # Smart-mode tier-0: ship a deterministic lede summary (no LLM) when the
+    # naive top score clears summary_tier_threshold. Off by default.
+    smart_summary_tier: bool = False
+    summary_tier_threshold: float = 0.85
+
     # Entity resolution
     resolution_threshold: float = 0.85
     trgm_weight: float = 0.4
