@@ -25,7 +25,7 @@ logger = logging.getLogger("pg_raggraph.retrieval")
 # pick up vector_first.recall_shortfall events with no new wiring.
 metrics_logger = logging.getLogger("pg_raggraph.metrics")
 
-QueryMode = Literal["local", "global", "hybrid", "naive", "naive_boost", "smart"]
+QueryMode = Literal["local", "global", "hybrid", "naive", "naive_boost", "smart", "summary"]
 
 _RETRIEVAL_STRATEGY_VALUES = ("weighted", "pre_filter", "vector_first")
 
@@ -607,6 +607,7 @@ async def query(
     memory_tier: str | None = None,
     retrieval_strategy: str | None = None,
     top_k_override: int | None = None,
+    summary_base_mode: str | None = None,
 ) -> QueryResult:
     """Execute a retrieval query against the knowledge graph.
 
@@ -614,11 +615,28 @@ async def query(
     a downstream reranker will trim back to ``config.top_k``. None
     falls back to ``config.top_k``.
     """
-    valid_modes = ("naive", "local", "global", "hybrid", "naive_boost", "smart")
+    valid_modes = ("naive", "local", "global", "hybrid", "naive_boost", "smart", "summary")
     if mode not in valid_modes:
         raise ValueError(f"Invalid mode '{mode}'. Must be one of: {valid_modes}")
 
-    # Smart and naive_boost modes are handled in separate functions
+    # Smart, naive_boost, and summary modes are handled in separate functions
+    if mode == "summary":
+        return await _summary_query(
+            question,
+            db,
+            embedder,
+            config,
+            namespace,
+            as_of=as_of,
+            version_filter=version_filter,
+            evolution_aware=evolution_aware,
+            retracted_behavior=retracted_behavior,
+            supersession_behavior=supersession_behavior,
+            memory_tier=memory_tier,
+            retrieval_strategy=retrieval_strategy,
+            top_k_override=top_k_override,
+            summary_base_mode=summary_base_mode,
+        )
     if mode == "smart":
         return await _smart_query(
             question,
@@ -1057,6 +1075,55 @@ def _question_shape(question: str) -> str:
         if re.search(p, q):
             return "synthesis"
     return "lookup"
+
+
+async def _summary_query(
+    question: str,
+    db: Database,
+    embedder: EmbeddingProvider,
+    config: PGRGConfig,
+    namespace: str | None = None,
+    *,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
+    memory_tier: str | None = None,
+    retrieval_strategy: str | None = None,
+    top_k_override: int | None = None,
+    summary_base_mode: str | None = None,
+) -> QueryResult:
+    """Run an existing retrieval substrate, then summarize its chunks via lede.
+
+    The substrate is config.summary_base_mode (default 'hybrid') unless the
+    caller overrides it with summary_base_mode. Retrieval scoring is unchanged
+    — this only adds a deterministic, LLM-free summary over the K chunks.
+    """
+    from pg_raggraph.summary import summarize_chunks
+
+    start = time.perf_counter()
+    base_mode = summary_base_mode or config.summary_base_mode
+    base = await query(
+        question=question,
+        db=db,
+        embedder=embedder,
+        config=config,
+        mode=base_mode,
+        namespace=namespace,
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
+        supersession_behavior=supersession_behavior,
+        memory_tier=memory_tier,
+        retrieval_strategy=retrieval_strategy,
+        top_k_override=top_k_override,
+    )
+    base.summary = summarize_chunks(question, base, config)
+    base.query_mode = "summary"
+    base.latency_ms = (time.perf_counter() - start) * 1000
+    return base
 
 
 async def _smart_query(

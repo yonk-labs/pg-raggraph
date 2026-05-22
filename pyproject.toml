@@ -115,6 +115,8 @@ select = ["E", "F", "I", "W"]
 # Benchmark-style test files tolerate longer lines and legacy variable names
 "tests/integration/test_graph_wins.py" = ["E501"]
 "tests/integration/test_retrieval_comparison.py" = ["E501", "E741"]
+# Corpus strings are verbatim fixture data — intrinsically long
+"tests/integration/test_summary_mode.py" = ["E501"]
 # Benchmarks are scripts, not library code — relax rules
 "benchmarks/*.py" = ["E501", "E402", "E741", "F841"]
 # Cookbook samples are documentation/demo scripts, not library code
