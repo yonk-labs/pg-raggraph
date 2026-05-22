@@ -116,20 +116,30 @@ def _merge_params(base: dict, extra: dict) -> dict:
     return {**base, **extra}
 
 
-def _to_or_tsquery(text: str) -> str:
-    """Convert text to an OR-based tsquery string.
+def _to_or_tsquery(text: str, extra_terms: list[str] | None = None) -> str:
+    """Convert text (plus optional expansion terms) to an OR-based tsquery.
 
-    "payment service outage" → "payment | service | outage"
-    This matches chunks containing ANY of the words, not ALL.
-    Limits to 20 words to prevent tsquery parser overflow.
+    With ``extra_terms`` None the output is byte-identical to the historical
+    single-arg behavior. With expansion terms, the union is deduped (order
+    preserved) before the 20-term cap.
     """
     import re
 
     words = re.findall(r"\w+", text.lower())
-    if not words:
+    if not words and not extra_terms:
         return "empty"
-    # Filter short words and limit to 20 terms (prevent tsquery overflow)
-    words = [w for w in words if len(w) > 2][:20]
+    words = [w for w in words if len(w) > 2]
+    if extra_terms:
+        for t in extra_terms:
+            words.extend(w for w in re.findall(r"\w+", t.lower()) if len(w) > 2)
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for w in words:
+            if w not in seen:
+                seen.add(w)
+                deduped.append(w)
+        words = deduped
+    words = words[:20]
     return " | ".join(words) if words else "empty"
 
 
@@ -678,7 +688,13 @@ async def query(
     # Embed the question
     q_embedding = (await embedder.embed([question]))[0]
 
-    tsquery = _to_or_tsquery(question)
+    # #1: expand the BM25 term set when enabled (default off → byte-identical).
+    if config.retrieval_expansion != "off" or config.retrieval_alias_map:
+        from pg_raggraph.summary import expand_query_terms
+
+        tsquery = _to_or_tsquery(question, expand_query_terms(question, config))
+    else:
+        tsquery = _to_or_tsquery(question)
 
     params = {
         "embedding": q_embedding,
