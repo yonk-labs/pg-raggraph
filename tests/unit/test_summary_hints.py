@@ -44,3 +44,30 @@ def test_build_hints_respects_max_hints_cap():
 def test_build_hints_empty_query_returns_empty():
     cfg = PGRGConfig(query_expansion="moderate")
     assert summary_mod.build_hints("", cfg) == {}
+
+
+def test_aggressive_degrades_to_moderate_without_vector_model(monkeypatch):
+    monkeypatch.setattr(summary_mod, "_has_vector_model", lambda: False)
+    import pytest
+
+    with pytest.warns(UserWarning, match="falling back to 'moderate'"):
+        resolved = summary_mod._resolve_expansion_tier("aggressive")
+    assert resolved == "moderate"  # SC-005
+
+
+def test_aggressive_kept_when_vector_model_present(monkeypatch):
+    monkeypatch.setattr(summary_mod, "_has_vector_model", lambda: True)
+    import warnings as _w
+
+    with _w.catch_warnings():
+        _w.simplefilter("error")  # any warning would raise
+        assert summary_mod._resolve_expansion_tier("aggressive") == "aggressive"
+
+
+def test_moderate_tier_never_warns(monkeypatch):
+    monkeypatch.setattr(summary_mod, "_has_vector_model", lambda: False)
+    import warnings as _w
+
+    with _w.catch_warnings():
+        _w.simplefilter("error")
+        assert summary_mod._resolve_expansion_tier("moderate") == "moderate"
