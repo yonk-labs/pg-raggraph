@@ -1489,6 +1489,20 @@ class GraphRAG:
         result.answer = await generate_answer(
             question, result, llm, self.config, short_answer=short_answer
         )
+        # #2 response shape: for summary mode, assign a stable id, cache the
+        # full result for "ask for more", and append the escalation affordance.
+        if mode == "summary" and result.chunks:
+            import uuid
+
+            result.result_id = uuid.uuid4().hex
+            self._result_cache.put(result.result_id, result)
+            if self.config.summary_escalation and result.answer:
+                result.answer = (
+                    f"{result.answer}\n\n---\n"
+                    f"{len(result.chunks)} source chunks retained "
+                    f"(result_id={result.result_id}). If this doesn't fully answer "
+                    f"your question, request the full sources with that id."
+                )
         return result
 
     async def recommend_metadata_indexes(
