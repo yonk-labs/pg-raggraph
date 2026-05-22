@@ -52,3 +52,18 @@ def test_tsquery_includes_extra_terms_deduped():
     parts = q.split(" | ")
     assert "brooklyn" in parts and "kings" in parts and "county" in parts
     assert parts.count("brooklyn") == 1  # SC-102: deduped
+
+
+def test_expand_query_terms_degrades_when_lede_core_missing(monkeypatch):
+    # SC-105: if lede core is absent, _seed_weights raises ImportError; the
+    # function must still return alias-map terms (never raise).
+    def _boom(*a, **k):
+        raise ImportError("No module named 'lede'")
+
+    monkeypatch.setattr(summary_mod, "_seed_weights", _boom)
+    cfg = PGRGConfig(
+        retrieval_expansion="moderate",
+        retrieval_alias_map={"Brooklyn": ["Kings County"]},
+    )
+    terms = summary_mod.expand_query_terms("news about Brooklyn", cfg)
+    assert "kings county" in terms  # alias survives; no crash

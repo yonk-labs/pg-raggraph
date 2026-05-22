@@ -131,7 +131,12 @@ def expand_query_terms(question: str, config: PGRGConfig) -> list[str]:
 
     tier = config.retrieval_expansion
     if tier != "off":
-        seeds = _seed_weights(question, config.summary_seed_terms)
+        try:
+            seeds = _seed_weights(question, config.summary_seed_terms)
+        except ImportError:
+            # lede core not installed — honor the "never raises" contract by
+            # degrading to alias-only expansion.
+            seeds = {}
         if seeds:
             resolved = _resolve_expansion_tier(tier)
             kinds = _EXPANSION_KINDS[resolved]
