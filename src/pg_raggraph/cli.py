@@ -159,7 +159,7 @@ def ingest(ctx, paths, namespace, profile, nice):
     "-m",
     "--mode",
     default="smart",
-    type=click.Choice(["smart", "naive", "naive_boost", "local", "global", "hybrid"]),
+    type=click.Choice(["smart", "naive", "naive_boost", "local", "global", "hybrid", "summary"]),
     help="Retrieval mode. 'smart' (default) routes by confidence. "
     "Other modes are power-user overrides — see docs/modes.md.",
 )
@@ -204,7 +204,7 @@ def query(ctx, question, mode, namespace):
     "-m",
     "--mode",
     default="smart",
-    type=click.Choice(["smart", "naive", "naive_boost", "local", "global", "hybrid"]),
+    type=click.Choice(["smart", "naive", "naive_boost", "local", "global", "hybrid", "summary"]),
     help="Retrieval mode. 'smart' (default) routes by confidence. "
     "Other modes are power-user overrides — see docs/modes.md.",
 )
@@ -449,7 +449,7 @@ def devmem_ingest(ctx, paths, namespace, profile):
     "-m",
     "--mode",
     default="smart",
-    type=click.Choice(["smart", "naive", "naive_boost", "local", "global", "hybrid"]),
+    type=click.Choice(["smart", "naive", "naive_boost", "local", "global", "hybrid", "summary"]),
 )
 @click.option("-n", "--namespace", default=None)
 @click.pass_context
