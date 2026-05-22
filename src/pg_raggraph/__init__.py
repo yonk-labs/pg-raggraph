@@ -199,6 +199,9 @@ class GraphRAG:
         # If user injects a reranker, use it; otherwise lazy-load from
         # config.rerank_model on first rerank=True call.
         self._reranker = reranker
+        from pg_raggraph.result_cache import ResultCache
+
+        self._result_cache = ResultCache(self.config.result_cache_size)
         # PR-209: cooperative shutdown signal for long-running ingest loops.
         # Lazily initialized inside ingest() because it must be created on the
         # running asyncio loop, not at __init__ time.
@@ -1304,6 +1307,11 @@ class GraphRAG:
             "rels": rel_count,
             "degraded": extraction_degraded,
         }
+
+    def get_cached_result(self, result_id: str) -> QueryResult | None:
+        """Return a previously-retained QueryResult (full chunks) by id, or None
+        if it was never cached or has been evicted."""
+        return self._result_cache.get(result_id)
 
     async def query(
         self,
