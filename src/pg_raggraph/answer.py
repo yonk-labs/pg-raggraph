@@ -106,8 +106,9 @@ async def generate_answer(
         return "No relevant content found in the knowledge base."
 
     # mode="summary" / smart tier-0 already produced a deterministic summary —
-    # ship it without an LLM round-trip.
-    if result.summary:
+    # ship it without an LLM round-trip. In short_answer mode the caller wants
+    # a factoid phrase, not an extractive summary, so fall through to the LLM.
+    if result.summary and not short_answer:
         return result.summary
 
     if llm is None:

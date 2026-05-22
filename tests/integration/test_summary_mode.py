@@ -129,3 +129,12 @@ async def test_summary_mode_latency_budget(rag):
     elapsed_ms = (_time.perf_counter() - start) * 1000
     # SC-010: loose budget on the dev machine; not a hard prod SLA.
     assert elapsed_ms < 250, f"summary mode took {elapsed_ms:.0f}ms (budget 250ms)"
+
+
+async def test_ask_forwards_summary_base_mode(rag):
+    # ask(mode="summary", summary_base_mode="naive") must not raise and must
+    # produce an answer sourced from the naive substrate's summary.
+    ans = await rag.ask(
+        "county taxes", mode="summary", summary_base_mode="naive", namespace=rag._test_ns
+    )
+    assert ans.answer  # ask populates QueryResult.answer from the summary

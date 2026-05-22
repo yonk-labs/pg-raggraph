@@ -54,3 +54,29 @@ async def test_no_llm_falls_back_to_lede_summary():
 async def test_no_chunks_returns_not_found():
     answer = await generate_answer("q", QueryResult(), None, PGRGConfig())
     assert answer == "No relevant content found in the knowledge base."
+
+
+class _FactoidLLM:
+    """Returns a canned short answer; records that it was called."""
+
+    def __init__(self):
+        self.called = False
+
+    async def complete_text(self, messages):
+        self.called = True
+        return "Cook County"
+
+    async def complete(self, messages):
+        self.called = True
+        return "Cook County"
+
+
+async def test_short_answer_bypasses_precomputed_summary():
+    result = QueryResult(
+        summary="A long extractive summary about John Smith and Cook County and taxes.",
+        chunks=[ChunkResult(content="John Smith lives in Cook County.", score=0.9)],
+    )
+    llm = _FactoidLLM()
+    answer = await generate_answer("what county?", result, llm, PGRGConfig(), short_answer=True)
+    assert llm.called  # short_answer must reach the LLM, not short-circuit on summary
+    assert answer == "Cook County"

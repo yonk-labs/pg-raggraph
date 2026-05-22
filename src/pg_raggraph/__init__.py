@@ -1429,6 +1429,7 @@ class GraphRAG:
         supersession_behavior: str | None = None,
         memory_tier: str | None = None,
         retrieval_strategy: str | None = None,
+        summary_base_mode: str | None = None,
         short_answer: bool = False,
         rerank: bool = False,
     ) -> QueryResult:
@@ -1463,6 +1464,7 @@ class GraphRAG:
             supersession_behavior=supersession_behavior,
             memory_tier=memory_tier,
             retrieval_strategy=retrieval_strategy,
+            summary_base_mode=summary_base_mode,
             rerank=rerank,
         )
         # Reuse the shared LLM client (same pool as ingestion).
