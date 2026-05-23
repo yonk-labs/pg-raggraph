@@ -1,0 +1,54 @@
+run:
+  id: mhr-smoke-local-judges
+  output_dir: .matrix-runs/mhr-smoke-local-judges
+  cache_dir: .matrix-runs/cache
+  resume: true
+  concurrency: 1
+
+workloads:
+  - name: mhr
+    subset: 2
+    seed: 42
+    arm: lede_spacy
+    tags: [multi-hop, news, smoke]
+
+retrieval:
+  modes: [hybrid]
+  top_k: [10, 25]
+
+context:
+  strategies:
+    - classic_chunks
+    - full_selected_docs
+    - doc_summary_toc_facts
+    - toc_doc_summary_plus_chunk_summary
+
+baselines:
+  full_document:
+    max_docs: 3
+    max_context_tokens: 120000
+  classic_rag:
+    top_k: 25
+    chunker: auto
+
+answer:
+  provider: openai-compatible
+  model: Intel/Qwen3-Coder-Next-int4-AutoRound
+  base_url: http://192.168.1.193:8000/v1
+
+judge:
+  mode: accurate
+  concurrency: 1
+  retries: 2
+  parse_retries: 2
+  timeout: 180
+  temperature: 0.0
+  max_tokens: 1200
+  strict_json_fallback: true
+  providers:
+    - provider: openai-compatible
+      model: Intel/Qwen3-Coder-Next-int4-AutoRound
+      base_url: http://192.168.1.193:8000/v1
+    - provider: openai-compatible
+      model: cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit
+      base_url: http://192.168.1.133:8000/v1

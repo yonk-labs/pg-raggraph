@@ -17,6 +17,7 @@ skill-output/
 .autonomy/
 .claude/
 .llm-judge-runs/
+.matrix-runs/
 .worktrees/
 *.db
 
