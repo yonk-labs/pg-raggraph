@@ -16,6 +16,7 @@ htmlcov/
 skill-output/
 .autonomy/
 .claude/
+.llm-judge-runs/
 .worktrees/
 *.db
 
