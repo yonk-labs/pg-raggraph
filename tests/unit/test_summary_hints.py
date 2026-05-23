@@ -103,3 +103,30 @@ def test_summarize_chunks_headings_off_is_respected():
     s1 = summary_mod.summarize_chunks("body", result, cfg)
     s2 = summary_mod.summarize_chunks("body", result, cfg)
     assert s1 == s2
+
+
+def test_summarize_chunks_appends_key_facts_by_default():
+    cfg = PGRGConfig()  # summary_include_facts defaults True
+    result = QueryResult(
+        chunks=[
+            ChunkResult(
+                content=(
+                    "Acme Corp was founded in 1998 by Jane Doe in Portland. "
+                    "The company reported revenue of fifty million dollars in 2023. "
+                    "Acme operates three manufacturing plants across the region."
+                ),
+                score=0.9,
+            )
+        ]
+    )
+    out = summary_mod.summarize_chunks("when was Acme founded?", result, cfg)
+    assert "Key facts:" in out  # facts section appended
+
+
+def test_summarize_chunks_facts_off_is_respected():
+    cfg = PGRGConfig(summary_include_facts=False)
+    result = QueryResult(
+        chunks=[ChunkResult(content="Acme was founded in 1998. It makes widgets.", score=0.9)]
+    )
+    out = summary_mod.summarize_chunks("when?", result, cfg)
+    assert "Key facts:" not in out

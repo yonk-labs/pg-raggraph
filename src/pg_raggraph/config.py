@@ -394,6 +394,12 @@ class PGRGConfig(BaseSettings):
     # chunker); no-op when no headings are detected. Pinned headings are
     # additive — they don't consume summary_max_length.
     summary_keep_headings: bool = True
+    # Append hint-biased lede.key_facts to the summary. The bake-off
+    # (benchmarks/showcase) found this recovers the multi-hop accuracy gap —
+    # summary_facts ≈ raw chunks at ~67% token reduction. Facts, not length,
+    # are what close the gap.
+    summary_include_facts: bool = True
+    summary_max_facts: int = 10
     # #2 response shape.
     summary_max_length_ceiling: int = 4000  # upper char budget for large result sets
     summary_length_floor_chunks: int = 5  # <= this many chunks → summary_max_length

@@ -186,8 +186,11 @@ def summarize_chunks(question: str, result: QueryResult, config: PGRGConfig) -> 
     hints. When config.summary_keep_headings is set, lede re-injects each
     selected sentence's enclosing heading (and pins the doc title) so section
     context survives extractive compression — a no-op on heading-less corpora.
-    Returns "" when there are no chunks. Deterministic given the same
-    (question, chunk set, config).
+    When config.summary_include_facts is set, hint-biased lede.key_facts are
+    appended — this recovered the multi-hop accuracy gap in the bake-off
+    (summary_facts ≈ raw chunks at ~67% token reduction; facts, not length,
+    are what close the gap). Returns "" when there are no chunks. Deterministic
+    given the same (question, chunk set, config).
     """
     if not result.chunks:
         return ""
@@ -195,7 +198,7 @@ def summarize_chunks(question: str, result: QueryResult, config: PGRGConfig) -> 
 
     text = "\n\n".join(c.content for c in result.chunks)
     hints = build_hints(question, config) or None
-    return lede_summarize(
+    summary = lede_summarize(
         text,
         max_length=adaptive_summary_length(len(result.chunks), config),
         hints=hints,
@@ -203,3 +206,20 @@ def summarize_chunks(question: str, result: QueryResult, config: PGRGConfig) -> 
         hint_mode="soft",
         keep_headings=config.summary_keep_headings,
     ).summary
+
+    if config.summary_include_facts:
+        try:
+            from lede.extract import key_facts
+
+            facts = key_facts(
+                text,
+                max_facts=config.summary_max_facts,
+                hints=hints,
+                hint_focus=config.summary_hint_focus,
+                hint_mode="soft",
+            )
+        except ImportError:
+            facts = ()
+        if facts:
+            summary = summary + "\n\nKey facts:\n" + "\n".join(f"- {f}" for f in facts)
+    return summary
