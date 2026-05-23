@@ -105,8 +105,8 @@ def test_summarize_chunks_headings_off_is_respected():
     assert s1 == s2
 
 
-def test_summarize_chunks_appends_key_facts_by_default():
-    cfg = PGRGConfig()  # summary_include_facts defaults True
+def test_summarize_chunks_appends_key_facts_by_default_when_compressing():
+    cfg = PGRGConfig(summary_skip_small_contexts=False)  # summary_include_facts defaults True
     result = QueryResult(
         chunks=[
             ChunkResult(
@@ -124,9 +124,29 @@ def test_summarize_chunks_appends_key_facts_by_default():
 
 
 def test_summarize_chunks_facts_off_is_respected():
-    cfg = PGRGConfig(summary_include_facts=False)
+    cfg = PGRGConfig(summary_include_facts=False, summary_skip_small_contexts=False)
     result = QueryResult(
         chunks=[ChunkResult(content="Acme was founded in 1998. It makes widgets.", score=0.9)]
     )
     out = summary_mod.summarize_chunks("when?", result, cfg)
     assert "Key facts:" not in out
+
+
+def test_summarize_chunks_skips_small_contexts_by_default():
+    cfg = PGRGConfig(summary_min_context_tokens=10_000)
+    raw = "Acme was founded in 1998. It makes widgets."
+    result = QueryResult(chunks=[ChunkResult(content=raw, score=0.9)])
+    assert summary_mod.summarize_chunks("when?", result, cfg) == raw
+
+
+def test_summarize_chunks_can_force_compression_for_small_contexts():
+    cfg = PGRGConfig(summary_skip_small_contexts=False)
+    raw = (
+        "Acme was founded in 1998. It makes widgets. "
+        "Acme opened a Portland office in 2020. "
+        "Acme reported fifty million dollars in revenue."
+    )
+    result = QueryResult(chunks=[ChunkResult(content=raw, score=0.9)])
+    out = summary_mod.summarize_chunks("when was Acme founded?", result, cfg)
+    assert out
+    assert "Key facts:" in out

@@ -387,8 +387,18 @@ class PGRGConfig(BaseSettings):
     # its K chunks deterministically (no LLM) via lede's hint-biased
     # summarize. See docs/superpowers/plans/2026-05-22-lede-hint-summary-retrieval.md.
     summary_base_mode: Literal["naive", "local", "global", "hybrid"] = "hybrid"
-    summary_max_length: int = 2000  # char budget passed to lede.summarize
+    summary_max_length: int = 2000  # floor char budget passed to lede.summarize
     summary_hint_focus: float = 0.5  # 0=ignore hints, 1=hints only; 0.5 = "50/50 mix"
+    # Summaries are a cost / noise-control feature, not a free accuracy win.
+    # Below this raw retrieved-context size, keep the raw chunks: 2-3K tokens is
+    # cheap and usually too dense for extractive compression to help.
+    summary_skip_small_contexts: bool = True
+    summary_min_context_tokens: int = 8000
+    # For larger contexts, scale the extractive body budget from raw input size
+    # (tokens * ~4 chars/token * ratio), bounded below/above by the max_length
+    # floor and ceiling. This keeps 10/100/1000 chunk retrieval from sharing one
+    # tiny fixed 4K-character ceiling.
+    summary_target_compression_ratio: float = 0.18
     # Re-inject section headings into the summary (lede 0.4.2). Lifts fact
     # retention markedly on heading-prefixed corpora (e.g. the hierarchy
     # chunker); no-op when no headings are detected. Pinned headings are
@@ -400,8 +410,13 @@ class PGRGConfig(BaseSettings):
     # are what close the gap.
     summary_include_facts: bool = True
     summary_max_facts: int = 10
+    summary_max_facts_ceiling: int = 60
+    summary_fact_tokens_per_extra: int = 4000
+    # Include lede's full outline / TOC before the body. Off by default because
+    # it can be token-heavy; useful in long, well-structured corpora.
+    summary_include_toc: bool = False
     # #2 response shape.
-    summary_max_length_ceiling: int = 4000  # upper char budget for large result sets
+    summary_max_length_ceiling: int = 64000  # upper char budget for large result sets
     summary_length_floor_chunks: int = 5  # <= this many chunks → summary_max_length
     summary_length_ceiling_chunks: int = 30  # >= this many chunks → ceiling
     summary_escalation: bool = True  # append "full sources available" affordance

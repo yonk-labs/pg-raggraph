@@ -1,1 +1,2 @@
-benchmarks/showcase/.llm_cache/
+.llm_cache/
+*.log

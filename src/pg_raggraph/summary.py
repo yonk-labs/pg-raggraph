@@ -16,6 +16,7 @@ import logging
 import re
 import warnings
 
+from pg_raggraph.chunking import token_count
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.models import QueryResult
 
@@ -160,15 +161,46 @@ def expand_query_terms(question: str, config: PGRGConfig) -> list[str]:
     return out[: config.max_hints]
 
 
-def adaptive_summary_length(n_chunks: int, config: PGRGConfig) -> int:
-    """Scale the summary char budget by retrieved-chunk count, bounded.
+def chunks_text(result: QueryResult) -> str:
+    """Raw retrieved-chunk context in the same order retrieval returned it."""
+    return "\n\n".join(c.content for c in result.chunks)
+
+
+def context_token_count(result: QueryResult) -> int:
+    """Token count for the raw retrieved context."""
+    return token_count(chunks_text(result))
+
+
+def should_summarize_context(context_tokens: int, config: PGRGConfig) -> bool:
+    """Return whether summary compression is worth applying.
+
+    Summarization is most valuable when retrieved context is large enough that
+    raw chunks are meaningfully expensive or noisy. Below the configured gate,
+    callers should keep the raw chunks/context instead of compressing away
+    potentially useful multi-hop detail.
+    """
+    return context_tokens >= config.summary_min_context_tokens
+
+
+def adaptive_summary_length(
+    n_chunks: int,
+    config: PGRGConfig,
+    context_tokens: int | None = None,
+) -> int:
+    """Scale the summary char budget by retrieved context size, bounded.
 
     Returns summary_max_length (floor) at <= summary_length_floor_chunks and
     summary_max_length_ceiling at >= summary_length_ceiling_chunks, linear
-    between. Non-decreasing in n_chunks.
+    between. When context_tokens is supplied, the budget scales from raw
+    context size using summary_target_compression_ratio, which better matches
+    10 / 100 / 1000 chunk regimes than chunk-count alone. Non-decreasing.
     """
     floor_len = config.summary_max_length
     ceil_len = max(config.summary_max_length_ceiling, floor_len)
+    if context_tokens is not None:
+        target_len = int(context_tokens * 4 * config.summary_target_compression_ratio)
+        return min(ceil_len, max(floor_len, target_len))
+
     lo = config.summary_length_floor_chunks
     hi = config.summary_length_ceiling_chunks
     if n_chunks <= lo or hi <= lo:
@@ -177,6 +209,18 @@ def adaptive_summary_length(n_chunks: int, config: PGRGConfig) -> int:
         return ceil_len
     frac = (n_chunks - lo) / (hi - lo)
     return int(floor_len + frac * (ceil_len - floor_len))
+
+
+def adaptive_fact_count(context_tokens: int, config: PGRGConfig) -> int:
+    """Scale extracted key-fact count for larger retrieved contexts."""
+    base = max(0, config.summary_max_facts)
+    ceil_count = max(base, config.summary_max_facts_ceiling)
+    if context_tokens <= config.summary_min_context_tokens:
+        return base
+    extra = (context_tokens - config.summary_min_context_tokens) // max(
+        1, config.summary_fact_tokens_per_extra
+    )
+    return min(ceil_count, base + int(extra))
 
 
 def summarize_chunks(question: str, result: QueryResult, config: PGRGConfig) -> str:
@@ -196,15 +240,20 @@ def summarize_chunks(question: str, result: QueryResult, config: PGRGConfig) -> 
         return ""
     from lede import summarize as lede_summarize
 
-    text = "\n\n".join(c.content for c in result.chunks)
+    text = chunks_text(result)
+    ctx_tokens = token_count(text)
+    if config.summary_skip_small_contexts and not should_summarize_context(ctx_tokens, config):
+        return text
+
     hints = build_hints(question, config) or None
     summary = lede_summarize(
         text,
-        max_length=adaptive_summary_length(len(result.chunks), config),
+        max_length=adaptive_summary_length(len(result.chunks), config, ctx_tokens),
         hints=hints,
         hint_focus=config.summary_hint_focus,
         hint_mode="soft",
         keep_headings=config.summary_keep_headings,
+        include_toc=config.summary_include_toc,
     ).summary
 
     if config.summary_include_facts:
@@ -213,7 +262,7 @@ def summarize_chunks(question: str, result: QueryResult, config: PGRGConfig) -> 
 
             facts = key_facts(
                 text,
-                max_facts=config.summary_max_facts,
+                max_facts=adaptive_fact_count(ctx_tokens, config),
                 hints=hints,
                 hint_focus=config.summary_hint_focus,
                 hint_mode="soft",

@@ -104,13 +104,16 @@ _GEN_PROMPT = (
 )
 
 _JUDGE_PROMPT = (
-    "You grade a candidate answer against reference answer(s) for a question.\n"
+    "You grade whether a candidate answer answers the same question as the "
+    "reference answer(s). Do not require identical wording or every supporting "
+    "fact; focus on semantic equivalence for the asked question.\n"
     "Question: {q}\n"
     "Candidate answer: {cand}\n"
     "Reference answer(s): {ref}\n\n"
     "Respond with strict JSON only: "
     '{{"score": <1.0|0.5|0.0>, "reason": "<short>"}}\n'
-    "Scoring: 1.0 = semantic match; 0.5 = partial / one of several refs / missing a hop; "
+    "Scoring: 1.0 = answers the question equivalently; "
+    "0.5 = partially answers / one of several refs / missing a hop; "
     "0.0 = wrong or 'insufficient' when the reference is a real answer."
 )
 
