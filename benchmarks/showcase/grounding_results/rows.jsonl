@@ -1,0 +1,50 @@
+{"dataset": "mhr", "qid": "mhr:q:456", "arm": "llm_prior", "source_tokens": 0, "context_tokens": 0, "latency_ms": 3231.4, "score": 1.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:456", "arm": "full_corpus_llm", "source_tokens": 1405759, "context_tokens": 0, "latency_ms": 0.0, "score": 0.0, "skipped": true, "note": "1405759 tokens exceeds --max-direct-tokens"}
+{"dataset": "mhr", "qid": "mhr:q:456", "arm": "chunks_10", "source_tokens": 4355, "context_tokens": 4355, "latency_ms": 904.0, "score": 1.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:456", "arm": "chunks_20", "source_tokens": 8458, "context_tokens": 8458, "latency_ms": 1033.9, "score": 1.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:456", "arm": "chunks_30", "source_tokens": 13367, "context_tokens": 13367, "latency_ms": 1072.2, "score": 1.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:456", "arm": "doc_summary_facts", "source_tokens": 1405759, "context_tokens": 18299, "latency_ms": 1413.9, "score": 1.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:456", "arm": "doc_summary_facts_plus_chunks10", "source_tokens": 1410114, "context_tokens": 22659, "latency_ms": 917.6, "score": 1.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:456", "arm": "hint_doc_summary_facts", "source_tokens": 1405759, "context_tokens": 17833, "latency_ms": 1117.0, "score": 1.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:456", "arm": "hint_doc_summary_facts_plus_chunks10", "source_tokens": 1410114, "context_tokens": 22192, "latency_ms": 1154.8, "score": 1.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:456", "arm": "toc_doc_summary_plus_chunk_summary", "source_tokens": 1410114, "context_tokens": 34326, "latency_ms": 1412.8, "score": 1.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:102", "arm": "llm_prior", "source_tokens": 0, "context_tokens": 0, "latency_ms": 1893.5, "score": 0.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:102", "arm": "full_corpus_llm", "source_tokens": 1405759, "context_tokens": 0, "latency_ms": 0.0, "score": 0.0, "skipped": true, "note": "1405759 tokens exceeds --max-direct-tokens"}
+{"dataset": "mhr", "qid": "mhr:q:102", "arm": "chunks_10", "source_tokens": 4481, "context_tokens": 4481, "latency_ms": 2272.3, "score": 0.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:102", "arm": "chunks_20", "source_tokens": 8945, "context_tokens": 8945, "latency_ms": 1179.6, "score": 0.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:102", "arm": "chunks_30", "source_tokens": 13195, "context_tokens": 13195, "latency_ms": 1358.8, "score": 0.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:102", "arm": "doc_summary_facts", "source_tokens": 1405759, "context_tokens": 18299, "latency_ms": 978.4, "score": 0.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:102", "arm": "doc_summary_facts_plus_chunks10", "source_tokens": 1410240, "context_tokens": 22785, "latency_ms": 1690.5, "score": 0.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:102", "arm": "hint_doc_summary_facts", "source_tokens": 1405759, "context_tokens": 17323, "latency_ms": 1002.4, "score": 0.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:102", "arm": "hint_doc_summary_facts_plus_chunks10", "source_tokens": 1410240, "context_tokens": 21808, "latency_ms": 1163.2, "score": 0.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:102", "arm": "toc_doc_summary_plus_chunk_summary", "source_tokens": 1410240, "context_tokens": 34161, "latency_ms": 4913.1, "score": 1.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:1126", "arm": "llm_prior", "source_tokens": 0, "context_tokens": 0, "latency_ms": 2440.9, "score": 1.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:1126", "arm": "full_corpus_llm", "source_tokens": 1405759, "context_tokens": 0, "latency_ms": 0.0, "score": 0.0, "skipped": true, "note": "1405759 tokens exceeds --max-direct-tokens"}
+{"dataset": "mhr", "qid": "mhr:q:1126", "arm": "chunks_10", "source_tokens": 4454, "context_tokens": 4454, "latency_ms": 891.2, "score": 1.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:1126", "arm": "chunks_20", "source_tokens": 9032, "context_tokens": 9032, "latency_ms": 896.7, "score": 1.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:1126", "arm": "chunks_30", "source_tokens": 13902, "context_tokens": 13902, "latency_ms": 1172.3, "score": 1.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:1126", "arm": "doc_summary_facts", "source_tokens": 1405759, "context_tokens": 18299, "latency_ms": 1008.8, "score": 1.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:1126", "arm": "doc_summary_facts_plus_chunks10", "source_tokens": 1410213, "context_tokens": 22758, "latency_ms": 1018.4, "score": 1.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:1126", "arm": "hint_doc_summary_facts", "source_tokens": 1405759, "context_tokens": 17995, "latency_ms": 1075.4, "score": 1.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:1126", "arm": "hint_doc_summary_facts_plus_chunks10", "source_tokens": 1410213, "context_tokens": 22453, "latency_ms": 893.6, "score": 1.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:1126", "arm": "toc_doc_summary_plus_chunk_summary", "source_tokens": 1410213, "context_tokens": 34796, "latency_ms": 4959.9, "score": 1.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:1003", "arm": "llm_prior", "source_tokens": 0, "context_tokens": 0, "latency_ms": 2199.9, "score": 0.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:1003", "arm": "full_corpus_llm", "source_tokens": 1405759, "context_tokens": 0, "latency_ms": 0.0, "score": 0.0, "skipped": true, "note": "1405759 tokens exceeds --max-direct-tokens"}
+{"dataset": "mhr", "qid": "mhr:q:1003", "arm": "chunks_10", "source_tokens": 4763, "context_tokens": 4763, "latency_ms": 2197.9, "score": 0.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:1003", "arm": "chunks_20", "source_tokens": 9469, "context_tokens": 9469, "latency_ms": 1036.1, "score": 0.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:1003", "arm": "chunks_30", "source_tokens": 14444, "context_tokens": 14444, "latency_ms": 728.7, "score": 0.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:1003", "arm": "doc_summary_facts", "source_tokens": 1405759, "context_tokens": 18299, "latency_ms": 856.4, "score": 0.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:1003", "arm": "doc_summary_facts_plus_chunks10", "source_tokens": 1410522, "context_tokens": 23067, "latency_ms": 1574.7, "score": 0.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:1003", "arm": "hint_doc_summary_facts", "source_tokens": 1405759, "context_tokens": 17818, "latency_ms": 1170.8, "score": 0.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:1003", "arm": "hint_doc_summary_facts_plus_chunks10", "source_tokens": 1410522, "context_tokens": 22585, "latency_ms": 894.3, "score": 0.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:1003", "arm": "toc_doc_summary_plus_chunk_summary", "source_tokens": 1410522, "context_tokens": 35141, "latency_ms": 1404.7, "score": 0.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:914", "arm": "llm_prior", "source_tokens": 0, "context_tokens": 0, "latency_ms": 1768.2, "score": 0.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:914", "arm": "full_corpus_llm", "source_tokens": 1405759, "context_tokens": 0, "latency_ms": 0.0, "score": 0.0, "skipped": true, "note": "1405759 tokens exceeds --max-direct-tokens"}
+{"dataset": "mhr", "qid": "mhr:q:914", "arm": "chunks_10", "source_tokens": 4733, "context_tokens": 4733, "latency_ms": 2217.1, "score": 0.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:914", "arm": "chunks_20", "source_tokens": 9530, "context_tokens": 9530, "latency_ms": 713.6, "score": 0.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:914", "arm": "chunks_30", "source_tokens": 13473, "context_tokens": 13473, "latency_ms": 902.1, "score": 0.0, "skipped": false, "note": ""}
+{"dataset": "mhr", "qid": "mhr:q:914", "arm": "doc_summary_facts", "source_tokens": 1405759, "context_tokens": 18299, "latency_ms": 961.3, "score": 0.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:914", "arm": "doc_summary_facts_plus_chunks10", "source_tokens": 1410492, "context_tokens": 23037, "latency_ms": 841.2, "score": 0.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:914", "arm": "hint_doc_summary_facts", "source_tokens": 1405759, "context_tokens": 17941, "latency_ms": 1492.9, "score": 0.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:914", "arm": "hint_doc_summary_facts_plus_chunks10", "source_tokens": 1410492, "context_tokens": 22678, "latency_ms": 1347.6, "score": 0.0, "skipped": false, "note": "full_corpus"}
+{"dataset": "mhr", "qid": "mhr:q:914", "arm": "toc_doc_summary_plus_chunk_summary", "source_tokens": 1410492, "context_tokens": 34747, "latency_ms": 1447.7, "score": 0.0, "skipped": false, "note": "full_corpus"}
