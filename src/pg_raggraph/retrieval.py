@@ -729,6 +729,7 @@ async def query(
         **evolution_bind_params(config),
     }
 
+    _t0_vb = time.perf_counter()
     if mode == "naive":
         # Metadata filters: soft=score bias, hard=WHERE exclusion (structured only).
         # Per-record metadata from ingest_records lands on documents.metadata, so
@@ -889,6 +890,7 @@ async def query(
                 "stage": "vector_bm25",
                 "mode": mode,
                 "sql": _traced_sql,
+                "elapsed_ms": (time.perf_counter() - _t0_vb) * 1000.0,
                 "candidates": [
                     {
                         "chunk_id": row["id"],
@@ -943,6 +945,7 @@ async def query(
         chunk_ids.append(row["id"])
 
     # Fetch related entities and relationships
+    _t0_graph = time.perf_counter()
     entities = []
     relationships = []
     if chunk_ids:
@@ -978,6 +981,7 @@ async def query(
             {
                 "stage": "graph",
                 "mode": mode,
+                "elapsed_ms": (time.perf_counter() - _t0_graph) * 1000.0,
                 "entities": [e.name for e in entities],
                 "relationships": [(r.source, r.rel_type, r.target) for r in relationships],
                 "hops": config.max_hops,
