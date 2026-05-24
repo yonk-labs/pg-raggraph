@@ -8,6 +8,7 @@ import os
 import re
 import time
 from datetime import datetime, timezone
+from typing import Callable
 from hashlib import sha256
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
@@ -1329,6 +1330,7 @@ class GraphRAG:
         summary_base_mode: str | None = None,
         rerank: bool = False,
         metadata_filters: dict | None = None,
+        trace_emit: Callable[[dict], None] | None = None,
     ) -> QueryResult:
         """Query the knowledge graph.
 
@@ -1409,6 +1411,7 @@ class GraphRAG:
                     summary_base_mode=summary_base_mode,
                     top_k_override=top_k_override,
                     metadata_filters=metadata_filters,
+                    trace_emit=trace_emit,
                 )
             if rerank:
                 from pg_raggraph.reranker import FastEmbedReranker, apply_reranker
@@ -1443,6 +1446,7 @@ class GraphRAG:
         short_answer: bool = False,
         rerank: bool = False,
         metadata_filters: dict | None = None,
+        trace_emit: Callable[[dict], None] | None = None,
     ) -> QueryResult:
         """Query + LLM answer synthesis.
 
@@ -1478,6 +1482,7 @@ class GraphRAG:
             summary_base_mode=summary_base_mode,
             rerank=rerank,
             metadata_filters=metadata_filters,
+            trace_emit=trace_emit,
         )
         # Reuse the shared LLM client (same pool as ingestion).
         llm = None
