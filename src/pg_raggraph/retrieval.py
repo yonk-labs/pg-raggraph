@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime
-from typing import Literal
+from typing import Callable, Literal
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.db import Database
@@ -635,6 +635,7 @@ async def query(
     top_k_override: int | None = None,
     summary_base_mode: str | None = None,
     metadata_filters: dict | None = None,
+    trace_emit: Callable[[dict], None] | None = None,
 ) -> QueryResult:
     """Execute a retrieval query against the knowledge graph.
 
@@ -868,6 +869,47 @@ async def query(
     else:
         rows = []
 
+    # Optional tracing hook (champtrace etc). None-safe: when trace_emit is
+    # None this block is skipped entirely, so existing callers and the
+    # benchmark harness behave byte-identically. The hook is a plain
+    # Callable[[dict], None] the caller supplies; pg-raggraph never imports
+    # any tracing package.
+    if trace_emit is not None:
+        # SQL string varies by mode: naive/local/global bind a single `sql`;
+        # hybrid runs `local_sql` + `global_sql`. Surface whatever ran.
+        _lc = locals()
+        if mode == "hybrid":
+            _traced_sql = "\n\n-- [local]\n".join(
+                s for s in (_lc.get("local_sql"), _lc.get("global_sql")) if s
+            )
+        else:
+            _traced_sql = _lc.get("sql") or ""
+        trace_emit(
+            {
+                "stage": "vector_bm25",
+                "mode": mode,
+                "sql": _traced_sql,
+                "candidates": [
+                    {
+                        "chunk_id": row["id"],
+                        "vec_score": (
+                            float(row["vec_score"])
+                            if row.get("vec_score") is not None
+                            else None
+                        ),
+                        "bm25_score": (
+                            float(row["bm25_score"])
+                            if row.get("bm25_score") is not None
+                            else None
+                        ),
+                        "score": float(row["score"]) if row.get("score") is not None else None,
+                        "content": row.get("content"),
+                    }
+                    for row in rows
+                ],
+            }
+        )
+
     # Build chunk results
     evo_on = _effective_tier(config, evolution_aware) != "off"
     chunks = []
@@ -928,6 +970,19 @@ async def query(
             )
             for r in rel_rows
         ]
+
+    # Optional graph-traversal trace (graph submodes only: local/global/hybrid).
+    # None-safe and byte-identical when trace_emit is None.
+    if trace_emit is not None and mode != "naive":
+        trace_emit(
+            {
+                "stage": "graph",
+                "mode": mode,
+                "entities": [e.name for e in entities],
+                "relationships": [(r.source, r.rel_type, r.target) for r in relationships],
+                "hops": config.max_hops,
+            }
+        )
 
     latency_ms = (time.perf_counter() - start) * 1000
 
