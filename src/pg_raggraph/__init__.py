@@ -21,6 +21,7 @@ except PackageNotFoundError:
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.models import QueryResult
+from pg_raggraph.profiles import ProfileCalibration, ProfileSpec
 
 # Canonical extension allowlist for ingestion. Mirrored by the FastAPI server
 # and the MCP server so all surfaces accept the same set. Stored as a tuple
@@ -43,6 +44,8 @@ __all__ = [
     "GraphRAG",
     "INGEST_ALLOWED_EXTS",
     "PGRGConfig",
+    "ProfileCalibration",
+    "ProfileSpec",
     "QueryResult",
     "__version__",
 ]
@@ -1314,6 +1317,94 @@ class GraphRAG:
         if it was never cached or has been evicted."""
         return self._result_cache.get(result_id)
 
+    def profiles(self) -> dict:
+        """Return retrieval profile ladder metadata and calibration estimates."""
+        from pg_raggraph.profiles import load_profile_calibration
+
+        return load_profile_calibration().as_dict()
+
+    @staticmethod
+    def _decode_profile_value(value):
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                return value
+        return value
+
+    async def _namespace_profile_value(self, namespace: str):
+        row = await self.db.fetch_one(
+            "SELECT retrieval_profile FROM namespace_settings WHERE namespace = %s",
+            (namespace,),
+        )
+        if not row:
+            return None
+        return self._decode_profile_value(row.get("retrieval_profile"))
+
+    async def get_namespace_profile(self, namespace: str | None = None) -> dict:
+        """Return the persisted retrieval profile default for a namespace."""
+        from pg_raggraph.profiles import resolve_profile
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        value = await self._namespace_profile_value(ns)
+        if value is None:
+            value = self.config.retrieval_profile
+            source = "config"
+        else:
+            source = "namespace"
+        spec = resolve_profile(value, default=self.config.retrieval_profile)
+        return {
+            "namespace": ns,
+            "source": source,
+            "profile": value,
+            "resolved": {
+                "name": spec.name,
+                "index": spec.index,
+                "context_strategy": spec.context_strategy,
+                "top_k": spec.top_k,
+                "raw": spec.raw,
+            },
+        }
+
+    async def set_namespace_profile(
+        self,
+        namespace: str,
+        profile: str | int | float,
+    ) -> dict:
+        """Persist a namespace-specific retrieval profile default."""
+        from pg_raggraph.profiles import resolve_profile
+
+        _validate_namespace(namespace)
+        spec = resolve_profile(profile, default=self.config.retrieval_profile)
+        await self.db.execute(
+            """
+            INSERT INTO namespace_settings (namespace, retrieval_profile, updated_at)
+            VALUES (%s, %s::jsonb, now())
+            ON CONFLICT (namespace) DO UPDATE
+            SET retrieval_profile = EXCLUDED.retrieval_profile,
+                updated_at = now()
+            """,
+            (namespace, json.dumps(profile)),
+        )
+        return {
+            "namespace": namespace,
+            "profile": profile,
+            "resolved": {
+                "name": spec.name,
+                "index": spec.index,
+                "context_strategy": spec.context_strategy,
+                "top_k": spec.top_k,
+                "raw": spec.raw,
+            },
+        }
+
+    async def clear_namespace_profile(self, namespace: str) -> dict:
+        """Remove a namespace-specific retrieval profile default."""
+        _validate_namespace(namespace)
+        await self.db.execute("DELETE FROM namespace_settings WHERE namespace = %s", (namespace,))
+        return {"namespace": namespace, "cleared": True}
+
     async def query(
         self,
         question: str,
@@ -1328,6 +1419,7 @@ class GraphRAG:
         memory_tier: str | None = None,
         retrieval_strategy: str | None = None,
         summary_base_mode: str | None = None,
+        profile: str | int | float | None = None,
         rerank: bool = False,
         metadata_filters: dict | None = None,
         trace_emit: Callable[[dict], None] | None = None,
@@ -1379,20 +1471,36 @@ class GraphRAG:
                 Applies to naive/naive_boost modes only — local/global/
                 hybrid already pre-narrow via graph traversal and ignore
                 this knob.
+            profile: retrieval context profile. Accepts named rungs
+                (``"cheap"``, ``"balanced"``, ``"accurate"``), integer rung
+                indexes, a 0..1 slider float, or ``"raw"`` for legacy classic
+                chunk context. ``None`` uses ``config.retrieval_profile``.
             rerank: when True, fetch top_k * rerank_factor candidates and
                 re-rank with a cross-encoder before trimming to top_k.
                 Adds ~30-80 ms p50 latency, zero per-query LLM cost.
                 Model and factor configured via PGRGConfig.rerank_model
                 and rerank_factor.
         """
+        from pg_raggraph.context import pack_query_context
+        from pg_raggraph.profiles import resolve_profile
         from pg_raggraph.retrieval import query as retrieval_query
 
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        namespace_profile = None
+        if profile is None:
+            namespace_profile = await self._namespace_profile_value(ns)
+        profile_spec = resolve_profile(
+            profile if profile is not None else namespace_profile,
+            default=self.config.retrieval_profile,
+        )
         started = time.perf_counter()
         with self.db.tenant(ns):
             embedder = self._get_embedder()
-            top_k_override = self.config.top_k * self.config.rerank_factor if rerank else None
+            retrieval_top_k = profile_spec.top_k
+            top_k_override = (
+                retrieval_top_k * self.config.rerank_factor if rerank else retrieval_top_k
+            )
             with self.db.readonly():
                 result = await retrieval_query(
                     question=question,
@@ -1418,7 +1526,17 @@ class GraphRAG:
 
                 if self._reranker is None:
                     self._reranker = FastEmbedReranker(self.config.rerank_model)
-                result = await apply_reranker(self._reranker, question, result, self.config.top_k)
+                result = await apply_reranker(self._reranker, question, result, retrieval_top_k)
+            with self.db.readonly():
+                packed = await pack_query_context(
+                    question=question,
+                    result=result,
+                    db=self.db,
+                    namespace=ns,
+                    profile=profile_spec,
+                    config=self.config,
+                )
+            result.context = packed.text
             self._emit_metric(
                 "pgrg.query",
                 namespace=ns,
@@ -1426,6 +1544,8 @@ class GraphRAG:
                 latency_ms=(time.perf_counter() - started) * 1000,
                 top_k=len(result.chunks),
                 rerank=rerank,
+                retrieval_profile=profile_spec.name,
+                context_strategy=profile_spec.context_strategy,
             )
             return result
 
@@ -1443,6 +1563,7 @@ class GraphRAG:
         memory_tier: str | None = None,
         retrieval_strategy: str | None = None,
         summary_base_mode: str | None = None,
+        profile: str | int | float | None = None,
         short_answer: bool = False,
         rerank: bool = False,
         metadata_filters: dict | None = None,
@@ -1480,6 +1601,7 @@ class GraphRAG:
             memory_tier=memory_tier,
             retrieval_strategy=retrieval_strategy,
             summary_base_mode=summary_base_mode,
+            profile=profile,
             rerank=rerank,
             metadata_filters=metadata_filters,
             trace_emit=trace_emit,

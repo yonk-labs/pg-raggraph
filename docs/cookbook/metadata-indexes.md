@@ -160,6 +160,39 @@ SELECT * FROM chunks WHERE meta_priority > 5;  -- uses idx_chunks_meta_priority
 
 **Index naming.** The generated column is `meta_<key>` (distinct namespace from `chunks.metadata`). The index is `idx_chunks_meta_<key>`. A key can have BOTH `metadata_indexes=["priority"]` AND `metadata_generated_columns={"priority": "int"}` — they don't collide and serve different predicate shapes (text equality vs numeric range).
 
+### Nested JSON paths / lede reports
+
+Generated columns can also be calculated from nested JSON paths. This is the
+recommended shape for lede v0.4.5 report JSON: store the full machine payload
+under `metadata.lede_report`, then promote hot paths into typed columns.
+
+```python
+rag = GraphRAG(
+    dsn=...,
+    document_metadata_generated_columns={
+        "term": {
+            "type": "text",
+            "path": ["lede_report", "attributes", "term", "value"],
+        },
+        "docket_number": {
+            "type": "text",
+            "path": ["lede_report", "attributes", "docket_number", "value"],
+        },
+        "decision_year": {
+            "type": "int",
+            "path": ["lede_report", "attributes", "decision_year", "value"],
+        },
+    },
+)
+await rag.connect()
+```
+
+This creates columns such as `documents.meta_term` and
+`documents.meta_docket_number`, each backed by a btree index. Use the full JSON
+payload for audit and recall enrichment, but use the generated columns for
+deterministic filters like term, docket number, citation, year, customer, or
+case metadata.
+
 ## Indexing documents.metadata (Option A — config-driven)
 
 For deployments that want config-driven indexes on `documents.metadata` (e.g., the sales-notes case where `salesperson`, `product`, `date` land on `documents.metadata`, not `chunks.metadata`), three parallel config fields mirror the chunks-side knobs:

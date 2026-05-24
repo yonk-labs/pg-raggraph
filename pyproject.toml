@@ -47,15 +47,15 @@ chunkshop = ["chunkshop>=0.4.3"]
 # See docs/superpowers/specs/2026-05-18-lede-spacy-extraction-design.md
 # The [synonyms] extra pulls nltk/WordNet so the default query_expansion="moderate"
 # tier does real synonym expansion instead of degrading to raw seeds.
-lede_spacy = ["lede>=0.4.2", "lede-spacy[synonyms]>=0.4.2", "spacy>=3.7"]
+lede_spacy = ["lede>=0.4.5", "lede-spacy[synonyms]>=0.4.5", "spacy>=3.7"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "ruff>=0.5",
     "coverage>=7.0",
     "beautifulsoup4>=4.14.3",
-    "lede>=0.4.2",
-    "lede-spacy[synonyms]>=0.4.2",
+    "lede>=0.4.5",
+    "lede-spacy[synonyms]>=0.4.5",
     "spacy>=3.7",
 ]
 # E2E benchmark harness — datasets pulled as parquet from HuggingFace mirrors.

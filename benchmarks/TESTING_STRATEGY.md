@@ -219,6 +219,23 @@ Context assembly strategies:
 - facts only
 - TOC + facts + chunk summary
 
+### Derived Metadata Columns
+
+For machine reports like `lede --mode report --output json`, store the complete
+payload under a raw metadata key such as `metadata.lede_report`, then promote
+repeat-query paths into generated columns:
+
+- `metadata.lede_report.attributes.term.value` → `meta_term`
+- `metadata.lede_report.attributes.docket_number.value` → `meta_docket_number`
+- `metadata.lede_report.attributes.citation.value` → `meta_citation`
+- workload-specific entities such as SCOTUS justice names, customer IDs, dates,
+  products, repos, file paths, or version labels
+
+The raw JSON stays available for audits, FTS enrichment, embeddings, and future
+extractors. Generated columns give the benchmark a fair deterministic baseline
+for predicate-style questions instead of forcing semantic retrieval to guess at
+structured filters.
+
 Each context strategy must record:
 
 - source tokens considered
@@ -387,30 +404,30 @@ run:
   resume: true
   concurrency: 4
 
+suite:
+  namespace_prefix: mxreg
+
 workloads:
   - name: mhr
     subset: 30
     seed: 42
     tags: [multi-hop, news]
 
-embeddings:
-  - label: bge-large
-    model: BAAI/bge-large-en-v1.5
-    dim: 1024
-
-chunkers:
-  - label: auto-512
-    strategy: auto
-    chunk_max_tokens: 512
-    chunk_overlap_tokens: 50
-  - label: chunkshop-hierarchy
-    strategy: chunkshop:hierarchy
-    chunk_max_tokens: 512
+ingest:
+  reuse_existing_shapes: true
+  refresh_shapes: false
+  arms: [lede_spacy]
+  embeddings:
+    - label: bge-large
+      model: BAAI/bge-large-en-v1.5
+      dim: 1024
+      provider: local
+  chunk_strategies: [auto, hierarchy, chunkshop:sentence_aware]
+  chunk_max_tokens: [512]
+  chunk_overlap_tokens: [50]
 
 retrieval:
   modes: [naive, hybrid, summary]
-  search: [vector, fts, hybrid]
-  vector_ops: [cosine]
   retrieval_strategies: [weighted, pre_filter, vector_first]
   top_k: [10, 25, 50, 100]
 
@@ -442,6 +459,46 @@ judge:
       model: gpt-4.1-mini
       api_key_env: OPENAI_API_KEY
 ```
+
+## Fast Reload / Shape Reuse
+
+The matrix harness treats an ingest shape as the expensive part:
+
+- dataset
+- arm / fact extractor
+- embedding model + dimension
+- chunk strategy
+- chunk token and overlap settings
+
+Each shape gets a deterministic namespace such as `mx_mhr_lede_spacy_bge_large_auto_512_50_<hash>`.
+By default, `ingest.reuse_existing_shapes: true` means repeated runs skip
+re-chunking and re-embedding when that namespace already has documents.
+
+Use:
+
+```bash
+uv run python -m benchmarks.matrix.suite --config benchmarks/matrix/smoke.yaml --judge --report
+```
+
+For a stage-only cache warmup:
+
+```bash
+uv run python -m benchmarks.matrix.suite --config benchmarks/matrix/regression.yaml --prepare-only
+```
+
+Only set `ingest.refresh_shapes: true` when corpus contents, chunker behavior,
+embedding model, embedding dimension, or extraction settings changed. Retrieval,
+top-k, summarization, context assembly, answer models, judge models, and report
+settings reuse the staged shapes.
+
+Generated artifacts:
+
+- `.matrix-runs/<run-id>/shape-manifest.json`
+- `.matrix-runs/<run-id>/input.jsonl`
+- `.matrix-runs/<run-id>/llm_judge.yaml`
+- `.matrix-runs/<run-id>/llm-judge/results.jsonl`
+- `.matrix-runs/<run-id>/llm-judge/cases/*.md`
+- `.matrix-runs/<run-id>/matrix-report.md`
 
 ## Execution Modes
 

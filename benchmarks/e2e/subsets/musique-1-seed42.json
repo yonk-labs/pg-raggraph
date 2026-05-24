@@ -1,0 +1,8 @@
+{
+  "dataset": "musique",
+  "n": 1,
+  "seed": 42,
+  "qids": [
+    "musique:q:2hop__67660_81007"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "dataset": "scotus",
+  "n": 10,
+  "seed": 4224,
+  "note": "Curated RAG-fair SCOTUS questions for the summary-density experiment. Weighted toward the medium_semantic_rag bucket (holdings that require real opinion content, where summary density matters), plus a few easy/layup. Excludes the impossible/hard metadata-aggregation buckets.",
+  "qids": [
+    "scotus:q:scotus-b50-021",
+    "scotus:q:scotus-b50-022",
+    "scotus:q:scotus-b50-024",
+    "scotus:q:scotus-b50-025",
+    "scotus:q:scotus-b50-030",
+    "scotus:q:scotus-b50-032",
+    "scotus:q:scotus-b50-033",
+    "scotus:q:scotus-b50-039",
+    "scotus:q:scotus-b50-043",
+    "scotus:q:scotus-b50-044"
+  ]
+}

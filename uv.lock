@@ -1166,24 +1166,24 @@ wheels = [
 
 [[package]]
 name = "lede"
-version = "0.4.2"
+version = "0.4.5"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/73/91/3edb1050427aced89327a563074780739aade403c6e11dddb38f9b6b1aa8/lede-0.4.2.tar.gz", hash = "sha256:793bd61748bfda05cb47ebd5434fba4fff22e841512b1ce558fab1061b89956a", size = 134811, upload-time = "2026-05-22T17:19:50.435Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/69/3b/bba402ccb5ebc767e5551b7350ee7e5f35d38939ce5b1a7386f8d95e131f/lede-0.4.5.tar.gz", hash = "sha256:b2dfb93a5dd57c38cd323afb0cfc5fa99df9c0f942f46b8080caa618ecebd2f2", size = 152963, upload-time = "2026-05-23T22:01:59.413Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e0/e8/e4726c202a305106135a96ba139f8655f83d77a06580520171f7dd14843a/lede-0.4.2-py3-none-any.whl", hash = "sha256:3bad85fcde8fbc259615a6cbff1fc4c39cd11ee2f4613e4541def7897fd6a3c5", size = 70864, upload-time = "2026-05-22T17:19:49.246Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/f9/688b9a7e1ba2d25fe35a14887f735452518681227eb4281207c9225277ba/lede-0.4.5-py3-none-any.whl", hash = "sha256:2ed64c7d2d1112efb9c8cd86a5702ac10e3ce9b0d48dde03c84deb5c64c59614", size = 83152, upload-time = "2026-05-23T22:01:57.813Z" },
 ]
 
 [[package]]
 name = "lede-spacy"
-version = "0.4.2"
+version = "0.4.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "lede" },
     { name = "spacy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b2/71/91ede31827c6361daf724b001ca50bab98c9a56c9768301aa6c1af7fe253/lede_spacy-0.4.2.tar.gz", hash = "sha256:74190cfed9fc38937e983f0150f55ef5a3e575003091141ae5e4bebcefd9302f", size = 21426, upload-time = "2026-05-22T17:19:57.025Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/71/a8/f9b36b1c6d6c5de8abb93b12b06f606bf5a0a2cc2bb518390ac03b4e328d/lede_spacy-0.4.5.tar.gz", hash = "sha256:0126dc77782c59f0af190af40ddf8fe02465037fb6f1bdfd6958c1d69a4fe20c", size = 21915, upload-time = "2026-05-23T22:01:57.283Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/be/9f/dbbe15a7ede95290537b4c66ac515b73084ddd6fc5704e9d687b41857740/lede_spacy-0.4.2-py3-none-any.whl", hash = "sha256:56cb143899d767b6293c889d46e458d37ebbf2347c329cd5a5d5df4a742c5438", size = 21556, upload-time = "2026-05-22T17:19:55.187Z" },
+    { url = "https://files.pythonhosted.org/packages/0f/43/f917ac17320ab61fe358f6adf1f1d1bb2eb4a24c6c320e9a9e2dd7f34e76/lede_spacy-0.4.5-py3-none-any.whl", hash = "sha256:8d1d37ef8a1749f432baff0585c673ec1eaacd13ec86be03bc9751402a9c6b6a", size = 21761, upload-time = "2026-05-23T22:01:55.763Z" },
 ]
 
 [package.optional-dependencies]
@@ -1935,10 +1935,10 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'bench'", specifier = ">=0.27" },
     { name = "langchain-core", marker = "extra == 'langchain'", specifier = ">=0.2" },
-    { name = "lede", marker = "extra == 'dev'", specifier = ">=0.4.2" },
-    { name = "lede", marker = "extra == 'lede-spacy'", specifier = ">=0.4.2" },
-    { name = "lede-spacy", extras = ["synonyms"], marker = "extra == 'dev'", specifier = ">=0.4.2" },
-    { name = "lede-spacy", extras = ["synonyms"], marker = "extra == 'lede-spacy'", specifier = ">=0.4.2" },
+    { name = "lede", marker = "extra == 'dev'", specifier = ">=0.4.5" },
+    { name = "lede", marker = "extra == 'lede-spacy'", specifier = ">=0.4.5" },
+    { name = "lede-spacy", extras = ["synonyms"], marker = "extra == 'dev'", specifier = ">=0.4.5" },
+    { name = "lede-spacy", extras = ["synonyms"], marker = "extra == 'lede-spacy'", specifier = ">=0.4.5" },
     { name = "leidenalg", marker = "extra == 'community'", specifier = ">=0.10" },
     { name = "llama-index-core", marker = "extra == 'llamaindex'", specifier = ">=0.11" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0" },

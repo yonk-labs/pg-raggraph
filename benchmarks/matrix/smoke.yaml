@@ -5,12 +5,28 @@ run:
   resume: true
   concurrency: 1
 
+suite:
+  namespace_prefix: mxsmoke
+
 workloads:
   - name: mhr
     subset: 2
     seed: 42
-    arm: lede_spacy
+    namespace: bench_mhr_lede_spacy
     tags: [multi-hop, news, smoke]
+
+ingest:
+  reuse_existing_shapes: true
+  refresh_shapes: false
+  arms: [lede_spacy]
+  embeddings:
+    - label: bge-large
+      model: BAAI/bge-large-en-v1.5
+      dim: 1024
+      provider: local
+  chunk_strategies: [auto]
+  chunk_max_tokens: [512]
+  chunk_overlap_tokens: [50]
 
 retrieval:
   modes: [hybrid]

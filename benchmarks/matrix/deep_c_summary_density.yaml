@@ -1,0 +1,91 @@
+# Deep run — Phase C: summary density + summary-source + "beat classic RAG@25".
+#
+# Focused experiment on 10 curated, *answerable* MHR questions
+# (mhr-10-seed4224.json; null_query/"insufficient-info" items excluded so that
+# summary density actually matters). Reuses the staged bench_mhr_lede_spacy
+# auto shape; hybrid retrieval at top_k=25 so every strategy sees the same 25
+# retrieved chunks. Three sub-experiments, all vs the classic_chunks@25 baseline:
+#
+#   1. Density: doc_summary_facts at 1x / 1.5x / 2x / 3x the default char budget.
+#   2. Summary source: summarize the full doc vs the 25 retrieved chunks vs both.
+#   3. Challenger: summary(+TOC headers +facts) of chunks / doc / both, PLUS the
+#      top-5 raw chunks — can it beat sending 25 raw chunks?
+run:
+  id: deep-c-summary-density
+  output_dir: .matrix-runs/deep-c-summary-density
+  cache_dir: .matrix-runs/cache
+  resume: true
+  concurrency: 4
+
+suite:
+  namespace_prefix: deepc
+
+workloads:
+  - name: mhr
+    subset: 10
+    seed: 4224
+    namespace: bench_mhr_lede_spacy
+    tags: [summary-density, curated]
+
+ingest:
+  reuse_existing_shapes: true
+  refresh_shapes: false
+  arms: [lede_spacy]
+  embeddings:
+    - label: bge-large
+      model: BAAI/bge-large-en-v1.5
+      dim: 1024
+      provider: local
+  chunk_strategies: [auto]
+  chunk_max_tokens: [512]
+  chunk_overlap_tokens: [50]
+
+retrieval:
+  modes: [hybrid]
+  retrieval_strategies: [weighted]
+  rerank: [false]
+  top_k: [25]
+
+context:
+  max_selected_docs: 3
+  strategies:
+    - classic_chunks                                # baseline: 25 raw chunks
+    - doc_summary_facts                             # 1x density (full-doc)
+    - doc_summary_facts_x1_5
+    - doc_summary_facts_x2
+    - doc_summary_facts_x3
+    - chunk_summary_facts                           # summary of the 25 chunks
+    - doc_and_chunk_summary_facts                   # both summaries combined
+    - chunk_summary_toc_facts_plus_top5             # chunk summary + top-5 raw
+    - doc_summary_toc_facts_plus_top5               # doc summary + top-5 raw
+    - doc_and_chunk_summary_toc_facts_plus_top5     # both + top-5 raw
+
+baselines:
+  full_document:
+    max_docs: 3
+    max_context_tokens: 120000
+  classic_rag:
+    top_k: 25
+    chunker: auto
+
+answer:
+  provider: openai-compatible
+  model: Intel/Qwen3-Coder-Next-int4-AutoRound
+  base_url: http://192.168.1.193:8000/v1
+
+judge:
+  mode: accurate
+  concurrency: 8
+  retries: 2
+  parse_retries: 2
+  timeout: 180
+  temperature: 0.0
+  max_tokens: 1200
+  strict_json_fallback: true
+  providers:
+    - provider: openai-compatible
+      model: Intel/Qwen3-Coder-Next-int4-AutoRound
+      base_url: http://192.168.1.193:8000/v1
+    - provider: openai-compatible
+      model: cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit
+      base_url: http://192.168.1.133:8000/v1

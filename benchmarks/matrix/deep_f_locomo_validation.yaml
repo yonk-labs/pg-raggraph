@@ -1,0 +1,107 @@
+# Deep run — Phase F: LoCoMo conversational-memory validation.
+#
+# Purpose: check whether conversational multi-session QA changes the Phase E
+# conclusion enough to resurrect any dropped context-packing strategy before
+# committing the per-KB retrieval_profile ladder default.
+run:
+  id: deep-f-locomo-validation
+  output_dir: .matrix-runs/deep-f-locomo-validation
+  cache_dir: .matrix-runs/cache
+  resume: true
+  concurrency: 4
+
+suite:
+  namespace_prefix: deepf
+
+workloads:
+  - name: locomo
+    subset: 30
+    seed: 4225
+    tags: [locomo, conversational, validation]
+
+ingest:
+  reuse_existing_shapes: true
+  refresh_shapes: false
+  arms: [lede_spacy]
+  embeddings:
+    - label: bge-large
+      model: BAAI/bge-large-en-v1.5
+      dim: 1024
+      provider: local
+  chunk_strategies: [auto]
+  chunk_max_tokens: [512]
+  chunk_overlap_tokens: [50]
+
+retrieval:
+  modes: [hybrid]
+  retrieval_strategies: [weighted]
+  rerank: [false]
+  top_k: [25]
+
+context:
+  max_selected_docs: 10
+  strategies:
+    # Legacy baseline.
+    - classic_chunks
+
+    # Current E-informed coverage ladder candidates.
+    - doc_summary_facts@3
+    - doc_summary_facts@5
+    - doc_summary_facts@10
+    - full_selected_docs@3
+    - full_selected_docs@5
+    - full_selected_docs@10
+
+    # Dropped strategies under re-validation on conversational data.
+    - chunk_summary_facts
+    - per_doc_summary_facts@3
+    - per_doc_summary_facts@5
+    - per_doc_summary_facts@10
+
+    # Broader historical strategy set from Phases C/D.
+    - full_selected_docs
+    - doc_summary_facts
+    - hint_doc_summary_facts
+    - doc_summary_toc_facts
+    - doc_summary_facts_plus_chunks
+    - hint_doc_summary_facts_plus_chunks
+    - toc_doc_summary_plus_chunk_summary
+    - doc_summary_facts_x1_5
+    - doc_summary_facts_x2
+    - doc_summary_facts_x3
+    - doc_and_chunk_summary_facts
+    - chunk_summary_toc_facts_plus_top5
+    - doc_summary_toc_facts_plus_top5
+    - doc_and_chunk_summary_toc_facts_plus_top5
+    - per_doc_summary_facts
+    - per_doc5_chunksum_top5
+
+baselines:
+  full_document:
+    max_docs: 10
+    max_context_tokens: 120000
+  classic_rag:
+    top_k: 25
+    chunker: auto
+
+answer:
+  provider: openai-compatible
+  model: Intel/Qwen3-Coder-Next-int4-AutoRound
+  base_url: http://192.168.1.193:8000/v1
+
+judge:
+  mode: accurate
+  concurrency: 8
+  retries: 2
+  parse_retries: 2
+  timeout: 180
+  temperature: 0.0
+  max_tokens: 1200
+  strict_json_fallback: true
+  providers:
+    - provider: openai-compatible
+      model: Intel/Qwen3-Coder-Next-int4-AutoRound
+      base_url: http://192.168.1.193:8000/v1
+    - provider: openai-compatible
+      model: cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit
+      base_url: http://192.168.1.133:8000/v1

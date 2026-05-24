@@ -66,3 +66,50 @@ async def test_hard_filter_on_freetext_field_raises(rag):
             namespace=rag._ns,
             metadata_filters={"hard": {"keywords": "finance"}},
         )
+
+
+async def test_nested_json_metadata_generated_column_for_lede_report():
+    ns = "test_meta_lede_generated"
+    g = GraphRAG(
+        dsn=_DSN,
+        namespace=ns,
+        skip_extraction=True,
+        llm_base_url="",
+        document_metadata_generated_columns={
+            "lede_term": {
+                "type": "text",
+                "path": ["lede_report", "attributes", "term", "value"],
+            }
+        },
+    )
+    await g.connect()
+    await g.delete(ns)
+    try:
+        await g.ingest_records(
+            [
+                {
+                    "text": "The court decided a narrow administrative law question.",
+                    "source_id": "scotus:term-test",
+                    "metadata": {
+                        "lede_report": {
+                            "attributes": {
+                                "term": {
+                                    "value": "2023",
+                                    "type": "year",
+                                }
+                            }
+                        }
+                    },
+                    "skip_llm": True,
+                }
+            ],
+            namespace=ns,
+        )
+        row = await g.db.fetch_one(
+            "SELECT meta_lede_term FROM documents WHERE namespace = %s",
+            (ns,),
+        )
+        assert row["meta_lede_term"] == "2023"
+    finally:
+        await g.delete(ns)
+        await g.close()

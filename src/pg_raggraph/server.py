@@ -232,8 +232,9 @@ def create_app(**kwargs) -> FastAPI:
         # public endpoint. See benchmarks/age-bakeoff/results/REPORT-VERDICT.md.
         mode: str = Form("smart"),
         namespace: str = Form(None),
+        profile: str = Form(None),
     ):
-        result = await rag.query(question, mode=mode, namespace=namespace)
+        result = await rag.query(question, mode=mode, namespace=namespace, profile=profile)
         return result.model_dump()
 
     @app.post("/ask")
@@ -241,6 +242,7 @@ def create_app(**kwargs) -> FastAPI:
         question: str = Form(...),
         mode: str = Form("smart"),
         namespace: str = Form(None),
+        profile: str = Form(None),
     ):
         """Query + grounded LLM answer. Falls back to top-chunk summary without LLM.
 
@@ -250,7 +252,7 @@ def create_app(**kwargs) -> FastAPI:
         `0` to disable truncation, or any positive integer to widen the window.
         """
         preview_chars = int(os.environ.get("PGRG_SERVER_ASK_CHUNK_PREVIEW_CHARS", "500"))
-        result = await rag.ask(question, mode=mode, namespace=namespace)
+        result = await rag.ask(question, mode=mode, namespace=namespace, profile=profile)
         return {
             "answer": result.answer,
             "confidence": result.confidence,
@@ -266,6 +268,21 @@ def create_app(**kwargs) -> FastAPI:
             ],
             "entities": [e.name for e in result.entities[:10]],
         }
+
+    @app.get("/profiles")
+    async def profiles():
+        return rag.profiles()
+
+    @app.get("/profiles/namespace")
+    async def get_namespace_profile(namespace: str = Query(None)):
+        return await rag.get_namespace_profile(namespace)
+
+    @app.post("/profiles/namespace")
+    async def set_namespace_profile(
+        namespace: str = Form(...),
+        profile: str = Form(...),
+    ):
+        return await rag.set_namespace_profile(namespace, profile)
 
     @app.get("/graph")
     async def graph(

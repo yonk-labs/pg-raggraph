@@ -27,4 +27,4 @@ def names() -> list[str]:
     return sorted(_REGISTRY)
 
 
-from benchmarks.e2e.datasets import mhr, musique, twowiki  # noqa: E402,F401
+from benchmarks.e2e.datasets import locomo, mhr, musique, scotus, twowiki  # noqa: E402,F401

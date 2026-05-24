@@ -126,6 +126,64 @@ def _validate_metadata_generated_type(type_name: str) -> str:
     return canon
 
 
+def _validate_metadata_generated_path(path: Any) -> tuple[str, ...]:
+    """Validate a JSON text path used by a generated metadata column.
+
+    ``metadata_generated_columns`` accepts either the legacy shorthand
+    ``{"priority": "int"}`` or an explicit nested path spec:
+    ``{"term": {"type": "text", "path": ["lede_report", "attributes", "term", "value"]}}``.
+    Path segments are emitted with ``sql.Literal`` later, so this is mainly a
+    config-quality check: reject empty / non-string / NUL-containing segments
+    before DDL assembly.
+    """
+    if isinstance(path, str):
+        parts = tuple(part for part in path.split(".") if part)
+    elif isinstance(path, list | tuple):
+        parts = tuple(path)
+    else:
+        raise ValueError(
+            "metadata_generated_columns path must be a dotted string or list of strings"
+        )
+    if not parts:
+        raise ValueError("metadata_generated_columns path must not be empty")
+    for part in parts:
+        if not isinstance(part, str) or not part:
+            raise ValueError("metadata_generated_columns path entries must be non-empty strings")
+        if "\x00" in part:
+            raise ValueError("metadata_generated_columns path entries must not contain NUL bytes")
+    return parts
+
+
+def _normalize_metadata_generated_spec(
+    raw_key: str, raw_spec: Any
+) -> tuple[str, str, tuple[str, ...]]:
+    """Return ``(column_key, sql_type, json_path)`` for generated-column config."""
+    key = _validate_metadata_index_key(raw_key)
+    if isinstance(raw_spec, str):
+        return key, _validate_metadata_generated_type(raw_spec), (key,)
+    if not isinstance(raw_spec, dict):
+        raise ValueError(
+            "metadata_generated_columns values must be strings or "
+            f"mappings, got {type(raw_spec).__name__}: {raw_spec!r}"
+        )
+    raw_type = raw_spec.get("type") or raw_spec.get("sql_type")
+    if raw_type is None:
+        raise ValueError(f"metadata_generated_columns spec for {raw_key!r} must include type")
+    raw_path = raw_spec.get("path", key)
+    return (
+        key,
+        _validate_metadata_generated_type(raw_type),
+        _validate_metadata_generated_path(raw_path),
+    )
+
+
+def _metadata_generated_json_text_expr(path: tuple[str, ...]) -> sql.Composed:
+    """Build ``metadata#>>ARRAY['a','b']`` for a generated-column expression."""
+    return sql.SQL("(metadata#>>ARRAY[{path}])").format(
+        path=sql.SQL(",").join(sql.Literal(part) for part in path)
+    )
+
+
 def _metadata_generated_column_name(key: str) -> str:
     """Canonical generated-column name for a metadata key.
 
@@ -502,13 +560,13 @@ class Database:
     async def _apply_metadata_generated_columns(self, conn, *, table: str = "chunks") -> None:
         """Add STORED generated columns + btree indexes from JSONB metadata.
 
-        For each ``{key: type}`` in the matching config dict
+        For each ``{key: type_or_spec}`` in the matching config dict
         (``metadata_generated_columns`` for ``table="chunks"``,
         ``document_metadata_generated_columns`` for
         ``table="documents"``):
 
         1. ``ALTER TABLE <table> ADD COLUMN IF NOT EXISTS meta_<key>
-           <type> GENERATED ALWAYS AS ((metadata->>'<key>')::<type>) STORED``
+           <type> GENERATED ALWAYS AS ((metadata#>>ARRAY[...])::<type>) STORED``
         2. ``CREATE INDEX IF NOT EXISTS idx_<table>_meta_<key>
            ON <table>(meta_<key>)``
         3. ``ANALYZE <table>``
@@ -531,19 +589,19 @@ class Database:
             if table == "chunks"
             else self.config.document_metadata_generated_columns
         )
-        for raw_key, raw_type in items.items():
-            key = _validate_metadata_index_key(raw_key)
-            sql_type = _validate_metadata_generated_type(raw_type)
+        for raw_key, raw_spec in items.items():
+            key, sql_type, json_path = _normalize_metadata_generated_spec(raw_key, raw_spec)
             col = _metadata_generated_column_name(key)
             idx = _metadata_generated_index_name(key, table=table)
+            json_text_expr = _metadata_generated_json_text_expr(json_path)
             add_col = sql.SQL(
                 "ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS {col} {sqltype} "
-                "GENERATED ALWAYS AS ((metadata->>{key})::{sqltype}) STORED"
+                "GENERATED ALWAYS AS ({expr}::{sqltype}) STORED"
             ).format(
                 tbl=sql.Identifier(table),
                 col=sql.Identifier(col),
                 sqltype=sql.SQL(sql_type),
-                key=sql.Literal(key),
+                expr=json_text_expr,
             )
             create_idx = sql.SQL("CREATE INDEX IF NOT EXISTS {idx} ON {tbl}({col})").format(
                 idx=sql.Identifier(idx),
@@ -571,10 +629,10 @@ class Database:
                     table,
                     col,
                     sql_type,
-                    key,
+                    ".".join(json_path),
                     e,
                     table,
-                    key,
+                    ".".join(json_path),
                 )
         try:
             await conn.execute(sql.SQL("ANALYZE {tbl}").format(tbl=sql.Identifier(table)))

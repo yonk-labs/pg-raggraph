@@ -47,6 +47,9 @@ Constraints:
 
 def _format_context(result: QueryResult, max_chunks: int = 8) -> str:
     """Format retrieved chunks as LLM context."""
+    if result.context:
+        return result.context
+
     lines = []
     for i, chunk in enumerate(result.chunks[:max_chunks], 1):
         source = chunk.document_source or "unknown"

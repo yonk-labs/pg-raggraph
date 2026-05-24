@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -225,6 +225,9 @@ class PGRGConfig(BaseSettings):
     max_hops: int = 2
     top_k: int = 10
     similarity_threshold: float = 0.3
+    # Context packing ladder. The default is the benchmark-calibrated balanced
+    # rung; pass profile="raw" to query()/ask() for legacy classic chunk context.
+    retrieval_profile: str = "balanced"
 
     # Two-stage naive retrieval (K1). When True (default), mode="naive"
     # first fetches `retrieval_candidate_k` nearest chunks via a bare
@@ -309,13 +312,14 @@ class PGRGConfig(BaseSettings):
     # in docs/cookbook/metadata-indexes.md first.
     metadata_indexes_gin: bool = False
 
-    # Typed generated columns from JSONB metadata. Map of metadata key →
-    # SQL type. For each entry, connect() creates a STORED generated
-    # column ``meta_<key>`` of the given type, populated from
-    # ``(metadata->>'<key>')::<type>``, AND a btree index on it. This is
-    # the right answer for numeric / timestamp predicates that don't
-    # work correctly via ``metadata->>`` alone (text comparison says
-    # ``'10' < '5'``).
+    # Typed generated columns from JSONB metadata. Map of generated key →
+    # SQL type or a spec like {"type": "text", "path":
+    # ["lede_report", "attributes", "term", "value"]}. For each entry,
+    # connect() creates a STORED generated column ``meta_<key>`` of the
+    # given type, populated from the configured JSON text path, AND a
+    # btree index on it. This is the right answer for numeric /
+    # timestamp predicates that don't work correctly via ``metadata->>``
+    # alone (text comparison says ``'10' < '5'``).
     #
     # Allowed types: text, int, bigint, numeric, timestamptz, boolean.
     # The cast is evaluated on every INSERT/UPDATE — a row whose
@@ -327,8 +331,10 @@ class PGRGConfig(BaseSettings):
     # operator must manually DROP + re-ADD. See
     # docs/cookbook/metadata-indexes.md → "Typed generated columns".
     #
-    # Example: ``{"priority": "int", "created_at": "timestamptz"}``
-    metadata_generated_columns: dict[str, str] = {}
+    # Examples:
+    # ``{"priority": "int", "created_at": "timestamptz"}``
+    # ``{"term": {"type": "text", "path": ["lede_report", "attributes", "term", "value"]}}``
+    metadata_generated_columns: dict[str, str | dict[str, Any]] = {}
 
     # --- documents.metadata mirrors (Option A) ---
     #
@@ -355,8 +361,8 @@ class PGRGConfig(BaseSettings):
 
     # Typed STORED generated columns + btree indexes on ``documents``
     # (column: ``meta_<key>``; index: ``idx_documents_meta_<key>``).
-    # Same type whitelist as the chunks-side counterpart.
-    document_metadata_generated_columns: dict[str, str] = {}
+    # Same type whitelist and nested-path spec as the chunks-side counterpart.
+    document_metadata_generated_columns: dict[str, str | dict[str, Any]] = {}
 
     # Cross-encoder reranking (off by default; opt-in per-query via rerank=True).
     # When enabled, retrieval fetches top_k * rerank_factor candidates, then a

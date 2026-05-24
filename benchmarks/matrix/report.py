@@ -13,20 +13,36 @@ def _load_rows(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
-def _group_key(row: dict[str, Any]) -> tuple[str, int]:
+def _group_key(row: dict[str, Any]) -> str:
     settings = row["settings"]
-    return (settings["context_strategy"], int(settings["top_k"]))
+    if settings.get("config_label"):
+        return str(settings["config_label"])
+    return f"{settings['context_strategy']}:top_k={int(settings['top_k'])}"
 
 
-def _summarize(rows: list[dict[str, Any]]) -> dict[tuple[str, int], dict[str, Any]]:
-    groups: dict[tuple[str, int], list[dict[str, Any]]] = defaultdict(list)
+def _summarize(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         groups[_group_key(row)].append(row)
 
-    out: dict[tuple[str, int], dict[str, Any]] = {}
+    out: dict[str, dict[str, Any]] = {}
     for key, group in groups.items():
         n = len(group)
+        first_settings = group[0]["settings"]
         out[key] = {
+            "label": key,
+            "dataset": first_settings.get("dataset", ""),
+            "shape_id": first_settings.get("shape_id", ""),
+            "arm": first_settings.get("arm", ""),
+            "chunk_strategy": first_settings.get("chunk_strategy", ""),
+            "chunk_max_tokens": first_settings.get("chunk_max_tokens", ""),
+            "chunk_overlap_tokens": first_settings.get("chunk_overlap_tokens", ""),
+            "embedding_model": first_settings.get("embedding_model", ""),
+            "retrieval_mode": first_settings.get("retrieval_mode", ""),
+            "retrieval_strategy": first_settings.get("retrieval_strategy", ""),
+            "rerank": first_settings.get("rerank", False),
+            "top_k": first_settings.get("top_k", ""),
+            "context_strategy": first_settings.get("context_strategy", ""),
             "n": n,
             "passed": sum(1 for row in group if row["passed"]),
             "pass_rate": sum(1 for row in group if row["passed"]) / n if n else 0.0,
@@ -64,17 +80,28 @@ def _savings(value: float, baseline: float) -> str:
     return f"{(1 - value / baseline) * 100:+.1f}%"
 
 
+def _find_baseline(summary: dict[str, dict[str, Any]], selector: str) -> dict[str, Any] | None:
+    if selector in summary:
+        return summary[selector]
+    terms = [term for term in selector.split(":") if term]
+    for label, stats in summary.items():
+        haystack = f"{label}|{stats['context_strategy']}|top_k={stats['top_k']}"
+        if all(term in haystack for term in terms):
+            return stats
+    return None
+
+
 def write_report(
     *,
     rows_path: Path,
     out_path: Path,
-    rag_baseline: tuple[str, int],
-    full_doc_baseline: tuple[str, int],
+    rag_baseline: str,
+    full_doc_baseline: str,
 ) -> None:
     rows = _load_rows(rows_path)
     summary = _summarize(rows)
-    rag = summary.get(rag_baseline)
-    full = summary.get(full_doc_baseline)
+    rag = _find_baseline(summary, rag_baseline)
+    full = _find_baseline(summary, full_doc_baseline)
 
     ranked = sorted(
         summary.items(),
@@ -90,15 +117,15 @@ def write_report(
         "",
         f"- Source: `{rows_path}`",
         f"- Cases: {len(rows)}",
-        f"- Classic RAG baseline: `{rag_baseline[0]}` top_k={rag_baseline[1]}",
-        f"- Full-document baseline: `{full_doc_baseline[0]}` top_k={full_doc_baseline[1]}",
+        f"- Classic RAG baseline: `{rag_baseline}`",
+        f"- Full-document baseline: `{full_doc_baseline}`",
         "",
         "## Top Configurations",
         "",
-        "| rank | context strategy | top_k | n | pass rate | avg score | avg ctx tokens | token savings vs RAG | token savings vs full-doc |",
-        "|---:|---|---:|---:|---:|---:|---:|---:|---:|",
+        "| rank | label | n | pass rate | avg score | avg ctx tokens | token savings vs RAG | token savings vs full-doc |",
+        "|---:|---|---:|---:|---:|---:|---:|---:|",
     ]
-    for idx, ((strategy, top_k), stats) in enumerate(ranked[:10], 1):
+    for idx, (label, stats) in enumerate(ranked[:10], 1):
         rag_savings = _savings(
             stats["avg_context_tokens"], rag["avg_context_tokens"] if rag else 0
         )
@@ -106,7 +133,7 @@ def write_report(
             stats["avg_context_tokens"], full["avg_context_tokens"] if full else 0
         )
         lines.append(
-            f"| {idx} | {strategy} | {top_k} | {stats['n']} | "
+            f"| {idx} | {label} | {stats['n']} | "
             f"{_pct(stats['pass_rate'])} | {stats['avg_score']:.3f} | "
             f"{stats['avg_context_tokens']:.0f} | {rag_savings} | {full_savings} |"
         )
@@ -116,11 +143,11 @@ def write_report(
             "",
             "## Full Table",
             "",
-            "| context strategy | top_k | n | pass | avg score | avg source tokens | avg ctx tokens | answer ms | judge ms | score vs RAG | token savings vs RAG | token savings vs full-doc | errors |",
-            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+            "| label | dataset | chunker | mode | top_k | context | n | pass | avg score | avg source tokens | avg ctx tokens | answer ms | judge ms | score vs RAG | token savings vs RAG | token savings vs full-doc | errors |",
+            "|---|---|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
-    for (strategy, top_k), stats in sorted(summary.items()):
+    for label, stats in sorted(summary.items()):
         score_delta = _delta_pct(stats["avg_score"], rag["avg_score"] if rag else 0)
         rag_savings = _savings(
             stats["avg_context_tokens"], rag["avg_context_tokens"] if rag else 0
@@ -129,7 +156,11 @@ def write_report(
             stats["avg_context_tokens"], full["avg_context_tokens"] if full else 0
         )
         lines.append(
-            f"| {strategy} | {top_k} | {stats['n']} | {stats['passed']}/{stats['n']} | "
+            f"| {label} | {stats['dataset']} | "
+            f"{stats['chunk_strategy']} {stats['chunk_max_tokens']}/{stats['chunk_overlap_tokens']} | "
+            f"{stats['retrieval_mode']}:{stats['retrieval_strategy']}:rerank={int(bool(stats['rerank']))} | "
+            f"{stats['top_k']} | {stats['context_strategy']} | "
+            f"{stats['n']} | {stats['passed']}/{stats['n']} | "
             f"{stats['avg_score']:.3f} | {stats['avg_source_tokens']:.0f} | "
             f"{stats['avg_context_tokens']:.0f} | {stats['avg_answer_ms']:.0f} | "
             f"{stats['avg_judge_ms']:.0f} | {score_delta} | {rag_savings} | "
@@ -163,21 +194,16 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="write a baseline-relative matrix report")
     parser.add_argument("--results", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
-    parser.add_argument("--rag-baseline", default="classic_chunks:25")
-    parser.add_argument("--full-baseline", default="full_selected_docs:25")
+    parser.add_argument("--rag-baseline", default="classic_chunks:top_k=25")
+    parser.add_argument("--full-baseline", default="full_selected_docs:top_k=25")
     args = parser.parse_args(argv)
     write_report(
         rows_path=args.results,
         out_path=args.out,
-        rag_baseline=_parse_baseline(args.rag_baseline),
-        full_doc_baseline=_parse_baseline(args.full_baseline),
+        rag_baseline=args.rag_baseline,
+        full_doc_baseline=args.full_baseline,
     )
     print(f"wrote {args.out}")
-
-
-def _parse_baseline(value: str) -> tuple[str, int]:
-    strategy, top_k = value.rsplit(":", 1)
-    return strategy, int(top_k)
 
 
 if __name__ == "__main__":

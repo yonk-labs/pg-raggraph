@@ -17,6 +17,12 @@ CREATE TABLE IF NOT EXISTS pgrg_applied_migrations (
     applied_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS namespace_settings (
+    namespace TEXT PRIMARY KEY,
+    retrieval_profile JSONB,
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Documents: source tracking + lifecycle
 CREATE TABLE IF NOT EXISTS documents (
     id BIGSERIAL PRIMARY KEY,
@@ -93,6 +99,7 @@ CREATE TABLE IF NOT EXISTS entity_chunks (
     provenance TEXT DEFAULT 'extracted',
     PRIMARY KEY (entity_id, chunk_id)
 );
+CREATE INDEX IF NOT EXISTS idx_entity_chunks_chunk ON entity_chunks(chunk_id);
 
 -- Provenance: relationship <-> chunk
 CREATE TABLE IF NOT EXISTS relationship_chunks (

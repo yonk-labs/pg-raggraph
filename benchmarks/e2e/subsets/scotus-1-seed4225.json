@@ -1,0 +1,8 @@
+{
+  "dataset": "scotus",
+  "n": 1,
+  "seed": 4225,
+  "qids": [
+    "scotus:q:scotus-b50-047"
+  ]
+}

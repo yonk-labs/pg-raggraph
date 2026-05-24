@@ -601,19 +601,32 @@ WHERE ec.chunk_id = ANY(%(chunk_ids)s)
 """
 
 RELATIONSHIPS_FOR_ENTITIES = """
-SELECT DISTINCT e_src.name AS source, e_dst.name AS target,
+WITH seed_entities AS MATERIALIZED (
+    SELECT DISTINCT entity_id
+    FROM entity_chunks
+    WHERE chunk_id = ANY(%(chunk_ids)s)
+),
+rel_ids AS MATERIALIZED (
+    (
+        SELECT r.id
+        FROM relationships r
+        JOIN seed_entities s ON s.entity_id = r.src_id
+    )
+    UNION
+    (
+        SELECT r.id
+        FROM relationships r
+        JOIN seed_entities s ON s.entity_id = r.dst_id
+    )
+    LIMIT 20
+)
+SELECT e_src.name AS source, e_dst.name AS target,
        r.rel_type, r.description,
        r.effective_from, r.effective_to, r.retracted, r.retracted_at
-FROM relationships r
+FROM rel_ids ri
+JOIN relationships r ON r.id = ri.id
 JOIN entities e_src ON e_src.id = r.src_id
 JOIN entities e_dst ON e_dst.id = r.dst_id
-WHERE r.src_id IN (
-    SELECT entity_id FROM entity_chunks WHERE chunk_id = ANY(%(chunk_ids)s)
-)
-OR r.dst_id IN (
-    SELECT entity_id FROM entity_chunks WHERE chunk_id = ANY(%(chunk_ids)s)
-)
-LIMIT 20
 """
 
 
