@@ -32,10 +32,7 @@ from benchmarks.e2e.datasets._common import (
 LOCAL_CACHE = Path("/home/yonk/yonk-tools/stele/benchmarks/.cache/locomo10.json")
 LOCOMO_URL = "https://raw.githubusercontent.com/snap-research/locomo/main/data/locomo10.json"
 
-LICENSE_NOTICE = (
-    "LoCoMo dataset by Snap Research. "
-    "https://github.com/snap-research/locomo"
-)
+LICENSE_NOTICE = "LoCoMo dataset by Snap Research. https://github.com/snap-research/locomo"
 
 _SESSION_RE = re.compile(r"session_(\d+)$")
 

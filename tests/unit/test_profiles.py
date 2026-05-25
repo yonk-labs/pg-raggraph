@@ -48,10 +48,13 @@ def test_resolve_named_integer_float_and_strategy_profiles():
     assert resolve_profile(0.5, calibration=calibration).name == "balanced"
     assert resolve_profile("0.5", calibration=calibration).name == "balanced"
     assert resolve_profile(1.0, calibration=calibration).name == "accurate"
-    assert resolve_profile(
-        "doc_and_chunk_summary_toc_facts_plus_top5",
-        calibration=calibration,
-    ).name == "balanced"
+    assert (
+        resolve_profile(
+            "doc_and_chunk_summary_toc_facts_plus_top5",
+            calibration=calibration,
+        ).name
+        == "balanced"
+    )
 
 
 def test_resolve_raw_escape_hatch_is_outside_ladder():

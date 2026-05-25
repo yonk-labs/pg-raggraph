@@ -908,14 +908,10 @@ async def query(
                     {
                         "chunk_id": row["id"],
                         "vec_score": (
-                            float(row["vec_score"])
-                            if row.get("vec_score") is not None
-                            else None
+                            float(row["vec_score"]) if row.get("vec_score") is not None else None
                         ),
                         "bm25_score": (
-                            float(row["bm25_score"])
-                            if row.get("bm25_score") is not None
-                            else None
+                            float(row["bm25_score"]) if row.get("bm25_score") is not None else None
                         ),
                         "score": float(row["score"]) if row.get("score") is not None else None,
                         "content": row.get("content"),

@@ -71,9 +71,13 @@ def _require_tool(name: str) -> None:
 
 def _git_sha() -> str:
     try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL
-        ).decode().strip()
+        return (
+            subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL
+            )
+            .decode()
+            .strip()
+        )
     except Exception:
         return "unknown"
 
@@ -144,13 +148,19 @@ def cmd_dump(args: argparse.Namespace) -> None:
     subprocess.run(
         [
             "pg_dump",
-            "-h", p["host"],
-            "-p", p["port"],
-            "-U", p["user"],
-            "-d", p["dbname"],
-            "-Fc",                # custom format, compressed
-            "-Z", "6",            # compression level
-            "-f", str(dump_path),
+            "-h",
+            p["host"],
+            "-p",
+            p["port"],
+            "-U",
+            p["user"],
+            "-d",
+            p["dbname"],
+            "-Fc",  # custom format, compressed
+            "-Z",
+            "6",  # compression level
+            "-f",
+            str(dump_path),
         ],
         check=True,
         env=env,
@@ -161,8 +171,7 @@ def cmd_dump(args: argparse.Namespace) -> None:
     manifest_path.write_text(json.dumps(manifest, indent=2))
 
     print(
-        f"\n✓ dumped {size / 1024 / 1024:.1f} MB to {dump_path}\n"
-        f"✓ manifest: {manifest_path}\n",
+        f"\n✓ dumped {size / 1024 / 1024:.1f} MB to {dump_path}\n✓ manifest: {manifest_path}\n",
         file=sys.stderr,
     )
     for ns in manifest["namespaces"]:
@@ -180,9 +189,7 @@ def _latest_dump() -> tuple[Path, Path] | None:
     if not dumps:
         return None
     dump = dumps[-1]
-    manifest = dump.with_suffix(".manifest.json").with_name(
-        dump.stem + ".manifest.json"
-    )
+    manifest = dump.with_suffix(".manifest.json").with_name(dump.stem + ".manifest.json")
     return dump, manifest
 
 
@@ -230,14 +237,19 @@ def cmd_restore(args: argparse.Namespace) -> None:
     subprocess.run(
         [
             "pg_restore",
-            "-h", p["host"],
-            "-p", p["port"],
-            "-U", p["user"],
-            "-d", p["dbname"],
+            "-h",
+            p["host"],
+            "-p",
+            p["port"],
+            "-U",
+            p["user"],
+            "-d",
+            p["dbname"],
             "--clean",
             "--if-exists",
             "--no-owner",
-            "--jobs", "4",
+            "--jobs",
+            "4",
             str(dump_path),
         ],
         check=True,

@@ -36,8 +36,7 @@ from benchmarks.e2e.datasets._common import CorpusDoc, DatasetBundle, Query
 from pg_raggraph import GraphRAG
 from pg_raggraph import __version__ as PGRG_VERSION
 from pg_raggraph.chunking import token_count
-from pg_raggraph.context import SelectedDocument, assemble_context
-from pg_raggraph.profiles import ProfileSpec
+from pg_raggraph.context import _budget_for_tokens, _summarize_facts
 
 CONTEXT_STRATEGIES = {
     "classic_chunks",

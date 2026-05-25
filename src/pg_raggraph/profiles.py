@@ -148,7 +148,9 @@ _FALLBACK_CALIBRATION = {
 
 
 def _default_calibration_path() -> Path:
-    return Path(__file__).resolve().parents[2] / "benchmarks" / "matrix" / "profile_calibration.json"
+    return (
+        Path(__file__).resolve().parents[2] / "benchmarks" / "matrix" / "profile_calibration.json"
+    )
 
 
 def _rung_from_record(record: dict[str, Any], *, fallback_index: int) -> ProfileRung:
@@ -198,8 +200,7 @@ def load_profile_calibration(path: str | Path | None = None) -> ProfileCalibrati
         status=str(raw.get("status") or ""),
         rungs=rungs,
         raw_escape_hatch=dict(
-            raw.get("raw_escape_hatch")
-            or _FALLBACK_CALIBRATION["raw_escape_hatch"]
+            raw.get("raw_escape_hatch") or _FALLBACK_CALIBRATION["raw_escape_hatch"]
         ),
         source_path=source_path,
     )

@@ -49,8 +49,12 @@ def _hints(question: str) -> list[str]:
 
 def _summary(text: str, hints, *, max_length=2000, hint_focus=0.5, keep_headings=True) -> str:
     return lede.summarize(
-        text, max_length=max_length, hints=hints or None,
-        hint_focus=hint_focus, hint_mode="soft", keep_headings=keep_headings,
+        text,
+        max_length=max_length,
+        hints=hints or None,
+        hint_focus=hint_focus,
+        hint_mode="soft",
+        keep_headings=keep_headings,
     ).summary
 
 
@@ -71,7 +75,9 @@ def build_context(strategy: str, question: str, chunks) -> str:
         facts = key_facts(concat, max_facts=15, hints=hints or None)
         return "\n".join(f"- {f}" for f in facts)
     if strategy == "per_chunk_summary":
-        return "\n\n".join(_summary(c.content, hints, max_length=250, keep_headings=False) for c in chunks)
+        return "\n\n".join(
+            _summary(c.content, hints, max_length=250, keep_headings=False) for c in chunks
+        )
     if strategy == "per_chunk_facts":
         out = []
         for c in chunks:
@@ -89,9 +95,16 @@ def build_context(strategy: str, question: str, chunks) -> str:
 
 
 STRATEGIES = [
-    "chunks", "summary", "summary_long", "summary_facts", "facts_only",
-    "per_chunk_summary", "per_chunk_facts", "summary_plus_top2",
-    "hint_focus_high", "correlate_facts",
+    "chunks",
+    "summary",
+    "summary_long",
+    "summary_facts",
+    "facts_only",
+    "per_chunk_summary",
+    "per_chunk_facts",
+    "summary_plus_top2",
+    "hint_focus_high",
+    "correlate_facts",
 ]
 
 
@@ -105,12 +118,18 @@ class Row:
     score: float
 
 
-async def _run_dataset(ds: str, subset: int, seed: int, dsn: str, key: str, top_k: int) -> list[Row]:
+async def _run_dataset(
+    ds: str, subset: int, seed: int, dsn: str, key: str, top_k: int
+) -> list[Row]:
     bundle = get_loader(ds)(subset=subset, seed=seed)
     ns = namespace_for(ds, "lede_spacy")
     rag = GraphRAG(
-        dsn=dsn, namespace=ns, embedding_model=PINNED_EMBEDDING_MODEL,
-        embedding_dim=PINNED_EMBEDDING_DIM, llm_base_url="", top_k=top_k,
+        dsn=dsn,
+        namespace=ns,
+        embedding_model=PINNED_EMBEDDING_MODEL,
+        embedding_dim=PINNED_EMBEDDING_DIM,
+        llm_base_url="",
+        top_k=top_k,
     )
     await rag.connect()
     rows: list[Row] = []
@@ -126,7 +145,9 @@ async def _run_dataset(ds: str, subset: int, seed: int, dsn: str, key: str, top_
                         print(f"  ! {strat} failed on {q.qid[:16]}: {e}", file=sys.stderr)
                         continue
                     ctx_tok = _ntokens(ctx)
-                    ans = await _chat(client, key, _GEN_MODEL, _GEN_PROMPT.format(q=q.question, ctx=ctx))
+                    ans = await _chat(
+                        client, key, _GEN_MODEL, _GEN_PROMPT.format(q=q.question, ctx=ctx)
+                    )
                     lat = (time.perf_counter() - t0) * 1000
                     score = await _judge(client, key, q.question, ans, q.answers)
                     rows.append(Row(ds, q.qid, strat, ctx_tok, round(lat, 1), score))

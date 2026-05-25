@@ -228,9 +228,7 @@ def evolution_where_clauses(
         and getattr(cfg, "living_current_only", True)
         and as_of is None
     ):
-        clauses.append(
-            f"COALESCE(({doc_alias}.metadata->>'living_current')::boolean, true)"
-        )
+        clauses.append(f"COALESCE(({doc_alias}.metadata->>'living_current')::boolean, true)")
 
     tier = _effective_tier(cfg, evolution_aware)
     if tier == "off":

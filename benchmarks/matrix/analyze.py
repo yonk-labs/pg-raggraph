@@ -53,20 +53,48 @@ DEFAULT_LADDER: list[dict] = [
     # Phase E/F verdict: concat doc-summary is the cheap end; whole docs and
     # stacked summary+raw variants form the robust accurate end. Per-doc
     # summaries and chunk_summary_facts stay non-default.
-    {"index": 0, "name": "cheap", "note": "doc-summary+facts, top-3 docs — cheapest",
-     "match": {"context_strategy": "doc_summary_facts@3", "top_k": 25}},
-    {"index": 1, "name": "cheap_plus", "note": "doc-summary+facts, top-5 docs",
-     "match": {"context_strategy": "doc_summary_facts@5", "top_k": 25}},
-    {"index": 2, "name": "lean", "note": "whole docs, top-3",
-     "match": {"context_strategy": "full_selected_docs@3", "top_k": 25}},
-    {"index": 3, "name": "balanced", "note": "doc+chunk summaries with top-5 raw chunks (default)",
-     "match": {"context_strategy": "doc_and_chunk_summary_toc_facts_plus_top5", "top_k": 25}},
-    {"index": 4, "name": "rich", "note": "whole docs, top-5",
-     "match": {"context_strategy": "full_selected_docs@5", "top_k": 25}},
-    {"index": 5, "name": "stacked", "note": "per-doc summaries + retrieved-chunk summary + top-5 raw chunks",
-     "match": {"context_strategy": "per_doc5_chunksum_top5", "top_k": 25}},
-    {"index": 6, "name": "accurate", "note": "whole docs, top-10 — the ceiling",
-     "match": {"context_strategy": "full_selected_docs@10", "top_k": 25}},
+    {
+        "index": 0,
+        "name": "cheap",
+        "note": "doc-summary+facts, top-3 docs — cheapest",
+        "match": {"context_strategy": "doc_summary_facts@3", "top_k": 25},
+    },
+    {
+        "index": 1,
+        "name": "cheap_plus",
+        "note": "doc-summary+facts, top-5 docs",
+        "match": {"context_strategy": "doc_summary_facts@5", "top_k": 25},
+    },
+    {
+        "index": 2,
+        "name": "lean",
+        "note": "whole docs, top-3",
+        "match": {"context_strategy": "full_selected_docs@3", "top_k": 25},
+    },
+    {
+        "index": 3,
+        "name": "balanced",
+        "note": "doc+chunk summaries with top-5 raw chunks (default)",
+        "match": {"context_strategy": "doc_and_chunk_summary_toc_facts_plus_top5", "top_k": 25},
+    },
+    {
+        "index": 4,
+        "name": "rich",
+        "note": "whole docs, top-5",
+        "match": {"context_strategy": "full_selected_docs@5", "top_k": 25},
+    },
+    {
+        "index": 5,
+        "name": "stacked",
+        "note": "per-doc summaries + retrieved-chunk summary + top-5 raw chunks",
+        "match": {"context_strategy": "per_doc5_chunksum_top5", "top_k": 25},
+    },
+    {
+        "index": 6,
+        "name": "accurate",
+        "note": "whole docs, top-10 — the ceiling",
+        "match": {"context_strategy": "full_selected_docs@10", "top_k": 25},
+    },
 ]
 
 
@@ -427,7 +455,9 @@ def _recommendations(
 
     # Max accuracy.
     max_acc = max(comparable, key=lambda m: (m.pass_rate, m.avg_score))
-    out.append(line("Max accuracy", max_acc, "Use when correctness dominates and budget is secondary."))
+    out.append(
+        line("Max accuracy", max_acc, "Use when correctness dominates and budget is secondary.")
+    )
 
     # Token-frugal: fewest tokens that still clears 90% of the best pass rate.
     frugal_pool = [m for m in comparable if m.pass_rate >= best_pass * 0.9]
@@ -443,7 +473,9 @@ def _recommendations(
 
     # Fastest end-to-end.
     fastest = min(comparable, key=lambda m: m.avg_answer_ms + m.avg_judge_ms)
-    out.append(line("Lowest latency", fastest, "Smallest answer+judge wall time — interactive use."))
+    out.append(
+        line("Lowest latency", fastest, "Smallest answer+judge wall time — interactive use.")
+    )
 
     # Best vs oracle: matches oracle-level accuracy at least tokens.
     if oracle_tok:
@@ -546,11 +578,15 @@ def _emit_calibration(
                 "note": spec.get("note", ""),
                 "calibrated": bool(per),
                 "est_tokens": {
-                    "aggregate": round(sum(a.avg_ctx_tokens for a in per.values()) / n) if n else None,
+                    "aggregate": round(sum(a.avg_ctx_tokens for a in per.values()) / n)
+                    if n
+                    else None,
                     "by_corpus": {ds: round(a.avg_ctx_tokens) for ds, a in sorted(per.items())},
                 },
                 "est_accuracy": {
-                    "aggregate": round(sum(a.pass_rate for a in per.values()) / n, 4) if n else None,
+                    "aggregate": round(sum(a.pass_rate for a in per.values()) / n, 4)
+                    if n
+                    else None,
                     "by_corpus": {ds: round(a.pass_rate, 4) for ds, a in sorted(per.items())},
                 },
                 "est_latency_ms": (

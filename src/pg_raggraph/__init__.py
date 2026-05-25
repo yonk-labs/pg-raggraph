@@ -8,11 +8,12 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from datetime import datetime, time as dt_time, timedelta, timezone
-from typing import Callable
+from datetime import datetime, timedelta, timezone
+from datetime import time as dt_time
 from hashlib import sha256
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
+from typing import Callable
 
 try:
     __version__ = _pkg_version("pg-raggraph")
@@ -183,7 +184,9 @@ def _as_aware_utc(value) -> datetime:
     elif isinstance(value, str):
         dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
     else:
-        raise TypeError(f"living timestamp must be datetime or ISO string, got {type(value).__name__}")
+        raise TypeError(
+            f"living timestamp must be datetime or ISO string, got {type(value).__name__}"
+        )
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
@@ -724,13 +727,13 @@ class GraphRAG:
         records = list(records)
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
-        living_enabled = self.config.living_knowledge if living_knowledge is None else living_knowledge
+        living_enabled = (
+            self.config.living_knowledge if living_knowledge is None else living_knowledge
+        )
         effective_living_key = living_key or self.config.living_key
         effective_living_cadence = living_cadence or self.config.living_cadence
         effective_living_audit = (
-            self.config.living_audit_diffs
-            if living_audit_diffs is None
-            else living_audit_diffs
+            self.config.living_audit_diffs if living_audit_diffs is None else living_audit_diffs
         )
         if living_enabled and effective_living_cadence not in _LIVING_CADENCES:
             raise ValueError(f"living_cadence must be one of {sorted(_LIVING_CADENCES)}")
@@ -822,8 +825,7 @@ class GraphRAG:
                         if living_enabled:
                             rec_meta = dict(rec_meta or {})
                             logical_id = str(
-                                rec.get(effective_living_key)
-                                or rec_meta.get(effective_living_key)
+                                rec.get(effective_living_key) or rec_meta.get(effective_living_key)
                             )
                             ts = _as_aware_utc(
                                 rec.get("living_at")
@@ -835,8 +837,7 @@ class GraphRAG:
                                 ts, effective_living_cadence
                             )
                             source_id = (
-                                f"living://{ns}/{logical_id}/"
-                                f"{effective_living_cadence}/{bucket}"
+                                f"living://{ns}/{logical_id}/{effective_living_cadence}/{bucket}"
                             )
                             rec_meta.update(
                                 {
@@ -846,9 +847,7 @@ class GraphRAG:
                                     "living_cadence": effective_living_cadence,
                                     "living_bucket": bucket,
                                     "living_current": True,
-                                    "effective_from": rec_meta.get(
-                                        "effective_from", bucket_start
-                                    ),
+                                    "effective_from": rec_meta.get("effective_from", bucket_start),
                                     "version_label": rec_meta.get(
                                         "version_label",
                                         f"{effective_living_cadence}:{bucket}",

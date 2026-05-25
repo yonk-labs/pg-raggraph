@@ -55,9 +55,9 @@ def test_elapsed_ms_is_numeric_and_non_negative():
 
     for event in (vector_bm25_event, graph_event):
         assert "elapsed_ms" in event, f"elapsed_ms missing from {event['stage']} event"
-        assert isinstance(
-            event["elapsed_ms"], float
-        ), f"elapsed_ms must be float, got {type(event['elapsed_ms'])} in {event['stage']} event"
+        assert isinstance(event["elapsed_ms"], float), (
+            f"elapsed_ms must be float, got {type(event['elapsed_ms'])} in {event['stage']} event"
+        )
         assert event["elapsed_ms"] >= 0, (
             f"elapsed_ms must be >= 0, got {event['elapsed_ms']} in {event['stage']} event"
         )

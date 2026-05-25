@@ -153,7 +153,10 @@ async def test_living_knowledge_cadence_overwrite_and_roll_forward(case: Cadence
 
         docs = await _docs(rag, ns)
         assert len(docs) == 1
-        assert docs[0]["source_path"] == f"living://{ns}/account:acme/{case.cadence}/{case.first_bucket}"
+        assert (
+            docs[0]["source_path"]
+            == f"living://{ns}/account:acme/{case.cadence}/{case.first_bucket}"
+        )
         assert docs[0]["metadata"]["living_logical_id"] == "account:acme"
         assert docs[0]["metadata"]["living_cadence"] == case.cadence
         assert docs[0]["metadata"]["living_bucket"] == case.first_bucket

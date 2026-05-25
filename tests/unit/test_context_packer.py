@@ -15,7 +15,9 @@ def _result() -> QueryResult:
 
 def _docs() -> list[SelectedDocument]:
     return [
-        SelectedDocument(source_id="doc1", text="full doc one\n\nraw chunk one\n\nraw chunk three"),
+        SelectedDocument(
+            source_id="doc1", text="full doc one\n\nraw chunk one\n\nraw chunk three"
+        ),
         SelectedDocument(source_id="doc2", text="full doc two\n\nraw chunk two"),
     ]
 
