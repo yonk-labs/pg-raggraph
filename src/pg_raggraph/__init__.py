@@ -664,9 +664,9 @@ class GraphRAG:
                 - ``relationships`` (list of dict, optional): caller-known
                   graph edges. Each: ``{"src": "EntityName1",
                   "dst": "EntityName2", "rel_type": "...", "weight": 1.0,
-                  "description": "..."}``. ``src`` and ``dst`` are
-                  required and must match either a caller-supplied or
-                  LLM-extracted entity name.
+                  "description": "...", "properties": {...}}``. ``src``
+                  and ``dst`` are required and must match either a
+                  caller-supplied or LLM-extracted entity name.
                 - ``skip_llm`` (bool, optional, default False): skip LLM
                   extraction for this document. Useful when the caller's
                   known_entities/known_relationships already cover what
@@ -1145,6 +1145,7 @@ class GraphRAG:
                     unique_entities[ent.name] = {
                         "entity_type": ent.entity_type,
                         "description": ent.description,
+                        "properties": {},
                         "chunks": [i],
                     }
                 else:
@@ -1191,6 +1192,7 @@ class GraphRAG:
                     unique_entities[name] = {
                         "entity_type": ke_type,
                         "description": ke_desc,
+                        "properties": dict(ke.get("properties") or {}),
                         "chunks": list(all_chunk_idxs),
                     }
                 else:
@@ -1203,6 +1205,9 @@ class GraphRAG:
                         unique_entities[name]["entity_type"] = ke_type
                     if ke_desc:
                         unique_entities[name]["description"] = ke_desc
+                    unique_entities[name].setdefault("properties", {}).update(
+                        ke.get("properties") or {}
+                    )
                     existing = set(unique_entities[name]["chunks"])
                     existing.update(all_chunk_idxs)
                     unique_entities[name]["chunks"] = sorted(existing)
@@ -1482,6 +1487,7 @@ class GraphRAG:
                     namespace=ns,
                     db=tx,
                     config=self.config,
+                    properties=info.get("properties") or {},
                 )
                 entity_name_to_id[name] = eid
 

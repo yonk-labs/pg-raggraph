@@ -6,6 +6,8 @@
 > - **Pattern C — full chunkshop pipeline + bridge** (advanced): run chunkshop end-to-end (connectors/parsers + chunks + embeddings + extracted metadata into chunkshop's pgvector table), then have pg-raggraph read that table and add the graph layer on top via the `pre_chunked` field on `ingest_records()`.
 >
 > **Real-data caveat:** chunkshop chunking produces a denser graph (+31% relationships on the sales-CRM small sample) but **does NOT automatically improve Q&A accuracy**. On the same sample, Pattern A's built-in chunker scored higher per-mode. See [§Per-mode Q&A scores](#per-mode-qa-scores--graph-density-isnt-the-same-as-answer-accuracy) below — read this before flipping the default.
+>
+> For command-by-command usage, see the shorter [Chunkshop user guide](../chunkshop-user-guide.md).
 
 ## Why integrate with chunkshop at all?
 
@@ -249,8 +251,9 @@ canonical chunkshop Postgres sink shape (`doc_id`, `seq_num`,
 For code repositories, `fetch_code_edges_from_table()` reads Chunkshop's
 `<schema>.code_edges` table and returns `CODE_SYMBOL` entities plus `CALLS` /
 `INHERITS` / `IMPLEMENTS` relationships. `attach_code_edges()` attaches that
-graph payload to the first imported record, preserving `project_id`, node IDs,
-confidence, and evidence under relationship `properties`.
+graph payload to the first imported record, preserving Chunkshop symbol node
+IDs on entity `properties` and preserving `project_id`, node IDs, confidence,
+and evidence under relationship `properties`.
 
 CLI equivalent:
 

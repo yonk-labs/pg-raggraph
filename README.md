@@ -180,6 +180,7 @@ Full bake-off report: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](bench
 | [`docs/cookbook/metadata-indexes.md`](docs/cookbook/metadata-indexes.md) | Btree / GIN / generated-column indexes on `chunks.metadata` and `documents.metadata`. Runtime API (`recommend_metadata_indexes()`, `apply_metadata_indexes_concurrently()`). |
 | [`docs/user-guide.md`](docs/user-guide.md) | Full user guide. Installation, all 6 modes, configuration, REST API, production deployment, troubleshooting. |
 | [`docs/devmem-guide.md`](docs/devmem-guide.md) | `pgrg devmem` — the developer-knowledge-base flavor with code-aware chunking + dev-tuned extraction. |
+| [`docs/chunkshop-user-guide.md`](docs/chunkshop-user-guide.md) | Chunkshop integration guide: chunker-only strategies, Postgres table bridge, CLI import, and code-edge graph import. |
 | [`research/`](research/) | Architecture rationale, vs-AGE evaluation, competitor analyses (LightRAG, Neo4j, Zep). |
 | [`ASSESSMENT.md`](ASSESSMENT.md) | No-BS project evaluation. Strengths, gaps, where you should and shouldn't use it. |
 | [`benchmarks/`](benchmarks/) | Every benchmark corpus + runner + results document. Re-runnable from clone. |
