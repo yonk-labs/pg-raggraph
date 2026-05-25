@@ -130,6 +130,17 @@ class PGRGConfig(BaseSettings):
     # Process priority — 0 = normal, 10 = lower (nicer), 19 = lowest (shared servers)
     nice_level: int = 0
 
+    # Living Knowledge compaction. Off by default. When enabled for
+    # ingest_records(), callers provide a stable logical id and pg-raggraph
+    # materializes at most one coherent full document per cadence bucket
+    # (hour/day/week/month). Updates within the same bucket replace the prior
+    # materialized doc instead of creating endless near-duplicates.
+    living_knowledge: bool = False
+    living_key: str = "logical_id"
+    living_cadence: Literal["hour", "day", "week", "month"] = "day"
+    living_current_only: bool = True
+    living_audit_diffs: bool = False
+
     def model_post_init(self, __context):
         """Apply profile defaults for any unset parallelism knobs.
 

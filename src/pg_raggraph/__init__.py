@@ -7,7 +7,8 @@ import logging
 import os
 import re
 import time
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime, time as dt_time, timedelta, timezone
 from typing import Callable
 from hashlib import sha256
 from importlib.metadata import PackageNotFoundError
@@ -160,6 +161,55 @@ def _configure_logging() -> None:
 _configure_logging()
 
 _NAMESPACE_RE = re.compile(r"^[a-zA-Z0-9_\-\.]{1,64}$")
+_LIVING_CADENCES = {"hour", "day", "week", "month"}
+
+
+@dataclass(frozen=True)
+class _LivingContext:
+    logical_id: str
+    cadence: str
+    bucket: str
+    bucket_start: datetime
+    bucket_end: datetime
+    source_id: str
+    audit_diffs: bool
+
+
+def _as_aware_utc(value) -> datetime:
+    if value is None:
+        return datetime.now(timezone.utc)
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, str):
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    else:
+        raise TypeError(f"living timestamp must be datetime or ISO string, got {type(value).__name__}")
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _living_bucket(ts: datetime, cadence: str) -> tuple[str, datetime, datetime]:
+    if cadence not in _LIVING_CADENCES:
+        raise ValueError(f"living_cadence must be one of {sorted(_LIVING_CADENCES)}")
+    ts = _as_aware_utc(ts)
+    if cadence == "hour":
+        start = ts.replace(minute=0, second=0, microsecond=0)
+        return start.strftime("%Y-%m-%dT%H"), start, start + timedelta(hours=1)
+    if cadence == "day":
+        start = datetime.combine(ts.date(), dt_time.min, tzinfo=timezone.utc)
+        return start.strftime("%Y-%m-%d"), start, start + timedelta(days=1)
+    if cadence == "week":
+        iso_year, iso_week, _ = ts.isocalendar()
+        start_date = datetime.fromisocalendar(iso_year, iso_week, 1).date()
+        start = datetime.combine(start_date, dt_time.min, tzinfo=timezone.utc)
+        return f"{iso_year}-W{iso_week:02d}", start, start + timedelta(days=7)
+    start = datetime(ts.year, ts.month, 1, tzinfo=timezone.utc)
+    if ts.month == 12:
+        end = datetime(ts.year + 1, 1, 1, tzinfo=timezone.utc)
+    else:
+        end = datetime(ts.year, ts.month + 1, 1, tzinfo=timezone.utc)
+    return start.strftime("%Y-%m"), start, end
 
 
 def _validate_namespace(ns: str) -> None:
@@ -564,6 +614,10 @@ class GraphRAG:
         on_progress=None,
         *,
         max_concurrent_docs: int | None = None,
+        living_knowledge: bool | None = None,
+        living_key: str | None = None,
+        living_cadence: str | None = None,
+        living_audit_diffs: bool | None = None,
     ):
         """Ingest documents from in-memory records — no disk roundtrip.
 
@@ -628,6 +682,17 @@ class GraphRAG:
             on_progress: Optional callback(message: str) for progress.
             max_concurrent_docs: Optional per-call document concurrency cap.
                 Defaults to ``config.doc_concurrency``.
+            living_knowledge: When True, compact high-churn records into one
+                materialized full document per logical id per cadence bucket.
+                Updates inside the same bucket replace the prior materialized
+                document instead of creating duplicate retrievable docs.
+            living_key: Record or metadata key containing the logical id.
+                Defaults to ``config.living_key`` (``"logical_id"``).
+            living_cadence: ``"hour"``, ``"day"``, ``"week"``, or ``"month"``.
+                Defaults to ``config.living_cadence`` (``"day"``).
+            living_audit_diffs: When True, write hash-level overwrite/supersede
+                events to ``living_audit_log``. Audit rows are not embedded or
+                retrieved.
 
         Returns: same stats shape as ``ingest()``.
 
@@ -659,6 +724,14 @@ class GraphRAG:
         records = list(records)
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        living_enabled = self.config.living_knowledge if living_knowledge is None else living_knowledge
+        effective_living_key = living_key or self.config.living_key
+        effective_living_cadence = living_cadence or self.config.living_cadence
+        effective_living_audit = (
+            self.config.living_audit_diffs
+            if living_audit_diffs is None
+            else living_audit_diffs
+        )
         started = time.perf_counter()
         self.config.apply_nice_level()
         embedder = self._get_embedder()
@@ -676,6 +749,13 @@ class GraphRAG:
                 raise ValueError(f"records[{i}] missing required 'text' field")
             if not rec.get("source_id"):
                 raise ValueError(f"records[{i}] missing required 'source_id' field")
+            if living_enabled:
+                meta = rec.get("metadata") or {}
+                if not rec.get(effective_living_key) and not meta.get(effective_living_key):
+                    raise ValueError(
+                        f"records[{i}] missing living logical id key "
+                        f"{effective_living_key!r} in record or metadata"
+                    )
 
         if not records:
             _progress("No records to process.")
@@ -735,9 +815,56 @@ class GraphRAG:
                         rec_rels = rec.get("relationships")
                         rec_skip_llm = bool(rec.get("skip_llm", False))
                         rec_pre_chunked = rec.get("pre_chunked")
+                        living_context = None
+                        source_id = rec["source_id"]
+                        if living_enabled:
+                            rec_meta = dict(rec_meta or {})
+                            logical_id = str(
+                                rec.get(effective_living_key)
+                                or rec_meta.get(effective_living_key)
+                            )
+                            ts = _as_aware_utc(
+                                rec.get("living_at")
+                                or rec_meta.get("living_at")
+                                or rec_meta.get("updated_at")
+                                or rec_meta.get("effective_from")
+                            )
+                            bucket, bucket_start, bucket_end = _living_bucket(
+                                ts, effective_living_cadence
+                            )
+                            source_id = (
+                                f"living://{ns}/{logical_id}/"
+                                f"{effective_living_cadence}/{bucket}"
+                            )
+                            rec_meta.update(
+                                {
+                                    "logical_id": logical_id,
+                                    "living_logical_id": logical_id,
+                                    "living_source_id": rec["source_id"],
+                                    "living_cadence": effective_living_cadence,
+                                    "living_bucket": bucket,
+                                    "living_current": True,
+                                    "effective_from": rec_meta.get(
+                                        "effective_from", bucket_start
+                                    ),
+                                    "version_label": rec_meta.get(
+                                        "version_label",
+                                        f"{effective_living_cadence}:{bucket}",
+                                    ),
+                                }
+                            )
+                            living_context = _LivingContext(
+                                logical_id=logical_id,
+                                cadence=effective_living_cadence,
+                                bucket=bucket,
+                                bucket_start=bucket_start,
+                                bucket_end=bucket_end,
+                                source_id=rec["source_id"],
+                                audit_diffs=effective_living_audit,
+                            )
                         r = await self._ingest_one_content(
                             rec["text"],
-                            source_id=rec["source_id"],
+                            source_id=source_id,
                             ns=ns,
                             embedder=embedder,
                             llm=llm,
@@ -749,6 +876,7 @@ class GraphRAG:
                             known_relationships=rec_rels,
                             skip_llm_for_this_doc=rec_skip_llm,
                             pre_chunked=rec_pre_chunked,
+                            living_context=living_context,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -863,6 +991,7 @@ class GraphRAG:
         known_relationships: list[dict] | None = None,
         skip_llm_for_this_doc: bool = False,
         pre_chunked: list[dict] | None = None,
+        living_context: _LivingContext | None = None,
     ):
         """Ingest a single document from in-memory content with all DB
         writes in a single transaction.
@@ -913,6 +1042,10 @@ class GraphRAG:
         full-document text input for LLM entity/relationship extraction
         — set it to a sensible reconstruction (e.g. join all chunks
         with newlines) so the LLM sees the document.
+
+        ``living_context`` is the records-ingest Living Knowledge policy:
+        one materialized document per logical id per cadence bucket, with
+        intra-bucket updates replacing the prior full document.
         """
         # Use the source_id as the chunker's path hint so .md/.py-style
         # extension detection still works for callers that pass
@@ -1123,7 +1256,7 @@ class GraphRAG:
             # chunks and the entity/relationship provenance joins. Call
             # prune_orphans() afterwards to clean up unreferenced entities.
             stale = await tx.fetch_one(
-                "SELECT id FROM documents "
+                "SELECT id, content_hash, metadata FROM documents "
                 "WHERE namespace = %s AND source_path = %s AND content_hash != %s",
                 (ns, file_path, c_hash),
             )
@@ -1211,6 +1344,107 @@ class GraphRAG:
                         meta.get("retraction_reason"),
                     ),
                 )
+
+            if living_context is not None:
+                if stale and living_context.audit_diffs:
+                    await tx.execute(
+                        "INSERT INTO living_audit_log "
+                        "(namespace, logical_id, cadence, bucket, source_path, "
+                        " old_document_id, new_document_id, old_content_hash, "
+                        " new_content_hash, metadata) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)",
+                        (
+                            ns,
+                            living_context.logical_id,
+                            living_context.cadence,
+                            living_context.bucket,
+                            file_path,
+                            stale["id"],
+                            doc_id,
+                            stale["content_hash"],
+                            c_hash,
+                            json.dumps(
+                                {
+                                    "event": "overwrite_bucket",
+                                    "source_id": living_context.source_id,
+                                },
+                                default=_json_default,
+                            ),
+                        ),
+                    )
+
+                prior_current = await tx.fetch_all(
+                    "SELECT id, content_hash, source_path FROM documents "
+                    "WHERE namespace = %s "
+                    "  AND metadata->>'living_logical_id' = %s "
+                    "  AND metadata->>'living_cadence' = %s "
+                    "  AND metadata->>'living_current' = 'true' "
+                    "  AND id != %s",
+                    (
+                        ns,
+                        living_context.logical_id,
+                        living_context.cadence,
+                        doc_id,
+                    ),
+                )
+                for prior in prior_current:
+                    await tx.execute(
+                        "UPDATE documents "
+                        "SET metadata = jsonb_set(metadata, '{living_current}', 'false'::jsonb), "
+                        "    effective_to = COALESCE(effective_to, %s) "
+                        "WHERE id = %s",
+                        (living_context.bucket_start, prior["id"]),
+                    )
+                    await tx.execute(
+                        "INSERT INTO document_versions "
+                        "(namespace, document_id, version_label, effective_from, "
+                        " effective_to, supersedes_document_id, retracted, metadata) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, false, %s::jsonb)",
+                        (
+                            ns,
+                            doc_id,
+                            version_label,
+                            living_context.bucket_start,
+                            living_context.bucket_end,
+                            prior["id"],
+                            json.dumps(
+                                {
+                                    "living_logical_id": living_context.logical_id,
+                                    "living_cadence": living_context.cadence,
+                                    "living_bucket": living_context.bucket,
+                                    "event": "new_living_bucket",
+                                },
+                                default=_json_default,
+                            ),
+                        ),
+                    )
+                    if living_context.audit_diffs:
+                        await tx.execute(
+                            "INSERT INTO living_audit_log "
+                            "(namespace, logical_id, cadence, bucket, source_path, "
+                            " old_document_id, new_document_id, old_content_hash, "
+                            " new_content_hash, metadata) "
+                            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)",
+                            (
+                                ns,
+                                living_context.logical_id,
+                                living_context.cadence,
+                                living_context.bucket,
+                                file_path,
+                                prior["id"],
+                                doc_id,
+                                prior["content_hash"],
+                                c_hash,
+                                json.dumps(
+                                    {
+                                        "event": "new_bucket_supersedes_prior",
+                                        "source_id": living_context.source_id,
+                                        "prior_source_path": prior["source_path"],
+                                    },
+                                    default=_json_default,
+                                ),
+                            ),
+                        )
 
             # Insert all chunks
             chunk_ids = []

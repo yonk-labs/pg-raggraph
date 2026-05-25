@@ -23,6 +23,21 @@ CREATE TABLE IF NOT EXISTS namespace_settings (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS living_audit_log (
+    id BIGSERIAL PRIMARY KEY,
+    namespace TEXT NOT NULL,
+    logical_id TEXT NOT NULL,
+    cadence TEXT NOT NULL,
+    bucket TEXT NOT NULL,
+    source_path TEXT NOT NULL,
+    old_document_id BIGINT,
+    new_document_id BIGINT,
+    old_content_hash TEXT,
+    new_content_hash TEXT,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Documents: source tracking + lifecycle
 CREATE TABLE IF NOT EXISTS documents (
     id BIGSERIAL PRIMARY KEY,
@@ -133,6 +148,19 @@ CREATE INDEX IF NOT EXISTS idx_entity_community ON entities(community_id);
 CREATE INDEX IF NOT EXISTS idx_chunk_doc ON chunks(document_id);
 CREATE INDEX IF NOT EXISTS idx_doc_ns_hash ON documents(namespace, content_hash);
 CREATE INDEX IF NOT EXISTS idx_doc_ns ON documents(namespace);
+CREATE INDEX IF NOT EXISTS idx_doc_living_identity
+    ON documents (
+        namespace,
+        (metadata->>'living_logical_id'),
+        (metadata->>'living_cadence'),
+        (metadata->>'living_bucket')
+    )
+    WHERE metadata ? 'living_logical_id';
+CREATE INDEX IF NOT EXISTS idx_doc_living_current
+    ON documents (namespace, (metadata->>'living_current'))
+    WHERE metadata ? 'living_current';
+CREATE INDEX IF NOT EXISTS idx_living_audit_identity
+    ON living_audit_log (namespace, logical_id, cadence, bucket);
 
 -- Vector indexes (HNSW)
 CREATE INDEX IF NOT EXISTS idx_entity_embed
