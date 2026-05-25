@@ -732,6 +732,8 @@ class GraphRAG:
             if living_audit_diffs is None
             else living_audit_diffs
         )
+        if living_enabled and effective_living_cadence not in _LIVING_CADENCES:
+            raise ValueError(f"living_cadence must be one of {sorted(_LIVING_CADENCES)}")
         started = time.perf_counter()
         self.config.apply_nice_level()
         embedder = self._get_embedder()
