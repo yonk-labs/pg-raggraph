@@ -1,5 +1,7 @@
 """Tests for chunking module."""
 
+import pytest
+
 from pg_raggraph.chunking import (
     _derive_title,
     _split_by_code_structure,
@@ -352,3 +354,42 @@ def test_hierarchy_oversized_section_each_sub_chunk_has_dual_content():
         assert c["embedded_content"].startswith("Oncology overview\n\n")
         # embedded_content must equal heading + content for each sub-chunk
         assert c["embedded_content"] == f"Oncology overview\n\n{c['content']}"
+
+
+# --- chunkshop delegation (optional dep) ------------------------------------
+# These exercise the chunkshop:* pass-through. They are skipped when chunkshop
+# is not installed, but when it is they guard against chunkshop API drift (e.g.
+# the 0.5.0 NeighborExpandChunker constructor change that required routing
+# construction through chunkshop.chunkers.load_chunker).
+
+chunkshop = pytest.importorskip("chunkshop")
+
+_CHUNKSHOP_STRATEGIES = [
+    "chunkshop:hierarchy",
+    "chunkshop:sentence_aware",
+    "chunkshop:semantic",
+    "chunkshop:fixed_overlap",
+    "chunkshop:neighbor_expand",
+]
+
+
+@pytest.mark.parametrize("strategy", _CHUNKSHOP_STRATEGIES)
+def test_chunkshop_delegation_emits_chunks(strategy):
+    """Every supported chunkshop:* strategy must produce non-empty chunks."""
+    body = "This is a sentence that repeats to build up length. " * 30
+    content = f"# Title\n\n{body}\n\n## Section A\n\n{body}\n\n## Section B\n\n{body}"
+    cfg = PGRGConfig(chunk_strategy=strategy, chunk_max_tokens=512, chunk_overlap_tokens=50)
+    chunks = chunk_document(content, source_path="doc.md", config=cfg)
+    assert chunks, f"{strategy} produced no chunks"
+    for c in chunks:
+        assert c["content"].strip()
+        assert c["embedded_content"].strip()
+        assert c["token_count"] > 0
+        assert c["metadata"]["chunkshop_strategy"] == strategy.split(":", 1)[1]
+
+
+def test_chunkshop_unknown_strategy_raises():
+    cfg = PGRGConfig(chunk_strategy="chunkshop:does_not_exist")
+    content = "# T\n\nbody text here that is long enough." * 5
+    with pytest.raises(ValueError, match="Unknown chunkshop strategy"):
+        chunk_document(content, source_path="d.md", config=cfg)

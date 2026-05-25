@@ -158,13 +158,7 @@ def _chunk_via_chunkshop(
     yourself for the version of your choice).
     """
     try:
-        from chunkshop.chunkers import (
-            FixedOverlapChunker,
-            HierarchyChunker,
-            NeighborExpandChunker,
-            SemanticChunker,
-            SentenceAwareChunker,
-        )
+        from chunkshop.chunkers import load_chunker
         from chunkshop.config import (
             FixedOverlapChunker as FixedCfg,
         )
@@ -202,45 +196,33 @@ def _chunk_via_chunkshop(
     # chunk_max_tokens budget (1 token ≈ 4 chars for English).
     max_chars = max(config.chunk_max_tokens * 4, 800)
 
-    # chunkshop's pydantic Cfgs all require a `type` discriminator. Build
-    # them explicitly so callers don't have to know the chunkshop schema.
-    chunker_map = {
-        "hierarchy": (
-            HierarchyChunker,
-            HierCfg(type="hierarchy", max_chars=max_chars),
-        ),
-        "sentence_aware": (
-            SentenceAwareChunker,
-            SentCfg(type="sentence_aware", max_chars=max_chars),
-        ),
-        "semantic": (
-            SemanticChunker,
-            SemanticCfg(type="semantic", max_chunk_chars=max_chars),
-        ),
-        "fixed_overlap": (
-            FixedOverlapChunker,
-            FixedCfg(type="fixed_overlap"),
-        ),
-        "neighbor_expand": (
-            NeighborExpandChunker,
-            NeighborCfg(
-                type="neighbor_expand",
-                base=HierCfg(type="hierarchy", max_chars=max_chars),
-            ),
+    # chunkshop's pydantic Cfgs all require a `type` discriminator. Build the
+    # config here so callers don't need to know the chunkshop schema, then let
+    # chunkshop's own `load_chunker` registry instantiate the chunker. Routing
+    # through the registry keeps us forward-compatible with chunkshop's
+    # constructor changes (e.g. nested chunkers like neighbor_expand now take a
+    # separately-built `base` chunker as a positional arg in 0.5.0).
+    chunker_cfg_map = {
+        "hierarchy": HierCfg(type="hierarchy", max_chars=max_chars),
+        "sentence_aware": SentCfg(type="sentence_aware", max_chars=max_chars),
+        "semantic": SemanticCfg(type="semantic", max_chunk_chars=max_chars),
+        "fixed_overlap": FixedCfg(type="fixed_overlap"),
+        "neighbor_expand": NeighborCfg(
+            type="neighbor_expand",
+            base=HierCfg(type="hierarchy", max_chars=max_chars),
         ),
     }
 
-    if name not in chunker_map:
+    if name not in chunker_cfg_map:
         raise ValueError(
             f"Unknown chunkshop strategy 'chunkshop:{name}'. "
-            f"Supported: {sorted(chunker_map.keys())}. "
+            f"Supported: {sorted(chunker_cfg_map.keys())}. "
             "For summary_embed and hierarchical_summary (which require an "
             "embedder + summarizer), use chunkshop's own pipeline directly "
             "and feed the resulting chunks to rag.ingest_records()."
         )
 
-    chunker_cls, chunker_cfg = chunker_map[name]
-    chunker = chunker_cls(chunker_cfg)
+    chunker = load_chunker(chunker_cfg_map[name])
     cs_chunks = chunker.chunk(doc)
 
     result: list[dict] = []
