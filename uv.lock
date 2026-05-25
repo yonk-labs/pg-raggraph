@@ -375,7 +375,7 @@ wheels = [
 
 [[package]]
 name = "chunkshop"
-version = "0.4.3"
+version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -385,9 +385,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/41/78/dae2c41913bbd0aeac65e1b7979e9c0d0f94ff58d4047987379eaa218a6f/chunkshop-0.4.3.tar.gz", hash = "sha256:a394b8e5693ae5c0216172a4adf58de1cf20f1c30a84680e8968fa8ae9dad675", size = 87193, upload-time = "2026-05-16T18:03:39.013Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/db/2f/580114274f8b7d8c884a13773b55317ff12d6b21ac7b4fe6f3234e888d07/chunkshop-0.5.0.tar.gz", hash = "sha256:adf707dd60df1470e7b7c306f28d75167ffe76ce38dbfc053e79298588a40069", size = 119001, upload-time = "2026-05-22T19:58:18.157Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1b/b0/ffd1761ffc4ea435ca094a7319c9513052cdfcac2419b9850cdaa2b540d1/chunkshop-0.4.3-py3-none-any.whl", hash = "sha256:71ad6c03002fb607eee3623ea07526d095db2d42bb4fdf8823e5a9704b936d38", size = 115743, upload-time = "2026-05-16T18:03:36.929Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/cd/24f97447d38153670807566403acc36cb5368fc7aa83d36d873e30085d47/chunkshop-0.5.0-py3-none-any.whl", hash = "sha256:12672173b4c33ed05d740307bfc35e5b8076073e3eebc99eeb58c0e892eb7e8e", size = 159064, upload-time = "2026-05-22T19:58:16.149Z" },
 ]
 
 [[package]]
@@ -1927,7 +1927,7 @@ server = [
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4", marker = "extra == 'dev'", specifier = ">=4.14.3" },
-    { name = "chunkshop", marker = "extra == 'chunkshop'", specifier = ">=0.4.3" },
+    { name = "chunkshop", marker = "extra == 'chunkshop'", specifier = ">=0.5.0" },
     { name = "click", specifier = ">=8.0" },
     { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.110" },

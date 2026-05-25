@@ -153,6 +153,91 @@ def ingest(ctx, paths, namespace, profile, nice):
         _handle_error(e)
 
 
+@main.command("ingest-chunkshop-table")
+@click.option("--schema", "schema_name", required=True, help="Chunkshop Postgres schema")
+@click.option("--table", "table_name", required=True, help="Chunkshop chunks table")
+@click.option(
+    "--chunkshop-dsn",
+    envvar="CHUNKSHOP_DSN",
+    default=None,
+    help="Chunkshop Postgres DSN. Defaults to --db / PGRG_DSN.",
+)
+@click.option("-n", "--namespace", default=None, help="pg-raggraph namespace")
+@click.option("--source-prefix", default="chunkshop", help="source_id prefix for imported docs")
+@click.option("--skip-llm", is_flag=True, help="Import as vector-only chunks")
+@click.option("--with-code-edges", is_flag=True, help="Also import <schema>.code_edges")
+@click.option("--project-id", default=None, help="Filter code_edges by project_id")
+@click.option("--min-confidence", default=0.0, type=float, help="Minimum code edge confidence")
+@click.pass_context
+def ingest_chunkshop_table(
+    ctx,
+    schema_name,
+    table_name,
+    chunkshop_dsn,
+    namespace,
+    source_prefix,
+    skip_llm,
+    with_code_edges,
+    project_id,
+    min_confidence,
+):
+    """Import a Chunkshop Postgres sink table via pre_chunked records."""
+    kwargs = dict(ctx.obj["kwargs"])
+    dsn = chunkshop_dsn or kwargs.get("dsn")
+    if not dsn:
+        _handle_error(ValueError("--chunkshop-dsn is required when --db/PGRG_DSN is not set"))
+
+    async def _ingest_chunkshop_table():
+        from pg_raggraph import chunkshop_bridge
+
+        records = chunkshop_bridge.fetch_records_from_table(
+            dsn,
+            schema=schema_name,
+            table=table_name,
+            source_prefix=source_prefix,
+            skip_llm=skip_llm,
+        )
+        if with_code_edges:
+            entities, relationships = chunkshop_bridge.fetch_code_edges_from_table(
+                dsn,
+                schema=schema_name,
+                project_id=project_id,
+                min_confidence=min_confidence,
+            )
+            edge_rows = []
+            # Reuse attach_code_edges' single-record anchoring behavior while
+            # keeping fetch_code_edges_from_table's public tuple return shape.
+            if entities or relationships:
+                if not records:
+                    raise ValueError("cannot import code_edges without chunk records")
+                records[0].setdefault("entities", []).extend(entities)
+                records[0].setdefault("relationships", []).extend(relationships)
+                edge_rows = relationships
+
+        if not records:
+            click.echo("No Chunkshop rows found.")
+            return
+
+        rag = GraphRAG(**kwargs)
+        await rag.connect()
+        await rag.ingest_records(records, namespace=namespace)
+        status_ns = namespace or kwargs.get("namespace")
+        s = await rag.status(status_ns)
+        await rag.close()
+        suffix = ""
+        if with_code_edges:
+            suffix = f", imported code relationships: {len(edge_rows)}"
+        click.echo(
+            f"Imported {len(records)} Chunkshop docs. "
+            f"Entities: {s['entities']}, Relationships: {s['relationships']}{suffix}"
+        )
+
+    try:
+        run_async(_ingest_chunkshop_table())
+    except (ConnectionError, ValueError, Exception) as e:
+        _handle_error(e)
+
+
 @main.command()
 @click.argument("question")
 @click.option(

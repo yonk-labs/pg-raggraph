@@ -1216,7 +1216,8 @@ class GraphRAG:
                 if not (kr.get("src") and kr.get("dst")):
                     raise ValueError("known_relationships entries must include 'src' and 'dst'")
                 # Tuple shape: (src, dst, rel_type, description, weight,
-                # effective_from, effective_to, retracted, retracted_at).
+                # effective_from, effective_to, retracted, retracted_at,
+                # properties).
                 # The four temporal fields are optional; absent → NULL in
                 # the relationships row. Mirrors documents-level evolution
                 # tracking for per-fact granularity (Pattern M, migration 006).
@@ -1230,6 +1231,7 @@ class GraphRAG:
                     kr.get("effective_to"),
                     bool(kr.get("retracted", False)),
                     kr.get("retracted_at"),
+                    kr.get("properties") or {},
                 )
                 # Anchor on chunk[0] — relationships are document-level.
                 chunk_to_rels[0].append(rel_tuple)
@@ -1509,17 +1511,19 @@ class GraphRAG:
                     if not (src_id and dst_id):
                         continue
                     # Tuple shape: (src_name, dst_name, rel_type, description, weight,
-                    # effective_from, effective_to, retracted, retracted_at).
-                    # Older callers may still pass 5-tuples; pad with temporal NULLs.
+                    # effective_from, effective_to, retracted, retracted_at, properties).
+                    # Older callers may still pass 5-tuples; pad optional fields.
                     eff_from = rel[5] if len(rel) > 5 else None
                     eff_to = rel[6] if len(rel) > 6 else None
                     retracted = rel[7] if len(rel) > 7 else False
                     retracted_at = rel[8] if len(rel) > 8 else None
+                    properties = rel[9] if len(rel) > 9 and rel[9] else {}
                     rel_id = await tx.insert_returning_id(
                         "INSERT INTO relationships "
                         "(namespace, src_id, dst_id, rel_type, weight, description, "
-                        "effective_from, effective_to, retracted, retracted_at) "
-                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                        "effective_from, effective_to, retracted, retracted_at, properties) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb) "
+                        "RETURNING id",
                         (
                             ns,
                             src_id,
@@ -1531,6 +1535,7 @@ class GraphRAG:
                             eff_to,
                             retracted,
                             retracted_at,
+                            json.dumps(properties, default=_json_default),
                         ),
                     )
                     await tx.execute(

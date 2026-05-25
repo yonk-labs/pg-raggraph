@@ -52,8 +52,8 @@ def chunk_document(
     - ``"chunkshop:<chunker_name>"`` — delegate to chunkshop directly. Optional
       dependency: install with ``pip install pg-raggraph[chunkshop]``. Supported
       chunker names: ``hierarchy``, ``sentence_aware``, ``semantic``,
-      ``fixed_overlap``, ``neighbor_expand``, ``summary_embed``,
-      ``hierarchical_summary``. See docs/cookbook/chunkshop-integration.md.
+      ``fixed_overlap``, ``neighbor_expand``, ``code_aware``, and
+      ``symbol_aware``. See docs/cookbook/chunkshop-integration.md.
     """
     if config is None:
         config = PGRGConfig()
@@ -158,6 +158,7 @@ def _chunk_via_chunkshop(
     yourself for the version of your choice).
     """
     try:
+        from chunkshop import config as cs_config
         from chunkshop.chunkers import load_chunker
         from chunkshop.config import (
             FixedOverlapChunker as FixedCfg,
@@ -212,14 +213,21 @@ def _chunk_via_chunkshop(
             base=HierCfg(type="hierarchy", max_chars=max_chars),
         ),
     }
+    if CodeAwareCfg := getattr(cs_config, "CodeAwareChunker", None):
+        chunker_cfg_map["code_aware"] = CodeAwareCfg(type="code_aware", max_chars=max_chars)
+    if SymbolAwareCfg := getattr(cs_config, "SymbolAwareChunker", None):
+        chunker_cfg_map["symbol_aware"] = SymbolAwareCfg(
+            type="symbol_aware",
+            max_chars=max_chars,
+        )
 
     if name not in chunker_cfg_map:
         raise ValueError(
             f"Unknown chunkshop strategy 'chunkshop:{name}'. "
             f"Supported: {sorted(chunker_cfg_map.keys())}. "
-            "For summary_embed and hierarchical_summary (which require an "
-            "embedder + summarizer), use chunkshop's own pipeline directly "
-            "and feed the resulting chunks to rag.ingest_records()."
+            "For summary_embed, hierarchical_summary, consolidation, or extractor-backed "
+            "pipelines, use chunkshop's own pipeline directly and feed the resulting "
+            "chunks to rag.ingest_records(pre_chunked=...)."
         )
 
     chunker = load_chunker(chunker_cfg_map[name])

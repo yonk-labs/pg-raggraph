@@ -363,6 +363,7 @@ def test_hierarchy_oversized_section_each_sub_chunk_has_dual_content():
 # construction through chunkshop.chunkers.load_chunker).
 
 chunkshop = pytest.importorskip("chunkshop")
+chunkshop_config = pytest.importorskip("chunkshop.config")
 
 _CHUNKSHOP_STRATEGIES = [
     "chunkshop:hierarchy",
@@ -370,6 +371,22 @@ _CHUNKSHOP_STRATEGIES = [
     "chunkshop:semantic",
     "chunkshop:fixed_overlap",
     "chunkshop:neighbor_expand",
+]
+_CHUNKSHOP_CODE_STRATEGIES = [
+    pytest.param(
+        "chunkshop:code_aware",
+        marks=pytest.mark.skipif(
+            not hasattr(chunkshop_config, "CodeAwareChunker"),
+            reason="chunkshop build does not expose CodeAwareChunker",
+        ),
+    ),
+    pytest.param(
+        "chunkshop:symbol_aware",
+        marks=pytest.mark.skipif(
+            not hasattr(chunkshop_config, "SymbolAwareChunker"),
+            reason="chunkshop build does not expose SymbolAwareChunker",
+        ),
+    ),
 ]
 
 
@@ -386,6 +403,35 @@ def test_chunkshop_delegation_emits_chunks(strategy):
         assert c["embedded_content"].strip()
         assert c["token_count"] > 0
         assert c["metadata"]["chunkshop_strategy"] == strategy.split(":", 1)[1]
+
+
+@pytest.mark.parametrize("strategy", _CHUNKSHOP_CODE_STRATEGIES)
+def test_chunkshop_code_delegation_preserves_symbol_metadata(strategy):
+    """Chunkshop 0.6 code chunkers should carry symbol metadata through."""
+    code = '''"""Small module."""
+
+import os
+
+
+def alpha(value):
+    return os.fspath(value)
+
+
+class Beta:
+    def gamma(self):
+        return alpha("x")
+'''
+    cfg = PGRGConfig(chunk_strategy=strategy, chunk_max_tokens=512, chunk_overlap_tokens=50)
+    chunks = chunk_document(code, source_path="pkg/example.py", config=cfg)
+    assert chunks, f"{strategy} produced no chunks"
+    assert all(c["metadata"]["chunkshop_strategy"] == strategy.split(":", 1)[1] for c in chunks)
+
+    if strategy == "chunkshop:symbol_aware":
+        symbol_chunks = [c for c in chunks if c["metadata"].get("strategy") == "symbol_aware"]
+        assert symbol_chunks
+        assert any(c["metadata"].get("symbol_name") == "alpha" for c in symbol_chunks)
+        assert all(c["metadata"].get("fqn") for c in symbol_chunks)
+        assert all(c["metadata"].get("node_id") for c in symbol_chunks)
 
 
 def test_chunkshop_unknown_strategy_raises():
