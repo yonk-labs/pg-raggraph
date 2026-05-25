@@ -1,0 +1,213 @@
+{
+  "ladder_version": "f-informed-1",
+  "status": "Phase F-informed ladder. Numbers combine Phase D/E/F; LoCoMo confirms conversational memory benefits from stacked summary+raw context, while chunk_summary_facts and plain per-doc summaries remain non-default. profile='raw' remains a separate legacy escape hatch.",
+  "raw_escape_hatch": {
+    "context_strategy": "classic_chunks",
+    "top_k": 25
+  },
+  "generated_at": "2026-05-24T18:07:28.193956+00:00",
+  "source_results": [
+    ".matrix-runs/deep-d-summary-validation/llm-judge/results.jsonl",
+    ".matrix-runs/deep-e-perdoc-coverage/llm-judge/results.jsonl",
+    ".matrix-runs/deep-f-locomo-validation-full/llm-judge/results.jsonl"
+  ],
+  "n_rungs": 7,
+  "rungs": [
+    {
+      "index": 0,
+      "name": "cheap",
+      "strategy": "doc_summary_facts@3",
+      "match": {
+        "context_strategy": "doc_summary_facts@3",
+        "top_k": 25
+      },
+      "note": "doc-summary+facts, top-3 docs \u2014 cheapest",
+      "calibrated": true,
+      "est_tokens": {
+        "aggregate": 2110,
+        "by_corpus": {
+          "locomo": 1904,
+          "mhr": 2408,
+          "scotus": 2017
+        }
+      },
+      "est_accuracy": {
+        "aggregate": 0.6111,
+        "by_corpus": {
+          "locomo": 0.5333,
+          "mhr": 0.4,
+          "scotus": 0.9
+        }
+      },
+      "est_latency_ms": 46093
+    },
+    {
+      "index": 1,
+      "name": "cheap_plus",
+      "strategy": "doc_summary_facts@5",
+      "match": {
+        "context_strategy": "doc_summary_facts@5",
+        "top_k": 25
+      },
+      "note": "doc-summary+facts, top-5 docs",
+      "calibrated": true,
+      "est_tokens": {
+        "aggregate": 2375,
+        "by_corpus": {
+          "locomo": 2108,
+          "mhr": 2782,
+          "scotus": 2236
+        }
+      },
+      "est_accuracy": {
+        "aggregate": 0.6333,
+        "by_corpus": {
+          "locomo": 0.5,
+          "mhr": 0.4333,
+          "scotus": 0.9667
+        }
+      },
+      "est_latency_ms": 45620
+    },
+    {
+      "index": 2,
+      "name": "lean",
+      "strategy": "full_selected_docs@3",
+      "match": {
+        "context_strategy": "full_selected_docs@3",
+        "top_k": 25
+      },
+      "note": "whole docs, top-3",
+      "calibrated": true,
+      "est_tokens": {
+        "aggregate": 4304,
+        "by_corpus": {
+          "locomo": 2523,
+          "mhr": 7425,
+          "scotus": 2964
+        }
+      },
+      "est_accuracy": {
+        "aggregate": 0.6889,
+        "by_corpus": {
+          "locomo": 0.6333,
+          "mhr": 0.4667,
+          "scotus": 0.9667
+        }
+      },
+      "est_latency_ms": 46920
+    },
+    {
+      "index": 3,
+      "name": "balanced",
+      "strategy": "doc_and_chunk_summary_toc_facts_plus_top5",
+      "match": {
+        "context_strategy": "doc_and_chunk_summary_toc_facts_plus_top5",
+        "top_k": 25
+      },
+      "note": "doc+chunk summaries with top-5 raw chunks (default)",
+      "calibrated": true,
+      "est_tokens": {
+        "aggregate": 6672,
+        "by_corpus": {
+          "locomo": 6870,
+          "mhr": 7750,
+          "scotus": 5396
+        }
+      },
+      "est_accuracy": {
+        "aggregate": 0.7056,
+        "by_corpus": {
+          "locomo": 0.7667,
+          "mhr": 0.4833,
+          "scotus": 0.8667
+        }
+      },
+      "est_latency_ms": 45757
+    },
+    {
+      "index": 4,
+      "name": "rich",
+      "strategy": "full_selected_docs@5",
+      "match": {
+        "context_strategy": "full_selected_docs@5",
+        "top_k": 25
+      },
+      "note": "whole docs, top-5",
+      "calibrated": true,
+      "est_tokens": {
+        "aggregate": 7304,
+        "by_corpus": {
+          "locomo": 4176,
+          "mhr": 12799,
+          "scotus": 4938
+        }
+      },
+      "est_accuracy": {
+        "aggregate": 0.7333,
+        "by_corpus": {
+          "locomo": 0.6667,
+          "mhr": 0.5333,
+          "scotus": 1.0
+        }
+      },
+      "est_latency_ms": 45817
+    },
+    {
+      "index": 5,
+      "name": "stacked",
+      "strategy": "per_doc5_chunksum_top5",
+      "match": {
+        "context_strategy": "per_doc5_chunksum_top5",
+        "top_k": 25
+      },
+      "note": "per-doc summaries + retrieved-chunk summary + top-5 raw chunks",
+      "calibrated": true,
+      "est_tokens": {
+        "aggregate": 10495,
+        "by_corpus": {
+          "locomo": 8213,
+          "mhr": 14544,
+          "scotus": 8728
+        }
+      },
+      "est_accuracy": {
+        "aggregate": 0.7556,
+        "by_corpus": {
+          "locomo": 0.8333,
+          "mhr": 0.5,
+          "scotus": 0.9333
+        }
+      },
+      "est_latency_ms": 53635
+    },
+    {
+      "index": 6,
+      "name": "accurate",
+      "strategy": "full_selected_docs@10",
+      "match": {
+        "context_strategy": "full_selected_docs@10",
+        "top_k": 25
+      },
+      "note": "whole docs, top-10 \u2014 the ceiling",
+      "calibrated": true,
+      "est_tokens": {
+        "aggregate": 13878,
+        "by_corpus": {
+          "locomo": 8267,
+          "mhr": 23410,
+          "scotus": 9958
+        }
+      },
+      "est_accuracy": {
+        "aggregate": 0.8,
+        "by_corpus": {
+          "locomo": 0.8333,
+          "mhr": 0.5667,
+          "scotus": 1.0
+        }
+      },
+      "est_latency_ms": 48874
+    }
+  ]
+}

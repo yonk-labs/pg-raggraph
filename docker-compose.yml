@@ -16,5 +16,26 @@ services:
       timeout: 3s
       retries: 5
 
+  # Dedicated benchmark DB — pinned to bge-large-en-v1.5 (dim=1024) so the
+  # e2e harness can stage corpora independently of the main dev DB.
+  # Start with: docker compose up -d postgres-bench
+  postgres-bench:
+    image: pgvector/pgvector:pg16
+    ports:
+      - "5437:5432"
+    environment:
+      POSTGRES_DB: pg_raggraph_bench
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pgdata_bench:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
 volumes:
   pgdata:
+  pgdata_bench:

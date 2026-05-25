@@ -160,6 +160,39 @@ def test_non_string_generated_type_rejected() -> None:
         _validate_metadata_generated_type(123)  # type: ignore[arg-type]
 
 
+def test_generated_spec_supports_nested_json_path() -> None:
+    from pg_raggraph.db import _normalize_metadata_generated_spec
+
+    key, sql_type, path = _normalize_metadata_generated_spec(
+        "term",
+        {"type": "text", "path": ["lede_report", "attributes", "term", "value"]},
+    )
+
+    assert key == "term"
+    assert sql_type == "text"
+    assert path == ("lede_report", "attributes", "term", "value")
+
+
+def test_generated_spec_accepts_dotted_json_path() -> None:
+    from pg_raggraph.db import _normalize_metadata_generated_spec
+
+    key, sql_type, path = _normalize_metadata_generated_spec(
+        "docket_number",
+        {"sql_type": "text", "path": "lede_report.attributes.docket_number.value"},
+    )
+
+    assert key == "docket_number"
+    assert sql_type == "text"
+    assert path == ("lede_report", "attributes", "docket_number", "value")
+
+
+def test_generated_spec_rejects_invalid_path() -> None:
+    from pg_raggraph.db import _normalize_metadata_generated_spec
+
+    with pytest.raises(ValueError, match="path must not be empty"):
+        _normalize_metadata_generated_spec("term", {"type": "text", "path": []})
+
+
 def test_generated_column_name_uses_meta_prefix() -> None:
     """Discoverable: SELECT meta_priority FROM chunks. Distinct from the
     btree index prefix idx_chunks_metadata_ so a key can have BOTH a
@@ -182,6 +215,20 @@ def test_metadata_generated_columns_accepts_dict() -> None:
 
     cfg = PGRGConfig(metadata_generated_columns={"priority": "int", "created_at": "timestamptz"})
     assert cfg.metadata_generated_columns == {"priority": "int", "created_at": "timestamptz"}
+
+
+def test_metadata_generated_columns_accept_nested_spec() -> None:
+    from pg_raggraph.config import PGRGConfig
+
+    cfg = PGRGConfig(
+        document_metadata_generated_columns={
+            "term": {
+                "type": "text",
+                "path": ["lede_report", "attributes", "term", "value"],
+            }
+        }
+    )
+    assert cfg.document_metadata_generated_columns["term"]["path"][-1] == "value"
 
 
 def test_index_name_fits_postgres_identifier_limit() -> None:

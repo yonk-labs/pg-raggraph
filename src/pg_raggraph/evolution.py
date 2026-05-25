@@ -219,6 +219,17 @@ def evolution_where_clauses(
         clauses.append(f"{doc_alias}.version_label = %(version_filter)s")
         params["version_filter"] = version_filter
 
+    # Living Knowledge stores historical materialized snapshots in the same
+    # namespace. Latest queries should see only the current snapshot for each
+    # logical object; historical/as_of queries intentionally bypass this guard
+    # and let the temporal window select older buckets.
+    if (
+        getattr(cfg, "living_knowledge", False)
+        and getattr(cfg, "living_current_only", True)
+        and as_of is None
+    ):
+        clauses.append(f"COALESCE(({doc_alias}.metadata->>'living_current')::boolean, true)")
+
     tier = _effective_tier(cfg, evolution_aware)
     if tier == "off":
         return clauses, params

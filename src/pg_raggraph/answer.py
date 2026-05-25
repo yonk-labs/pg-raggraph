@@ -47,6 +47,9 @@ Constraints:
 
 def _format_context(result: QueryResult, max_chunks: int = 8) -> str:
     """Format retrieved chunks as LLM context."""
+    if result.context:
+        return result.context
+
     lines = []
     for i, chunk in enumerate(result.chunks[:max_chunks], 1):
         source = chunk.document_source or "unknown"
@@ -69,26 +72,20 @@ def _format_context(result: QueryResult, max_chunks: int = 8) -> str:
     return "\n".join(lines)
 
 
-def _fallback_answer(result: QueryResult) -> str:
-    """Assemble a readable summary from chunks when no LLM is available.
+def _fallback_answer(question: str, result: QueryResult, config: PGRGConfig) -> str:
+    """Deterministic lede summary across all retrieved chunks (no LLM).
 
-    Used when the caller doesn't have an LLM configured. Returns the top
-    chunk's content as-is with source attribution — no synthesis, no
-    paraphrasing, but still useful.
+    Used when no LLM is configured or LLM synthesis fails. Returns a
+    hint-biased summary plus source attribution. Falls back to a plain
+    not-found message only when summarization yields nothing.
     """
-    if not result.chunks:
+    from pg_raggraph.summary import summarize_chunks
+
+    summary = summarize_chunks(question, result, config)
+    if not summary:
         return "No relevant content found in the knowledge base."
-    top = result.chunks[0]
-    source = top.document_source or "unknown source"
-    text = top.content.strip()
-    if len(text) > 600:
-        text = text[:600] + "..."
-    return (
-        f"No LLM configured for answer synthesis. Top match from {source}:\n\n"
-        f"{text}\n\n"
-        f"(pg-raggraph returned {len(result.chunks)} chunks. "
-        f"Set PGRG_LLM_BASE_URL to enable answer generation.)"
-    )
+    sources = ", ".join(sorted({c.document_source or "unknown" for c in result.chunks}))
+    return f"{summary}\n\n(Sources: {sources})"
 
 
 async def generate_answer(
@@ -111,8 +108,14 @@ async def generate_answer(
     if not result.chunks:
         return "No relevant content found in the knowledge base."
 
+    # mode="summary" / smart tier-0 already produced a deterministic summary —
+    # ship it without an LLM round-trip. In short_answer mode the caller wants
+    # a factoid phrase, not an extractive summary, so fall through to the LLM.
+    if result.summary and not short_answer:
+        return result.summary
+
     if llm is None:
-        return _fallback_answer(result)
+        return _fallback_answer(question, result, config)
 
     context = _format_context(result)
     system_prompt = SHORT_ANSWER_SYSTEM_PROMPT if short_answer else ANSWER_SYSTEM_PROMPT
@@ -137,4 +140,4 @@ async def generate_answer(
         return await llm.complete(messages)
     except Exception as e:
         logger.warning(f"Answer generation failed: {e}")
-        return _fallback_answer(result)
+        return _fallback_answer(question, result, config)

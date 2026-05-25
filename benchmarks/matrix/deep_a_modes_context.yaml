@@ -1,0 +1,91 @@
+# Deep run — Phase A: retrieval-mode x top_k x context-packing sweep.
+#
+# Reuses the already-staged `auto` + lede_spacy shapes for all three 3rd-party
+# benchmarks (no re-ingest), so the whole phase is retrieval + context-assembly
+# + judging only. This is the headline comparison: for each dataset, how do the
+# context-packing strategies (classic chunks, full doc, lede summary variants)
+# trade accuracy against tokens, across retrieval modes and top_k.
+run:
+  id: deep-a-modes-context
+  output_dir: .matrix-runs/deep-a-modes-context
+  cache_dir: .matrix-runs/cache
+  resume: true
+  concurrency: 4
+
+suite:
+  namespace_prefix: deepa
+
+workloads:
+  - name: mhr
+    subset: 30
+    seed: 42
+    namespace: bench_mhr_lede_spacy
+    tags: [multi-hop, news]
+  - name: musique
+    subset: 30
+    seed: 42
+    namespace: bench_musique_lede_spacy
+    tags: [multi-hop, compositional]
+  - name: twowiki
+    subset: 30
+    seed: 42
+    namespace: bench_twowiki_lede_spacy
+    tags: [multi-hop, wiki]
+
+ingest:
+  reuse_existing_shapes: true
+  refresh_shapes: false
+  arms: [lede_spacy]
+  embeddings:
+    - label: bge-large
+      model: BAAI/bge-large-en-v1.5
+      dim: 1024
+      provider: local
+  chunk_strategies: [auto]
+  chunk_max_tokens: [512]
+  chunk_overlap_tokens: [50]
+
+retrieval:
+  modes: [hybrid, smart]
+  retrieval_strategies: [weighted]
+  rerank: [false]
+  top_k: [10, 25, 50]
+
+context:
+  max_selected_docs: 3
+  strategies:
+    - classic_chunks
+    - full_selected_docs
+    - doc_summary_facts
+    - doc_summary_toc_facts
+    - hint_doc_summary_facts_plus_chunks
+
+baselines:
+  full_document:
+    max_docs: 3
+    max_context_tokens: 120000
+  classic_rag:
+    top_k: 25
+    chunker: auto
+
+answer:
+  provider: openai-compatible
+  model: Intel/Qwen3-Coder-Next-int4-AutoRound
+  base_url: http://192.168.1.193:8000/v1
+
+judge:
+  mode: accurate
+  concurrency: 8
+  retries: 2
+  parse_retries: 2
+  timeout: 180
+  temperature: 0.0
+  max_tokens: 1200
+  strict_json_fallback: true
+  providers:
+    - provider: openai-compatible
+      model: Intel/Qwen3-Coder-Next-int4-AutoRound
+      base_url: http://192.168.1.193:8000/v1
+    - provider: openai-compatible
+      model: cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit
+      base_url: http://192.168.1.133:8000/v1

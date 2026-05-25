@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime
-from typing import Literal
+from typing import Callable, Literal
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.db import Database
@@ -25,7 +25,7 @@ logger = logging.getLogger("pg_raggraph.retrieval")
 # pick up vector_first.recall_shortfall events with no new wiring.
 metrics_logger = logging.getLogger("pg_raggraph.metrics")
 
-QueryMode = Literal["local", "global", "hybrid", "naive", "naive_boost", "smart"]
+QueryMode = Literal["local", "global", "hybrid", "naive", "naive_boost", "smart", "summary"]
 
 _RETRIEVAL_STRATEGY_VALUES = ("weighted", "pre_filter", "vector_first")
 
@@ -116,20 +116,30 @@ def _merge_params(base: dict, extra: dict) -> dict:
     return {**base, **extra}
 
 
-def _to_or_tsquery(text: str) -> str:
-    """Convert text to an OR-based tsquery string.
+def _to_or_tsquery(text: str, extra_terms: list[str] | None = None) -> str:
+    """Convert text (plus optional expansion terms) to an OR-based tsquery.
 
-    "payment service outage" → "payment | service | outage"
-    This matches chunks containing ANY of the words, not ALL.
-    Limits to 20 words to prevent tsquery parser overflow.
+    With ``extra_terms`` None the output is byte-identical to the historical
+    single-arg behavior. With expansion terms, the union is deduped (order
+    preserved) before the 20-term cap.
     """
     import re
 
     words = re.findall(r"\w+", text.lower())
-    if not words:
+    if not words and not extra_terms:
         return "empty"
-    # Filter short words and limit to 20 terms (prevent tsquery overflow)
-    words = [w for w in words if len(w) > 2][:20]
+    words = [w for w in words if len(w) > 2]
+    if extra_terms:
+        for t in extra_terms:
+            words.extend(w for w in re.findall(r"\w+", t.lower()) if len(w) > 2)
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for w in words:
+            if w not in seen:
+                seen.add(w)
+                deduped.append(w)
+        words = deduped
+    words = words[:20]
     return " | ".join(words) if words else "empty"
 
 
@@ -149,12 +159,14 @@ def _build_naive_query(
     retracted_behavior: str | None = None,
     supersession_behavior: str | None = None,
     memory_tier: str | None = None,
+    mf_soft_sql: str = "",
+    mf_hard_sql: str = "",
 ) -> tuple[str, dict]:
     base = (
         "%(w_sem)s * (1 - (c.embedding <=> %(embedding)s::vector)) + "
         "%(w_bm25)s * ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) + "
         "%(w_graph)s * 0"  # naive has no graph leg
-    )
+    ) + mf_soft_sql
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -168,6 +180,8 @@ def _build_naive_query(
     if mt_clause:
         clauses.append(mt_clause)
         extra_params = _merge_params(extra_params, mt_params)
+    if mf_hard_sql:
+        clauses.append(mf_hard_sql)
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     # PRG-1 consumer-surface columns (d.metadata/retracted/version_label/
     # effective_from/effective_to/superseded_by_id) are intentionally repeated
@@ -200,6 +214,8 @@ def _build_naive_query_twostage(
     retracted_behavior: str | None = None,
     supersession_behavior: str | None = None,
     memory_tier: str | None = None,
+    mf_soft_sql: str = "",
+    mf_hard_sql: str = "",
 ) -> tuple[str, dict]:
     """Two-stage naive retrieval (K1).
 
@@ -226,7 +242,7 @@ def _build_naive_query_twostage(
         "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
         "%(w_bm25)s * ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) + "
         "%(w_graph)s * 0"  # naive has no graph leg
-    )
+    ) + mf_soft_sql
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -242,6 +258,8 @@ def _build_naive_query_twostage(
     if mt_clause:
         clauses.append(mt_clause)
         extra_params = _merge_params(extra_params, mt_params)
+    if mf_hard_sql:
+        clauses.append(mf_hard_sql)
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     sql = f"""
 WITH candidates AS (
@@ -280,6 +298,8 @@ def _build_naive_prefilter(
     retracted_behavior: str | None = None,
     supersession_behavior: str | None = None,
     memory_tier: str | None = None,
+    mf_soft_sql: str = "",
+    mf_hard_sql: str = "",
 ) -> tuple[str, dict]:
     """Naive retrieval, ``retrieval_strategy='pre_filter'`` path.
 
@@ -299,7 +319,7 @@ def _build_naive_prefilter(
         "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
         "%(w_bm25)s * ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) + "
         "%(w_graph)s * 0"
-    )
+    ) + mf_soft_sql
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -313,6 +333,8 @@ def _build_naive_prefilter(
     if mt_clause:
         clauses.append(mt_clause)
         extra_params = _merge_params(extra_params, mt_params)
+    if mf_hard_sql:
+        clauses.append(mf_hard_sql)
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     sql = f"""
 WITH filtered AS (
@@ -349,6 +371,8 @@ def _build_naive_vector_first(
     retracted_behavior: str | None = None,
     supersession_behavior: str | None = None,
     memory_tier: str | None = None,
+    mf_soft_sql: str = "",
+    mf_hard_sql: str = "",
 ) -> tuple[str, dict]:
     """Naive retrieval, ``retrieval_strategy='vector_first'`` path.
 
@@ -374,7 +398,7 @@ def _build_naive_vector_first(
         "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
         "%(w_bm25)s * ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) + "
         "%(w_graph)s * 0"
-    )
+    ) + mf_soft_sql
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -390,6 +414,8 @@ def _build_naive_vector_first(
     if mt_clause:
         clauses.append(mt_clause)
         extra_params = _merge_params(extra_params, mt_params)
+    if mf_hard_sql:
+        clauses.append(mf_hard_sql)
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     sql = f"""
 WITH candidates AS (
@@ -575,19 +601,32 @@ WHERE ec.chunk_id = ANY(%(chunk_ids)s)
 """
 
 RELATIONSHIPS_FOR_ENTITIES = """
-SELECT DISTINCT e_src.name AS source, e_dst.name AS target,
+WITH seed_entities AS MATERIALIZED (
+    SELECT DISTINCT entity_id
+    FROM entity_chunks
+    WHERE chunk_id = ANY(%(chunk_ids)s)
+),
+rel_ids AS MATERIALIZED (
+    (
+        SELECT r.id
+        FROM relationships r
+        JOIN seed_entities s ON s.entity_id = r.src_id
+    )
+    UNION
+    (
+        SELECT r.id
+        FROM relationships r
+        JOIN seed_entities s ON s.entity_id = r.dst_id
+    )
+    LIMIT 20
+)
+SELECT e_src.name AS source, e_dst.name AS target,
        r.rel_type, r.description,
        r.effective_from, r.effective_to, r.retracted, r.retracted_at
-FROM relationships r
+FROM rel_ids ri
+JOIN relationships r ON r.id = ri.id
 JOIN entities e_src ON e_src.id = r.src_id
 JOIN entities e_dst ON e_dst.id = r.dst_id
-WHERE r.src_id IN (
-    SELECT entity_id FROM entity_chunks WHERE chunk_id = ANY(%(chunk_ids)s)
-)
-OR r.dst_id IN (
-    SELECT entity_id FROM entity_chunks WHERE chunk_id = ANY(%(chunk_ids)s)
-)
-LIMIT 20
 """
 
 
@@ -607,6 +646,9 @@ async def query(
     memory_tier: str | None = None,
     retrieval_strategy: str | None = None,
     top_k_override: int | None = None,
+    summary_base_mode: str | None = None,
+    metadata_filters: dict | None = None,
+    trace_emit: Callable[[dict], None] | None = None,
 ) -> QueryResult:
     """Execute a retrieval query against the knowledge graph.
 
@@ -614,11 +656,28 @@ async def query(
     a downstream reranker will trim back to ``config.top_k``. None
     falls back to ``config.top_k``.
     """
-    valid_modes = ("naive", "local", "global", "hybrid", "naive_boost", "smart")
+    valid_modes = ("naive", "local", "global", "hybrid", "naive_boost", "smart", "summary")
     if mode not in valid_modes:
         raise ValueError(f"Invalid mode '{mode}'. Must be one of: {valid_modes}")
 
-    # Smart and naive_boost modes are handled in separate functions
+    # Smart, naive_boost, and summary modes are handled in separate functions
+    if mode == "summary":
+        return await _summary_query(
+            question,
+            db,
+            embedder,
+            config,
+            namespace,
+            as_of=as_of,
+            version_filter=version_filter,
+            evolution_aware=evolution_aware,
+            retracted_behavior=retracted_behavior,
+            supersession_behavior=supersession_behavior,
+            memory_tier=memory_tier,
+            retrieval_strategy=retrieval_strategy,
+            top_k_override=top_k_override,
+            summary_base_mode=summary_base_mode,
+        )
     if mode == "smart":
         return await _smart_query(
             question,
@@ -660,7 +719,13 @@ async def query(
     # Embed the question
     q_embedding = (await embedder.embed([question]))[0]
 
-    tsquery = _to_or_tsquery(question)
+    # #1: expand the BM25 term set when enabled (default off → byte-identical).
+    if config.retrieval_expansion != "off" or config.retrieval_alias_map:
+        from pg_raggraph.summary import expand_query_terms
+
+        tsquery = _to_or_tsquery(question, expand_query_terms(question, config))
+    else:
+        tsquery = _to_or_tsquery(question)
 
     params = {
         "embedding": q_embedding,
@@ -677,7 +742,27 @@ async def query(
         **evolution_bind_params(config),
     }
 
+    _t0_vb = time.perf_counter()
     if mode == "naive":
+        # Metadata filters: soft=score bias, hard=WHERE exclusion (structured only).
+        # Per-record metadata from ingest_records lands on documents.metadata, so
+        # the clause builder targets document alias "d".  When metadata_filters is
+        # None both sql strings are "" and params unchanged — byte-identical to
+        # today (SC-305).
+        from pg_raggraph.metadata_filter import classify_filters, metadata_filter_clauses
+
+        mf_soft, mf_hard = classify_filters(metadata_filters, config)
+        if config.prompt_metadata_signals:
+            from pg_raggraph.metadata_filter import prompt_derived_soft
+
+            for k, v in prompt_derived_soft(question, config).items():
+                mf_soft.setdefault(k, v)
+        mf_soft_sql, mf_hard_sql, mf_params = metadata_filter_clauses(
+            mf_soft, mf_hard, config, chunk_alias="d"
+        )
+        if mf_params:
+            params = _merge_params(params, mf_params)
+
         # retrieval_strategy router (Scope A, #4 follow-up):
         # - "pre_filter": CTE-materialized predicate subset → rank.
         # - "vector_first": HNSW-seed CTE (no namespace join) → post-filter.
@@ -692,6 +777,8 @@ async def query(
                 retracted_behavior,
                 supersession_behavior,
                 memory_tier,
+                mf_soft_sql,
+                mf_hard_sql,
             )
         elif effective_strategy == "vector_first":
             sql, extra = _build_naive_vector_first(
@@ -702,6 +789,8 @@ async def query(
                 retracted_behavior,
                 supersession_behavior,
                 memory_tier,
+                mf_soft_sql,
+                mf_hard_sql,
             )
             # vector_first needs an extra bind param for its oversample CTE.
             params["vector_first_k"] = effective_top_k * config.retrieval_oversample_factor
@@ -715,6 +804,8 @@ async def query(
                 retracted_behavior,
                 supersession_behavior,
                 memory_tier,
+                mf_soft_sql,
+                mf_hard_sql,
             )
         else:
             sql, extra = _build_naive_query(
@@ -725,6 +816,8 @@ async def query(
                 retracted_behavior,
                 supersession_behavior,
                 memory_tier,
+                mf_soft_sql,
+                mf_hard_sql,
             )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
         # Recall guard for vector_first — when post-filter trims below top_k,
@@ -790,6 +883,44 @@ async def query(
     else:
         rows = []
 
+    # Optional tracing hook (champtrace etc). None-safe: when trace_emit is
+    # None this block is skipped entirely, so existing callers and the
+    # benchmark harness behave byte-identically. The hook is a plain
+    # Callable[[dict], None] the caller supplies; pg-raggraph never imports
+    # any tracing package.
+    if trace_emit is not None:
+        # SQL string varies by mode: naive/local/global bind a single `sql`;
+        # hybrid runs `local_sql` + `global_sql`. Surface whatever ran.
+        _lc = locals()
+        if mode == "hybrid":
+            _traced_sql = "\n\n-- [local]\n".join(
+                s for s in (_lc.get("local_sql"), _lc.get("global_sql")) if s
+            )
+        else:
+            _traced_sql = _lc.get("sql") or ""
+        trace_emit(
+            {
+                "stage": "vector_bm25",
+                "mode": mode,
+                "sql": _traced_sql,
+                "elapsed_ms": (time.perf_counter() - _t0_vb) * 1000.0,
+                "candidates": [
+                    {
+                        "chunk_id": row["id"],
+                        "vec_score": (
+                            float(row["vec_score"]) if row.get("vec_score") is not None else None
+                        ),
+                        "bm25_score": (
+                            float(row["bm25_score"]) if row.get("bm25_score") is not None else None
+                        ),
+                        "score": float(row["score"]) if row.get("score") is not None else None,
+                        "content": row.get("content"),
+                    }
+                    for row in rows
+                ],
+            }
+        )
+
     # Build chunk results
     evo_on = _effective_tier(config, evolution_aware) != "off"
     chunks = []
@@ -823,6 +954,7 @@ async def query(
         chunk_ids.append(row["id"])
 
     # Fetch related entities and relationships
+    _t0_graph = time.perf_counter()
     entities = []
     relationships = []
     if chunk_ids:
@@ -850,6 +982,20 @@ async def query(
             )
             for r in rel_rows
         ]
+
+    # Optional graph-traversal trace (graph submodes only: local/global/hybrid).
+    # None-safe and byte-identical when trace_emit is None.
+    if trace_emit is not None and mode != "naive":
+        trace_emit(
+            {
+                "stage": "graph",
+                "mode": mode,
+                "elapsed_ms": (time.perf_counter() - _t0_graph) * 1000.0,
+                "entities": [e.name for e in entities],
+                "relationships": [(r.source, r.rel_type, r.target) for r in relationships],
+                "hops": config.max_hops,
+            }
+        )
 
     latency_ms = (time.perf_counter() - start) * 1000
 
@@ -1059,6 +1205,55 @@ def _question_shape(question: str) -> str:
     return "lookup"
 
 
+async def _summary_query(
+    question: str,
+    db: Database,
+    embedder: EmbeddingProvider,
+    config: PGRGConfig,
+    namespace: str | None = None,
+    *,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
+    memory_tier: str | None = None,
+    retrieval_strategy: str | None = None,
+    top_k_override: int | None = None,
+    summary_base_mode: str | None = None,
+) -> QueryResult:
+    """Run an existing retrieval substrate, then summarize its chunks via lede.
+
+    The substrate is config.summary_base_mode (default 'hybrid') unless the
+    caller overrides it with summary_base_mode. Retrieval scoring is unchanged
+    — this only adds a deterministic, LLM-free summary over the K chunks.
+    """
+    from pg_raggraph.summary import summarize_chunks
+
+    start = time.perf_counter()
+    base_mode = summary_base_mode or config.summary_base_mode
+    base = await query(
+        question=question,
+        db=db,
+        embedder=embedder,
+        config=config,
+        mode=base_mode,
+        namespace=namespace,
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
+        supersession_behavior=supersession_behavior,
+        memory_tier=memory_tier,
+        retrieval_strategy=retrieval_strategy,
+        top_k_override=top_k_override,
+    )
+    base.summary = summarize_chunks(question, base, config)
+    base.query_mode = "summary"
+    base.latency_ms = (time.perf_counter() - start) * 1000
+    return base
+
+
 async def _smart_query(
     question: str,
     db: Database,
@@ -1163,9 +1358,17 @@ async def _smart_query(
         top_k_override=top_k_override,
     )
 
-    # High confidence — ship it
+    # High confidence — ship it. Optional tier-0: ship a deterministic lede
+    # summary instead of raw chunks (no LLM) when the top score clears the
+    # summary tier threshold and the feature is enabled.
     if result.confidence == "high":
-        result.query_mode = "smart[naive]"
+        if config.smart_summary_tier and result.top_score >= config.summary_tier_threshold:
+            from pg_raggraph.summary import summarize_chunks
+
+            result.summary = summarize_chunks(question, result, config)
+            result.query_mode = "smart[summary]"
+        else:
+            result.query_mode = "smart[naive]"
         result.latency_ms = (time.perf_counter() - start) * 1000
         return result
 

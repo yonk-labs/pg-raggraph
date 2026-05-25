@@ -1,0 +1,12 @@
+{
+  "dataset": "locomo",
+  "n": 5,
+  "seed": 4225,
+  "qids": [
+    "locomo:q:conv-48:143",
+    "locomo:q:conv-41:94",
+    "locomo:q:conv-44:49",
+    "locomo:q:conv-42:187",
+    "locomo:q:conv-47:133"
+  ]
+}

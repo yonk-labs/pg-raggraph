@@ -6,7 +6,7 @@ Three new fields mirror the chunks-side knobs for the documents table:
   ``documents.metadata->>'<key>'``
 - ``document_metadata_indexes_gin: bool`` — GIN on the whole
   ``documents.metadata`` JSONB
-- ``document_metadata_generated_columns: dict[str, str]`` — typed
+- ``document_metadata_generated_columns: dict[str, str | dict]`` — typed
   STORED columns + btree indexes on ``documents``
 
 The DDL helpers (``_apply_metadata_indexes`` etc.) were refactored to
@@ -70,6 +70,18 @@ def test_document_metadata_generated_columns_accepts_dict() -> None:
         "priority": "int",
         "created_at": "timestamptz",
     }
+
+
+def test_document_metadata_generated_columns_accepts_nested_json_path_spec() -> None:
+    cfg = PGRGConfig(
+        document_metadata_generated_columns={
+            "term": {
+                "type": "text",
+                "path": ["lede_report", "attributes", "term", "value"],
+            }
+        }
+    )
+    assert cfg.document_metadata_generated_columns["term"]["type"] == "text"
 
 
 # --- chunks-side fields stay isolated from documents-side ---

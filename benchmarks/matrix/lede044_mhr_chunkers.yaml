@@ -1,0 +1,77 @@
+run:
+  id: lede044-mhr-chunkers
+  output_dir: .matrix-runs/lede044-mhr-chunkers
+  cache_dir: .matrix-runs/cache
+  resume: true
+  concurrency: 2
+
+suite:
+  # Reuses the accidentally warmed auto namespace from the earlier smoke run,
+  # while creating deterministic sibling namespaces for hierarchy/chunkshop.
+  namespace_prefix: mxsmoke
+
+workloads:
+  - name: mhr
+    subset: 4
+    seed: 42
+    tags: [multi-hop, news, chunker-cross-test]
+
+ingest:
+  reuse_existing_shapes: true
+  refresh_shapes: false
+  arms: [lede_spacy]
+  embeddings:
+    - label: bge-large
+      model: BAAI/bge-large-en-v1.5
+      dim: 1024
+      provider: local
+  chunk_strategies:
+    - auto
+    - hierarchy
+    - chunkshop:sentence_aware
+  chunk_max_tokens: [512]
+  chunk_overlap_tokens: [50]
+
+retrieval:
+  modes: [hybrid, naive]
+  retrieval_strategies: [weighted]
+  rerank: [false]
+  top_k: [10, 25]
+
+context:
+  max_selected_docs: 3
+  strategies:
+    - classic_chunks
+    - full_selected_docs
+    - doc_summary_toc_facts
+    - toc_doc_summary_plus_chunk_summary
+
+baselines:
+  full_document:
+    max_docs: 3
+    max_context_tokens: 120000
+  classic_rag:
+    top_k: 25
+    chunker: auto
+
+answer:
+  provider: openai-compatible
+  model: Intel/Qwen3-Coder-Next-int4-AutoRound
+  base_url: http://192.168.1.193:8000/v1
+
+judge:
+  mode: accurate
+  concurrency: 2
+  retries: 2
+  parse_retries: 2
+  timeout: 180
+  temperature: 0.0
+  max_tokens: 1200
+  strict_json_fallback: true
+  providers:
+    - provider: openai-compatible
+      model: Intel/Qwen3-Coder-Next-int4-AutoRound
+      base_url: http://192.168.1.193:8000/v1
+    - provider: openai-compatible
+      model: cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit
+      base_url: http://192.168.1.133:8000/v1

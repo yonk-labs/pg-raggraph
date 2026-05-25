@@ -1,0 +1,18 @@
+{
+  "dataset": "mhr",
+  "n": 10,
+  "seed": 4224,
+  "note": "Curated answerable MHR questions (null_query excluded) spanning inference/temporal/comparison, for the summary-density / chunk-vs-doc-summary experiment.",
+  "qids": [
+    "mhr:q:571",
+    "mhr:q:383",
+    "mhr:q:108",
+    "mhr:q:653",
+    "mhr:q:1003",
+    "mhr:q:2233",
+    "mhr:q:952",
+    "mhr:q:130",
+    "mhr:q:2069",
+    "mhr:q:2298"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "dataset": "mhr",
+  "n": 1,
+  "seed": 42,
+  "qids": [
+    "mhr:q:456"
+  ]
+}

@@ -1,0 +1,531 @@
+# SCOTUS 50-question retrieval and answer-quality fixture.
+#
+# Purpose:
+# - Keep "is this a fair RAG question?" explicit.
+# - Separate exhaustive corpus/metadata questions from semantic top-k questions.
+# - Give the deep harness a stable 5-bucket workload for retrieval, context
+#   packing, summary/facts compression, and llm-judge answer scoring.
+#
+# Query-set contract:
+# - impossible_for_llm_topk_rag: do not score top-k semantic RAG as a failure.
+#   These require exhaustive metadata/SQL-style aggregation first.
+# - hard_llm_metadata_rag: use metadata or multi-hop retrieval first, then RAG
+#   for support/explanation.
+# - medium_semantic_rag: fair hybrid/semantic retrieval questions.
+# - easy_semantic_rag: direct single-case facts.
+# - layup_summary: the answer should be visible in a compact lede/report summary.
+
+name: scotus_50_query_buckets
+version: 1
+workload: scotus
+corpus:
+  type: files
+  glob: /home/yonk/yonk-tools/pg-raggraph/benchmarks/scotus/*.md
+  ingested_schema: chunkshop_lede_report_scotus
+  source_policy: raw_markdown_only
+
+buckets:
+  impossible_for_llm_topk_rag:
+    count: 10
+    difficulty: impossible
+    rag_applicable: false
+    retrieval_contract: exhaustive_metadata_query
+    description: >
+      Corpus-wide aggregation, absence, or complete-set questions. A top-k RAG
+      run cannot prove it has seen every relevant document, so these should be
+      answered with promoted metadata/SQL first and optionally explained with
+      RAG after the deterministic result is known.
+  hard_llm_metadata_rag:
+    count: 10
+    difficulty: hard
+    rag_applicable: conditional
+    retrieval_contract: metadata_or_multihop_then_context
+    description: >
+      Cross-document, comparison, or multi-hop questions. These are fair for a
+      richer retrieval system that can decompose the query, filter by metadata,
+      retrieve multiple supporting cases, and then ask the LLM to synthesize.
+  medium_semantic_rag:
+    count: 10
+    difficulty: medium
+    rag_applicable: true
+    retrieval_contract: hybrid_or_semantic_topk
+    description: >
+      Answerable when semantic/FTS retrieval lands on the right case and sends
+      enough local context to the answer model.
+  easy_semantic_rag:
+    count: 10
+    difficulty: easy
+    rag_applicable: true
+    retrieval_contract: single_case_retrieval
+    description: >
+      Direct single-case facts that should be easy for normal hybrid retrieval
+      over raw chunks.
+  layup_summary:
+    count: 10
+    difficulty: layup
+    rag_applicable: true
+    retrieval_contract: summary_should_suffice
+    description: >
+      Header/lede-level facts that should survive summary, summary+TOC, and
+      summary+TOC+facts context packing.
+
+questions:
+  - id: scotus-b50-001
+    bucket: impossible_for_llm_topk_rag
+    question: Which Supreme Court terms in this corpus list Justice Ketanji Brown Jackson as a justice?
+    gold_answer: "2022 and 2023."
+    required_facts: ["Ketanji Brown Jackson appears in term 2022.", "Ketanji Brown Jackson appears in term 2023.", "No other terms in this corpus list her."]
+    source_cases: []
+    rag_applicable: false
+    retrieval_contract: exhaustive_metadata_query
+    scoring_notes: Top-k RAG cannot prove absence of other terms.
+
+  - id: scotus-b50-002
+    bucket: impossible_for_llm_topk_rag
+    question: Which Supreme Court terms in this corpus list Justice Ruth Bader Ginsburg as a justice?
+    gold_answer: "2018 and 2019."
+    required_facts: ["Ruth Bader Ginsburg appears in term 2018.", "Ruth Bader Ginsburg appears in term 2019.", "No other terms in this corpus list her."]
+    source_cases: []
+    rag_applicable: false
+    retrieval_contract: exhaustive_metadata_query
+    scoring_notes: Requires a complete corpus scan or promoted justice metadata.
+
+  - id: scotus-b50-003
+    bucket: impossible_for_llm_topk_rag
+    question: Which terms in this corpus list Justice Amy Coney Barrett as a justice?
+    gold_answer: "2020, 2021, 2022, and 2023."
+    required_facts: ["Amy Coney Barrett appears in terms 2020, 2021, 2022, and 2023.", "She does not appear in 2018 or 2019 in this corpus."]
+    source_cases: []
+    rag_applicable: false
+    retrieval_contract: exhaustive_metadata_query
+    scoring_notes: Top-k retrieval may find examples but cannot certify the complete set.
+
+  - id: scotus-b50-004
+    bucket: impossible_for_llm_topk_rag
+    question: How many distinct case files are in each Supreme Court term in this corpus?
+    gold_answer: "2018: 76, 2019: 61, 2020: 63, 2021: 67, 2022: 62, 2023: 62."
+    required_facts: ["2018 has 76 cases.", "2019 has 61 cases.", "2020 has 63 cases.", "2021 has 67 cases.", "2022 has 62 cases.", "2023 has 62 cases."]
+    source_cases: []
+    rag_applicable: false
+    retrieval_contract: exhaustive_metadata_query
+    scoring_notes: This is a SQL count over promoted term metadata.
+
+  - id: scotus-b50-005
+    bucket: impossible_for_llm_topk_rag
+    question: How many distinct case files list Justice Neil Gorsuch as a justice in this corpus?
+    gold_answer: "332 case files."
+    required_facts: ["Neil Gorsuch appears in 332 distinct case files."]
+    source_cases: []
+    rag_applicable: false
+    retrieval_contract: exhaustive_metadata_query
+    scoring_notes: Requires counting all matching documents.
+
+  - id: scotus-b50-006
+    bucket: impossible_for_llm_topk_rag
+    question: Which justices appear in every term from 2018 through 2023 in this corpus?
+    gold_answer: "John G. Roberts, Jr.; Clarence Thomas; Samuel A. Alito, Jr.; Sonia Sotomayor; Elena Kagan; Neil Gorsuch; and Brett M. Kavanaugh."
+    required_facts: ["Each listed justice appears in all six terms.", "Ketanji Brown Jackson, Ruth Bader Ginsburg, and Amy Coney Barrett do not appear in all six terms."]
+    source_cases: []
+    rag_applicable: false
+    retrieval_contract: exhaustive_metadata_query
+    scoring_notes: Requires corpus-wide set intersection.
+
+  - id: scotus-b50-007
+    bucket: impossible_for_llm_topk_rag
+    question: How many distinct case files list Justice Ketanji Brown Jackson as a justice in this corpus?
+    gold_answer: "116 case files."
+    required_facts: ["Ketanji Brown Jackson appears in 116 distinct case files."]
+    source_cases: []
+    rag_applicable: false
+    retrieval_contract: exhaustive_metadata_query
+    scoring_notes: Requires exhaustive counting, not sampled retrieval.
+
+  - id: scotus-b50-008
+    bucket: impossible_for_llm_topk_rag
+    question: Which Supreme Court terms in this corpus contain exactly 62 case files?
+    gold_answer: "2022 and 2023."
+    required_facts: ["Term 2022 has 62 case files.", "Term 2023 has 62 case files."]
+    source_cases: []
+    rag_applicable: false
+    retrieval_contract: exhaustive_metadata_query
+    scoring_notes: This is an aggregate over every case file.
+
+  - id: scotus-b50-009
+    bucket: impossible_for_llm_topk_rag
+    question: Which justice appears in more distinct case files in this corpus, Elena Kagan or Brett M. Kavanaugh?
+    gold_answer: "Elena Kagan appears in more: 332 files versus Brett M. Kavanaugh's 331."
+    required_facts: ["Elena Kagan appears in 332 files.", "Brett M. Kavanaugh appears in 331 files.", "Elena Kagan appears in one more file."]
+    source_cases: []
+    rag_applicable: false
+    retrieval_contract: exhaustive_metadata_query
+    scoring_notes: Requires exhaustive counting for both justices.
+
+  - id: scotus-b50-010
+    bucket: impossible_for_llm_topk_rag
+    question: Which terms contain cases listing Ketanji Brown Jackson but not Ruth Bader Ginsburg?
+    gold_answer: "2022 and 2023."
+    required_facts: ["Ketanji Brown Jackson appears in 2022 and 2023.", "Ruth Bader Ginsburg appears in 2018 and 2019.", "The terms with Jackson but not Ginsburg are 2022 and 2023."]
+    source_cases: []
+    rag_applicable: false
+    retrieval_contract: exhaustive_metadata_query
+    scoring_notes: Requires complete term-level justice metadata.
+
+  - id: scotus-b50-011
+    bucket: hard_llm_metadata_rag
+    question: Which justices were in the majority in Bostock v. Clayton County and also dissented in Apple v. Pepper?
+    gold_answer: "Chief Justice John G. Roberts, Jr. and Justice Neil Gorsuch."
+    required_facts: ["Bostock majority included John G. Roberts, Jr. and Neil Gorsuch.", "Apple v. Pepper dissent included John G. Roberts, Jr. and Neil Gorsuch.", "The overlap is Roberts and Gorsuch."]
+    source_cases: ["2019_bostock-v-clayton-county", "2018_apple-v-pepper"]
+    rag_applicable: conditional
+    retrieval_contract: metadata_or_multihop_then_context
+
+  - id: scotus-b50-012
+    bucket: hard_llm_metadata_rag
+    question: Which justices dissented in both Rucho v. Common Cause and Franchise Tax Board of California v. Hyatt?
+    gold_answer: "Ruth Bader Ginsburg, Stephen Breyer, Sonia Sotomayor, and Elena Kagan."
+    required_facts: ["Rucho dissent was joined by Ginsburg, Breyer, Sotomayor, and Kagan.", "Hyatt dissent was joined by Ginsburg, Breyer, Sotomayor, and Kagan.", "The overlap is those four justices."]
+    source_cases: ["2018_rucho-v-common-cause", "2018_franchise-tax-board-of-california-v-hyatt"]
+    rag_applicable: conditional
+    retrieval_contract: metadata_or_multihop_then_context
+
+  - id: scotus-b50-013
+    bucket: hard_llm_metadata_rag
+    question: Which justices dissented in both 303 Creative LLC v. Elenis and Snyder v. United States?
+    gold_answer: "Sonia Sotomayor, Elena Kagan, and Ketanji Brown Jackson."
+    required_facts: ["303 Creative dissent included Sotomayor, Kagan, and Jackson.", "Snyder dissent included Jackson, Sotomayor, and Kagan.", "The overlap is Sotomayor, Kagan, and Jackson."]
+    source_cases: ["2022_303-creative-llc-v-elenis", "2023_snyder-v-united-states"]
+    rag_applicable: conditional
+    retrieval_contract: metadata_or_multihop_then_context
+
+  - id: scotus-b50-014
+    bucket: hard_llm_metadata_rag
+    question: Which justice authored majority opinions in both Bostock v. Clayton County and 303 Creative LLC v. Elenis?
+    gold_answer: "Justice Neil Gorsuch."
+    required_facts: ["Neil Gorsuch authored the Bostock majority opinion.", "Neil Gorsuch authored the 303 Creative majority opinion."]
+    source_cases: ["2019_bostock-v-clayton-county", "2022_303-creative-llc-v-elenis"]
+    rag_applicable: conditional
+    retrieval_contract: metadata_or_multihop_then_context
+
+  - id: scotus-b50-015
+    bucket: hard_llm_metadata_rag
+    question: What common administrative-law theme links Kisor v. Wilkie and Loper Bright Enterprises v. Raimondo?
+    gold_answer: "Both involve judicial deference to agency interpretations: Kisor retained and narrowed Auer deference, while Loper Bright overruled Chevron deference."
+    required_facts: ["Kisor addressed Auer or Seminole Rock deference.", "Loper Bright overruled Chevron deference.", "Both concern agency deference doctrines."]
+    source_cases: ["2018_kisor-v-wilkie", "2023_loper-bright-enterprises-v-raimondo"]
+    rag_applicable: conditional
+    retrieval_contract: metadata_or_multihop_then_context
+
+  - id: scotus-b50-016
+    bucket: hard_llm_metadata_rag
+    question: Compare the First Amendment holdings in Iancu v. Brunetti and 303 Creative LLC v. Elenis.
+    gold_answer: "Iancu held that the Lanham Act bar on immoral or scandalous trademarks violated the First Amendment; 303 Creative held that Colorado could not compel a website designer to create expressive wedding websites for same-sex marriages."
+    required_facts: ["Iancu invalidated the immoral or scandalous trademark bar.", "303 Creative protected refusal to create compelled expressive website designs.", "Both holdings rest on First Amendment limits."]
+    source_cases: ["2018_iancu-v-brunetti", "2022_303-creative-llc-v-elenis"]
+    rag_applicable: conditional
+    retrieval_contract: metadata_or_multihop_then_context
+
+  - id: scotus-b50-017
+    bucket: hard_llm_metadata_rag
+    question: Which two cases in this fixture involve Title VII, and what did each hold?
+    gold_answer: "Bostock v. Clayton County held that Title VII covers discrimination against gay and transgender employees; Fort Bend County v. Davis held that Title VII's charge-filing requirement is a waivable claim-processing rule, not jurisdictional."
+    required_facts: ["Bostock is a Title VII case about gay and transgender employees.", "Fort Bend is a Title VII case about administrative exhaustion.", "Fort Bend held the requirement is claim-processing, not jurisdictional."]
+    source_cases: ["2019_bostock-v-clayton-county", "2018_fort-bend-county-texas-v-davis"]
+    rag_applicable: conditional
+    retrieval_contract: metadata_or_multihop_then_context
+
+  - id: scotus-b50-018
+    bucket: hard_llm_metadata_rag
+    question: Which two cases in this fixture involve federal criminal statute Section 666 or Section 1983, and what did each hold?
+    gold_answer: "Snyder v. United States held that Section 666 prohibits bribes but not gratuities; Vega v. Tekoh held that a Miranda violation cannot itself support a Section 1983 claim."
+    required_facts: ["Snyder interpreted Section 666.", "Snyder distinguished bribes from gratuities.", "Vega involved Section 1983.", "Vega held Miranda violations are not Section 1983 claims."]
+    source_cases: ["2023_snyder-v-united-states", "2021_vega-v-tekoh"]
+    rag_applicable: conditional
+    retrieval_contract: metadata_or_multihop_then_context
+
+  - id: scotus-b50-019
+    bucket: hard_llm_metadata_rag
+    question: Which justice dissented in BNSF Railway Co. v. Loos and also wrote the majority opinion in Bostock v. Clayton County?
+    gold_answer: "Justice Neil Gorsuch."
+    required_facts: ["Neil Gorsuch dissented in BNSF Railway Co. v. Loos.", "Neil Gorsuch wrote the Bostock majority opinion."]
+    source_cases: ["2018_bnsf-railway-co-v-loos", "2019_bostock-v-clayton-county"]
+    rag_applicable: conditional
+    retrieval_contract: metadata_or_multihop_then_context
+
+  - id: scotus-b50-020
+    bucket: hard_llm_metadata_rag
+    question: Which cases in this fixture had majority opinions authored by Justice Clarence Thomas, and what were their central holdings?
+    gold_answer: "Franchise Tax Board v. Hyatt held states are immune from suits in other states' courts; Starbucks Corp. v. McKinney required traditional four-factor preliminary injunction analysis for NLRB Section 10(j) injunctions; Caniglia v. Strom held the community-caretaking exception does not extend to the home; Terry v. United States held certain pre-2010 crack offenders sentenced under Section 841(b)(1)(C) were not covered by First Step Act Section 404."
+    required_facts: ["Franchise Tax Board v. Hyatt was authored by Clarence Thomas.", "Starbucks v. McKinney was authored by Clarence Thomas.", "Caniglia v. Strom was authored by Clarence Thomas.", "Terry v. United States was authored by Clarence Thomas."]
+    source_cases: ["2018_franchise-tax-board-of-california-v-hyatt", "2023_starbucks-corporation-v-mckinney", "2020_caniglia-v-strom", "2020_terry-v-united-states"]
+    rag_applicable: conditional
+    retrieval_contract: metadata_or_multihop_then_context
+
+  - id: scotus-b50-021
+    bucket: medium_semantic_rag
+    question: What did Snyder v. United States hold about gratuities under Section 666?
+    gold_answer: "Section 666 criminalizes bribes but does not criminalize gratuities."
+    required_facts: ["Section 666 prohibits bribes.", "Section 666 does not prohibit gratuities."]
+    source_cases: ["2023_snyder-v-united-states"]
+    rag_applicable: true
+    retrieval_contract: hybrid_or_semantic_topk
+
+  - id: scotus-b50-022
+    bucket: medium_semantic_rag
+    question: What test did Starbucks Corp. v. McKinney require courts to use for NLRB Section 10(j) injunction requests?
+    gold_answer: "Courts must apply the traditional four-factor preliminary injunction test."
+    required_facts: ["The case concerned NLRB Section 10(j) injunctions.", "Courts must use the traditional four-factor test."]
+    source_cases: ["2023_starbucks-corporation-v-mckinney"]
+    rag_applicable: true
+    retrieval_contract: hybrid_or_semantic_topk
+
+  - id: scotus-b50-023
+    bucket: medium_semantic_rag
+    question: Why did the Court rule against the plaintiffs in Apple v. Pepper?
+    gold_answer: "It did not rule against the plaintiffs; the Court held that iPhone users who bought apps directly from Apple's App Store were direct purchasers and could sue Apple for alleged monopolization."
+    required_facts: ["The plaintiffs were iPhone users or app purchasers.", "They were direct purchasers from Apple.", "They could sue Apple under antitrust law."]
+    source_cases: ["2018_apple-v-pepper"]
+    rag_applicable: true
+    retrieval_contract: hybrid_or_semantic_topk
+
+  - id: scotus-b50-024
+    bucket: medium_semantic_rag
+    question: What did the Court decide about partisan gerrymandering claims in Rucho v. Common Cause?
+    gold_answer: "The Court held that partisan gerrymandering claims present political questions beyond the reach of federal courts."
+    required_facts: ["Partisan gerrymandering claims are political questions.", "Federal courts cannot adjudicate them under that holding."]
+    source_cases: ["2018_rucho-v-common-cause"]
+    rag_applicable: true
+    retrieval_contract: hybrid_or_semantic_topk
+
+  - id: scotus-b50-025
+    bucket: medium_semantic_rag
+    question: What did Carson v. Makin hold about Maine's nonsectarian requirement for tuition assistance?
+    gold_answer: "The requirement violated the Free Exercise Clause because Maine could not exclude otherwise eligible religious schools from the tuition assistance program based on their religious character or use."
+    required_facts: ["Maine had a nonsectarian requirement.", "The requirement violated Free Exercise.", "Religious schools could not be excluded on that basis."]
+    source_cases: ["2021_carson-v-makin"]
+    rag_applicable: true
+    retrieval_contract: hybrid_or_semantic_topk
+
+  - id: scotus-b50-026
+    bucket: medium_semantic_rag
+    question: What ineffective-assistance rule did Garza v. Idaho apply to appeal waivers?
+    gold_answer: "When counsel fails to file a notice of appeal after the defendant requests one, prejudice is presumed even if the defendant signed an appeal waiver."
+    required_facts: ["Counsel failed to file a requested notice of appeal.", "Prejudice is presumed.", "The rule applies despite an appeal waiver."]
+    source_cases: ["2018_garza-v-idaho"]
+    rag_applicable: true
+    retrieval_contract: hybrid_or_semantic_topk
+
+  - id: scotus-b50-027
+    bucket: medium_semantic_rag
+    question: What Eighth Amendment showing did Bucklew v. Precythe require from a death-row inmate challenging a method of execution?
+    gold_answer: "The inmate had to identify a feasible and readily implemented alternative method that would significantly reduce a substantial risk of severe pain and show the state refused it without a legitimate penological reason."
+    required_facts: ["A feasible and readily implemented alternative method is required.", "The alternative must significantly reduce severe pain or risk.", "The state's refusal must lack a legitimate penological reason."]
+    source_cases: ["2018_bucklew-v-precythe"]
+    rag_applicable: true
+    retrieval_contract: hybrid_or_semantic_topk
+
+  - id: scotus-b50-028
+    bucket: medium_semantic_rag
+    question: What did BNSF Railway Co. v. Loos hold about lost wages under the Railroad Retirement Tax Act?
+    gold_answer: "Lost wages are taxable compensation under the Railroad Retirement Tax Act."
+    required_facts: ["The case involved lost wages.", "Lost wages count as taxable compensation under the RRTA."]
+    source_cases: ["2018_bnsf-railway-co-v-loos"]
+    rag_applicable: true
+    retrieval_contract: hybrid_or_semantic_topk
+
+  - id: scotus-b50-029
+    bucket: medium_semantic_rag
+    question: What did Terry v. United States decide about First Step Act Section 404 coverage?
+    gold_answer: "Certain pre-August 3, 2010 crack offenders sentenced under 21 U.S.C. 841(b)(1)(C) were not covered offenses under Section 404."
+    required_facts: ["The case involved pre-August 3, 2010 crack offenders.", "Section 841(b)(1)(C) offenders were not covered by First Step Act Section 404."]
+    source_cases: ["2020_terry-v-united-states"]
+    rag_applicable: true
+    retrieval_contract: hybrid_or_semantic_topk
+
+  - id: scotus-b50-030
+    bucket: medium_semantic_rag
+    question: What did Vega v. Tekoh hold about Miranda violations and Section 1983?
+    gold_answer: "A violation of Miranda rules does not provide a basis for a Section 1983 claim."
+    required_facts: ["The case involved Miranda.", "Miranda violations do not themselves support Section 1983 claims."]
+    source_cases: ["2021_vega-v-tekoh"]
+    rag_applicable: true
+    retrieval_contract: hybrid_or_semantic_topk
+
+  - id: scotus-b50-031
+    bucket: easy_semantic_rag
+    question: Who authored the majority opinion in Apple v. Pepper?
+    gold_answer: "Justice Brett M. Kavanaugh."
+    required_facts: ["Brett M. Kavanaugh authored the Apple v. Pepper majority opinion."]
+    source_cases: ["2018_apple-v-pepper"]
+    rag_applicable: true
+    retrieval_contract: single_case_retrieval
+
+  - id: scotus-b50-032
+    bucket: easy_semantic_rag
+    question: Who authored the majority opinion in Bostock v. Clayton County?
+    gold_answer: "Justice Neil Gorsuch."
+    required_facts: ["Neil Gorsuch authored the Bostock majority opinion."]
+    source_cases: ["2019_bostock-v-clayton-county"]
+    rag_applicable: true
+    retrieval_contract: single_case_retrieval
+
+  - id: scotus-b50-033
+    bucket: easy_semantic_rag
+    question: Who dissented in Snyder v. United States?
+    gold_answer: "Justice Ketanji Brown Jackson dissented, joined by Justices Sonia Sotomayor and Elena Kagan."
+    required_facts: ["Ketanji Brown Jackson dissented.", "Sonia Sotomayor joined.", "Elena Kagan joined."]
+    source_cases: ["2023_snyder-v-united-states"]
+    rag_applicable: true
+    retrieval_contract: single_case_retrieval
+
+  - id: scotus-b50-034
+    bucket: easy_semantic_rag
+    question: What is the docket number for Snyder v. United States?
+    gold_answer: "23-108."
+    required_facts: ["The Snyder docket number is 23-108."]
+    source_cases: ["2023_snyder-v-united-states"]
+    rag_applicable: true
+    retrieval_contract: single_case_retrieval
+
+  - id: scotus-b50-035
+    bucket: easy_semantic_rag
+    question: What Supreme Court term is Carson v. Makin in this corpus?
+    gold_answer: "2021."
+    required_facts: ["Carson v. Makin is in term 2021."]
+    source_cases: ["2021_carson-v-makin"]
+    rag_applicable: true
+    retrieval_contract: single_case_retrieval
+
+  - id: scotus-b50-036
+    bucket: easy_semantic_rag
+    question: Who authored the majority opinion in Rucho v. Common Cause?
+    gold_answer: "Chief Justice John G. Roberts, Jr."
+    required_facts: ["John G. Roberts, Jr. authored the Rucho majority opinion."]
+    source_cases: ["2018_rucho-v-common-cause"]
+    rag_applicable: true
+    retrieval_contract: single_case_retrieval
+
+  - id: scotus-b50-037
+    bucket: easy_semantic_rag
+    question: Who authored the opinion in Iancu v. Brunetti?
+    gold_answer: "Justice Elena Kagan."
+    required_facts: ["Elena Kagan authored the Iancu v. Brunetti opinion."]
+    source_cases: ["2018_iancu-v-brunetti"]
+    rag_applicable: true
+    retrieval_contract: single_case_retrieval
+
+  - id: scotus-b50-038
+    bucket: easy_semantic_rag
+    question: Who authored the majority opinion in Flowers v. Mississippi?
+    gold_answer: "Justice Brett M. Kavanaugh."
+    required_facts: ["Brett M. Kavanaugh authored the Flowers majority opinion."]
+    source_cases: ["2018_flowers-v-mississippi"]
+    rag_applicable: true
+    retrieval_contract: single_case_retrieval
+
+  - id: scotus-b50-039
+    bucket: easy_semantic_rag
+    question: Who authored the majority opinion in Loper Bright Enterprises v. Raimondo?
+    gold_answer: "Chief Justice John G. Roberts, Jr."
+    required_facts: ["John G. Roberts, Jr. authored the Loper Bright majority opinion."]
+    source_cases: ["2023_loper-bright-enterprises-v-raimondo"]
+    rag_applicable: true
+    retrieval_contract: single_case_retrieval
+
+  - id: scotus-b50-040
+    bucket: easy_semantic_rag
+    question: Who authored the majority opinion in Starbucks Corp. v. McKinney?
+    gold_answer: "Justice Clarence Thomas."
+    required_facts: ["Clarence Thomas authored the Starbucks majority opinion."]
+    source_cases: ["2023_starbucks-corporation-v-mckinney"]
+    rag_applicable: true
+    retrieval_contract: single_case_retrieval
+
+  - id: scotus-b50-041
+    bucket: layup_summary
+    question: What is the citation for Apple v. Pepper?
+    gold_answer: "587 U.S. ___ (2019)."
+    required_facts: ["Apple v. Pepper has citation 587 U.S. ___ (2019)."]
+    source_cases: ["2018_apple-v-pepper"]
+    rag_applicable: true
+    retrieval_contract: summary_should_suffice
+
+  - id: scotus-b50-042
+    bucket: layup_summary
+    question: What Supreme Court term is Bostock v. Clayton County in this corpus?
+    gold_answer: "2019."
+    required_facts: ["Bostock v. Clayton County is in term 2019."]
+    source_cases: ["2019_bostock-v-clayton-county"]
+    rag_applicable: true
+    retrieval_contract: summary_should_suffice
+
+  - id: scotus-b50-043
+    bucket: layup_summary
+    question: Which case in this fixture overruled Chevron deference?
+    gold_answer: "Loper Bright Enterprises v. Raimondo."
+    required_facts: ["Loper Bright Enterprises v. Raimondo overruled Chevron deference."]
+    source_cases: ["2023_loper-bright-enterprises-v-raimondo"]
+    rag_applicable: true
+    retrieval_contract: summary_should_suffice
+
+  - id: scotus-b50-044
+    bucket: layup_summary
+    question: Which case held that the community-caretaking exception does not extend to the home?
+    gold_answer: "Caniglia v. Strom."
+    required_facts: ["Caniglia v. Strom held the community-caretaking exception does not extend to the home."]
+    source_cases: ["2020_caniglia-v-strom"]
+    rag_applicable: true
+    retrieval_contract: summary_should_suffice
+
+  - id: scotus-b50-045
+    bucket: layup_summary
+    question: Which case held that the Lanham Act's immoral or scandalous trademark bar violates the First Amendment?
+    gold_answer: "Iancu v. Brunetti."
+    required_facts: ["Iancu v. Brunetti held that the immoral or scandalous trademark bar violates the First Amendment."]
+    source_cases: ["2018_iancu-v-brunetti"]
+    rag_applicable: true
+    retrieval_contract: summary_should_suffice
+
+  - id: scotus-b50-046
+    bucket: layup_summary
+    question: Which case held that states are immune from suits in the courts of other states?
+    gold_answer: "Franchise Tax Board of California v. Hyatt."
+    required_facts: ["Franchise Tax Board of California v. Hyatt held states are immune from suits in other states' courts."]
+    source_cases: ["2018_franchise-tax-board-of-california-v-hyatt"]
+    rag_applicable: true
+    retrieval_contract: summary_should_suffice
+
+  - id: scotus-b50-047
+    bucket: layup_summary
+    question: Which case held that Title VII's charge-filing requirement is a claim-processing rule rather than jurisdictional?
+    gold_answer: "Fort Bend County, Texas v. Davis."
+    required_facts: ["Fort Bend County, Texas v. Davis held the Title VII charge-filing requirement is claim-processing, not jurisdictional."]
+    source_cases: ["2018_fort-bend-county-texas-v-davis"]
+    rag_applicable: true
+    retrieval_contract: summary_should_suffice
+
+  - id: scotus-b50-048
+    bucket: layup_summary
+    question: Which case held that copyright registration is made only when the Copyright Office acts on an application?
+    gold_answer: "Fourth Estate Public Benefit Corp. v. Wall-Street.com."
+    required_facts: ["Fourth Estate Public Benefit Corp. v. Wall-Street.com held registration is made when the Copyright Office acts."]
+    source_cases: ["2018_fourth-estate-public-benefit-corp-v-wall-streetcom"]
+    rag_applicable: true
+    retrieval_contract: summary_should_suffice
+
+  - id: scotus-b50-049
+    bucket: layup_summary
+    question: Which case held that Miranda violations cannot support a Section 1983 claim?
+    gold_answer: "Vega v. Tekoh."
+    required_facts: ["Vega v. Tekoh held Miranda violations cannot support a Section 1983 claim."]
+    source_cases: ["2021_vega-v-tekoh"]
+    rag_applicable: true
+    retrieval_contract: summary_should_suffice
+
+  - id: scotus-b50-050
+    bucket: layup_summary
+    question: Which case held that certain pre-2010 crack offenders sentenced under 21 U.S.C. 841(b)(1)(C) were not covered by First Step Act Section 404?
+    gold_answer: "Terry v. United States."
+    required_facts: ["Terry v. United States held those Section 841(b)(1)(C) crack offenders were not covered by First Step Act Section 404."]
+    source_cases: ["2020_terry-v-united-states"]
+    rag_applicable: true
+    retrieval_contract: summary_should_suffice

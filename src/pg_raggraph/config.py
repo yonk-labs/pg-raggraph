@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Literal
+from typing import Any, Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 _logger = logging.getLogger("pg_raggraph.config")
@@ -129,6 +130,17 @@ class PGRGConfig(BaseSettings):
     # Process priority — 0 = normal, 10 = lower (nicer), 19 = lowest (shared servers)
     nice_level: int = 0
 
+    # Living Knowledge compaction. Off by default. When enabled for
+    # ingest_records(), callers provide a stable logical id and pg-raggraph
+    # materializes at most one coherent full document per cadence bucket
+    # (hour/day/week/month). Updates within the same bucket replace the prior
+    # materialized doc instead of creating endless near-duplicates.
+    living_knowledge: bool = False
+    living_key: str = "logical_id"
+    living_cadence: Literal["hour", "day", "week", "month"] = "day"
+    living_current_only: bool = True
+    living_audit_diffs: bool = False
+
     def model_post_init(self, __context):
         """Apply profile defaults for any unset parallelism knobs.
 
@@ -224,6 +236,9 @@ class PGRGConfig(BaseSettings):
     max_hops: int = 2
     top_k: int = 10
     similarity_threshold: float = 0.3
+    # Context packing ladder. The default is the benchmark-calibrated balanced
+    # rung; pass profile="raw" to query()/ask() for legacy classic chunk context.
+    retrieval_profile: str = "balanced"
 
     # Two-stage naive retrieval (K1). When True (default), mode="naive"
     # first fetches `retrieval_candidate_k` nearest chunks via a bare
@@ -308,13 +323,14 @@ class PGRGConfig(BaseSettings):
     # in docs/cookbook/metadata-indexes.md first.
     metadata_indexes_gin: bool = False
 
-    # Typed generated columns from JSONB metadata. Map of metadata key →
-    # SQL type. For each entry, connect() creates a STORED generated
-    # column ``meta_<key>`` of the given type, populated from
-    # ``(metadata->>'<key>')::<type>``, AND a btree index on it. This is
-    # the right answer for numeric / timestamp predicates that don't
-    # work correctly via ``metadata->>`` alone (text comparison says
-    # ``'10' < '5'``).
+    # Typed generated columns from JSONB metadata. Map of generated key →
+    # SQL type or a spec like {"type": "text", "path":
+    # ["lede_report", "attributes", "term", "value"]}. For each entry,
+    # connect() creates a STORED generated column ``meta_<key>`` of the
+    # given type, populated from the configured JSON text path, AND a
+    # btree index on it. This is the right answer for numeric /
+    # timestamp predicates that don't work correctly via ``metadata->>``
+    # alone (text comparison says ``'10' < '5'``).
     #
     # Allowed types: text, int, bigint, numeric, timestamptz, boolean.
     # The cast is evaluated on every INSERT/UPDATE — a row whose
@@ -326,8 +342,10 @@ class PGRGConfig(BaseSettings):
     # operator must manually DROP + re-ADD. See
     # docs/cookbook/metadata-indexes.md → "Typed generated columns".
     #
-    # Example: ``{"priority": "int", "created_at": "timestamptz"}``
-    metadata_generated_columns: dict[str, str] = {}
+    # Examples:
+    # ``{"priority": "int", "created_at": "timestamptz"}``
+    # ``{"term": {"type": "text", "path": ["lede_report", "attributes", "term", "value"]}}``
+    metadata_generated_columns: dict[str, str | dict[str, Any]] = {}
 
     # --- documents.metadata mirrors (Option A) ---
     #
@@ -354,8 +372,8 @@ class PGRGConfig(BaseSettings):
 
     # Typed STORED generated columns + btree indexes on ``documents``
     # (column: ``meta_<key>``; index: ``idx_documents_meta_<key>``).
-    # Same type whitelist as the chunks-side counterpart.
-    document_metadata_generated_columns: dict[str, str] = {}
+    # Same type whitelist and nested-path spec as the chunks-side counterpart.
+    document_metadata_generated_columns: dict[str, str | dict[str, Any]] = {}
 
     # Cross-encoder reranking (off by default; opt-in per-query via rerank=True).
     # When enabled, retrieval fetches top_k * rerank_factor candidates, then a
@@ -380,6 +398,69 @@ class PGRGConfig(BaseSettings):
     expand_confidence_threshold: float = 0.4
     enable_graph_boost: bool = True
     graph_boost_factor: float = 1.2  # multiplier for chunks connected to seed entities
+
+    # --- lede v0.4 hint-biased summary retrieval ---
+    # mode="summary" runs an existing retrieval substrate, then summarizes
+    # its K chunks deterministically (no LLM) via lede's hint-biased
+    # summarize. See docs/superpowers/plans/2026-05-22-lede-hint-summary-retrieval.md.
+    summary_base_mode: Literal["naive", "local", "global", "hybrid"] = "hybrid"
+    summary_max_length: int = 2000  # floor char budget passed to lede.summarize
+    summary_hint_focus: float = 0.5  # 0=ignore hints, 1=hints only; 0.5 = "50/50 mix"
+    # Summaries are a cost / noise-control feature, not a free accuracy win.
+    # Below this raw retrieved-context size, keep the raw chunks: 2-3K tokens is
+    # cheap and usually too dense for extractive compression to help.
+    summary_skip_small_contexts: bool = True
+    summary_min_context_tokens: int = 8000
+    # For larger contexts, scale the extractive body budget from raw input size
+    # (tokens * ~4 chars/token * ratio), bounded below/above by the max_length
+    # floor and ceiling. This keeps 10/100/1000 chunk retrieval from sharing one
+    # tiny fixed 4K-character ceiling.
+    summary_target_compression_ratio: float = 0.18
+    # Re-inject section headings into the summary (lede 0.4.2). Lifts fact
+    # retention markedly on heading-prefixed corpora (e.g. the hierarchy
+    # chunker); no-op when no headings are detected. Pinned headings are
+    # additive — they don't consume summary_max_length.
+    summary_keep_headings: bool = True
+    # Append hint-biased lede.key_facts to the summary. The bake-off
+    # (benchmarks/showcase) found this recovers the multi-hop accuracy gap —
+    # summary_facts ≈ raw chunks at ~67% token reduction. Facts, not length,
+    # are what close the gap.
+    summary_include_facts: bool = True
+    summary_max_facts: int = 10
+    summary_max_facts_ceiling: int = 60
+    summary_fact_tokens_per_extra: int = 4000
+    # Include lede's full outline / TOC before the body. Off by default because
+    # it can be token-heavy; useful in long, well-structured corpora.
+    summary_include_toc: bool = False
+    # #2 response shape.
+    summary_max_length_ceiling: int = 64000  # upper char budget for large result sets
+    summary_length_floor_chunks: int = 5  # <= this many chunks → summary_max_length
+    summary_length_ceiling_chunks: int = 30  # >= this many chunks → ceiling
+    summary_escalation: bool = True  # append "full sources available" affordance
+    result_cache_size: int = 128  # in-process LRU capacity (0 disables caching)
+    # Query → hint pipeline.
+    query_expansion: Literal["off", "lemma", "moderate", "aggressive"] = "moderate"
+    summary_seed_terms: int = 4  # top_terms(question, n=) seed count
+    expand_top_k: int = 3  # per-seed synonym/similar cap in expand_hints
+    expand_weight: float = 0.5  # expansion-term weight multiplier (dict input)
+    max_hints: int = 20  # hard cap on total hints after expansion
+    # --- #1 Expansion → retrieval (separate knob from query_expansion, which
+    # only biases the summary). Default "off" keeps retrieval byte-identical.
+    retrieval_expansion: Literal["off", "lemma", "moderate", "aggressive"] = "off"
+    # Named-entity aliases WordNet can't bridge (e.g. {"Brooklyn": ["Kings County"]}).
+    # Case-insensitive, word-boundary keyed. Applied independent of the lexical tier.
+    retrieval_alias_map: dict[str, list[str]] = Field(default_factory=dict)
+    # Smart-mode tier-0: ship a deterministic lede summary (no LLM) when the
+    # naive top score clears summary_tier_threshold. Off by default.
+    smart_summary_tier: bool = False
+    summary_tier_threshold: float = 0.85
+
+    # #3 soft metadata filtering. Only these fields may be HARD-filtered
+    # (excluded); anything else can only SOFT-bias scores. Prevents the
+    # free-text-keyword hard-filter footgun (chunkshop gotcha #2).
+    structured_metadata_fields: list[str] = Field(default_factory=list)
+    w_meta: float = 0.15  # additive score weight for a soft metadata match
+    prompt_metadata_signals: bool = False  # opt-in prompt-derived SOFT signals
 
     # Entity resolution
     resolution_threshold: float = 0.85

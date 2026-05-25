@@ -1,0 +1,87 @@
+# Deep run — Phase B: chunking-strategy axis on a structured corpus.
+#
+# Chunker choice only moves the needle on documents with real structure
+# (headings, sections, long bodies). MHR news articles qualify; the
+# musique/twowiki paragraph snippets do not (a 100-word paragraph is one chunk
+# under every strategy), so we sweep chunkers on MHR only. The `auto` chunker
+# is NOT repeated here — Phase A already covers MHR/auto at the same subset and
+# seed, and the analyzer pulls it in for the comparison.
+#
+# Each chunker is a distinct ingest shape, so the first run of this phase
+# re-ingests the 609-doc MHR corpus once per chunker (lede_spacy arm, no LLM).
+# reuse_existing_shapes keeps re-runs cheap.
+run:
+  id: deep-b-chunkers
+  output_dir: .matrix-runs/deep-b-chunkers
+  cache_dir: .matrix-runs/cache
+  resume: true
+  concurrency: 4
+
+suite:
+  namespace_prefix: deepb
+
+workloads:
+  - name: mhr
+    subset: 30
+    seed: 42
+    tags: [multi-hop, news, chunker-axis]
+
+ingest:
+  reuse_existing_shapes: true
+  refresh_shapes: false
+  arms: [lede_spacy]
+  embeddings:
+    - label: bge-large
+      model: BAAI/bge-large-en-v1.5
+      dim: 1024
+      provider: local
+  chunk_strategies:
+    - hierarchy
+    - chunkshop:hierarchy
+    - chunkshop:sentence_aware
+    - chunkshop:semantic
+    - chunkshop:neighbor_expand
+  chunk_max_tokens: [512]
+  chunk_overlap_tokens: [50]
+
+retrieval:
+  modes: [hybrid]
+  retrieval_strategies: [weighted]
+  rerank: [false]
+  top_k: [25]
+
+context:
+  max_selected_docs: 3
+  strategies:
+    - classic_chunks
+    - doc_summary_toc_facts
+
+baselines:
+  full_document:
+    max_docs: 3
+    max_context_tokens: 120000
+  classic_rag:
+    top_k: 25
+    chunker: auto
+
+answer:
+  provider: openai-compatible
+  model: Intel/Qwen3-Coder-Next-int4-AutoRound
+  base_url: http://192.168.1.193:8000/v1
+
+judge:
+  mode: accurate
+  concurrency: 8
+  retries: 2
+  parse_retries: 2
+  timeout: 180
+  temperature: 0.0
+  max_tokens: 1200
+  strict_json_fallback: true
+  providers:
+    - provider: openai-compatible
+      model: Intel/Qwen3-Coder-Next-int4-AutoRound
+      base_url: http://192.168.1.193:8000/v1
+    - provider: openai-compatible
+      model: cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit
+      base_url: http://192.168.1.133:8000/v1

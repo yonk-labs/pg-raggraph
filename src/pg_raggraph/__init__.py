@@ -7,10 +7,13 @@ import logging
 import os
 import re
 import time
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from datetime import time as dt_time
 from hashlib import sha256
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
+from typing import Callable
 
 try:
     __version__ = _pkg_version("pg-raggraph")
@@ -20,6 +23,7 @@ except PackageNotFoundError:
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.models import QueryResult
+from pg_raggraph.profiles import ProfileCalibration, ProfileSpec
 
 # Canonical extension allowlist for ingestion. Mirrored by the FastAPI server
 # and the MCP server so all surfaces accept the same set. Stored as a tuple
@@ -42,6 +46,8 @@ __all__ = [
     "GraphRAG",
     "INGEST_ALLOWED_EXTS",
     "PGRGConfig",
+    "ProfileCalibration",
+    "ProfileSpec",
     "QueryResult",
     "__version__",
 ]
@@ -156,6 +162,57 @@ def _configure_logging() -> None:
 _configure_logging()
 
 _NAMESPACE_RE = re.compile(r"^[a-zA-Z0-9_\-\.]{1,64}$")
+_LIVING_CADENCES = {"hour", "day", "week", "month"}
+
+
+@dataclass(frozen=True)
+class _LivingContext:
+    logical_id: str
+    cadence: str
+    bucket: str
+    bucket_start: datetime
+    bucket_end: datetime
+    source_id: str
+    audit_diffs: bool
+
+
+def _as_aware_utc(value) -> datetime:
+    if value is None:
+        return datetime.now(timezone.utc)
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, str):
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    else:
+        raise TypeError(
+            f"living timestamp must be datetime or ISO string, got {type(value).__name__}"
+        )
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _living_bucket(ts: datetime, cadence: str) -> tuple[str, datetime, datetime]:
+    if cadence not in _LIVING_CADENCES:
+        raise ValueError(f"living_cadence must be one of {sorted(_LIVING_CADENCES)}")
+    ts = _as_aware_utc(ts)
+    if cadence == "hour":
+        start = ts.replace(minute=0, second=0, microsecond=0)
+        return start.strftime("%Y-%m-%dT%H"), start, start + timedelta(hours=1)
+    if cadence == "day":
+        start = datetime.combine(ts.date(), dt_time.min, tzinfo=timezone.utc)
+        return start.strftime("%Y-%m-%d"), start, start + timedelta(days=1)
+    if cadence == "week":
+        iso_year, iso_week, _ = ts.isocalendar()
+        start_date = datetime.fromisocalendar(iso_year, iso_week, 1).date()
+        start = datetime.combine(start_date, dt_time.min, tzinfo=timezone.utc)
+        return f"{iso_year}-W{iso_week:02d}", start, start + timedelta(days=7)
+    start = datetime(ts.year, ts.month, 1, tzinfo=timezone.utc)
+    if ts.month == 12:
+        end = datetime(ts.year + 1, 1, 1, tzinfo=timezone.utc)
+    else:
+        end = datetime(ts.year, ts.month + 1, 1, tzinfo=timezone.utc)
+    return start.strftime("%Y-%m"), start, end
 
 
 def _validate_namespace(ns: str) -> None:
@@ -199,6 +256,9 @@ class GraphRAG:
         # If user injects a reranker, use it; otherwise lazy-load from
         # config.rerank_model on first rerank=True call.
         self._reranker = reranker
+        from pg_raggraph.result_cache import ResultCache
+
+        self._result_cache = ResultCache(self.config.result_cache_size)
         # PR-209: cooperative shutdown signal for long-running ingest loops.
         # Lazily initialized inside ingest() because it must be created on the
         # running asyncio loop, not at __init__ time.
@@ -557,6 +617,10 @@ class GraphRAG:
         on_progress=None,
         *,
         max_concurrent_docs: int | None = None,
+        living_knowledge: bool | None = None,
+        living_key: str | None = None,
+        living_cadence: str | None = None,
+        living_audit_diffs: bool | None = None,
     ):
         """Ingest documents from in-memory records — no disk roundtrip.
 
@@ -621,6 +685,17 @@ class GraphRAG:
             on_progress: Optional callback(message: str) for progress.
             max_concurrent_docs: Optional per-call document concurrency cap.
                 Defaults to ``config.doc_concurrency``.
+            living_knowledge: When True, compact high-churn records into one
+                materialized full document per logical id per cadence bucket.
+                Updates inside the same bucket replace the prior materialized
+                document instead of creating duplicate retrievable docs.
+            living_key: Record or metadata key containing the logical id.
+                Defaults to ``config.living_key`` (``"logical_id"``).
+            living_cadence: ``"hour"``, ``"day"``, ``"week"``, or ``"month"``.
+                Defaults to ``config.living_cadence`` (``"day"``).
+            living_audit_diffs: When True, write hash-level overwrite/supersede
+                events to ``living_audit_log``. Audit rows are not embedded or
+                retrieved.
 
         Returns: same stats shape as ``ingest()``.
 
@@ -652,6 +727,16 @@ class GraphRAG:
         records = list(records)
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        living_enabled = (
+            self.config.living_knowledge if living_knowledge is None else living_knowledge
+        )
+        effective_living_key = living_key or self.config.living_key
+        effective_living_cadence = living_cadence or self.config.living_cadence
+        effective_living_audit = (
+            self.config.living_audit_diffs if living_audit_diffs is None else living_audit_diffs
+        )
+        if living_enabled and effective_living_cadence not in _LIVING_CADENCES:
+            raise ValueError(f"living_cadence must be one of {sorted(_LIVING_CADENCES)}")
         started = time.perf_counter()
         self.config.apply_nice_level()
         embedder = self._get_embedder()
@@ -669,6 +754,13 @@ class GraphRAG:
                 raise ValueError(f"records[{i}] missing required 'text' field")
             if not rec.get("source_id"):
                 raise ValueError(f"records[{i}] missing required 'source_id' field")
+            if living_enabled:
+                meta = rec.get("metadata") or {}
+                if not rec.get(effective_living_key) and not meta.get(effective_living_key):
+                    raise ValueError(
+                        f"records[{i}] missing living logical id key "
+                        f"{effective_living_key!r} in record or metadata"
+                    )
 
         if not records:
             _progress("No records to process.")
@@ -728,9 +820,52 @@ class GraphRAG:
                         rec_rels = rec.get("relationships")
                         rec_skip_llm = bool(rec.get("skip_llm", False))
                         rec_pre_chunked = rec.get("pre_chunked")
+                        living_context = None
+                        source_id = rec["source_id"]
+                        if living_enabled:
+                            rec_meta = dict(rec_meta or {})
+                            logical_id = str(
+                                rec.get(effective_living_key) or rec_meta.get(effective_living_key)
+                            )
+                            ts = _as_aware_utc(
+                                rec.get("living_at")
+                                or rec_meta.get("living_at")
+                                or rec_meta.get("updated_at")
+                                or rec_meta.get("effective_from")
+                            )
+                            bucket, bucket_start, bucket_end = _living_bucket(
+                                ts, effective_living_cadence
+                            )
+                            source_id = (
+                                f"living://{ns}/{logical_id}/{effective_living_cadence}/{bucket}"
+                            )
+                            rec_meta.update(
+                                {
+                                    "logical_id": logical_id,
+                                    "living_logical_id": logical_id,
+                                    "living_source_id": rec["source_id"],
+                                    "living_cadence": effective_living_cadence,
+                                    "living_bucket": bucket,
+                                    "living_current": True,
+                                    "effective_from": rec_meta.get("effective_from", bucket_start),
+                                    "version_label": rec_meta.get(
+                                        "version_label",
+                                        f"{effective_living_cadence}:{bucket}",
+                                    ),
+                                }
+                            )
+                            living_context = _LivingContext(
+                                logical_id=logical_id,
+                                cadence=effective_living_cadence,
+                                bucket=bucket,
+                                bucket_start=bucket_start,
+                                bucket_end=bucket_end,
+                                source_id=rec["source_id"],
+                                audit_diffs=effective_living_audit,
+                            )
                         r = await self._ingest_one_content(
                             rec["text"],
-                            source_id=rec["source_id"],
+                            source_id=source_id,
                             ns=ns,
                             embedder=embedder,
                             llm=llm,
@@ -742,6 +877,7 @@ class GraphRAG:
                             known_relationships=rec_rels,
                             skip_llm_for_this_doc=rec_skip_llm,
                             pre_chunked=rec_pre_chunked,
+                            living_context=living_context,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -856,6 +992,7 @@ class GraphRAG:
         known_relationships: list[dict] | None = None,
         skip_llm_for_this_doc: bool = False,
         pre_chunked: list[dict] | None = None,
+        living_context: _LivingContext | None = None,
     ):
         """Ingest a single document from in-memory content with all DB
         writes in a single transaction.
@@ -906,6 +1043,10 @@ class GraphRAG:
         full-document text input for LLM entity/relationship extraction
         — set it to a sensible reconstruction (e.g. join all chunks
         with newlines) so the LLM sees the document.
+
+        ``living_context`` is the records-ingest Living Knowledge policy:
+        one materialized document per logical id per cadence bucket, with
+        intra-bucket updates replacing the prior full document.
         """
         # Use the source_id as the chunker's path hint so .md/.py-style
         # extension detection still works for callers that pass
@@ -1116,7 +1257,7 @@ class GraphRAG:
             # chunks and the entity/relationship provenance joins. Call
             # prune_orphans() afterwards to clean up unreferenced entities.
             stale = await tx.fetch_one(
-                "SELECT id FROM documents "
+                "SELECT id, content_hash, metadata FROM documents "
                 "WHERE namespace = %s AND source_path = %s AND content_hash != %s",
                 (ns, file_path, c_hash),
             )
@@ -1204,6 +1345,107 @@ class GraphRAG:
                         meta.get("retraction_reason"),
                     ),
                 )
+
+            if living_context is not None:
+                if stale and living_context.audit_diffs:
+                    await tx.execute(
+                        "INSERT INTO living_audit_log "
+                        "(namespace, logical_id, cadence, bucket, source_path, "
+                        " old_document_id, new_document_id, old_content_hash, "
+                        " new_content_hash, metadata) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)",
+                        (
+                            ns,
+                            living_context.logical_id,
+                            living_context.cadence,
+                            living_context.bucket,
+                            file_path,
+                            stale["id"],
+                            doc_id,
+                            stale["content_hash"],
+                            c_hash,
+                            json.dumps(
+                                {
+                                    "event": "overwrite_bucket",
+                                    "source_id": living_context.source_id,
+                                },
+                                default=_json_default,
+                            ),
+                        ),
+                    )
+
+                prior_current = await tx.fetch_all(
+                    "SELECT id, content_hash, source_path FROM documents "
+                    "WHERE namespace = %s "
+                    "  AND metadata->>'living_logical_id' = %s "
+                    "  AND metadata->>'living_cadence' = %s "
+                    "  AND metadata->>'living_current' = 'true' "
+                    "  AND id != %s",
+                    (
+                        ns,
+                        living_context.logical_id,
+                        living_context.cadence,
+                        doc_id,
+                    ),
+                )
+                for prior in prior_current:
+                    await tx.execute(
+                        "UPDATE documents "
+                        "SET metadata = jsonb_set(metadata, '{living_current}', 'false'::jsonb), "
+                        "    effective_to = COALESCE(effective_to, %s) "
+                        "WHERE id = %s",
+                        (living_context.bucket_start, prior["id"]),
+                    )
+                    await tx.execute(
+                        "INSERT INTO document_versions "
+                        "(namespace, document_id, version_label, effective_from, "
+                        " effective_to, supersedes_document_id, retracted, metadata) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, false, %s::jsonb)",
+                        (
+                            ns,
+                            doc_id,
+                            version_label,
+                            living_context.bucket_start,
+                            living_context.bucket_end,
+                            prior["id"],
+                            json.dumps(
+                                {
+                                    "living_logical_id": living_context.logical_id,
+                                    "living_cadence": living_context.cadence,
+                                    "living_bucket": living_context.bucket,
+                                    "event": "new_living_bucket",
+                                },
+                                default=_json_default,
+                            ),
+                        ),
+                    )
+                    if living_context.audit_diffs:
+                        await tx.execute(
+                            "INSERT INTO living_audit_log "
+                            "(namespace, logical_id, cadence, bucket, source_path, "
+                            " old_document_id, new_document_id, old_content_hash, "
+                            " new_content_hash, metadata) "
+                            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)",
+                            (
+                                ns,
+                                living_context.logical_id,
+                                living_context.cadence,
+                                living_context.bucket,
+                                file_path,
+                                prior["id"],
+                                doc_id,
+                                prior["content_hash"],
+                                c_hash,
+                                json.dumps(
+                                    {
+                                        "event": "new_bucket_supersedes_prior",
+                                        "source_id": living_context.source_id,
+                                        "prior_source_path": prior["source_path"],
+                                    },
+                                    default=_json_default,
+                                ),
+                            ),
+                        )
 
             # Insert all chunks
             chunk_ids = []
@@ -1305,6 +1547,99 @@ class GraphRAG:
             "degraded": extraction_degraded,
         }
 
+    def get_cached_result(self, result_id: str) -> QueryResult | None:
+        """Return a previously-retained QueryResult (full chunks) by id, or None
+        if it was never cached or has been evicted."""
+        return self._result_cache.get(result_id)
+
+    def profiles(self) -> dict:
+        """Return retrieval profile ladder metadata and calibration estimates."""
+        from pg_raggraph.profiles import load_profile_calibration
+
+        return load_profile_calibration().as_dict()
+
+    @staticmethod
+    def _decode_profile_value(value):
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                return value
+        return value
+
+    async def _namespace_profile_value(self, namespace: str):
+        row = await self.db.fetch_one(
+            "SELECT retrieval_profile FROM namespace_settings WHERE namespace = %s",
+            (namespace,),
+        )
+        if not row:
+            return None
+        return self._decode_profile_value(row.get("retrieval_profile"))
+
+    async def get_namespace_profile(self, namespace: str | None = None) -> dict:
+        """Return the persisted retrieval profile default for a namespace."""
+        from pg_raggraph.profiles import resolve_profile
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        value = await self._namespace_profile_value(ns)
+        if value is None:
+            value = self.config.retrieval_profile
+            source = "config"
+        else:
+            source = "namespace"
+        spec = resolve_profile(value, default=self.config.retrieval_profile)
+        return {
+            "namespace": ns,
+            "source": source,
+            "profile": value,
+            "resolved": {
+                "name": spec.name,
+                "index": spec.index,
+                "context_strategy": spec.context_strategy,
+                "top_k": spec.top_k,
+                "raw": spec.raw,
+            },
+        }
+
+    async def set_namespace_profile(
+        self,
+        namespace: str,
+        profile: str | int | float,
+    ) -> dict:
+        """Persist a namespace-specific retrieval profile default."""
+        from pg_raggraph.profiles import resolve_profile
+
+        _validate_namespace(namespace)
+        spec = resolve_profile(profile, default=self.config.retrieval_profile)
+        await self.db.execute(
+            """
+            INSERT INTO namespace_settings (namespace, retrieval_profile, updated_at)
+            VALUES (%s, %s::jsonb, now())
+            ON CONFLICT (namespace) DO UPDATE
+            SET retrieval_profile = EXCLUDED.retrieval_profile,
+                updated_at = now()
+            """,
+            (namespace, json.dumps(profile)),
+        )
+        return {
+            "namespace": namespace,
+            "profile": profile,
+            "resolved": {
+                "name": spec.name,
+                "index": spec.index,
+                "context_strategy": spec.context_strategy,
+                "top_k": spec.top_k,
+                "raw": spec.raw,
+            },
+        }
+
+    async def clear_namespace_profile(self, namespace: str) -> dict:
+        """Remove a namespace-specific retrieval profile default."""
+        _validate_namespace(namespace)
+        await self.db.execute("DELETE FROM namespace_settings WHERE namespace = %s", (namespace,))
+        return {"namespace": namespace, "cleared": True}
+
     async def query(
         self,
         question: str,
@@ -1318,7 +1653,11 @@ class GraphRAG:
         supersession_behavior: str | None = None,
         memory_tier: str | None = None,
         retrieval_strategy: str | None = None,
+        summary_base_mode: str | None = None,
+        profile: str | int | float | None = None,
         rerank: bool = False,
+        metadata_filters: dict | None = None,
+        trace_emit: Callable[[dict], None] | None = None,
     ) -> QueryResult:
         """Query the knowledge graph.
 
@@ -1329,6 +1668,8 @@ class GraphRAG:
             local - vector seed → graph expansion via entity neighbors
             global - relationship-centric retrieval
             hybrid - local + global combined
+            summary - run summary_base_mode substrate, then return a
+                deterministic lede hint-biased summary in result.summary (no LLM)
 
         Evolution-aware kwargs (keyword-only):
             as_of: time-travel filter — restrict to documents whose effective
@@ -1365,20 +1706,36 @@ class GraphRAG:
                 Applies to naive/naive_boost modes only — local/global/
                 hybrid already pre-narrow via graph traversal and ignore
                 this knob.
+            profile: retrieval context profile. Accepts named rungs
+                (``"cheap"``, ``"balanced"``, ``"accurate"``), integer rung
+                indexes, a 0..1 slider float, or ``"raw"`` for legacy classic
+                chunk context. ``None`` uses ``config.retrieval_profile``.
             rerank: when True, fetch top_k * rerank_factor candidates and
                 re-rank with a cross-encoder before trimming to top_k.
                 Adds ~30-80 ms p50 latency, zero per-query LLM cost.
                 Model and factor configured via PGRGConfig.rerank_model
                 and rerank_factor.
         """
+        from pg_raggraph.context import pack_query_context
+        from pg_raggraph.profiles import resolve_profile
         from pg_raggraph.retrieval import query as retrieval_query
 
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        namespace_profile = None
+        if profile is None:
+            namespace_profile = await self._namespace_profile_value(ns)
+        profile_spec = resolve_profile(
+            profile if profile is not None else namespace_profile,
+            default=self.config.retrieval_profile,
+        )
         started = time.perf_counter()
         with self.db.tenant(ns):
             embedder = self._get_embedder()
-            top_k_override = self.config.top_k * self.config.rerank_factor if rerank else None
+            retrieval_top_k = profile_spec.top_k
+            top_k_override = (
+                retrieval_top_k * self.config.rerank_factor if rerank else retrieval_top_k
+            )
             with self.db.readonly():
                 result = await retrieval_query(
                     question=question,
@@ -1394,14 +1751,27 @@ class GraphRAG:
                     supersession_behavior=supersession_behavior,
                     memory_tier=memory_tier,
                     retrieval_strategy=retrieval_strategy,
+                    summary_base_mode=summary_base_mode,
                     top_k_override=top_k_override,
+                    metadata_filters=metadata_filters,
+                    trace_emit=trace_emit,
                 )
             if rerank:
                 from pg_raggraph.reranker import FastEmbedReranker, apply_reranker
 
                 if self._reranker is None:
                     self._reranker = FastEmbedReranker(self.config.rerank_model)
-                result = await apply_reranker(self._reranker, question, result, self.config.top_k)
+                result = await apply_reranker(self._reranker, question, result, retrieval_top_k)
+            with self.db.readonly():
+                packed = await pack_query_context(
+                    question=question,
+                    result=result,
+                    db=self.db,
+                    namespace=ns,
+                    profile=profile_spec,
+                    config=self.config,
+                )
+            result.context = packed.text
             self._emit_metric(
                 "pgrg.query",
                 namespace=ns,
@@ -1409,6 +1779,8 @@ class GraphRAG:
                 latency_ms=(time.perf_counter() - started) * 1000,
                 top_k=len(result.chunks),
                 rerank=rerank,
+                retrieval_profile=profile_spec.name,
+                context_strategy=profile_spec.context_strategy,
             )
             return result
 
@@ -1425,8 +1797,12 @@ class GraphRAG:
         supersession_behavior: str | None = None,
         memory_tier: str | None = None,
         retrieval_strategy: str | None = None,
+        summary_base_mode: str | None = None,
+        profile: str | int | float | None = None,
         short_answer: bool = False,
         rerank: bool = False,
+        metadata_filters: dict | None = None,
+        trace_emit: Callable[[dict], None] | None = None,
     ) -> QueryResult:
         """Query + LLM answer synthesis.
 
@@ -1459,7 +1835,11 @@ class GraphRAG:
             supersession_behavior=supersession_behavior,
             memory_tier=memory_tier,
             retrieval_strategy=retrieval_strategy,
+            summary_base_mode=summary_base_mode,
+            profile=profile,
             rerank=rerank,
+            metadata_filters=metadata_filters,
+            trace_emit=trace_emit,
         )
         # Reuse the shared LLM client (same pool as ingestion).
         llm = None
@@ -1475,6 +1855,20 @@ class GraphRAG:
         result.answer = await generate_answer(
             question, result, llm, self.config, short_answer=short_answer
         )
+        # #2 response shape: for summary mode, assign a stable id, cache the
+        # full result for "ask for more", and append the escalation affordance.
+        if mode == "summary" and result.chunks:
+            import uuid
+
+            result.result_id = uuid.uuid4().hex
+            self._result_cache.put(result.result_id, result)
+            if self.config.summary_escalation and result.answer:
+                result.answer = (
+                    f"{result.answer}\n\n---\n"
+                    f"{len(result.chunks)} source chunks retained "
+                    f"(result_id={result.result_id}). If this doesn't fully answer "
+                    f"your question, request the full sources with that id."
+                )
         return result
 
     async def recommend_metadata_indexes(

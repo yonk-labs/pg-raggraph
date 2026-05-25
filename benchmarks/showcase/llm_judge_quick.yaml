@@ -1,0 +1,17 @@
+input: .llm-judge-runs/mhr5/input.jsonl
+profile: default
+out: .llm-judge-runs/mhr5/quick
+mode: quick
+generate_answer: true
+cache_dir: .llm-judge-runs/cache
+resume: true
+concurrency: 2
+retries: 2
+parse_retries: 1
+timeout: 120
+temperature: 0.0
+
+answer:
+  provider: openai
+  model: gpt-4.1-mini
+  api_key_env: OPENAI_API_KEY

@@ -159,13 +159,18 @@ def ingest(ctx, paths, namespace, profile, nice):
     "-m",
     "--mode",
     default="smart",
-    type=click.Choice(["smart", "naive", "naive_boost", "local", "global", "hybrid"]),
+    type=click.Choice(["smart", "naive", "naive_boost", "local", "global", "hybrid", "summary"]),
     help="Retrieval mode. 'smart' (default) routes by confidence. "
     "Other modes are power-user overrides — see docs/modes.md.",
 )
 @click.option("-n", "--namespace", default=None)
+@click.option(
+    "--profile",
+    default=None,
+    help="Retrieval profile: cheap, balanced, accurate, 0..6, 0.0..1.0, or raw.",
+)
 @click.pass_context
-def query(ctx, question, mode, namespace):
+def query(ctx, question, mode, namespace, profile):
     """Query the knowledge graph."""
 
     async def _query():
@@ -174,7 +179,7 @@ def query(ctx, question, mode, namespace):
             kwargs["namespace"] = namespace
         rag = GraphRAG(**kwargs)
         await rag.connect()
-        result = await rag.query(question, mode=mode, namespace=namespace)
+        result = await rag.query(question, mode=mode, namespace=namespace, profile=profile)
         await rag.close()
 
         n = len(result.chunks)
@@ -204,11 +209,16 @@ def query(ctx, question, mode, namespace):
     "-m",
     "--mode",
     default="smart",
-    type=click.Choice(["smart", "naive", "naive_boost", "local", "global", "hybrid"]),
+    type=click.Choice(["smart", "naive", "naive_boost", "local", "global", "hybrid", "summary"]),
     help="Retrieval mode. 'smart' (default) routes by confidence. "
     "Other modes are power-user overrides — see docs/modes.md.",
 )
 @click.option("-n", "--namespace", default=None)
+@click.option(
+    "--profile",
+    default=None,
+    help="Retrieval profile: cheap, balanced, accurate, 0..6, 0.0..1.0, or raw.",
+)
 @click.option(
     "--short-answer",
     is_flag=True,
@@ -217,7 +227,7 @@ def query(ctx, question, mode, namespace):
     "Useful for SQuAD-style benchmarks (MuSiQue, HotpotQA).",
 )
 @click.pass_context
-def ask(ctx, question, mode, namespace, short_answer):
+def ask(ctx, question, mode, namespace, profile, short_answer):
     """Ask a question — retrieves chunks and generates a grounded answer."""
 
     async def _ask():
@@ -226,7 +236,13 @@ def ask(ctx, question, mode, namespace, short_answer):
             kwargs["namespace"] = namespace
         rag = GraphRAG(**kwargs)
         await rag.connect()
-        result = await rag.ask(question, mode=mode, namespace=namespace, short_answer=short_answer)
+        result = await rag.ask(
+            question,
+            mode=mode,
+            namespace=namespace,
+            profile=profile,
+            short_answer=short_answer,
+        )
         await rag.close()
 
         click.echo(f"\n{result.answer}\n")
@@ -449,7 +465,7 @@ def devmem_ingest(ctx, paths, namespace, profile):
     "-m",
     "--mode",
     default="smart",
-    type=click.Choice(["smart", "naive", "naive_boost", "local", "global", "hybrid"]),
+    type=click.Choice(["smart", "naive", "naive_boost", "local", "global", "hybrid", "summary"]),
 )
 @click.option("-n", "--namespace", default=None)
 @click.pass_context

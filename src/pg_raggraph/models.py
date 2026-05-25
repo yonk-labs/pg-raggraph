@@ -208,6 +208,17 @@ class RelationshipResult(BaseModel):
 
 class QueryResult(BaseModel):
     answer: str = ""
+    context: str = ""
+    """Profile-packed context intended for answer synthesis. Empty means the
+    legacy formatter should use the retrieved chunks directly."""
+    summary: str = ""
+    """Deterministic, LLM-free lede summary of the retrieved chunks. Populated
+    by mode="summary" and by smart-mode tier-0; empty for other modes. When
+    non-empty, generate_answer() ships it directly without an LLM round-trip."""
+    result_id: str | None = None
+    """Stable id for this result when retained in GraphRAG's in-process result
+    cache (set by ask() when caching is enabled). Lets a follow-up call fetch
+    the full chunks via GraphRAG.get_cached_result(result_id)."""
     chunks: list[ChunkResult] = Field(default_factory=list)
     entities: list[EntityResult] = Field(default_factory=list)
     relationships: list[RelationshipResult] = Field(default_factory=list)

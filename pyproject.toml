@@ -45,17 +45,21 @@ chunkshop = ["chunkshop>=0.5.0"]
 # Deterministic, LLM-free entity + co-occurrence-edge extraction.
 # Requires the spaCy model too: python -m spacy download en_core_web_sm
 # See docs/superpowers/specs/2026-05-18-lede-spacy-extraction-design.md
-lede_spacy = ["lede>=0.3", "lede-spacy>=0.3", "spacy>=3.7"]
+# The [synonyms] extra pulls nltk/WordNet so the default query_expansion="moderate"
+# tier does real synonym expansion instead of degrading to raw seeds.
+lede_spacy = ["lede>=0.4.5", "lede-spacy[synonyms]>=0.4.5", "spacy>=3.7"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "ruff>=0.5",
     "coverage>=7.0",
     "beautifulsoup4>=4.14.3",
-    "lede>=0.3",
-    "lede-spacy>=0.3",
+    "lede>=0.4.5",
+    "lede-spacy[synonyms]>=0.4.5",
     "spacy>=3.7",
 ]
+# E2E benchmark harness — datasets pulled as parquet from HuggingFace mirrors.
+bench = ["pyarrow>=17", "httpx>=0.27"]
 all = ["pg-raggraph[server,community,langchain,llamaindex,mcp,chunkshop,lede_spacy]"]
 
 [project.scripts]
@@ -113,6 +117,8 @@ select = ["E", "F", "I", "W"]
 # Benchmark-style test files tolerate longer lines and legacy variable names
 "tests/integration/test_graph_wins.py" = ["E501"]
 "tests/integration/test_retrieval_comparison.py" = ["E501", "E741"]
+# Corpus strings are verbatim fixture data — intrinsically long
+"tests/integration/test_summary_mode.py" = ["E501"]
 # Benchmarks are scripts, not library code — relax rules
 "benchmarks/*.py" = ["E501", "E402", "E741", "F841"]
 # Cookbook samples are documentation/demo scripts, not library code

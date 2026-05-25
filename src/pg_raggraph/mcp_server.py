@@ -72,13 +72,18 @@ def build_server(rag: GraphRAG):
     server = FastMCP("pg-raggraph")
 
     @server.tool()
-    async def pgrg_query(question: str, mode: str = "smart", namespace: str | None = None) -> dict:
+    async def pgrg_query(
+        question: str,
+        mode: str = "smart",
+        namespace: str | None = None,
+        profile: str | None = None,
+    ) -> dict:
         """Query the knowledge base — returns chunks with sources and scores.
 
         mode: smart (default) | naive | naive_boost | local | global | hybrid
         """
         try:
-            result = await rag.query(question, mode=mode, namespace=namespace)
+            result = await rag.query(question, mode=mode, namespace=namespace, profile=profile)
             return {
                 "query_mode": result.query_mode,
                 "confidence": result.confidence,
@@ -98,13 +103,18 @@ def build_server(rag: GraphRAG):
             return _tool_error("pgrg_query", exc)
 
     @server.tool()
-    async def pgrg_ask(question: str, mode: str = "smart", namespace: str | None = None) -> dict:
+    async def pgrg_ask(
+        question: str,
+        mode: str = "smart",
+        namespace: str | None = None,
+        profile: str | None = None,
+    ) -> dict:
         """Query + grounded LLM answer with citations.
 
         Falls back to a top-chunk summary if no LLM is configured.
         """
         try:
-            result = await rag.ask(question, mode=mode, namespace=namespace)
+            result = await rag.ask(question, mode=mode, namespace=namespace, profile=profile)
             return {
                 "answer": result.answer,
                 "confidence": result.confidence,
@@ -113,6 +123,30 @@ def build_server(rag: GraphRAG):
             }
         except Exception as exc:
             return _tool_error("pgrg_ask", exc)
+
+    @server.tool()
+    async def pgrg_profiles() -> dict:
+        """Return retrieval profile ladder metadata and calibration estimates."""
+        try:
+            return rag.profiles()
+        except Exception as exc:
+            return _tool_error("pgrg_profiles", exc)
+
+    @server.tool()
+    async def pgrg_get_namespace_profile(namespace: str | None = None) -> dict:
+        """Return the persisted retrieval profile default for a namespace."""
+        try:
+            return await rag.get_namespace_profile(namespace)
+        except Exception as exc:
+            return _tool_error("pgrg_get_namespace_profile", exc)
+
+    @server.tool()
+    async def pgrg_set_namespace_profile(namespace: str, profile: str) -> dict:
+        """Persist a namespace retrieval profile default."""
+        try:
+            return await rag.set_namespace_profile(namespace, profile)
+        except Exception as exc:
+            return _tool_error("pgrg_set_namespace_profile", exc)
 
     allowed_roots = _resolve_allowed_roots()
 

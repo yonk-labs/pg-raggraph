@@ -1,0 +1,8 @@
+{
+  "dataset": "twowiki",
+  "n": 1,
+  "seed": 42,
+  "qids": [
+    "twowiki:q:91edc89c0bdc11eba7f7acde48001122"
+  ]
+}
