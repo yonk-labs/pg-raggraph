@@ -19,6 +19,10 @@ SCHEMA_VERSION = 1
 
 logger = logging.getLogger("pg_raggraph.db")
 
+
+class EmbeddingDimMismatch(ValueError):
+    """Configured embedding_dim does not match the live chunks.embedding column."""
+
 # Postgres identifier shape — letters/digits/underscores, must start with
 # letter/underscore. We cap at 50 chars (well under Postgres's 63-byte limit)
 # to leave room for the `idx_chunks_metadata_` prefix in the generated index
@@ -401,8 +405,6 @@ class Database:
         Catches "operator forgot to update PGRG_EMBEDDING_DIM after an embedding
         migration cutover" before it becomes an opaque pgvector runtime error.
         """
-        import re
-
         cur = await conn.execute(
             "SELECT format_type(a.atttypid, a.atttypmod) AS t "
             "FROM pg_attribute a "
@@ -417,7 +419,7 @@ class Database:
             return
         live_dim = int(m.group(1))
         if live_dim != self.config.embedding_dim:
-            raise ValueError(
+            raise EmbeddingDimMismatch(
                 f"Configured embedding_dim={self.config.embedding_dim} does not "
                 f"match the live chunks.embedding dimension ({live_dim}). If you "
                 f"just ran an embedding migration cutover, set "

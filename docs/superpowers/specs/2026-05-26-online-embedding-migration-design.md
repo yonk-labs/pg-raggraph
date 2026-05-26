@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS embedding_migration (
     id            BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id),  -- enforce single row
     target_model  TEXT NOT NULL,
     target_dim    INT  NOT NULL,
-    phase         TEXT NOT NULL,        -- prepared|backfilling|indexed|cutover|finalized
+    phase         TEXT NOT NULL,        -- prepared|backfilled|indexed|cutover (row deleted at finalize)
     backfill_source TEXT NOT NULL DEFAULT 'reembed',  -- reembed|chunkshop_sink
     started_at    TIMESTAMPTZ DEFAULT now(),
     updated_at    TIMESTAMPTZ DEFAULT now()

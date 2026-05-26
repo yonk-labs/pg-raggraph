@@ -228,7 +228,9 @@ async def finalize(db) -> None:
     await db.execute("DELETE FROM embedding_migration WHERE id IS TRUE")
 
 
-async def backfill_from_sink(db, sink_rows, *, entity_embedder) -> int:
+async def backfill_from_sink(
+    db, sink_rows, *, entity_embedder, batch_size: int = 256
+) -> int:
     """Backfill chunks from precomputed chunkshop sink vectors; entities re-embed.
 
     Each sink row needs ``chunkshop_doc_id``, ``chunkshop_seq_num``, ``embedding``.
@@ -253,7 +255,7 @@ async def backfill_from_sink(db, sink_rows, *, entity_embedder) -> int:
             )
             total += cur.rowcount
 
-    total += await _backfill_table(db, entity_embedder, "entities", batch_size=256)
+    total += await _backfill_table(db, entity_embedder, "entities", batch_size=batch_size)
 
     await db.execute(
         "UPDATE embedding_migration SET phase='backfilled', updated_at=now() "

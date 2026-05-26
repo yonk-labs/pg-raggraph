@@ -284,12 +284,14 @@ class GraphRAG:
             self._shutdown_event.set()
 
     async def connect(self):
-        from pg_raggraph.db import Database
+        from pg_raggraph.db import Database, EmbeddingDimMismatch
 
         self._db = Database(self.config)
         try:
             await self._db.connect()
-        except ValueError:
+        except EmbeddingDimMismatch:
+            # Surface the actionable config message instead of masking it as a
+            # generic connectivity error.
             raise
         except Exception as e:
             raise ConnectionError(
