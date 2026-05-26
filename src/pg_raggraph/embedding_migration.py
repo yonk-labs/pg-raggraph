@@ -87,11 +87,17 @@ async def status(db) -> dict[str, Any]:
     state = await get_state(db)
     if state is None:
         return {"active": False}
-    remaining = {t: await _remaining_null(db, t) for t in TABLES}
-    indexed = {t: await _index_exists(db, _TMP_INDEX[t]) for t in TABLES}
+    phase = state["phase"]
+    # After cutover/finalize, embedding_tmp no longer exists; skip those queries.
+    if phase in ("cutover", "finalized"):
+        remaining = {t: 0 for t in TABLES}
+        indexed = {t: await _index_exists(db, _LIVE_INDEX[t]) for t in TABLES}
+    else:
+        remaining = {t: await _remaining_null(db, t) for t in TABLES}
+        indexed = {t: await _index_exists(db, _TMP_INDEX[t]) for t in TABLES}
     return {
         "active": True,
-        "phase": state["phase"],
+        "phase": phase,
         "target_model": state["target_model"],
         "target_dim": state["target_dim"],
         "backfill_source": state["backfill_source"],
@@ -164,3 +170,47 @@ async def build_index(db, *, hnsw_m: int = 16, hnsw_ef_construction: int = 64) -
         "UPDATE embedding_migration SET phase='indexed', updated_at=now() "
         "WHERE id IS TRUE"
     )
+
+
+async def cutover(db) -> None:
+    """Swap embedding_tmp into place as the live embedding column (brief lock).
+
+    Refuses unless every table is fully backfilled and indexed. All DDL runs in
+    one transaction; renames are catalog-only so the ACCESS EXCLUSIVE window is
+    sub-second. embedding_old is preserved for rollback until finalize.
+    """
+    state = await get_state(db)
+    if state is None:
+        raise RuntimeError("no active migration; run prepare first")
+    target_dim = int(state["target_dim"])
+    for table in TABLES:
+        if await _remaining_null(db, table) != 0:
+            raise RuntimeError(f"cutover not ready: {table} has un-backfilled rows")
+        if not await _index_exists(db, _TMP_INDEX[table]):
+            raise RuntimeError(f"cutover not ready: {table} embedding_tmp not indexed")
+
+    async with db.pool.connection() as conn:
+        for table in TABLES:
+            await conn.execute(f"DROP INDEX IF EXISTS {_LIVE_INDEX[table]}")
+            await conn.execute(
+                f"ALTER TABLE {table} RENAME COLUMN embedding TO embedding_old"
+            )
+            await conn.execute(
+                f"ALTER TABLE {table} RENAME COLUMN embedding_tmp TO embedding"
+            )
+            await conn.execute(
+                f"ALTER INDEX {_TMP_INDEX[table]} RENAME TO {_LIVE_INDEX[table]}"
+            )
+        await conn.execute("TRUNCATE embedding_cache")
+        await conn.execute(
+            f"ALTER TABLE embedding_cache "
+            f"ALTER COLUMN embedding TYPE vector({target_dim})"
+        )
+        await conn.execute(
+            "UPDATE pgrg_meta SET value = %s WHERE key = 'embedding_dim'",
+            (str(target_dim),),
+        )
+        await conn.execute(
+            "UPDATE embedding_migration SET phase='cutover', updated_at=now() "
+            "WHERE id IS TRUE"
+        )
