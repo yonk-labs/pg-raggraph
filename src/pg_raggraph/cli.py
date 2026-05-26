@@ -457,6 +457,141 @@ def demo(ctx, port):
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
 
 
+# --- Migrate-embeddings subcommand group: online embedding-model migration ---
+
+
+@main.group("migrate-embeddings")
+def migrate_embeddings():
+    """Online embedding-model migration (expand/contract column swap)."""
+
+
+@migrate_embeddings.command("prepare")
+@click.option("--model", "model", required=True, help="New embedding model name")
+@click.option("--dim", "dim", type=int, required=True, help="New embedding dimension")
+@click.option(
+    "--backfill-source",
+    type=click.Choice(["reembed", "chunkshop_sink"]),
+    default="reembed",
+)
+@click.pass_context
+def _me_prepare(ctx, model, dim, backfill_source):
+    """Add embedding_tmp columns and record migration state."""
+    from pg_raggraph import embedding_migration as em
+
+    async def _go():
+        rag = GraphRAG(**ctx.obj["kwargs"])
+        await rag.connect()
+        try:
+            await em.prepare(
+                rag._db, target_model=model, target_dim=dim,
+                backfill_source=backfill_source,
+            )
+            click.echo(f"prepared migration to {model} (dim {dim})")
+        finally:
+            await rag.close()
+
+    run_async(_go())
+
+
+@migrate_embeddings.command("backfill")
+@click.option("--batch-size", type=int, default=256)
+@click.pass_context
+def _me_backfill(ctx, batch_size):
+    """Re-embed all rows into embedding_tmp with the new model (resumable)."""
+    from pg_raggraph import embedding_migration as em
+
+    async def _go():
+        rag = GraphRAG(**ctx.obj["kwargs"])
+        await rag.connect()
+        try:
+            n = await em.backfill(rag._db, rag._get_embedder(), batch_size=batch_size)
+            click.echo(f"backfilled {n} rows")
+        finally:
+            await rag.close()
+
+    run_async(_go())
+
+
+@migrate_embeddings.command("build-index")
+@click.pass_context
+def _me_build_index(ctx):
+    """Build HNSW indexes on embedding_tmp (CONCURRENTLY)."""
+    from pg_raggraph import embedding_migration as em
+
+    async def _go():
+        rag = GraphRAG(**ctx.obj["kwargs"])
+        await rag.connect()
+        try:
+            await em.build_index(
+                rag._db,
+                hnsw_m=rag.config.hnsw_m,
+                hnsw_ef_construction=rag.config.hnsw_ef_construction,
+            )
+            click.echo("built embedding_tmp HNSW indexes")
+        finally:
+            await rag.close()
+
+    run_async(_go())
+
+
+@migrate_embeddings.command("status")
+@click.pass_context
+def _me_status(ctx):
+    """Show migration phase, remaining rows, and index presence."""
+    import json
+
+    from pg_raggraph import embedding_migration as em
+
+    async def _go():
+        rag = GraphRAG(**ctx.obj["kwargs"])
+        await rag.connect()
+        try:
+            click.echo(json.dumps(await em.status(rag._db), indent=2, default=str))
+        finally:
+            await rag.close()
+
+    run_async(_go())
+
+
+@migrate_embeddings.command("cutover")
+@click.pass_context
+def _me_cutover(ctx):
+    """Swap embedding_tmp into place as the live embedding column."""
+    from pg_raggraph import embedding_migration as em
+
+    async def _go():
+        rag = GraphRAG(**ctx.obj["kwargs"])
+        await rag.connect()
+        try:
+            await em.cutover(rag._db)
+            click.echo(
+                "cutover complete. Restart the app with the new "
+                "PGRG_EMBEDDING_DIM and PGRG_EMBEDDING_MODEL."
+            )
+        finally:
+            await rag.close()
+
+    run_async(_go())
+
+
+@migrate_embeddings.command("finalize")
+@click.pass_context
+def _me_finalize(ctx):
+    """Drop the preserved embedding_old columns and clear migration state."""
+    from pg_raggraph import embedding_migration as em
+
+    async def _go():
+        rag = GraphRAG(**ctx.obj["kwargs"])
+        await rag.connect()
+        try:
+            await em.finalize(rag._db)
+            click.echo("finalized; embedding_old dropped")
+        finally:
+            await rag.close()
+
+    run_async(_go())
+
+
 # --- Devmem subcommand: developer knowledge base with dev-tuned defaults ---
 
 
