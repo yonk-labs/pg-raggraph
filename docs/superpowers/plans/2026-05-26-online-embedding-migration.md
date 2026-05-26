@@ -21,6 +21,14 @@
 - **Create** `tests/unit/test_embedding_migration.py` — pure-logic unit tests (text-source SQL, dim parsing, guard refusals).
 - **Create** `tests/integration/test_embedding_migration.py` — full-lifecycle test against real PG with a stub embedder.
 
+> **Test-infra note (revised during execution):** The migration is DB-wide and
+> destructive, so it cannot share the namespace-isolated integration DB. Each
+> integration test uses a `fresh_db` pytest fixture that creates a throwaway
+> database (with `vector`/`pg_trgm` extensions), yields its DSN, and drops it after.
+> The helper signature is `_fresh_rag(fresh_db, dim, embedder)` and every test takes
+> the `fresh_db` fixture parameter. The Task-3..12 snippets below predate this and
+> show `_fresh_rag(dim, embedder)` — use the fixture form when implementing.
+
 Conventions observed from the codebase:
 - `Database` (db.py) exposes `db.execute(sql, params)`, `db.fetch_all(sql, params)`, `db.fetch_one(sql, params)`, and the `db.pool` property whose `db.pool.connection()` async context manager is one transaction (commits on clean exit).
 - Embedders satisfy `EmbeddingProvider` (`embedding.py`): `async def embed(self, texts: list[str]) -> list[list[float]]`.
