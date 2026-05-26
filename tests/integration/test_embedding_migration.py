@@ -237,3 +237,42 @@ async def test_connect_raises_on_dim_mismatch(fresh_db):
     bad._embedder = StubEmbedder(5)
     with pytest.raises(ValueError, match="embedding_dim"):
         await bad.connect()
+
+
+@pytest.mark.asyncio
+async def test_backfill_from_chunkshop_sink_matches_by_metadata(fresh_db):
+    rag = await _fresh_rag(fresh_db, 4, StubEmbedder(4))
+    try:
+        await rag.ingest_records([
+            {
+                "text": "alpha",
+                "source_id": "chunkshop:docX",
+                "metadata": {"source": "chunkshop", "chunkshop_doc_id": "docX"},
+                "pre_chunked": [{
+                    "content": "alpha",
+                    "embedding": [1.0, 1.0, 1.0, 1.0],
+                    "metadata": {"chunkshop_doc_id": "docX", "chunkshop_seq_num": 0},
+                }],
+            }
+        ])
+        await em.prepare(
+            rag._db, target_model="stub-6", target_dim=6,
+            backfill_source="chunkshop_sink",
+        )
+        sink_rows = [{
+            "chunkshop_doc_id": "docX",
+            "chunkshop_seq_num": 0,
+            "embedding": [9.0] * 6,
+        }]
+        n = await em.backfill_from_sink(
+            rag._db, sink_rows, entity_embedder=StubEmbedder(6)
+        )
+        assert n >= 1
+        assert await em._remaining_null(rag._db, "chunks") == 0
+        row = await rag._db.fetch_one(
+            "SELECT vector_dims(embedding_tmp) AS d FROM chunks "
+            "WHERE embedding_tmp IS NOT NULL LIMIT 1"
+        )
+        assert row["d"] == 6
+    finally:
+        await rag.close()

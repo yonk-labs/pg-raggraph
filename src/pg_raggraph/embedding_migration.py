@@ -226,3 +226,37 @@ async def finalize(db) -> None:
     for table in TABLES:
         await db.execute(f"ALTER TABLE {table} DROP COLUMN IF EXISTS embedding_old")
     await db.execute("DELETE FROM embedding_migration WHERE id IS TRUE")
+
+
+async def backfill_from_sink(db, sink_rows, *, entity_embedder) -> int:
+    """Backfill chunks from precomputed chunkshop sink vectors; entities re-embed.
+
+    Each sink row needs ``chunkshop_doc_id``, ``chunkshop_seq_num``, ``embedding``.
+    Chunk rows are matched on the metadata pg-raggraph stored at ingest time
+    (chunks.metadata->>'chunkshop_doc_id' / 'chunkshop_seq_num').
+    """
+    state = await get_state(db)
+    if state is None:
+        raise RuntimeError("no active migration; run prepare first")
+
+    total = 0
+    async with db.pool.connection() as conn:
+        for row in sink_rows:
+            doc_id = row["chunkshop_doc_id"]
+            seq = row["chunkshop_seq_num"]
+            emb = [float(x) for x in row["embedding"]]
+            cur = await conn.execute(
+                "UPDATE chunks SET embedding_tmp = %s "
+                "WHERE metadata->>'chunkshop_doc_id' = %s "
+                "  AND (metadata->>'chunkshop_seq_num')::int = %s",
+                (emb, str(doc_id), int(seq)),
+            )
+            total += cur.rowcount
+
+    total += await _backfill_table(db, entity_embedder, "entities", batch_size=256)
+
+    await db.execute(
+        "UPDATE embedding_migration SET phase='backfilled', updated_at=now() "
+        "WHERE id IS TRUE"
+    )
+    return total
