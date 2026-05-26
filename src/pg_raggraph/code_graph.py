@@ -37,7 +37,7 @@ WITH RECURSIVE walk AS (
       AND NOT (r.src_id = ANY(w.path))
 )
 SELECT e.name AS fqn, walk.rel_type, walk.evidence, walk.depth
-FROM walk JOIN entities e ON e.id = walk.other_id
+FROM walk JOIN entities e ON e.id = walk.other_id AND e.namespace = %(ns)s
 ORDER BY walk.depth, e.name
 """
 
@@ -66,7 +66,7 @@ WITH RECURSIVE walk AS (
       AND NOT (r.dst_id = ANY(w.path))
 )
 SELECT e.name AS fqn, walk.rel_type, walk.evidence, walk.depth
-FROM walk JOIN entities e ON e.id = walk.other_id
+FROM walk JOIN entities e ON e.id = walk.other_id AND e.namespace = %(ns)s
 ORDER BY walk.depth, e.name
 """
 
@@ -88,7 +88,11 @@ class CodeImpact:
 
 
 def _dedupe(rows) -> list[CodeEdge]:
-    """Keep the first (shallowest, name-sorted) edge per fqn."""
+    """Keep the first (shallowest, name-sorted) edge per fqn.
+
+    One entry per related symbol: if two symbols share multiple edge types
+    (e.g. both CALLS and INHERITS), only the shallowest is reported.
+    """
     seen: set[str] = set()
     out: list[CodeEdge] = []
     for r in rows:
