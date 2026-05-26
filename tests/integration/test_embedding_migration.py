@@ -123,3 +123,23 @@ async def test_status_inactive_when_no_migration(fresh_db):
         assert st["active"] is False
     finally:
         await rag.close()
+
+
+@pytest.mark.asyncio
+async def test_backfill_fills_tmp_with_target_dim(fresh_db):
+    rag = await _fresh_rag(fresh_db, 4, StubEmbedder(4))
+    try:
+        await rag.ingest_records(
+            [{"text": "Ada Lovelace wrote the first algorithm.", "source_id": "d1"}]
+        )
+        await em.prepare(rag._db, target_model="stub-6", target_dim=6)
+        n = await em.backfill(rag._db, StubEmbedder(6), batch_size=2)
+        assert n > 0
+        assert await em._remaining_null(rag._db, "chunks") == 0
+        row = await rag._db.fetch_one(
+            "SELECT vector_dims(embedding_tmp) AS d FROM chunks "
+            "WHERE embedding_tmp IS NOT NULL LIMIT 1"
+        )
+        assert row["d"] == 6
+    finally:
+        await rag.close()

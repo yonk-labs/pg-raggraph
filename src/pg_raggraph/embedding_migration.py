@@ -98,3 +98,45 @@ async def status(db) -> dict[str, Any]:
         "remaining": remaining,
         "indexed": indexed,
     }
+
+
+async def _backfill_table(db, embedder, table: str, batch_size: int) -> int:
+    text_expr = _TEXT_SOURCE[table]
+    total = 0
+    while True:
+        rows = await db.fetch_all(
+            f"SELECT id, {text_expr} AS text FROM {table} "
+            f"WHERE embedding_tmp IS NULL ORDER BY id LIMIT %s",
+            (batch_size,),
+        )
+        if not rows:
+            break
+        texts = [r["text"] or "" for r in rows]
+        vecs = await embedder.embed(texts)
+        async with db.pool.connection() as conn:
+            for r, v in zip(rows, vecs):
+                await conn.execute(
+                    f"UPDATE {table} SET embedding_tmp = %s WHERE id = %s",
+                    (v, r["id"]),
+                )
+        total += len(rows)
+    return total
+
+
+async def backfill(db, embedder, *, batch_size: int = 256) -> int:
+    """Re-embed every TABLE's text into embedding_tmp with the new model.
+
+    Resumable and idempotent: only rows with NULL embedding_tmp are processed.
+    Bypasses embedding_cache by design (cache is bound to the old dimension).
+    """
+    state = await get_state(db)
+    if state is None:
+        raise RuntimeError("no active migration; run prepare first")
+    total = 0
+    for table in TABLES:
+        total += await _backfill_table(db, embedder, table, batch_size)
+    await db.execute(
+        "UPDATE embedding_migration SET phase='backfilled', updated_at=now() "
+        "WHERE id IS TRUE"
+    )
+    return total
