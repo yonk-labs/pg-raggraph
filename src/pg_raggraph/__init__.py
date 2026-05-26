@@ -2071,6 +2071,21 @@ class GraphRAG:
                 "relationships": await self.db.count("relationships", ns),
             }
 
+    async def code_impact(
+        self, fqn: str, *, namespace: str | None = None,
+        depth: int = 1, min_confidence: float = 0.0,
+    ):
+        """Callers and callees of a CODE_SYMBOL by FQN. Returns a CodeImpact.
+
+        See pg_raggraph.code_graph. Namespace defaults to the configured one.
+        """
+        from pg_raggraph.code_graph import code_impact as _code_impact
+
+        ns = namespace or self.config.namespace
+        return await _code_impact(
+            self.db, fqn, namespace=ns, depth=depth, min_confidence=min_confidence
+        )
+
     async def delete(self, namespace: str):
         """Delete all data in a namespace."""
         _validate_namespace(namespace)

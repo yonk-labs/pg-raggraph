@@ -138,3 +138,17 @@ async def test_code_impact_depth_must_be_positive():
             await cg.code_impact(rag._db, "a", namespace=NS, depth=0)
     finally:
         await rag.close()
+
+
+@pytest.mark.asyncio
+async def test_graphrag_code_impact_resolves_namespace_from_config():
+    rag = GraphRAG(dsn=DSN, namespace=NS)
+    await _fresh(rag)
+    try:
+        await _seed(rag, [("a", "b", "CALLS", 1.0, "a() calls b()")])
+        res = await rag.code_impact("b")  # namespace from config
+        assert res.found
+        assert {e.fqn for e in res.callers} == {"a"}
+    finally:
+        await rag.delete(NS)
+        await rag.close()
