@@ -206,6 +206,24 @@ def fetch_records_from_table(
     return rows_to_records(rows, source_prefix=source_prefix, skip_llm=skip_llm)
 
 
+def summaries_by_fqn(records: Iterable[dict[str, Any]]) -> dict[str, str]:
+    """Map fqn -> summary from imported chunk metadata.
+
+    Scans each record's ``pre_chunked`` chunks; includes only chunks whose
+    metadata carries BOTH ``fqn`` and a non-empty ``summary`` (chunkshop's
+    symbol_aware chunker + code_summary extractor).
+    """
+    out: dict[str, str] = {}
+    for record in records:
+        for chunk in record.get("pre_chunked") or []:
+            meta = chunk.get("metadata") or {}
+            fqn = meta.get("fqn")
+            summary = meta.get("summary")
+            if fqn and summary:
+                out[str(fqn)] = str(summary)
+    return out
+
+
 def fetch_code_edges_from_table(
     dsn: str,
     *,
@@ -254,4 +272,5 @@ __all__ = [
     "fetch_code_edges_from_table",
     "fetch_records_from_table",
     "rows_to_records",
+    "summaries_by_fqn",
 ]

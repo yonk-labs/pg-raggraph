@@ -120,3 +120,20 @@ def test_attach_code_edges_adds_graph_payload_to_first_record_only():
 def test_attach_code_edges_rejects_empty_records_when_edges_exist():
     with pytest.raises(ValueError, match="without at least one"):
         attach_code_edges([], [_edge()])
+
+
+def test_summaries_by_fqn_extracts_map():
+    from pg_raggraph.chunkshop_bridge import summaries_by_fqn
+
+    records = [
+        {
+            "pre_chunked": [
+                {"content": "x", "metadata": {"fqn": "pkg.a", "summary": "Runs the job"}},
+                {"content": "y", "metadata": {"fqn": "pkg.b"}},  # no summary -> skipped
+                {"content": "z", "metadata": {"summary": "no fqn"}},  # no fqn -> skipped
+            ]
+        },
+        {"pre_chunked": [{"content": "w", "metadata": {"fqn": "pkg.c", "summary": "C"}}]},
+        {"text": "no prechunk"},  # records without pre_chunked are ignored
+    ]
+    assert summaries_by_fqn(records) == {"pkg.a": "Runs the job", "pkg.c": "C"}
