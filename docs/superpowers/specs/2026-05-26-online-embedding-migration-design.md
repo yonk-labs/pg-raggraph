@@ -79,7 +79,7 @@ When no migration is active, the table is empty. `prepare` inserts the row;
 | `backfill`    | re-embed into `embedding_tmp`, batched + resumable (`WHERE embedding_tmp IS NULL`)                     | yes           |
 | `build-index` | `CREATE INDEX CONCURRENTLY` HNSW on both `embedding_tmp` columns                                        | yes           |
 | `status`      | report phase, remaining-NULL counts, index presence                                                    | yes           |
-| `cutover`     | one txn: drop old HNSW, rename `embedding→embedding_old`, `embedding_tmp→embedding`, rename HNSW indexes, clear `embedding_cache`; set phase=`cutover` | **brief lock** |
+| `cutover`     | one txn: drop old HNSW, rename `embedding→embedding_old`, `embedding_tmp→embedding`, rename HNSW indexes, retype `embedding_cache`, update `pgrg_meta`; set phase=`cutover` | **brief lock** |
 | `finalize`    | `ALTER TABLE ... DROP COLUMN embedding_old` on both tables; delete state row                            | yes           |
 
 Each phase is a `pgrg migrate-embeddings <verb>` subcommand.
@@ -170,8 +170,13 @@ what is left.
 - **Rollback escape hatch.** `embedding_old` is *not* dropped at cutover. `finalize`
   is a separate, explicit step so the operator can validate query quality on the new
   model before discarding the old vectors.
-- **Cache invalidation.** `embedding_cache` is cleared at cutover; it repopulates
-  from query/ingest traffic and must not serve stale-dimension vectors.
+- **Cache invalidation + retype.** `embedding_cache.embedding` is itself
+  `vector({dim})`, so clearing rows is not enough — the column type stays the old
+  dim and new-dim puts would fail. Cutover runs `TRUNCATE embedding_cache` then
+  `ALTER COLUMN embedding TYPE vector(target_dim)` (safe because the table is now
+  empty, and the cache has no vector index). It repopulates from traffic.
+- **`pgrg_meta` consistency.** Cutover updates the `embedding_dim` row in `pgrg_meta`
+  so any tooling reading it sees the new dimension.
 - **Startup dim-guard** (above) prevents a config/schema mismatch from reaching query
   time.
 
