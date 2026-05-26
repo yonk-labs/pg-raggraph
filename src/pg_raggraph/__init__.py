@@ -19,7 +19,7 @@ try:
     __version__ = _pkg_version("pg-raggraph")
 except PackageNotFoundError:
     # Editable install without installed metadata (rare). Mirror pyproject.
-    __version__ = "0.3.0a3"
+    __version__ = "0.4.0a1"
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.models import QueryResult
@@ -284,11 +284,15 @@ class GraphRAG:
             self._shutdown_event.set()
 
     async def connect(self):
-        from pg_raggraph.db import Database
+        from pg_raggraph.db import Database, EmbeddingDimMismatch
 
         self._db = Database(self.config)
         try:
             await self._db.connect()
+        except EmbeddingDimMismatch:
+            # Surface the actionable config message instead of masking it as a
+            # generic connectivity error.
+            raise
         except Exception as e:
             raise ConnectionError(
                 f"Cannot connect to PostgreSQL at {self.config.dsn}. "
@@ -664,9 +668,9 @@ class GraphRAG:
                 - ``relationships`` (list of dict, optional): caller-known
                   graph edges. Each: ``{"src": "EntityName1",
                   "dst": "EntityName2", "rel_type": "...", "weight": 1.0,
-                  "description": "..."}``. ``src`` and ``dst`` are
-                  required and must match either a caller-supplied or
-                  LLM-extracted entity name.
+                  "description": "...", "properties": {...}}``. ``src``
+                  and ``dst`` are required and must match either a
+                  caller-supplied or LLM-extracted entity name.
                 - ``skip_llm`` (bool, optional, default False): skip LLM
                   extraction for this document. Useful when the caller's
                   known_entities/known_relationships already cover what
@@ -1145,6 +1149,7 @@ class GraphRAG:
                     unique_entities[ent.name] = {
                         "entity_type": ent.entity_type,
                         "description": ent.description,
+                        "properties": {},
                         "chunks": [i],
                     }
                 else:
@@ -1191,6 +1196,7 @@ class GraphRAG:
                     unique_entities[name] = {
                         "entity_type": ke_type,
                         "description": ke_desc,
+                        "properties": dict(ke.get("properties") or {}),
                         "chunks": list(all_chunk_idxs),
                     }
                 else:
@@ -1203,6 +1209,9 @@ class GraphRAG:
                         unique_entities[name]["entity_type"] = ke_type
                     if ke_desc:
                         unique_entities[name]["description"] = ke_desc
+                    unique_entities[name].setdefault("properties", {}).update(
+                        ke.get("properties") or {}
+                    )
                     existing = set(unique_entities[name]["chunks"])
                     existing.update(all_chunk_idxs)
                     unique_entities[name]["chunks"] = sorted(existing)
@@ -1216,7 +1225,8 @@ class GraphRAG:
                 if not (kr.get("src") and kr.get("dst")):
                     raise ValueError("known_relationships entries must include 'src' and 'dst'")
                 # Tuple shape: (src, dst, rel_type, description, weight,
-                # effective_from, effective_to, retracted, retracted_at).
+                # effective_from, effective_to, retracted, retracted_at,
+                # properties).
                 # The four temporal fields are optional; absent → NULL in
                 # the relationships row. Mirrors documents-level evolution
                 # tracking for per-fact granularity (Pattern M, migration 006).
@@ -1230,6 +1240,7 @@ class GraphRAG:
                     kr.get("effective_to"),
                     bool(kr.get("retracted", False)),
                     kr.get("retracted_at"),
+                    kr.get("properties") or {},
                 )
                 # Anchor on chunk[0] — relationships are document-level.
                 chunk_to_rels[0].append(rel_tuple)
@@ -1480,6 +1491,7 @@ class GraphRAG:
                     namespace=ns,
                     db=tx,
                     config=self.config,
+                    properties=info.get("properties") or {},
                 )
                 entity_name_to_id[name] = eid
 
@@ -1509,17 +1521,19 @@ class GraphRAG:
                     if not (src_id and dst_id):
                         continue
                     # Tuple shape: (src_name, dst_name, rel_type, description, weight,
-                    # effective_from, effective_to, retracted, retracted_at).
-                    # Older callers may still pass 5-tuples; pad with temporal NULLs.
+                    # effective_from, effective_to, retracted, retracted_at, properties).
+                    # Older callers may still pass 5-tuples; pad optional fields.
                     eff_from = rel[5] if len(rel) > 5 else None
                     eff_to = rel[6] if len(rel) > 6 else None
                     retracted = rel[7] if len(rel) > 7 else False
                     retracted_at = rel[8] if len(rel) > 8 else None
+                    properties = rel[9] if len(rel) > 9 and rel[9] else {}
                     rel_id = await tx.insert_returning_id(
                         "INSERT INTO relationships "
                         "(namespace, src_id, dst_id, rel_type, weight, description, "
-                        "effective_from, effective_to, retracted, retracted_at) "
-                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                        "effective_from, effective_to, retracted, retracted_at, properties) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb) "
+                        "RETURNING id",
                         (
                             ns,
                             src_id,
@@ -1531,6 +1545,7 @@ class GraphRAG:
                             eff_to,
                             retracted,
                             retracted_at,
+                            json.dumps(properties, default=_json_default),
                         ),
                     )
                     await tx.execute(
@@ -2055,6 +2070,25 @@ class GraphRAG:
                 "entities": await self.db.count("entities", ns),
                 "relationships": await self.db.count("relationships", ns),
             }
+
+    async def code_impact(
+        self,
+        fqn: str,
+        *,
+        namespace: str | None = None,
+        depth: int = 1,
+        min_confidence: float = 0.0,
+    ):
+        """Callers and callees of a CODE_SYMBOL by FQN. Returns a CodeImpact.
+
+        See pg_raggraph.code_graph. Namespace defaults to the configured one.
+        """
+        from pg_raggraph.code_graph import code_impact as _code_impact
+
+        ns = namespace or self.config.namespace
+        return await _code_impact(
+            self.db, fqn, namespace=ns, depth=depth, min_confidence=min_confidence
+        )
 
     async def delete(self, namespace: str):
         """Delete all data in a namespace."""

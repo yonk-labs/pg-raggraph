@@ -19,6 +19,11 @@ SCHEMA_VERSION = 1
 
 logger = logging.getLogger("pg_raggraph.db")
 
+
+class EmbeddingDimMismatch(ValueError):
+    """Configured embedding_dim does not match the live chunks.embedding column."""
+
+
 # Postgres identifier shape — letters/digits/underscores, must start with
 # letter/underscore. We cap at 50 chars (well under Postgres's 63-byte limit)
 # to leave room for the `idx_chunks_metadata_` prefix in the generated index
@@ -274,6 +279,7 @@ class Database:
                 await self._apply_metadata_generated_columns(conn, table="chunks")
             if self.config.document_metadata_generated_columns:
                 await self._apply_metadata_generated_columns(conn, table="documents")
+            await self._verify_embedding_dim(conn)
         if self.config.read_dsn:
             self._read_pool = AsyncConnectionPool(
                 self.config.read_dsn,
@@ -392,6 +398,35 @@ class Database:
             raise RuntimeError(
                 "Database schema is not initialized. Run `pgrg migrate` with a "
                 "migration-capable role before using rls_enabled=True with an app role."
+            )
+
+    async def _verify_embedding_dim(self, conn) -> None:
+        """Fail fast if configured embedding_dim != live chunks.embedding dim.
+
+        Catches "operator forgot to update PGRG_EMBEDDING_DIM after an embedding
+        migration cutover" before it becomes an opaque pgvector runtime error.
+        """
+        cur = await conn.execute(
+            "SELECT format_type(a.atttypid, a.atttypmod) AS t "
+            "FROM pg_attribute a "
+            "WHERE a.attrelid = 'chunks'::regclass AND a.attname = 'embedding' "
+            "  AND a.attnum > 0 AND NOT a.attisdropped"
+        )
+        row = await cur.fetchone()
+        if not row or not row[0]:
+            return
+        m = re.search(r"vector\((\d+)\)", row[0])
+        if not m:
+            return
+        live_dim = int(m.group(1))
+        if live_dim != self.config.embedding_dim:
+            raise EmbeddingDimMismatch(
+                f"Configured embedding_dim={self.config.embedding_dim} does not "
+                f"match the live chunks.embedding dimension ({live_dim}). If you "
+                f"just ran an embedding migration cutover, set "
+                f"PGRG_EMBEDDING_DIM={live_dim} (and the matching "
+                f"PGRG_EMBEDDING_MODEL). See "
+                f"docs/superpowers/specs/2026-05-26-online-embedding-migration-design.md."
             )
 
     def _render_sql_template(self, sql_text: str) -> str:

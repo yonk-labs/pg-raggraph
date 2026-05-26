@@ -3,15 +3,17 @@
 > **TL;DR.** [`chunkshop`](https://github.com/yonk-labs/chunkshop) is a sibling library on PyPI / crates.io for ingest-shaped work — chunker → embedder → extractor → pgvector. pg-raggraph offers two integration shapes:
 >
 > - **Pattern D — chunker-only**: set `chunk_strategy="chunkshop:hierarchy"` on `GraphRAG` and pg-raggraph delegates the chunking step to chunkshop. Everything else (embedding, LLM extraction, graph layer) stays in pg-raggraph.
-> - **Pattern C — full chunkshop pipeline + bridge** (advanced): run chunkshop end-to-end (chunks + embeddings + extracted metadata into chunkshop's pgvector table), then have pg-raggraph read that table and add the graph layer on top via the `pre_chunked` field on `ingest_records()`.
+> - **Pattern C — full chunkshop pipeline + bridge** (advanced): run chunkshop end-to-end (connectors/parsers + chunks + embeddings + extracted metadata into chunkshop's pgvector table), then have pg-raggraph read that table and add the graph layer on top via the `pre_chunked` field on `ingest_records()`.
 >
 > **Real-data caveat:** chunkshop chunking produces a denser graph (+31% relationships on the sales-CRM small sample) but **does NOT automatically improve Q&A accuracy**. On the same sample, Pattern A's built-in chunker scored higher per-mode. See [§Per-mode Q&A scores](#per-mode-qa-scores--graph-density-isnt-the-same-as-answer-accuracy) below — read this before flipping the default.
+>
+> For command-by-command usage, see the shorter [Chunkshop user guide](../chunkshop-user-guide.md).
 
 ## Why integrate with chunkshop at all?
 
 pg-raggraph ships with a built-in chunker (`chunk_strategy="auto"`, `"hierarchy"`). It works. chunkshop usually works *better* because:
 
-- **More chunker strategies.** chunkshop's registry currently exposes `hierarchy`, `sentence_aware`, `semantic`, `fixed_overlap`, `neighbor_expand`, `summary_embed`, `hierarchical_summary`. We expose the first five via `chunk_strategy="chunkshop:<name>"`.
+- **More chunker strategies.** chunkshop's registry currently exposes prose chunkers, summary chunkers, and code chunkers. We expose the in-process chunker-only set via `chunk_strategy="chunkshop:<name>"`: `hierarchy`, `sentence_aware`, `semantic`, `fixed_overlap`, `neighbor_expand`, `code_aware`, and `symbol_aware`. Summary/extractor-backed chunkshop pipelines should use Pattern C.
 - **Tuned defaults.** chunkshop's defaults come out of its own factorial benchmarks across multiple corpora (legal, medical, code). The `hierarchy` chunker with `prefix_heading=True` and `max_chars=2000` is the production sweet spot for markdown-shaped inputs.
 - **Optional metadata extractors.** chunkshop ships RAKE keywords, KeyBERT phrases, spaCy entities, and language detection as opt-in extractors. None of these are LLM-based; all are local + free. pg-raggraph doesn't have native versions of these.
 - **Pre-quantized embedders** (in Pattern C). chunkshop ships int8 quantized variants of bge-small/base by default — ~2× faster ingest than fp32 with negligible accuracy loss per chunkshop's own factorial bench.
@@ -22,9 +24,9 @@ The downsides are honest:
 - **Two tools to learn** if you go full Pattern C — chunkshop's YAML format on top of pg-raggraph's API.
 - **The built-in chunker is genuinely fine** for many corpora. If you don't have a clear reason to switch, don't.
 
-## Backend compatibility (chunkshop 0.4 is multi-engine)
+## Backend compatibility (chunkshop 0.6 is multi-engine)
 
-chunkshop 0.4 added modular backends. As of `chunkshop>=0.4.3` it supports **four sink backends** — Postgres + pgvector, MariaDB 11.7+, SQLite + sqlite-vec, and ClickHouse 24.10+ — plus nine sources (`files`, `json_corpus`, `http`, `s3`, `inline`, `pg_table`, `mariadb_table`, `sqlite_table`, `clickhouse_table`). The full matrix is pinned in chunkshop CI.
+chunkshop 0.6 supports **four sink backends** — Postgres + pgvector, MariaDB 11.7+, SQLite + sqlite-vec, and ClickHouse 24.10+ — plus core sources (`files`, `json_corpus`, `http`, `s3`, `inline`, table sources) and the external `chunkshop-connectors` package for verified `blob`, `rss`, `github`, and `gdrive` connectors. The full matrix is pinned in chunkshop CI.
 
 pg-raggraph is **PostgreSQL-only by design** (pgvector + adjacency tables + recursive CTEs). That constrains where each integration pattern can land chunkshop's output:
 
@@ -44,11 +46,10 @@ The 1-line integration. Pg-raggraph still owns ingest end-to-end; chunkshop just
 
 ```bash
 pip install 'pg-raggraph[chunkshop]'
-# or in pyproject.toml:
-#   "pg-raggraph[chunkshop]>=0.4.3"
+# the [chunkshop] extra pulls chunkshop>=0.6.1 from PyPI
 ```
 
-The floor is `chunkshop>=0.4.3` (bumped from 0.3 alongside the chunkshop 0.4 multi-engine release — see [§Backend compatibility](#backend-compatibility-chunkshop-04-is-multi-engine)).
+The package floor is `chunkshop>=0.6.1` (on PyPI). The prose chunkers, the `chunkshop:code_aware` / `chunkshop:symbol_aware` pass-throughs, and the `code_edges` / `code_summary` surfaces are all guaranteed at this floor — no source-tree build needed.
 
 The dep is **optional** — pg-raggraph imports chunkshop lazily, only if you use a `chunkshop:*` strategy. If you don't install the extra and don't pass a chunkshop strategy, nothing changes.
 
@@ -76,6 +77,8 @@ Supported strategies (set as `chunk_strategy="chunkshop:<name>"`):
 | `chunkshop:semantic` | Splits on semantic boundary detection (uses MiniLM under the hood). | Long-form content where you want chunks to break at topic shifts. Note: heavier than the others. |
 | `chunkshop:fixed_overlap` | Sliding-window word splits. | When you want plain windowing with overlap, not structure-aware. |
 | `chunkshop:neighbor_expand` | Hierarchy chunks expanded with neighbor context. | When chunks need surrounding context for retrieval to make sense. |
+| `chunkshop:code_aware` | Python AST-aware source chunks with import framing. | Pure-Python repositories where functions/classes are the retrieval unit. |
+| `chunkshop:symbol_aware` | Multi-language symbol-bounded chunks with FQN, line range, language, and `node_id` metadata. | Code repositories where pg-raggraph should preserve symbol metadata for downstream graph enrichment. |
 
 ### Worked example: sales-CRM with chunkshop chunking
 
@@ -237,6 +240,31 @@ records = [{
 When `pre_chunked` is set, pg-raggraph **bypasses both its chunker and embedder** for that record. The chunks are inserted as-is with the supplied embeddings. The `text` field still drives LLM entity/relationship extraction (the LLM looks at content to find entities), so set it to a sensible reconstruction of the document — e.g. join all chunks with double-newlines.
 
 Dimension validation: chunkshop's embedder dim (e.g. 384 for bge-small, 768 for bge-base) must equal `GraphRAG(embedding_dim=...)`. Mismatch raises a clear error pointing at the config.
+
+The helper `pg_raggraph.chunkshop_bridge.fetch_records_from_table()` reads the
+canonical chunkshop Postgres sink shape (`doc_id`, `seq_num`,
+`original_content`, `embedded_content`, `embedding`, `metadata`, `tags`,
+`source`) and returns records ready for `ingest_records()`. Use
+`rows_to_records()` when you already fetched rows yourself.
+
+For code repositories, `fetch_code_edges_from_table()` reads Chunkshop's
+`<schema>.code_edges` table and returns `CODE_SYMBOL` entities plus `CALLS` /
+`INHERITS` / `IMPLEMENTS` relationships. `attach_code_edges()` attaches that
+graph payload to the first imported record, preserving Chunkshop symbol node
+IDs on entity `properties` and preserving `project_id`, node IDs, confidence,
+and evidence under relationship `properties`.
+
+CLI equivalent:
+
+```bash
+pgrg --db "$PGRG_DSN" ingest-chunkshop-table \
+  --schema chunkshop_code \
+  --table kb_code \
+  --namespace code_graph \
+  --with-code-edges \
+  --project-id kb_code \
+  --min-confidence 0.7
+```
 
 ### Worked example — `ingest_chunkshop_pattern_c.py`
 
@@ -622,5 +650,5 @@ PGRGConfig(
 
 - **Replacing pg-raggraph's chunker** with chunkshop. The built-in stays the default; chunkshop is opt-in.
 - **Replacing pg-raggraph's embedder.** pg-raggraph's `embedding_provider` is independent of `chunk_strategy`. Pattern C re-embeds; Pattern D uses pg-raggraph's embedder.
-- **Hard-coupling.** chunkshop is on PyPI as `chunkshop>=0.4.3`. We pin the floor; you pin the version you want.
+- **Hard-coupling.** chunkshop is on PyPI; the `[chunkshop]` extra pins the floor at `chunkshop>=0.6.1`. We pin the floor; you pin the version you want.
 - **Replacing pg-raggraph's LLM extraction** with chunkshop's local extractors. Different roles: pg-raggraph's LLM extraction produces *typed entities and relationships* for the graph; chunkshop's extractors produce *flat keyword/entity lists* for filtering. They compose; they don't substitute.

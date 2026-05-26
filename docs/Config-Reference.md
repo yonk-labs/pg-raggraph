@@ -80,6 +80,8 @@ Cons: setting doesn't truncate or transform — must match model exactly or you'
 When to use: change in lockstep with `embedding_model`. e.g., set to 1024 for `bge-large-en-v1.5`.
 When NOT to use: never change in isolation; never change after data is ingested without a re-embed plan.
 
+Changing the dimension on a database that already has data: use the online expand/contract migration — `pgrg migrate-embeddings prepare/backfill/build-index/cutover/finalize` — which re-embeds into a second column while the app keeps serving, then swaps it in during a brief lock. No parallel database, no full downtime. A startup guard refuses to connect if `embedding_dim` no longer matches the live column, so a forgotten config change fails fast with a clear message. See [`cookbook/changing-embedding-dimensions.md`](cookbook/changing-embedding-dimensions.md).
+
 ### `embedding_model` (str, default: `BAAI/bge-small-en-v1.5`)
 Env var: `PGRG_EMBEDDING_MODEL`
 
@@ -104,9 +106,9 @@ Reasonable alternatives:
 | OpenAI text-embedding-3-large | 3072 | API | ~$0.13/M tokens | +6-9 pp F1 |
 
 Pros (raise embedder size): higher retrieval recall, better paraphrase handling, smaller gap to published SOTA.
-Cons (raise embedder size): bigger ingest time + memory; different `embedding_dim` requires full re-ingest of every namespace; OpenAI variants leak data + add per-token cost.
+Cons (raise embedder size): bigger ingest time + memory; a different `embedding_dim` means re-embedding — do it online with `pgrg migrate-embeddings` (no parallel DB, brief cutover; see [`cookbook/changing-embedding-dimensions.md`](cookbook/changing-embedding-dimensions.md)) or via a full re-ingest; OpenAI variants leak data + add per-token cost.
 When to use: every benchmark number you read in this repo is bge-small-bounded — if your retrieval ceiling matters in production, run a paired ingest with bge-large or NV-Embed-v2 and remeasure.
-When NOT to use: change without planning a re-ingest of every existing namespace; OpenAI embedders for any data sensitivity / airgap requirement.
+When NOT to use: OpenAI embedders for any data sensitivity / airgap requirement.
 
 ### `embedding_provider` (`"local" | "openai" | "ollama"`, default: `local`)
 Env var: `PGRG_EMBEDDING_PROVIDER`
@@ -173,10 +175,10 @@ When NOT to use: any workload that might benefit from cross-document entity chai
 ### `chunk_strategy` (str, default: `auto`)
 Env var: `PGRG_CHUNK_STRATEGY`
 
-What: how to split documents into chunks. Built-in values: `auto` (detect markdown / code / text and pick the right splitter), `hierarchy` (heading-prefixed chunks). Plus chunkshop pass-through values when the optional dep is installed: `chunkshop:hierarchy`, `chunkshop:sentence_aware`, `chunkshop:semantic`, `chunkshop:fixed_overlap`, `chunkshop:neighbor_expand` — see [`cookbook/chunkshop-integration.md`](cookbook/chunkshop-integration.md).
-Pros: `auto` is good across most corpora. `hierarchy` improves retrieval when titles disambiguate similar content. `chunkshop:*` strategies are the recommended chunkers for any markdown-shaped or sentence-rich corpus — chunkshop's hierarchy chunker is the production sweet spot from chunkshop's own factorial benchmarks.
-Cons: `chunkshop:*` requires the `chunkshop` optional dep (`pip install 'pg-raggraph[chunkshop]'`); without it pg-raggraph errors with an install hint when you set the strategy. `chunkshop:semantic` loads a sentence-transformer for boundary detection — heavier than the others.
-When to use: `chunkshop:hierarchy` as the upgrade path from `auto` for structured corpora. `chunkshop:sentence_aware` for prose without strong heading structure. `chunkshop:semantic` for long-form content where topic-shift detection matters and the extra runtime cost is worth it.
+What: how to split documents into chunks. Built-in values: `auto` (detect markdown / code / text and pick the right splitter), `hierarchy` (heading-prefixed chunks). Plus chunkshop pass-through values when the optional dep is installed: `chunkshop:hierarchy`, `chunkshop:sentence_aware`, `chunkshop:semantic`, `chunkshop:fixed_overlap`, `chunkshop:neighbor_expand`, `chunkshop:code_aware`, `chunkshop:symbol_aware` — see [`cookbook/chunkshop-integration.md`](cookbook/chunkshop-integration.md).
+Pros: `auto` is good across most corpora. `hierarchy` improves retrieval when titles disambiguate similar content. `chunkshop:*` strategies are the recommended chunkers for markdown-shaped, sentence-rich, or source-code corpora — chunkshop's hierarchy and symbol-aware chunkers carry richer `embedded_content` and metadata than pg-raggraph's built-in splitter.
+Cons: `chunkshop:*` requires the `chunkshop` optional dep (`pip install 'pg-raggraph[chunkshop]'`); without it pg-raggraph errors with an install hint when you set the strategy. `chunkshop:semantic` loads a sentence-transformer for boundary detection. `chunkshop:code_aware` and `chunkshop:symbol_aware` require a Chunkshop build that includes those 0.6 chunker config classes; `symbol_aware` works best with Chunkshop's tree-sitter code extra installed.
+When to use: `chunkshop:hierarchy` as the upgrade path from `auto` for structured corpora. `chunkshop:sentence_aware` for prose without strong heading structure. `chunkshop:semantic` for long-form content where topic-shift detection matters and the extra runtime cost is worth it. `chunkshop:symbol_aware` for multi-language code repositories where FQN, line range, and symbol metadata should travel with chunks.
 When NOT to use: any `chunkshop:*` strategy if you don't want the extra dependency. The built-in `auto`/`hierarchy` are perfectly serviceable.
 
 ### `chunk_max_tokens` (int, default: `512`)

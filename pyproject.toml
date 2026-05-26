@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pg-raggraph"
-version = "0.3.0a3"
+version = "0.4.0a1"
 description = "The fastest, simplest way to add knowledge-graph-powered RAG to any app — backed by PostgreSQL."
 readme = "README.md"
 license = "MIT"
@@ -41,7 +41,9 @@ llamaindex = ["llama-index-core>=0.11"]
 mcp = ["mcp>=1.0"]
 # Sibling library for richer chunking strategies + optional metadata extraction.
 # Optional but recommended — see docs/cookbook/chunkshop-integration.md.
-chunkshop = ["chunkshop>=0.5.0"]
+# Floor is 0.6.1: the code-aware/symbol_aware chunkers, code_edges, and
+# code_summary surfaces this project consumes all require chunkshop 0.6.x.
+chunkshop = ["chunkshop>=0.6.1"]
 # Deterministic, LLM-free entity + co-occurrence-edge extraction.
 # Requires the spaCy model too: python -m spacy download en_core_web_sm
 # See docs/superpowers/specs/2026-05-18-lede-spacy-extraction-design.md

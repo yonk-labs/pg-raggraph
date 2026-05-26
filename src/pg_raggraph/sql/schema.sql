@@ -180,9 +180,25 @@ CREATE INDEX IF NOT EXISTS idx_chunk_search ON chunks USING gin (search_vector);
 -- embedded_content so BM25 queries see heading text (hierarchy strategy) and
 -- any future neighbor/summary decoration. Falls back to content if
 -- embedded_content is NULL.
+--
+-- Weight layout:
+--   'A' — embedded_content / content (body terms; rank highest)
+--   'B' — top_terms[*].term from metadata JSONB (chunkshop salient terms;
+--          allows BM25 retrieval by salient term even when not in body text)
+-- Guard: absent / non-array top_terms produce an empty 'B' segment — no
+-- behavior change for chunks that don't carry top_terms.
 CREATE OR REPLACE FUNCTION pgrg_update_search_vector() RETURNS trigger AS $$
+DECLARE
+    top_terms_text TEXT := '';
 BEGIN
-    NEW.search_vector := to_tsvector('english', COALESCE(NEW.embedded_content, NEW.content));
+    IF jsonb_typeof(NEW.metadata->'top_terms') = 'array' THEN
+        SELECT COALESCE(string_agg(elem->>'term', ' '), '')
+          INTO top_terms_text
+          FROM jsonb_array_elements(NEW.metadata->'top_terms') elem;
+    END IF;
+    NEW.search_vector :=
+        setweight(to_tsvector('english', COALESCE(NEW.embedded_content, NEW.content)), 'A')
+        || setweight(to_tsvector('english', top_terms_text), 'B');
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

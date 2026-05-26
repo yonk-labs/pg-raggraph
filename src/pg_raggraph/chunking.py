@@ -52,8 +52,8 @@ def chunk_document(
     - ``"chunkshop:<chunker_name>"`` — delegate to chunkshop directly. Optional
       dependency: install with ``pip install pg-raggraph[chunkshop]``. Supported
       chunker names: ``hierarchy``, ``sentence_aware``, ``semantic``,
-      ``fixed_overlap``, ``neighbor_expand``, ``summary_embed``,
-      ``hierarchical_summary``. See docs/cookbook/chunkshop-integration.md.
+      ``fixed_overlap``, ``neighbor_expand``, ``code_aware``, and
+      ``symbol_aware``. See docs/cookbook/chunkshop-integration.md.
     """
     if config is None:
         config = PGRGConfig()
@@ -158,6 +158,7 @@ def _chunk_via_chunkshop(
     yourself for the version of your choice).
     """
     try:
+        from chunkshop import config as cs_config
         from chunkshop.chunkers import load_chunker
         from chunkshop.config import (
             FixedOverlapChunker as FixedCfg,
@@ -196,6 +197,15 @@ def _chunk_via_chunkshop(
     # chunk_max_tokens budget (1 token ≈ 4 chars for English).
     max_chars = max(config.chunk_max_tokens * 4, 800)
 
+    # Fallback chunker for oversized sections. Used as if_oversize on all
+    # chunkers that have an effective ceiling (i.e. all except fixed_overlap,
+    # which can't recurse into itself). When a section exceeds max_chars
+    # (e.g. embedded_content = heading prefix + body > ceiling) the fallback
+    # re-chunks the original_content with word-boundary splits + overlap.
+    # Must NOT itself carry if_oversize (avoid recursion) and MUST have
+    # max_chars set (validator requirement for if_oversize configs).
+    oversize_fallback = FixedCfg(type="fixed_overlap", max_chars=max_chars)
+
     # chunkshop's pydantic Cfgs all require a `type` discriminator. Build the
     # config here so callers don't need to know the chunkshop schema, then let
     # chunkshop's own `load_chunker` registry instantiate the chunker. Routing
@@ -203,23 +213,38 @@ def _chunk_via_chunkshop(
     # constructor changes (e.g. nested chunkers like neighbor_expand now take a
     # separately-built `base` chunker as a positional arg in 0.5.0).
     chunker_cfg_map = {
-        "hierarchy": HierCfg(type="hierarchy", max_chars=max_chars),
-        "sentence_aware": SentCfg(type="sentence_aware", max_chars=max_chars),
-        "semantic": SemanticCfg(type="semantic", max_chunk_chars=max_chars),
-        "fixed_overlap": FixedCfg(type="fixed_overlap"),
+        "hierarchy": HierCfg(type="hierarchy", max_chars=max_chars, if_oversize=oversize_fallback),
+        "sentence_aware": SentCfg(
+            type="sentence_aware", max_chars=max_chars, if_oversize=oversize_fallback
+        ),
+        "semantic": SemanticCfg(
+            type="semantic", max_chunk_chars=max_chars, if_oversize=oversize_fallback
+        ),
+        "fixed_overlap": FixedCfg(type="fixed_overlap", max_chars=max_chars),
         "neighbor_expand": NeighborCfg(
             type="neighbor_expand",
             base=HierCfg(type="hierarchy", max_chars=max_chars),
+            if_oversize=oversize_fallback,
         ),
     }
+    if CodeAwareCfg := getattr(cs_config, "CodeAwareChunker", None):
+        chunker_cfg_map["code_aware"] = CodeAwareCfg(
+            type="code_aware", max_chars=max_chars, if_oversize=oversize_fallback
+        )
+    if SymbolAwareCfg := getattr(cs_config, "SymbolAwareChunker", None):
+        chunker_cfg_map["symbol_aware"] = SymbolAwareCfg(
+            type="symbol_aware",
+            max_chars=max_chars,
+            if_oversize=oversize_fallback,
+        )
 
     if name not in chunker_cfg_map:
         raise ValueError(
             f"Unknown chunkshop strategy 'chunkshop:{name}'. "
             f"Supported: {sorted(chunker_cfg_map.keys())}. "
-            "For summary_embed and hierarchical_summary (which require an "
-            "embedder + summarizer), use chunkshop's own pipeline directly "
-            "and feed the resulting chunks to rag.ingest_records()."
+            "For summary_embed, hierarchical_summary, consolidation, or extractor-backed "
+            "pipelines, use chunkshop's own pipeline directly and feed the resulting "
+            "chunks to rag.ingest_records(pre_chunked=...)."
         )
 
     chunker = load_chunker(chunker_cfg_map[name])

@@ -1,6 +1,41 @@
 # Changelog
 
-## Unreleased — 2026-05-20 (retrieval surface + per-call kwargs + index machinery)
+## 0.4.0a1 — 2026-05-26 (chunkshop 0.6.1 integration + online embedding migration + code-graph queries)
+
+Additive arc, backward-compatible. Existing query/ingest behavior is byte-for-byte unchanged (`retrieval.py`, `answer.py`, and the `query()` path are untouched). Validated against a 2.5 GB real corpus (MHR/MuSiQue/2Wiki, 1024-dim bge-large): all six retrieval modes return identical results; no accuracy change.
+
+### Added — online embedding-model migration (`pgrg migrate-embeddings`)
+
+Change the embedding model/dimension on a live database via an expand/contract column swap — no parallel DB, brief cutover. New `pg_raggraph.embedding_migration` module + CLI group with phases `prepare` / `backfill` / `build-index` / `status` / `cutover` / `finalize`. Backfill is online + resumable; cutover is a single atomic transaction (rename columns, retype the embedding cache, update `pgrg_meta`). Two backfill sources: `reembed` (default) and `chunkshop_sink` (Pattern C). Migration `010_embedding_migration.sql`.
+
+- **Startup dim-guard** — `connect()` now raises `EmbeddingDimMismatch` if configured `embedding_dim` ≠ the live `chunks.embedding` dimension, catching a forgotten config change (e.g. after a cutover) with a clear message instead of an opaque pgvector error.
+- Runbook: [`docs/cookbook/changing-embedding-dimensions.md`](docs/cookbook/changing-embedding-dimensions.md).
+
+### Added — code-graph query UX (`code-impact`)
+
+`pgrg code-impact <fqn>` and `GraphRAG.code_impact(fqn, depth=…)` report a code symbol's callers and callees (with evidence snippets) by traversing the existing `relationships` graph — cycle-safe recursive CTEs, `--depth` for transitive impact, tree or `--json` output. New `pg_raggraph.code_graph` module; no schema change.
+
+### Added — chunkshop 0.6.1 code surfaces
+
+- Dependency floor moved to **`chunkshop>=0.6.1`** (PyPI). Guarantees the code-aware/symbol_aware chunkers, `code_edges`, and `code_summary`.
+- `chunk_strategy="chunkshop:code_aware"` / `"chunkshop:symbol_aware"` pass-throughs.
+- `pgrg ingest-chunkshop-table` imports a chunkshop Postgres sink; `--with-code-edges` imports `code_edges` as `CODE_SYMBOL` entities + `CALLS`/`INHERITS`/`IMPLEMENTS` relationships.
+- **`code_summary` enrichment** — when imported chunks carry `fqn` + `summary`, the matching `CODE_SYMBOL` entity description is set to that summary.
+- **`top_terms` → FTS** — chunkshop `lede_top_terms` (`chunks.metadata.top_terms`) are folded into the chunk `search_vector` (weight B) so BM25 surfaces chunks by their salient terms. Migration `011_search_vector_top_terms.sql` (redefines the trigger for new writes; existing rows re-index on update).
+
+### Changed / Fixed
+
+- `if_oversize` fallback plumbed into chunkshop chunker delegation so oversized sections are split rather than passed through.
+- Clear, actionable error when importing `code_edges` from a schema that lacks the table (requires a chunkshop 0.6 sink) instead of an opaque `UndefinedColumn`.
+
+### Notes
+
+- `lede` / `lede-spacy` remain pinned at `>=0.4.5` (current PyPI latest).
+- Re-running an embedding migration is data-safe; `embedding_old` is preserved until `finalize`.
+
+## 0.4.0a1 — 2026-05-20 (retrieval surface + per-call kwargs + index machinery)
+
+> Bundled into the same `0.4.0a1` release as the arc above; staged before it.
 
 Significant additive arc: per-call config overrides on `query()` / `ask()`, configurable retrieval SQL shape (`weighted` / `pre_filter` / `vector_first`), auto-create + runtime APIs for JSONB metadata indexes on **both** `chunks` and `documents`, a typed-column scaffold for numeric/timestamp range queries, the chunkshop SP-A agent-memory read bridge, an observability metric on `vector_first` recall, and two `version_*` correctness fixes for `evolution_tier="off"`.
 
