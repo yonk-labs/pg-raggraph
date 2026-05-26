@@ -198,11 +198,13 @@ def ingest_chunkshop_table(
             skip_llm=skip_llm,
         )
         if with_code_edges:
+            summaries = chunkshop_bridge.summaries_by_fqn(records)
             entities, relationships = chunkshop_bridge.fetch_code_edges_from_table(
                 dsn,
                 schema=schema_name,
                 project_id=project_id,
                 min_confidence=min_confidence,
+                summaries=summaries,
             )
             edge_rows = []
             # Reuse attach_code_edges' single-record anchoring behavior while

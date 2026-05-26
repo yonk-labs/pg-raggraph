@@ -100,11 +100,15 @@ def code_edges_to_known_graph(
     rows: Iterable[dict[str, Any]],
     *,
     min_confidence: float = 0.0,
+    summaries: dict[str, str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Convert chunkshop ``code_edges`` rows into known entities/relationships.
 
     The returned tuple is ``(entities, relationships)`` and can be merged into
     a record before calling ``GraphRAG.ingest_records``.
+
+    Pass *summaries* (fqn -> summary string) to enrich ``CODE_SYMBOL`` entity
+    descriptions beyond the default ``"Code symbol {fqn}"`` fallback.
     """
     entities_by_name: dict[str, dict[str, Any]] = {}
     relationships: list[dict[str, Any]] = []
@@ -123,7 +127,7 @@ def code_edges_to_known_graph(
                 {
                     "name": fqn,
                     "entity_type": "CODE_SYMBOL",
-                    "description": f"Code symbol {fqn}",
+                    "description": (summaries or {}).get(fqn) or f"Code symbol {fqn}",
                     "properties": {
                         "chunkshop_node_id": row.get(node_key),
                         "source": "chunkshop_code_edges",
@@ -157,16 +161,23 @@ def attach_code_edges(
     edge_rows: Iterable[dict[str, Any]],
     *,
     min_confidence: float = 0.0,
+    summaries: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Attach code-edge entities/relationships to the first ingest record.
 
     pg-raggraph's known relationships are document-level and only need one
     chunk anchor for graph traversal. Keeping all imported code edges on the
     first record avoids duplicating cross-file edges on every source file.
+
+    When *summaries* is ``None`` (the default) it is derived automatically from
+    ``pre_chunked`` chunk metadata in *records* via :func:`summaries_by_fqn`.
     """
+    if summaries is None:
+        summaries = summaries_by_fqn(records)
     entities, relationships = code_edges_to_known_graph(
         edge_rows,
         min_confidence=min_confidence,
+        summaries=summaries,
     )
     if not entities and not relationships:
         return records
@@ -230,8 +241,14 @@ def fetch_code_edges_from_table(
     schema: str,
     project_id: str | None = None,
     min_confidence: float = 0.0,
+    summaries: dict[str, str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Read ``<schema>.code_edges`` and return known graph payloads."""
+    """Read ``<schema>.code_edges`` and return known graph payloads.
+
+    Pass *summaries* (fqn -> summary string) to enrich ``CODE_SYMBOL`` entity
+    descriptions.  Typically derived via :func:`summaries_by_fqn` before calling
+    this function.
+    """
     _validate_ident(schema, kind="schema")
 
     import psycopg
@@ -263,7 +280,7 @@ def fetch_code_edges_from_table(
                 "enabled, or omit --with-code-edges."
             )
         rows = list(conn.execute(query, params).fetchall())
-    return code_edges_to_known_graph(rows, min_confidence=min_confidence)
+    return code_edges_to_known_graph(rows, min_confidence=min_confidence, summaries=summaries)
 
 
 __all__ = [
