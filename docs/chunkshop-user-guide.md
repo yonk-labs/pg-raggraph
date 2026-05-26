@@ -182,7 +182,27 @@ await rag.ingest_records(records, namespace="code_graph")
 
 `attach_code_edges(records, rows)` is the convenience helper when you have raw `code_edges` rows instead of the already-converted `(entities, relationships)` tuple.
 
-Imported code edges create `CODE_SYMBOL` entities. Relationship `properties` preserve `project_id`, Chunkshop node ids, and the evidence JSON. Known entity `properties` are also persisted and merged by name.
+Imported code edges create `CODE_SYMBOL` entities. Relationship `properties` preserve `project_id`, Chunkshop node ids, and the evidence JSON. Known entity `properties` are also persisted and merged by name. When the imported chunks carry a per-symbol `summary` (Chunkshop's `symbol_aware` chunker plus the `code_summary` extractor, surfaced as `metadata.fqn` + `metadata.summary`), the matching `CODE_SYMBOL` entity's description is set to that summary instead of the generic `Code symbol {fqn}`.
+
+## Querying the Code Graph (`code-impact`)
+
+Once code edges are imported, query the call graph by symbol FQN:
+
+```bash
+pgrg --db "$PGRG_DSN" code-impact pkg.module.func -n code_graph --depth 2
+```
+
+This prints the symbol's **callers** (who depends on it) and **callees** (what it calls), with evidence snippets, walking up to `--depth` hops (default 1). Add `--json` for scripting, and `--min-confidence` to drop low-weight edges. A missing symbol exits non-zero.
+
+From Python:
+
+```python
+impact = await rag.code_impact("pkg.module.func", depth=2)
+for edge in impact.callers:
+    print(edge.fqn, edge.rel_type, edge.evidence, edge.depth)
+```
+
+`code_impact` returns a `CodeImpact` dataclass (`fqn`, `found`, `callers`, `callees`); each edge is a `CodeEdge` (`fqn`, `rel_type`, `evidence`, `depth`). It traverses the same `relationships` graph the code-edge import populated, so symbols enriched with a `code_summary` description show that summary in their entity record.
 
 ## Verify an Import
 
