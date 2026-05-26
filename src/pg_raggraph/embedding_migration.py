@@ -44,3 +44,28 @@ async def column_dim(db, table: str, column: str = "embedding") -> int | None:
         return None
     m = _DIM_RE.search(row["t"])
     return int(m.group(1)) if m else None
+
+
+async def prepare(
+    db,
+    *,
+    target_model: str,
+    target_dim: int,
+    backfill_source: str = "reembed",
+) -> None:
+    """Add embedding_tmp(target_dim) to all TABLES and record migration state."""
+    if backfill_source not in ("reembed", "chunkshop_sink"):
+        raise ValueError(f"unknown backfill_source: {backfill_source!r}")
+    if await get_state(db) is not None:
+        raise RuntimeError("a migration is already active; finalize it first")
+    for table in TABLES:
+        await db.execute(
+            f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS "
+            f"embedding_tmp vector({int(target_dim)})"
+        )
+    await db.execute(
+        "INSERT INTO embedding_migration "
+        "(id, target_model, target_dim, phase, backfill_source) "
+        "VALUES (TRUE, %s, %s, 'prepared', %s)",
+        (target_model, int(target_dim), backfill_source),
+    )

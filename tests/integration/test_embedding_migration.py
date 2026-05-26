@@ -84,3 +84,18 @@ async def test_column_dim_reads_live_dimension(fresh_db):
         assert await em.column_dim(rag._db, "chunks", "embedding_tmp") is None
     finally:
         await rag.close()
+
+
+@pytest.mark.asyncio
+async def test_prepare_adds_tmp_columns_and_state(fresh_db):
+    rag = await _fresh_rag(fresh_db, 4, StubEmbedder(4))
+    try:
+        await em.prepare(rag._db, target_model="stub-6", target_dim=6)
+        assert await em.column_dim(rag._db, "chunks", "embedding_tmp") == 6
+        assert await em.column_dim(rag._db, "entities", "embedding_tmp") == 6
+        state = await em.get_state(rag._db)
+        assert state["target_dim"] == 6
+        assert state["target_model"] == "stub-6"
+        assert state["phase"] == "prepared"
+    finally:
+        await rag.close()
