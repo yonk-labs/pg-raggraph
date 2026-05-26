@@ -17,6 +17,7 @@
 - **[cookbook/evolution-tracking.md](cookbook/evolution-tracking.md)** — Tier 1 quickstart for `effective_from` / `retracted` / `version_label`.
 - **[cookbook/sales-crm-ingestion.md](cookbook/sales-crm-ingestion.md)** — Worked example: ingest a sales CRM (call notes / orders / customers / products) end-to-end. Two ingest patterns (disk-based, in-memory), real-run output with entity counts and queries, per-mode comparison.
 - **[cookbook/chunkshop-integration.md](cookbook/chunkshop-integration.md)** — How to use the [chunkshop](https://github.com/yonk-labs/chunkshop) sibling library (optional but recommended) for chunking and metadata extraction. Patterns D (chunker-only via `chunk_strategy="chunkshop:*"`) and C (full chunkshop pipeline + bridge).
+- **[cookbook/changing-embedding-dimensions.md](cookbook/changing-embedding-dimensions.md)** — Move a live database to a new embedding model/dimension online via the `pgrg migrate-embeddings` expand/contract column swap (no parallel DB; brief cutover).
 
 ## Worked walkthroughs (blog series — `blogs/`)
 
