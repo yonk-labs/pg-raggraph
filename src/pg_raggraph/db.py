@@ -23,6 +23,7 @@ logger = logging.getLogger("pg_raggraph.db")
 class EmbeddingDimMismatch(ValueError):
     """Configured embedding_dim does not match the live chunks.embedding column."""
 
+
 # Postgres identifier shape — letters/digits/underscores, must start with
 # letter/underscore. We cap at 50 chars (well under Postgres's 63-byte limit)
 # to leave room for the `idx_chunks_metadata_` prefix in the generated index

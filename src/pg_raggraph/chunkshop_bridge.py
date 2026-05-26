@@ -268,9 +268,7 @@ def fetch_code_edges_from_table(
     ).format(fq=fq, where=where)
 
     with psycopg.connect(dsn, row_factory=dict_row) as conn:
-        reg = conn.execute(
-            "SELECT to_regclass(%s) AS t", (f"{schema}.code_edges",)
-        ).fetchone()
+        reg = conn.execute("SELECT to_regclass(%s) AS t", (f"{schema}.code_edges",)).fetchone()
         if not reg or not reg["t"]:
             raise ValueError(
                 f"chunkshop code_edges table '{schema}.code_edges' not found. "

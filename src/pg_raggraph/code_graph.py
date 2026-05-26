@@ -99,8 +99,14 @@ def _dedupe(rows) -> list[CodeEdge]:
         if r["fqn"] in seen:
             continue
         seen.add(r["fqn"])
-        out.append(CodeEdge(fqn=r["fqn"], rel_type=r["rel_type"],
-                            evidence=r["evidence"] or "", depth=r["depth"]))
+        out.append(
+            CodeEdge(
+                fqn=r["fqn"],
+                rel_type=r["rel_type"],
+                evidence=r["evidence"] or "",
+                depth=r["depth"],
+            )
+        )
     return out
 
 

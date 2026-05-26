@@ -213,9 +213,7 @@ def _chunk_via_chunkshop(
     # constructor changes (e.g. nested chunkers like neighbor_expand now take a
     # separately-built `base` chunker as a positional arg in 0.5.0).
     chunker_cfg_map = {
-        "hierarchy": HierCfg(
-            type="hierarchy", max_chars=max_chars, if_oversize=oversize_fallback
-        ),
+        "hierarchy": HierCfg(type="hierarchy", max_chars=max_chars, if_oversize=oversize_fallback),
         "sentence_aware": SentCfg(
             type="sentence_aware", max_chars=max_chars, if_oversize=oversize_fallback
         ),

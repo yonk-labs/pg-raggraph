@@ -2072,8 +2072,12 @@ class GraphRAG:
             }
 
     async def code_impact(
-        self, fqn: str, *, namespace: str | None = None,
-        depth: int = 1, min_confidence: float = 0.0,
+        self,
+        fqn: str,
+        *,
+        namespace: str | None = None,
+        depth: int = 1,
+        min_confidence: float = 0.0,
     ):
         """Callers and callees of a CODE_SYMBOL by FQN. Returns a CodeImpact.
 

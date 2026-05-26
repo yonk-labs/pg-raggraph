@@ -14,8 +14,8 @@ import pytest
 
 from pg_raggraph import GraphRAG
 
-DSN = os.environ.get("PGRG_TEST_DSN")
-pytestmark = pytest.mark.skipif(not DSN, reason="requires PGRG_TEST_DSN")
+DSN = os.environ.get("PGRG_TEST_DSN", "postgresql://postgres:postgres@localhost:5434/pg_raggraph")
+pytestmark = pytest.mark.integration
 NS = "test_search_vector_top_terms"
 
 
@@ -30,16 +30,13 @@ async def test_top_terms_folded_into_search_vector():
         # Insert a parent document (namespace + content_hash are the only NOT NULLs).
         chash = uuid.uuid4().hex
         doc = await db.fetch_one(
-            "INSERT INTO documents (namespace, content_hash) "
-            "VALUES (%s, %s) RETURNING id",
+            "INSERT INTO documents (namespace, content_hash) VALUES (%s, %s) RETURNING id",
             (NS, chash),
         )
 
         # Chunk body: 'alpha beta' — no trace of 'zonkterm'.
         # metadata.top_terms: adds 'zonkterm' as a salient term.
-        meta = json.dumps(
-            {"top_terms": [{"term": "zonkterm", "score": 1.0, "kind": "keyword"}]}
-        )
+        meta = json.dumps({"top_terms": [{"term": "zonkterm", "score": 1.0, "kind": "keyword"}]})
         chunk = await db.fetch_one(
             "INSERT INTO chunks (document_id, content, embedded_content, metadata) "
             "VALUES (%s, %s, %s, %s) RETURNING id",
@@ -73,8 +70,7 @@ async def test_no_top_terms_still_works():
     try:
         chash = uuid.uuid4().hex
         doc = await db.fetch_one(
-            "INSERT INTO documents (namespace, content_hash) "
-            "VALUES (%s, %s) RETURNING id",
+            "INSERT INTO documents (namespace, content_hash) VALUES (%s, %s) RETURNING id",
             (NS, chash),
         )
 
@@ -106,8 +102,7 @@ async def test_multiple_top_terms():
     try:
         chash = uuid.uuid4().hex
         doc = await db.fetch_one(
-            "INSERT INTO documents (namespace, content_hash) "
-            "VALUES (%s, %s) RETURNING id",
+            "INSERT INTO documents (namespace, content_hash) VALUES (%s, %s) RETURNING id",
             (NS, chash),
         )
 

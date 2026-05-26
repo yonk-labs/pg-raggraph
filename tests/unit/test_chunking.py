@@ -462,6 +462,4 @@ def test_chunkshop_hierarchy_splits_oversized_section():
         f"content exceeds ceiling: max={max(len(c['content']) for c in chunks)} > {max_chars}"
     )
     max_emb = max(len(c["embedded_content"]) for c in chunks)
-    assert max_emb <= max_chars, (
-        f"embedded_content exceeds ceiling: max={max_emb} > {max_chars}"
-    )
+    assert max_emb <= max_chars, f"embedded_content exceeds ceiling: max={max_emb} > {max_chars}"

@@ -15,8 +15,8 @@ import pytest
 from pg_raggraph import GraphRAG
 from pg_raggraph import embedding_migration as em
 
-DSN = os.environ.get("PGRG_TEST_DSN")
-pytestmark = pytest.mark.skipif(not DSN, reason="requires PGRG_TEST_DSN")
+DSN = os.environ.get("PGRG_TEST_DSN", "postgresql://postgres:postgres@localhost:5434/pg_raggraph")
+pytestmark = pytest.mark.integration
 
 
 def _swap_db(dsn: str, dbname: str) -> str:
@@ -243,30 +243,36 @@ async def test_connect_raises_on_dim_mismatch(fresh_db):
 async def test_backfill_from_chunkshop_sink_matches_by_metadata(fresh_db):
     rag = await _fresh_rag(fresh_db, 4, StubEmbedder(4))
     try:
-        await rag.ingest_records([
-            {
-                "text": "alpha",
-                "source_id": "chunkshop:docX",
-                "metadata": {"source": "chunkshop", "chunkshop_doc_id": "docX"},
-                "pre_chunked": [{
-                    "content": "alpha",
-                    "embedding": [1.0, 1.0, 1.0, 1.0],
-                    "metadata": {"chunkshop_doc_id": "docX", "chunkshop_seq_num": 0},
-                }],
-            }
-        ])
+        await rag.ingest_records(
+            [
+                {
+                    "text": "alpha",
+                    "source_id": "chunkshop:docX",
+                    "metadata": {"source": "chunkshop", "chunkshop_doc_id": "docX"},
+                    "pre_chunked": [
+                        {
+                            "content": "alpha",
+                            "embedding": [1.0, 1.0, 1.0, 1.0],
+                            "metadata": {"chunkshop_doc_id": "docX", "chunkshop_seq_num": 0},
+                        }
+                    ],
+                }
+            ]
+        )
         await em.prepare(
-            rag._db, target_model="stub-6", target_dim=6,
+            rag._db,
+            target_model="stub-6",
+            target_dim=6,
             backfill_source="chunkshop_sink",
         )
-        sink_rows = [{
-            "chunkshop_doc_id": "docX",
-            "chunkshop_seq_num": 0,
-            "embedding": [9.0] * 6,
-        }]
-        n = await em.backfill_from_sink(
-            rag._db, sink_rows, entity_embedder=StubEmbedder(6)
-        )
+        sink_rows = [
+            {
+                "chunkshop_doc_id": "docX",
+                "chunkshop_seq_num": 0,
+                "embedding": [9.0] * 6,
+            }
+        ]
+        n = await em.backfill_from_sink(rag._db, sink_rows, entity_embedder=StubEmbedder(6))
         assert n >= 1
         assert await em._remaining_null(rag._db, "chunks") == 0
         row = await rag._db.fetch_one(

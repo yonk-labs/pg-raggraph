@@ -60,8 +60,7 @@ async def prepare(
         raise RuntimeError("a migration is already active; finalize it first")
     for table in TABLES:
         await db.execute(
-            f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS "
-            f"embedding_tmp vector({int(target_dim)})"
+            f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS embedding_tmp vector({int(target_dim)})"
         )
     await db.execute(
         "INSERT INTO embedding_migration "
@@ -77,9 +76,7 @@ async def _index_exists(db, name: str) -> bool:
 
 
 async def _remaining_null(db, table: str) -> int:
-    row = await db.fetch_one(
-        f"SELECT count(*) AS n FROM {table} WHERE embedding_tmp IS NULL"
-    )
+    row = await db.fetch_one(f"SELECT count(*) AS n FROM {table} WHERE embedding_tmp IS NULL")
     return int(row["n"])
 
 
@@ -142,8 +139,7 @@ async def backfill(db, embedder, *, batch_size: int = 256) -> int:
     for table in TABLES:
         total += await _backfill_table(db, embedder, table, batch_size)
     await db.execute(
-        "UPDATE embedding_migration SET phase='backfilled', updated_at=now() "
-        "WHERE id IS TRUE"
+        "UPDATE embedding_migration SET phase='backfilled', updated_at=now() WHERE id IS TRUE"
     )
     return total
 
@@ -167,8 +163,7 @@ async def build_index(db, *, hnsw_m: int = 16, hnsw_ef_construction: int = 64) -
                 f"WITH (m = {int(hnsw_m)}, ef_construction = {int(hnsw_ef_construction)})"
             )
     await db.execute(
-        "UPDATE embedding_migration SET phase='indexed', updated_at=now() "
-        "WHERE id IS TRUE"
+        "UPDATE embedding_migration SET phase='indexed', updated_at=now() WHERE id IS TRUE"
     )
 
 
@@ -192,27 +187,19 @@ async def cutover(db) -> None:
     async with db.pool.connection() as conn:
         for table in TABLES:
             await conn.execute(f"DROP INDEX IF EXISTS {_LIVE_INDEX[table]}")
-            await conn.execute(
-                f"ALTER TABLE {table} RENAME COLUMN embedding TO embedding_old"
-            )
-            await conn.execute(
-                f"ALTER TABLE {table} RENAME COLUMN embedding_tmp TO embedding"
-            )
-            await conn.execute(
-                f"ALTER INDEX {_TMP_INDEX[table]} RENAME TO {_LIVE_INDEX[table]}"
-            )
+            await conn.execute(f"ALTER TABLE {table} RENAME COLUMN embedding TO embedding_old")
+            await conn.execute(f"ALTER TABLE {table} RENAME COLUMN embedding_tmp TO embedding")
+            await conn.execute(f"ALTER INDEX {_TMP_INDEX[table]} RENAME TO {_LIVE_INDEX[table]}")
         await conn.execute("TRUNCATE embedding_cache")
         await conn.execute(
-            f"ALTER TABLE embedding_cache "
-            f"ALTER COLUMN embedding TYPE vector({target_dim})"
+            f"ALTER TABLE embedding_cache ALTER COLUMN embedding TYPE vector({target_dim})"
         )
         await conn.execute(
             "UPDATE pgrg_meta SET value = %s WHERE key = 'embedding_dim'",
             (str(target_dim),),
         )
         await conn.execute(
-            "UPDATE embedding_migration SET phase='cutover', updated_at=now() "
-            "WHERE id IS TRUE"
+            "UPDATE embedding_migration SET phase='cutover', updated_at=now() WHERE id IS TRUE"
         )
 
 
@@ -228,9 +215,7 @@ async def finalize(db) -> None:
     await db.execute("DELETE FROM embedding_migration WHERE id IS TRUE")
 
 
-async def backfill_from_sink(
-    db, sink_rows, *, entity_embedder, batch_size: int = 256
-) -> int:
+async def backfill_from_sink(db, sink_rows, *, entity_embedder, batch_size: int = 256) -> int:
     """Backfill chunks from precomputed chunkshop sink vectors; entities re-embed.
 
     Each sink row needs ``chunkshop_doc_id``, ``chunkshop_seq_num``, ``embedding``.
@@ -258,7 +243,6 @@ async def backfill_from_sink(
     total += await _backfill_table(db, entity_embedder, "entities", batch_size=batch_size)
 
     await db.execute(
-        "UPDATE embedding_migration SET phase='backfilled', updated_at=now() "
-        "WHERE id IS TRUE"
+        "UPDATE embedding_migration SET phase='backfilled', updated_at=now() WHERE id IS TRUE"
     )
     return total

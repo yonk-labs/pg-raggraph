@@ -520,7 +520,9 @@ def _me_prepare(ctx, model, dim, backfill_source):
         await rag.connect()
         try:
             await em.prepare(
-                rag._db, target_model=model, target_dim=dim,
+                rag._db,
+                target_model=model,
+                target_dim=dim,
                 backfill_source=backfill_source,
             )
             click.echo(f"prepared migration to {model} (dim {dim})")

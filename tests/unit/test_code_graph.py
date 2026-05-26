@@ -24,7 +24,9 @@ def test_render_tree_empty_sections_show_none():
 
 def test_render_tree_marks_transitive_depth():
     res = CodeImpact(
-        fqn="pkg.a", found=True, callers=[],
+        fqn="pkg.a",
+        found=True,
+        callers=[],
         callees=[CodeEdge("pkg.c", "CALLS", "", 2)],
     )
     out = render_impact_tree(res)

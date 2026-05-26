@@ -146,7 +146,7 @@ def test_fetch_code_edges_raises_when_table_absent_noedges():
 # CLI end-to-end: ingest-chunkshop-table against a real Postgres sink table
 # ---------------------------------------------------------------------------
 
-_CLI_DSN = os.environ.get("PGRG_TEST_DSN", "postgresql://postgres:postgres@localhost:5437/pg_raggraph")
+_CLI_DSN = os.environ.get("PGRG_TEST_DSN", DSN)
 _CLI_NS = "test_chunkshop_cli_e2e"
 
 
@@ -240,20 +240,27 @@ def test_ingest_chunkshop_table_cli_end_to_end():
     result = runner.invoke(
         main,
         [
-            "--db", _CLI_DSN,
+            "--db",
+            _CLI_DSN,
             "ingest-chunkshop-table",
-            "--schema", schema,
-            "--table", sink,
-            "--chunkshop-dsn", _CLI_DSN,
-            "--namespace", _CLI_NS,
+            "--schema",
+            schema,
+            "--table",
+            sink,
+            "--chunkshop-dsn",
+            _CLI_DSN,
+            "--namespace",
+            _CLI_NS,
             "--with-code-edges",
-            "--project-id", "projA",
+            "--project-id",
+            "projA",
             "--skip-llm",
         ],
     )
 
     if result.exit_code != 0:
         import traceback
+
         exc_text = ""
         if result.exception:
             exc_text = "".join(
@@ -318,26 +325,42 @@ def test_ingest_chunkshop_table_cli_end_to_end():
 def test_code_edges_to_known_graph_uses_summary_description():
     from pg_raggraph.chunkshop_bridge import code_edges_to_known_graph
 
-    edges = [{"src_fqn": "pkg.a", "dst_fqn": "pkg.b", "edge_type": "CALLS",
-              "confidence": 1.0, "evidence": {"snippet": "a calls b"}}]
-    entities, _ = code_edges_to_known_graph(
-        edges, summaries={"pkg.a": "Runs the job"}
-    )
+    edges = [
+        {
+            "src_fqn": "pkg.a",
+            "dst_fqn": "pkg.b",
+            "edge_type": "CALLS",
+            "confidence": 1.0,
+            "evidence": {"snippet": "a calls b"},
+        }
+    ]
+    entities, _ = code_edges_to_known_graph(edges, summaries={"pkg.a": "Runs the job"})
     by_name = {e["name"]: e["description"] for e in entities}
-    assert by_name["pkg.a"] == "Runs the job"          # enriched
-    assert by_name["pkg.b"] == "Code symbol pkg.b"      # fallback (no summary)
+    assert by_name["pkg.a"] == "Runs the job"  # enriched
+    assert by_name["pkg.b"] == "Code symbol pkg.b"  # fallback (no summary)
 
 
 def test_attach_code_edges_derives_summaries_from_records():
     from pg_raggraph.chunkshop_bridge import attach_code_edges
 
-    records = [{
-        "text": "x", "source_id": "s",
-        "pre_chunked": [{"content": "x",
-                         "metadata": {"fqn": "pkg.a", "summary": "Runs the job"}}],
-    }]
-    edges = [{"src_fqn": "pkg.a", "dst_fqn": "pkg.b", "edge_type": "CALLS",
-              "confidence": 1.0, "evidence": {}}]
+    records = [
+        {
+            "text": "x",
+            "source_id": "s",
+            "pre_chunked": [
+                {"content": "x", "metadata": {"fqn": "pkg.a", "summary": "Runs the job"}}
+            ],
+        }
+    ]
+    edges = [
+        {
+            "src_fqn": "pkg.a",
+            "dst_fqn": "pkg.b",
+            "edge_type": "CALLS",
+            "confidence": 1.0,
+            "evidence": {},
+        }
+    ]
     out = attach_code_edges(records, edges)
     ents = {e["name"]: e["description"] for e in out[0]["entities"]}
     assert ents["pkg.a"] == "Runs the job"
