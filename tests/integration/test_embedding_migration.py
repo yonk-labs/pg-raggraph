@@ -225,3 +225,15 @@ async def test_finalize_refused_before_cutover(fresh_db):
             await em.finalize(rag._db)
     finally:
         await rag.close()
+
+
+@pytest.mark.asyncio
+async def test_connect_raises_on_dim_mismatch(fresh_db):
+    # bootstrap at dim 4
+    rag = await _fresh_rag(fresh_db, 4, StubEmbedder(4))
+    await rag.close()
+    # reconnect declaring a different dim -> guard must raise
+    bad = GraphRAG(dsn=fresh_db, embedding_dim=5, namespace="emig_test")
+    bad._embedder = StubEmbedder(5)
+    with pytest.raises(ValueError, match="embedding_dim"):
+        await bad.connect()

@@ -289,6 +289,8 @@ class GraphRAG:
         self._db = Database(self.config)
         try:
             await self._db.connect()
+        except ValueError:
+            raise
         except Exception as e:
             raise ConnectionError(
                 f"Cannot connect to PostgreSQL at {self.config.dsn}. "
