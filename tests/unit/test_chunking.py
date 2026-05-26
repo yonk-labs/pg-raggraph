@@ -439,3 +439,29 @@ def test_chunkshop_unknown_strategy_raises():
     content = "# T\n\nbody text here that is long enough." * 5
     with pytest.raises(ValueError, match="Unknown chunkshop strategy"):
         chunk_document(content, source_path="d.md", config=cfg)
+
+
+def test_chunkshop_hierarchy_splits_oversized_section():
+    # One heading, a single body far larger than the char ceiling and with no
+    # sub-headings for hierarchy to split on.  Without an if_oversize fallback,
+    # chunkshop's hard-split at max_chars leaves embedded_content (heading +
+    # body) slightly OVER the ceiling (heading chars push it past max_chars).
+    # With if_oversize set, the fallback re-chunks those items so both
+    # content and embedded_content stay within the ceiling.
+    body = "word " * 4000  # ~20000 chars, no structure
+    content = f"# Title\n\n{body}"
+    cfg = PGRGConfig(
+        chunk_strategy="chunkshop:hierarchy", chunk_max_tokens=512, chunk_overlap_tokens=50
+    )
+    chunks = chunk_document(content, source_path="doc.md", config=cfg)
+    assert chunks
+    max_chars = max(cfg.chunk_max_tokens * 4, 800)
+    # Both the stored content AND the text sent to the embedder must stay
+    # within the configured ceiling.
+    assert max(len(c["content"]) for c in chunks) <= max_chars, (
+        f"content exceeds ceiling: max={max(len(c['content']) for c in chunks)} > {max_chars}"
+    )
+    max_emb = max(len(c["embedded_content"]) for c in chunks)
+    assert max_emb <= max_chars, (
+        f"embedded_content exceeds ceiling: max={max_emb} > {max_chars}"
+    )
