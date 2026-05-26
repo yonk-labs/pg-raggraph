@@ -143,3 +143,21 @@ async def test_backfill_fills_tmp_with_target_dim(fresh_db):
         assert row["d"] == 6
     finally:
         await rag.close()
+
+
+@pytest.mark.asyncio
+async def test_build_index_creates_tmp_hnsw(fresh_db):
+    rag = await _fresh_rag(fresh_db, 4, StubEmbedder(4))
+    try:
+        await rag.ingest_records(
+            [{"text": "Ada Lovelace wrote the first algorithm.", "source_id": "d1"}]
+        )
+        await em.prepare(rag._db, target_model="stub-6", target_dim=6)
+        await em.backfill(rag._db, StubEmbedder(6), batch_size=8)
+        await em.build_index(rag._db)
+        assert await em._index_exists(rag._db, "idx_chunk_embed_tmp")
+        assert await em._index_exists(rag._db, "idx_entity_embed_tmp")
+        st = await em.status(rag._db)
+        assert st["phase"] == "indexed"
+    finally:
+        await rag.close()

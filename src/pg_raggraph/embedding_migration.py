@@ -140,3 +140,27 @@ async def backfill(db, embedder, *, batch_size: int = 256) -> int:
         "WHERE id IS TRUE"
     )
     return total
+
+
+async def build_index(db, *, hnsw_m: int = 16, hnsw_ef_construction: int = 64) -> None:
+    """Build HNSW indexes on embedding_tmp. Uses CONCURRENTLY (no table lock).
+
+    CREATE INDEX CONCURRENTLY cannot run inside a transaction block, so each
+    statement runs on an autocommit connection.
+    """
+    state = await get_state(db)
+    if state is None:
+        raise RuntimeError("no active migration; run prepare first")
+    for table in TABLES:
+        idx = _TMP_INDEX[table]
+        async with db.pool.connection() as conn:
+            await conn.set_autocommit(True)
+            await conn.execute(
+                f"CREATE INDEX CONCURRENTLY IF NOT EXISTS {idx} "
+                f"ON {table} USING hnsw (embedding_tmp vector_cosine_ops) "
+                f"WITH (m = {int(hnsw_m)}, ef_construction = {int(hnsw_ef_construction)})"
+            )
+    await db.execute(
+        "UPDATE embedding_migration SET phase='indexed', updated_at=now() "
+        "WHERE id IS TRUE"
+    )
