@@ -69,3 +69,32 @@ async def prepare(
         "VALUES (TRUE, %s, %s, 'prepared', %s)",
         (target_model, int(target_dim), backfill_source),
     )
+
+
+async def _index_exists(db, name: str) -> bool:
+    row = await db.fetch_one("SELECT to_regclass(%s) AS t", (name,))
+    return bool(row and row["t"])
+
+
+async def _remaining_null(db, table: str) -> int:
+    row = await db.fetch_one(
+        f"SELECT count(*) AS n FROM {table} WHERE embedding_tmp IS NULL"
+    )
+    return int(row["n"])
+
+
+async def status(db) -> dict[str, Any]:
+    state = await get_state(db)
+    if state is None:
+        return {"active": False}
+    remaining = {t: await _remaining_null(db, t) for t in TABLES}
+    indexed = {t: await _index_exists(db, _TMP_INDEX[t]) for t in TABLES}
+    return {
+        "active": True,
+        "phase": state["phase"],
+        "target_model": state["target_model"],
+        "target_dim": state["target_dim"],
+        "backfill_source": state["backfill_source"],
+        "remaining": remaining,
+        "indexed": indexed,
+    }

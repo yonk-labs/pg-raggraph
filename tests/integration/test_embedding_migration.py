@@ -99,3 +99,27 @@ async def test_prepare_adds_tmp_columns_and_state(fresh_db):
         assert state["phase"] == "prepared"
     finally:
         await rag.close()
+
+
+@pytest.mark.asyncio
+async def test_status_reports_phase_and_remaining(fresh_db):
+    rag = await _fresh_rag(fresh_db, 4, StubEmbedder(4))
+    try:
+        await em.prepare(rag._db, target_model="stub-6", target_dim=6)
+        st = await em.status(rag._db)
+        assert st["active"] is True
+        assert st["phase"] == "prepared"
+        assert st["remaining"] == {"chunks": 0, "entities": 0}
+        assert st["indexed"] == {"chunks": False, "entities": False}
+    finally:
+        await rag.close()
+
+
+@pytest.mark.asyncio
+async def test_status_inactive_when_no_migration(fresh_db):
+    rag = await _fresh_rag(fresh_db, 4, StubEmbedder(4))
+    try:
+        st = await em.status(rag._db)
+        assert st["active"] is False
+    finally:
+        await rag.close()
