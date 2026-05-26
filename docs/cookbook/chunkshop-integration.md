@@ -46,11 +46,10 @@ The 1-line integration. Pg-raggraph still owns ingest end-to-end; chunkshop just
 
 ```bash
 pip install 'pg-raggraph[chunkshop]'
-# or in pyproject.toml:
-#   "pg-raggraph[chunkshop]>=0.5.0"
+# the [chunkshop] extra pulls chunkshop>=0.6.1 from PyPI
 ```
 
-The package floor is `chunkshop>=0.5.0` for the stable prose chunkers. The `chunkshop:code_aware` and `chunkshop:symbol_aware` pass-throughs require a Chunkshop build that contains those config classes, currently the 0.6 source tree / release line.
+The package floor is `chunkshop>=0.6.1` (on PyPI). The prose chunkers, the `chunkshop:code_aware` / `chunkshop:symbol_aware` pass-throughs, and the `code_edges` / `code_summary` surfaces are all guaranteed at this floor — no source-tree build needed.
 
 The dep is **optional** — pg-raggraph imports chunkshop lazily, only if you use a `chunkshop:*` strategy. If you don't install the extra and don't pass a chunkshop strategy, nothing changes.
 
@@ -651,5 +650,5 @@ PGRGConfig(
 
 - **Replacing pg-raggraph's chunker** with chunkshop. The built-in stays the default; chunkshop is opt-in.
 - **Replacing pg-raggraph's embedder.** pg-raggraph's `embedding_provider` is independent of `chunk_strategy`. Pattern C re-embeds; Pattern D uses pg-raggraph's embedder.
-- **Hard-coupling.** chunkshop is on PyPI as `chunkshop>=0.4.3`. We pin the floor; you pin the version you want.
+- **Hard-coupling.** chunkshop is on PyPI; the `[chunkshop]` extra pins the floor at `chunkshop>=0.6.1`. We pin the floor; you pin the version you want.
 - **Replacing pg-raggraph's LLM extraction** with chunkshop's local extractors. Different roles: pg-raggraph's LLM extraction produces *typed entities and relationships* for the graph; chunkshop's extractors produce *flat keyword/entity lists* for filtering. They compose; they don't substitute.

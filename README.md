@@ -178,9 +178,10 @@ Full bake-off report: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](bench
 | [`docs/cookbook/per-call-kwargs.md`](docs/cookbook/per-call-kwargs.md) | Per-call overrides on `query()`/`ask()` — `retracted_behavior`, `supersession_behavior`, `memory_tier`, `retrieval_strategy`, `as_of`, `version_filter`, `evolution_aware`. Multi-tenant-safe (no config mutation). |
 | [`docs/cookbook/retrieval-strategy.md`](docs/cookbook/retrieval-strategy.md) | Three SQL shapes for metadata + vector queries — `weighted` (default), `pre_filter`, `vector_first`. When to pick which; recall-shortfall metric. |
 | [`docs/cookbook/metadata-indexes.md`](docs/cookbook/metadata-indexes.md) | Btree / GIN / generated-column indexes on `chunks.metadata` and `documents.metadata`. Runtime API (`recommend_metadata_indexes()`, `apply_metadata_indexes_concurrently()`). |
+| [`docs/cookbook/changing-embedding-dimensions.md`](docs/cookbook/changing-embedding-dimensions.md) | Move a live database to a new embedding model/dimension online via the `pgrg migrate-embeddings` expand/contract column swap — no parallel DB, brief cutover, startup dim-guard. |
 | [`docs/user-guide.md`](docs/user-guide.md) | Full user guide. Installation, all 6 modes, configuration, REST API, production deployment, troubleshooting. |
 | [`docs/devmem-guide.md`](docs/devmem-guide.md) | `pgrg devmem` — the developer-knowledge-base flavor with code-aware chunking + dev-tuned extraction. |
-| [`docs/chunkshop-user-guide.md`](docs/chunkshop-user-guide.md) | Chunkshop integration guide: chunker-only strategies, Postgres table bridge, CLI import, and code-edge graph import. |
+| [`docs/chunkshop-user-guide.md`](docs/chunkshop-user-guide.md) | Chunkshop integration guide: chunker-only strategies, Postgres table bridge, CLI import, code-edge graph import, and the `code-impact` symbol-graph query. |
 | [`research/`](research/) | Architecture rationale, vs-AGE evaluation, competitor analyses (LightRAG, Neo4j, Zep). |
 | [`ASSESSMENT.md`](ASSESSMENT.md) | No-BS project evaluation. Strengths, gaps, where you should and shouldn't use it. |
 | [`benchmarks/`](benchmarks/) | Every benchmark corpus + runner + results document. Re-runnable from clone. |
@@ -281,6 +282,18 @@ pgrg mcp-serve                           # MCP stdio server for Claude Desktop /
 # Developer-knowledge-base flavor (code-aware chunking + dev extraction prompt)
 pgrg devmem ingest ./repo/ -p aggressive
 pgrg devmem ask "who owns the auth service?"
+
+# Chunkshop bridge (import a chunkshop Postgres sink + its code_edges)
+pgrg ingest-chunkshop-table --schema S --table T [-n NS] [--with-code-edges] [--skip-llm]
+pgrg code-impact pkg.module.func [-n NS] [--depth N] [--json]   # callers/callees of a code symbol
+
+# Change the embedding model/dimension on a live DB (online, no parallel DB)
+pgrg migrate-embeddings prepare --model BAAI/bge-base-en-v1.5 --dim 768
+pgrg migrate-embeddings backfill            # online, resumable
+pgrg migrate-embeddings build-index         # CONCURRENTLY
+pgrg migrate-embeddings status              # readiness
+pgrg migrate-embeddings cutover             # brief lock; then restart with new PGRG_EMBEDDING_DIM/MODEL
+pgrg migrate-embeddings finalize            # drop the old column after validation
 ```
 
 Throttle profiles tune CPU-yield + parallel ingest knobs:

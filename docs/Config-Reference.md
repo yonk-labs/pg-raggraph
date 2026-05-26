@@ -80,6 +80,8 @@ Cons: setting doesn't truncate or transform — must match model exactly or you'
 When to use: change in lockstep with `embedding_model`. e.g., set to 1024 for `bge-large-en-v1.5`.
 When NOT to use: never change in isolation; never change after data is ingested without a re-embed plan.
 
+Changing the dimension on a database that already has data: use the online expand/contract migration — `pgrg migrate-embeddings prepare/backfill/build-index/cutover/finalize` — which re-embeds into a second column while the app keeps serving, then swaps it in during a brief lock. No parallel database, no full downtime. A startup guard refuses to connect if `embedding_dim` no longer matches the live column, so a forgotten config change fails fast with a clear message. See [`cookbook/changing-embedding-dimensions.md`](cookbook/changing-embedding-dimensions.md).
+
 ### `embedding_model` (str, default: `BAAI/bge-small-en-v1.5`)
 Env var: `PGRG_EMBEDDING_MODEL`
 
@@ -104,9 +106,9 @@ Reasonable alternatives:
 | OpenAI text-embedding-3-large | 3072 | API | ~$0.13/M tokens | +6-9 pp F1 |
 
 Pros (raise embedder size): higher retrieval recall, better paraphrase handling, smaller gap to published SOTA.
-Cons (raise embedder size): bigger ingest time + memory; different `embedding_dim` requires full re-ingest of every namespace; OpenAI variants leak data + add per-token cost.
+Cons (raise embedder size): bigger ingest time + memory; a different `embedding_dim` means re-embedding — do it online with `pgrg migrate-embeddings` (no parallel DB, brief cutover; see [`cookbook/changing-embedding-dimensions.md`](cookbook/changing-embedding-dimensions.md)) or via a full re-ingest; OpenAI variants leak data + add per-token cost.
 When to use: every benchmark number you read in this repo is bge-small-bounded — if your retrieval ceiling matters in production, run a paired ingest with bge-large or NV-Embed-v2 and remeasure.
-When NOT to use: change without planning a re-ingest of every existing namespace; OpenAI embedders for any data sensitivity / airgap requirement.
+When NOT to use: OpenAI embedders for any data sensitivity / airgap requirement.
 
 ### `embedding_provider` (`"local" | "openai" | "ollama"`, default: `local`)
 Env var: `PGRG_EMBEDDING_PROVIDER`

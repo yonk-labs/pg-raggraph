@@ -280,6 +280,33 @@ await rag.connect()
 await rag.ingest_records(records, namespace="docs_graph")
 ```
 
+After importing code edges (`--with-code-edges`), query the call graph by symbol:
+
+```bash
+pgrg code-impact pkg.module.func -n code_graph --depth 2   # callers + callees, with evidence
+```
+
+`await rag.code_impact("pkg.module.func", depth=2)` returns the same as a `CodeImpact` dataclass. See [`chunkshop-user-guide.md`](chunkshop-user-guide.md#querying-the-code-graph-code-impact).
+
+---
+
+## Changing the embedding model / dimension
+
+The vector column dimension is fixed at first bootstrap from `embedding_dim`. To move an existing database to a new embedding model online — without a parallel DB or full downtime — use the expand/contract migration:
+
+```bash
+pgrg migrate-embeddings prepare --model BAAI/bge-base-en-v1.5 --dim 768
+pgrg migrate-embeddings backfill        # online, resumable
+pgrg migrate-embeddings build-index     # CONCURRENTLY
+pgrg migrate-embeddings status          # confirm readiness
+# stop app, then:
+pgrg migrate-embeddings cutover         # brief lock
+# restart with PGRG_EMBEDDING_DIM=768 / PGRG_EMBEDDING_MODEL=BAAI/bge-base-en-v1.5
+pgrg migrate-embeddings finalize        # drop the old column after validation
+```
+
+A startup guard refuses to connect if `embedding_dim` no longer matches the live column, so a forgotten config change fails fast. Full runbook: [`cookbook/changing-embedding-dimensions.md`](cookbook/changing-embedding-dimensions.md).
+
 ---
 
 ## Query Modes Explained

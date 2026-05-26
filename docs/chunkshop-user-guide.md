@@ -20,7 +20,7 @@ For source checkouts:
 uv sync --extra chunkshop
 ```
 
-The stable package floor is `chunkshop>=0.5.0`. The `chunkshop:code_aware` and `chunkshop:symbol_aware` strategies require a Chunkshop build that includes the 0.6 code chunker config classes.
+The package floor is `chunkshop>=0.6.1` (on PyPI). This guarantees the 0.6 code chunker config classes, the `code_edges` / `code_relationships` surfaces, and the `code_summary` extractor that the `chunkshop:code_aware` / `chunkshop:symbol_aware` strategies and the code-edge import rely on.
 
 ## Choose an Integration Pattern
 
