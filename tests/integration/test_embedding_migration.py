@@ -196,3 +196,32 @@ async def test_cutover_refused_before_index_and_backfill(fresh_db):
             await em.cutover(rag._db)
     finally:
         await rag.close()
+
+
+@pytest.mark.asyncio
+async def test_finalize_drops_old_and_clears_state(fresh_db):
+    rag = await _fresh_rag(fresh_db, 4, StubEmbedder(4))
+    try:
+        await rag.ingest_records(
+            [{"text": "Ada Lovelace wrote the first algorithm.", "source_id": "d1"}]
+        )
+        await em.prepare(rag._db, target_model="stub-6", target_dim=6)
+        await em.backfill(rag._db, StubEmbedder(6), batch_size=8)
+        await em.build_index(rag._db)
+        await em.cutover(rag._db)
+        await em.finalize(rag._db)
+        assert await em.column_dim(rag._db, "chunks", "embedding_old") is None
+        assert await em.get_state(rag._db) is None
+    finally:
+        await rag.close()
+
+
+@pytest.mark.asyncio
+async def test_finalize_refused_before_cutover(fresh_db):
+    rag = await _fresh_rag(fresh_db, 4, StubEmbedder(4))
+    try:
+        await em.prepare(rag._db, target_model="stub-6", target_dim=6)
+        with pytest.raises(RuntimeError, match="cutover"):
+            await em.finalize(rag._db)
+    finally:
+        await rag.close()

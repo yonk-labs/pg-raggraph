@@ -214,3 +214,15 @@ async def cutover(db) -> None:
             "UPDATE embedding_migration SET phase='cutover', updated_at=now() "
             "WHERE id IS TRUE"
         )
+
+
+async def finalize(db) -> None:
+    """Drop the preserved embedding_old columns and clear migration state."""
+    state = await get_state(db)
+    if state is None:
+        raise RuntimeError("no active migration to finalize")
+    if state["phase"] != "cutover":
+        raise RuntimeError("can only finalize after cutover")
+    for table in TABLES:
+        await db.execute(f"ALTER TABLE {table} DROP COLUMN IF EXISTS embedding_old")
+    await db.execute("DELETE FROM embedding_migration WHERE id IS TRUE")
