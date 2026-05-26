@@ -122,3 +122,18 @@ async def code_impact(
     callees = _dedupe(await db.fetch_all(_CALLEES_SQL, params))
     callers = _dedupe(await db.fetch_all(_CALLERS_SQL, params))
     return CodeImpact(fqn=fqn, found=True, callers=callers, callees=callees)
+
+
+def render_impact_tree(impact: CodeImpact) -> str:
+    """Human-readable tree for ``code-impact``. Pure function (no DB)."""
+    lines = [impact.fqn]
+    for label, edges in (("callers", impact.callers), ("callees", impact.callees)):
+        lines.append(f"  {label}:")
+        if not edges:
+            lines.append("    (none)")
+            continue
+        for e in edges:
+            depth_note = f" (depth {e.depth})" if e.depth > 1 else ""
+            ev = f'    "{e.evidence}"' if e.evidence else ""
+            lines.append(f"    - {e.fqn}    {e.rel_type}{depth_note}{ev}")
+    return "\n".join(lines)
