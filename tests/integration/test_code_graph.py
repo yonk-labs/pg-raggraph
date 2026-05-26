@@ -152,3 +152,39 @@ async def test_graphrag_code_impact_resolves_namespace_from_config():
     finally:
         await rag.delete(NS)
         await rag.close()
+
+
+def test_cli_code_impact_json_and_notfound():
+    import asyncio
+    import json as _json
+
+    from click.testing import CliRunner
+
+    from pg_raggraph.cli import main
+
+    async def _setup():
+        rag = GraphRAG(dsn=DSN, namespace=NS)
+        await _fresh(rag)
+        await _seed(rag, [("a", "b", "CALLS", 1.0, "a() calls b()")])
+        await rag.close()
+
+    asyncio.run(_setup())
+    runner = CliRunner()
+    try:
+        ok = runner.invoke(main, ["--db", DSN, "code-impact", "b", "-n", NS, "--json"])
+        assert ok.exit_code == 0, ok.output
+        data = _json.loads(ok.output)
+        assert data["fqn"] == "b" and data["found"] is True
+        assert any(e["fqn"] == "a" for e in data["callers"])
+
+        missing = runner.invoke(
+            main, ["--db", DSN, "code-impact", "nope", "-n", NS]
+        )
+        assert missing.exit_code != 0
+    finally:
+        async def _teardown():
+            rag = GraphRAG(dsn=DSN, namespace=NS)
+            await rag.connect()
+            await rag.delete(NS)
+            await rag.close()
+        asyncio.run(_teardown())

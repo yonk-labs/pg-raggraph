@@ -346,6 +346,41 @@ def ask(ctx, question, mode, namespace, profile, short_answer):
         _handle_error(e)
 
 
+@main.command("code-impact")
+@click.argument("fqn")
+@click.option("-n", "--namespace", default=None, help="Namespace (default: configured)")
+@click.option("--depth", type=int, default=1, help="Transitive hops (>=1)")
+@click.option("--min-confidence", type=float, default=0.0, help="Min edge weight")
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON instead of a tree")
+@click.pass_context
+def _code_impact(ctx, fqn, namespace, depth, min_confidence, as_json):
+    """Show callers and callees of a code symbol (FQN) from the graph."""
+    import json as _json
+    from dataclasses import asdict
+
+    from pg_raggraph.code_graph import render_impact_tree
+
+    async def _go():
+        rag = GraphRAG(**ctx.obj["kwargs"])
+        await rag.connect()
+        ns = namespace or rag.config.namespace
+        try:
+            res = await rag.code_impact(
+                fqn, namespace=namespace, depth=depth, min_confidence=min_confidence
+            )
+        finally:
+            await rag.close()
+        if not res.found:
+            click.echo(f"symbol '{fqn}' not found in namespace '{ns}'", err=True)
+            raise SystemExit(1)
+        if as_json:
+            click.echo(_json.dumps(asdict(res), indent=2))
+        else:
+            click.echo(render_impact_tree(res))
+
+    run_async(_go())
+
+
 @main.command()
 @click.option("-n", "--namespace", required=True, help="Namespace to delete")
 @click.confirmation_option(prompt="Are you sure?")
