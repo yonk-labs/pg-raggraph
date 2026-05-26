@@ -233,6 +233,17 @@ def fetch_code_edges_from_table(
     ).format(fq=fq, where=where)
 
     with psycopg.connect(dsn, row_factory=dict_row) as conn:
+        reg = conn.execute(
+            "SELECT to_regclass(%s) AS t", (f"{schema}.code_edges",)
+        ).fetchone()
+        if not reg or not reg["t"]:
+            raise ValueError(
+                f"chunkshop code_edges table '{schema}.code_edges' not found. "
+                "Importing code edges requires a chunkshop>=0.6.0 sink produced with "
+                "the code_relationships extractor (its finalize() materializes "
+                f"{schema}.code_edges). Re-run chunkshop ingest with code_relationships "
+                "enabled, or omit --with-code-edges."
+            )
         rows = list(conn.execute(query, params).fetchall())
     return code_edges_to_known_graph(rows, min_confidence=min_confidence)
 

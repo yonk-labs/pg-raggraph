@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from pg_raggraph import GraphRAG
-from pg_raggraph.chunkshop_bridge import attach_code_edges, rows_to_records
+from pg_raggraph.chunkshop_bridge import (
+    attach_code_edges,
+    fetch_code_edges_from_table,
+    rows_to_records,
+)
 
 pytestmark = pytest.mark.integration
 
 DSN = "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
 NS = "test_chunkshop_bridge_e2e"
+
+# DSN for the noedges test — respects PGRG_TEST_DSN override (task uses port 5437)
+_NOEDGES_DSN = os.environ.get("PGRG_TEST_DSN", DSN)
 
 
 def _embedding(seed: float) -> list[float]:
@@ -107,3 +116,26 @@ async def test_chunkshop_records_and_code_edges_persist_end_to_end():
     finally:
         await rag.delete(NS)
         await rag.close()
+
+
+def test_fetch_code_edges_raises_when_table_absent_noedges():
+    """fetch_code_edges_from_table must raise a clear ValueError when code_edges is missing.
+
+    This test ensures an older (pre-0.6.0) chunkshop sink (which never materializes
+    code_edges) produces a helpful error instead of an opaque psycopg UndefinedTable.
+    """
+    import psycopg
+
+    schema = "emig_noedges"
+    try:
+        with psycopg.connect(_NOEDGES_DSN) as conn:
+            conn.autocommit = True
+            conn.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+            conn.execute(f"DROP TABLE IF EXISTS {schema}.code_edges")
+
+        with pytest.raises(ValueError, match="code_edges"):
+            fetch_code_edges_from_table(_NOEDGES_DSN, schema=schema)
+    finally:
+        with psycopg.connect(_NOEDGES_DSN) as conn:
+            conn.autocommit = True
+            conn.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
