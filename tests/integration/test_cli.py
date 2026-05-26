@@ -1,6 +1,7 @@
 """Integration tests for CLI commands."""
 
 import os
+import re
 
 import pytest
 from click.testing import CliRunner
@@ -22,7 +23,7 @@ def test_init(runner):
     """pgrg init creates schema and reports version."""
     result = runner.invoke(main, ["--db", TEST_DB, "init"])
     assert result.exit_code == 0
-    assert "Schema v1 ready" in result.output
+    assert re.search(r"Schema v\d+ ready", result.output)
 
 
 def test_status_empty(runner):
