@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextvars
 import logging
 import re
@@ -16,6 +17,14 @@ from psycopg_pool import AsyncConnectionPool
 from pg_raggraph.config import PGRGConfig
 
 SCHEMA_VERSION = 1
+
+# Advisory-lock keys, kept distinct so the two bootstrap phases never block each
+# other (a worker blocked on one key holds an open virtual transaction; if a
+# peer holds the other key while running CREATE INDEX CONCURRENTLY, sharing a key
+# would re-create the deadlock from issue #45).
+# 0x70677267 = 'pgrg'.
+_BOOTSTRAP_LOCK_KEY = 0x70677267  # Phase 1: base schema creation (xact-scoped).
+_MIGRATION_LOCK_KEY = 0x70677268  # Phase 2: migration runner (session-scoped).
 
 logger = logging.getLogger("pg_raggraph.db")
 
@@ -439,55 +448,63 @@ class Database:
     async def _ensure_schema(self, conn) -> None:
         """Create or migrate schema to current version.
 
-        Acquires a session-level advisory lock for the duration of bootstrap
-        so multiple workers starting at once don't race to create the schema
-        or apply the same migration twice. Lock key is an arbitrary constant
-        specific to pg-raggraph.
+        Two phases, both guarded against multi-worker races by a
+        transaction-scoped advisory lock (key 0x70677267 = 'pgrg'):
+
+        1. Base bootstrap (this method) — create schema + tracking table under
+           the lock, then COMMIT to release it.
+        2. Migrations (``_apply_migrations``) — run *after* the lock is
+           released, each serialized by its own short lock acquisition.
+
+        We use ``pg_advisory_xact_lock`` (released on COMMIT) rather than the
+        session-scoped ``pg_advisory_lock``, and never hold it across the
+        ``CREATE INDEX CONCURRENTLY`` in migration 004. A session lock held
+        across that concurrent index build deadlocked under uvicorn
+        ``--workers >1`` on a fresh DB: the index build waits on the losing
+        worker's open virtual transaction while that worker waits on the lock
+        (see issue #45).
         """
-        # 0x70677267 = 'pgrg' — avoids collisions with other advisory locks.
-        await conn.execute("SELECT pg_advisory_lock(%s)", (0x70677267,))
-        try:
-            result = await conn.execute(
-                "SELECT EXISTS (SELECT FROM pg_tables WHERE tablename = 'pgrg_meta')"
-            )
-            row = await result.fetchone()
-            exists = row[0] if row else False
+        await conn.execute("SELECT pg_advisory_xact_lock(%s)", (_BOOTSTRAP_LOCK_KEY,))
+        result = await conn.execute(
+            "SELECT EXISTS (SELECT FROM pg_tables WHERE tablename = 'pgrg_meta')"
+        )
+        row = await result.fetchone()
+        exists = row[0] if row else False
 
-            if not exists:
-                sql_text = files("pg_raggraph.sql").joinpath("schema.sql").read_text()
-                sql_text = self._render_sql_template(sql_text)
-                await conn.execute(sql_text)
-                await conn.execute(
-                    "INSERT INTO pgrg_meta (key, value) VALUES ('schema_version', %s) "
-                    "ON CONFLICT (key) DO UPDATE "
-                    "SET value = EXCLUDED.value, updated_at = now()",
-                    (str(SCHEMA_VERSION),),
-                )
-                await conn.execute(
-                    "INSERT INTO pgrg_meta (key, value) VALUES ('embedding_dim', %s) "
-                    "ON CONFLICT (key) DO UPDATE "
-                    "SET value = EXCLUDED.value, updated_at = now()",
-                    (str(self.config.embedding_dim),),
-                )
-                await conn.commit()
-                logger.info(f"Schema v{SCHEMA_VERSION} created.")
-
-            # Ensure the migration-tracking table exists on pre-0.3 installs
-            # that were bootstrapped before the table was added to schema.sql.
+        if not exists:
+            sql_text = files("pg_raggraph.sql").joinpath("schema.sql").read_text()
+            sql_text = self._render_sql_template(sql_text)
+            await conn.execute(sql_text)
             await conn.execute(
-                "CREATE TABLE IF NOT EXISTS pgrg_applied_migrations ("
-                "    filename TEXT PRIMARY KEY,"
-                "    version  INTEGER NOT NULL,"
-                "    applied_at TIMESTAMPTZ DEFAULT now()"
-                ")"
+                "INSERT INTO pgrg_meta (key, value) VALUES ('schema_version', %s) "
+                "ON CONFLICT (key) DO UPDATE "
+                "SET value = EXCLUDED.value, updated_at = now()",
+                (str(SCHEMA_VERSION),),
             )
-            await conn.commit()
+            await conn.execute(
+                "INSERT INTO pgrg_meta (key, value) VALUES ('embedding_dim', %s) "
+                "ON CONFLICT (key) DO UPDATE "
+                "SET value = EXCLUDED.value, updated_at = now()",
+                (str(self.config.embedding_dim),),
+            )
+            logger.info(f"Schema v{SCHEMA_VERSION} created.")
 
-            # Always check for pending migrations, even when the base schema
-            # is already current. New NNN_*.sql files ship in later releases.
-            await self._apply_migrations(conn)
-        finally:
-            await conn.execute("SELECT pg_advisory_unlock(%s)", (0x70677267,))
+        # Ensure the migration-tracking table exists on pre-0.3 installs
+        # that were bootstrapped before the table was added to schema.sql.
+        await conn.execute(
+            "CREATE TABLE IF NOT EXISTS pgrg_applied_migrations ("
+            "    filename TEXT PRIMARY KEY,"
+            "    version  INTEGER NOT NULL,"
+            "    applied_at TIMESTAMPTZ DEFAULT now()"
+            ")"
+        )
+        # Release the bootstrap lock BEFORE running migrations: a CONCURRENTLY
+        # migration must not run while we hold a lock a peer is blocked on.
+        await conn.commit()
+
+        # Always check for pending migrations, even when the base schema
+        # is already current. New NNN_*.sql files ship in later releases.
+        await self._apply_migrations(conn)
 
     async def _apply_metadata_indexes(self, conn, *, table: str = "chunks") -> None:
         """Create btree indexes on ``<table>.metadata->>'<key>'`` per config.
@@ -859,20 +876,51 @@ class Database:
         """Apply numbered migration files from sql/migrations/.
 
         File naming: NNN_description.sql (e.g., 002_add_tags.sql). Applied in
-        numeric order. Each file runs in its own transaction and is recorded in
-        pgrg_applied_migrations by filename — not just version number — so two
-        files with the same prefix both apply correctly and neither is silently
-        skipped. Never edit a released migration file; add a new numbered one.
-        """
-        import re
+        numeric order and recorded in pgrg_applied_migrations by filename — not
+        just version number — so two files with the same prefix both apply
+        correctly and neither is silently skipped. Never edit a released
+        migration file; add a new numbered one.
 
+        The whole phase is serialized across workers by a *session*-scoped
+        advisory lock acquired with the non-blocking ``pg_try_advisory_lock`` in
+        a spin loop. A blocking acquisition would park the waiter inside an open
+        virtual transaction, and a peer's ``CREATE INDEX CONCURRENTLY`` waits on
+        exactly those vxids — the deadlock from issue #45. Spinning in autocommit
+        means a waiting worker holds no sustained vxid between attempts, so the
+        holder's concurrent index build never deadlocks against it. The lock uses
+        a key distinct from the Phase-1 bootstrap lock for the same reason.
+        """
         try:
             mig_dir = files("pg_raggraph.sql").joinpath("migrations")
             entries = [f.name for f in mig_dir.iterdir() if f.name.endswith(".sql")]
         except (FileNotFoundError, AttributeError):
             return
 
-        # Which filenames have already been applied?
+        original_autocommit = conn.autocommit
+        await conn.commit()  # close any open tx before switching modes
+        await conn.set_autocommit(True)
+        try:
+            # Non-blocking spin: never park inside a transaction (see docstring).
+            while True:
+                cur = await conn.execute("SELECT pg_try_advisory_lock(%s)", (_MIGRATION_LOCK_KEY,))
+                row = await cur.fetchone()
+                if row and row[0]:
+                    break
+                await asyncio.sleep(0.05)
+            try:
+                await self._run_pending_migrations(conn, entries)
+            finally:
+                await conn.execute("SELECT pg_advisory_unlock(%s)", (_MIGRATION_LOCK_KEY,))
+        finally:
+            await conn.set_autocommit(original_autocommit)
+
+    async def _run_pending_migrations(self, conn, entries) -> None:
+        """Apply pending migrations while holding the migration lock.
+
+        Caller holds the session-scoped migration lock and ``conn`` is in
+        autocommit mode. We recompute the pending set here — under the lock — so
+        a peer that applied migrations while we waited is reflected.
+        """
         applied_result = await conn.execute("SELECT filename FROM pgrg_applied_migrations")
         applied_files = {row[0] async for row in applied_result}
 
@@ -894,38 +942,40 @@ class Database:
             sql_text = self._render_sql_template(sql_text)
             try:
                 if "CONCURRENTLY" in sql_text.upper():
-                    await conn.commit()
-                    original_autocommit = conn.autocommit
-                    await conn.set_autocommit(True)
-                    try:
-                        executable_sql = "\n".join(
-                            line
-                            for line in sql_text.splitlines()
-                            if not line.lstrip().startswith("--")
-                        )
-                        for statement in executable_sql.split(";"):
-                            statement = statement.strip()
-                            if statement:
-                                await conn.execute(statement)
-                    finally:
-                        await conn.set_autocommit(original_autocommit)
+                    # CONCURRENTLY can't run in a transaction; run it directly in
+                    # autocommit. Serialization is provided by the migration lock.
+                    executable_sql = "\n".join(
+                        line
+                        for line in sql_text.splitlines()
+                        if not line.lstrip().startswith("--")
+                    )
+                    for statement in executable_sql.split(";"):
+                        statement = statement.strip()
+                        if statement:
+                            await conn.execute(statement)
+                    await self._record_migration(conn, name, version)
                 else:
-                    await conn.execute(sql_text)
-                await conn.execute(
-                    "INSERT INTO pgrg_applied_migrations (filename, version) VALUES (%s, %s) "
-                    "ON CONFLICT (filename) DO NOTHING",
-                    (name, version),
-                )
-                # Update the high-water mark for backwards compatibility.
-                await conn.execute(
-                    "UPDATE pgrg_meta SET value = GREATEST(value::int, %s)::text, "
-                    "updated_at = now() WHERE key = 'schema_version'",
-                    (str(version),),
-                )
-                await conn.commit()
+                    # Atomic: schema change + bookkeeping commit together. Works
+                    # in autocommit because conn.transaction() issues BEGIN/COMMIT.
+                    async with conn.transaction():
+                        await conn.execute(sql_text)
+                        await self._record_migration(conn, name, version)
             except Exception as e:
-                await conn.rollback()
                 raise RuntimeError(f"Migration {name} failed: {e}") from e
+
+    @staticmethod
+    async def _record_migration(conn, name: str, version: int) -> None:
+        await conn.execute(
+            "INSERT INTO pgrg_applied_migrations (filename, version) VALUES (%s, %s) "
+            "ON CONFLICT (filename) DO NOTHING",
+            (name, version),
+        )
+        # Update the high-water mark for backwards compatibility.
+        await conn.execute(
+            "UPDATE pgrg_meta SET value = GREATEST(value::int, %s)::text, "
+            "updated_at = now() WHERE key = 'schema_version'",
+            (str(version),),
+        )
 
     def transaction(self) -> Transaction:
         """Create a transaction scope — all operations share one connection.
