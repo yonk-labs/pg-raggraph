@@ -1,0 +1,25 @@
+# Vendored 3-Q subset of chunkshop's gold-scotus.yaml (the 12-Q reference
+# file at https://github.com/yonk-labs/chunkshop/blob/main/docs/samples/bakeoff-scotus/gold-scotus.yaml).
+# Subset kept small so the test stays fast and self-contained — the
+# brief's SC-018 only requires the SHAPE round-trips, not the full corpus.
+#
+# When chunkshop bumps the schema, regenerate this file from a fresh
+# copy of gold-scotus.yaml (preserving 3 questions) and update the
+# loader if any new required fields appear.
+
+questions:
+  - id: scotus_q1
+    question: "What did Bostock v. Clayton County hold about Title VII?"
+    gold_answer: "Title VII's prohibition on sex discrimination covers sexual orientation and gender identity."
+    required_facts:
+      - ["Bostock v. Clayton County", "interprets", "Title VII"]
+
+  - id: scotus_q2
+    question: "Which case overruled Plessy v. Ferguson?"
+    gold_answer: "Brown v. Board of Education."
+    required_facts:
+      - ["Brown v. Board of Education", "overrules", "Plessy v. Ferguson"]
+
+  - id: scotus_q3
+    question: "What is the holding of Miranda v. Arizona?"
+    gold_answer: "Suspects must be informed of their rights before custodial interrogation."

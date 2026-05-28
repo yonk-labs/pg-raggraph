@@ -180,3 +180,36 @@ class ABVerdict:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+# ============================================================================
+# Gold-question input — what #48's harness consumes (SC-001).
+# ============================================================================
+
+
+@dataclass(frozen=True)
+class GoldQuestion:
+    """One gold question for an A/B benchmark.
+
+    Matches the chunkshop ``gold-scotus.yaml`` / ``gold-ntsb.yaml`` shape
+    (see ``tests/fixtures/ab_gate/gold-scotus-sample.yaml`` for a small
+    real example). The four fields are locked by the harness brief —
+    callers MUST NOT subclass to add columns; if a new field is needed,
+    amend the brief first.
+
+    Fields:
+      id: stable string id (matches the YAML's ``id`` key; the harness
+        echoes it onto every ``ABCaseResult.question_id``).
+      question: the literal question text fed to the harness.
+      gold_answer: the reference answer for LLM-judge grounding in #50.
+        May be None for retrieval-only benchmarks that skip the judge.
+      required_facts: optional list of (subject, predicate, object) triples
+        the answer must surface. Used by #50's verdict combiner; the
+        harness only forwards the list, never inspects it. None means
+        "no required-facts gate" — the default for new corpora.
+    """
+
+    id: str
+    question: str
+    gold_answer: str | None = None
+    required_facts: list[tuple[str, str, str]] | None = None

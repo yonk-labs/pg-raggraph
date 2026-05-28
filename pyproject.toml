@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pg-raggraph"
-version = "0.5.0a3"
+version = "0.5.0a4"
 description = "The fastest, simplest way to add knowledge-graph-powered RAG to any app — backed by PostgreSQL."
 readme = "README.md"
 license = "MIT"

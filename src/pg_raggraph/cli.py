@@ -1002,3 +1002,100 @@ def devmem_status(ctx, namespace):
         run_async(_status())
     except Exception as e:
         _handle_error(e)
+
+
+# ---------------------------------------------------------------------------
+# pgrg ab-gate group — A/B retrieval benchmark harness + runner (#48 + #49)
+# ---------------------------------------------------------------------------
+
+
+@main.group("ab-gate")
+def ab_gate():
+    """A/B retrieval benchmark harness (chunkshop ↔ pg-raggraph A/B gate).
+
+    Subcommands:
+      run     — run the {corpora × modes} matrix and write per-cell JSONs.
+
+    See ``docs/cookbook/ab-gate.md`` for the full operator workflow.
+    """
+
+
+@ab_gate.command("run")
+@click.option(
+    "--corpus",
+    "corpora",
+    multiple=True,
+    required=True,
+    help="Corpus id (= namespace). Repeat once per corpus; pair 1:1 with --gold.",
+)
+@click.option(
+    "--gold",
+    "gold_paths",
+    multiple=True,
+    required=True,
+    type=click.Path(dir_okay=False),
+    help="Gold-Q YAML file. Pair 1:1 with --corpus (same flag count, same order).",
+)
+@click.option(
+    "--mode",
+    "modes",
+    multiple=True,
+    required=True,
+    type=click.Choice(["naive_vector", "graph_leg", "hybrid"], case_sensitive=False),
+    help="Retrieval mode. Repeat to run multiple modes.",
+)
+@click.option(
+    "--top-k",
+    default=10,
+    type=int,
+    show_default=True,
+    help="Top-K items per question.",
+)
+@click.option(
+    "--out",
+    "output_dir",
+    required=True,
+    type=click.Path(file_okay=False),
+    help="Output directory. Created if missing. Existing files are overwritten.",
+)
+@click.pass_context
+def ab_gate_run(ctx, corpora, gold_paths, modes, top_k, output_dir):
+    """Run the A/B matrix and write per-(corpus, mode) JSONs + manifest.json."""
+    from pathlib import Path
+
+    from pg_raggraph.ab_gate import load_gold_questions, run_ab_matrix
+
+    if len(corpora) != len(gold_paths):
+        raise click.BadParameter(
+            f"--corpus/--gold pairing mismatch: got {len(corpora)} corpora and "
+            f"{len(gold_paths)} gold files. Pass exactly one --gold per --corpus, "
+            f"in matching order.",
+            ctx=ctx,
+        )
+    output_dir = Path(output_dir)
+
+    async def _run():
+        kwargs = dict(ctx.obj["kwargs"])
+        rag = GraphRAG(**kwargs)
+        await rag.connect()
+        try:
+            gold_per_corpus: dict[str, list] = {}
+            for corpus_id, gold_path in zip(corpora, gold_paths):
+                gold_per_corpus[corpus_id] = load_gold_questions(Path(gold_path))
+            paths = await run_ab_matrix(
+                rag,
+                corpora=list(corpora),
+                modes=list(modes),
+                gold_questions_per_corpus=gold_per_corpus,
+                output_dir=output_dir,
+                top_k=top_k,
+            )
+            click.echo(f"Wrote {len(paths)} per-(corpus, mode) files to {output_dir}")
+            click.echo(f"Manifest: {output_dir / 'manifest.json'}")
+        finally:
+            await rag.close()
+
+    try:
+        run_async(_run())
+    except Exception as e:
+        _handle_error(e)

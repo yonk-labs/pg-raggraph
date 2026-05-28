@@ -1278,6 +1278,14 @@ wheels = [
 ]
 
 [[package]]
+name = "llm-judge"
+version = "0.1.0"
+source = { git = "https://github.com/yonk-labs/llm-judge.git?rev=main#5e9ee99c20f8f8218fd5f7e7e560ccb66c31467d" }
+dependencies = [
+    { name = "pyyaml" },
+]
+
+[[package]]
 name = "loguru"
 version = "0.7.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1849,7 +1857,7 @@ wheels = [
 
 [[package]]
 name = "pg-raggraph"
-version = "0.5.0a2"
+version = "0.5.0a4"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -1864,6 +1872,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+ab-gate = [
+    { name = "llm-judge" },
+]
 all = [
     { name = "chunkshop" },
     { name = "fastapi" },
@@ -1872,6 +1883,7 @@ all = [
     { name = "lede-spacy", extra = ["synonyms"] },
     { name = "leidenalg" },
     { name = "llama-index-core" },
+    { name = "llm-judge" },
     { name = "mcp" },
     { name = "python-igraph" },
     { name = "python-multipart" },
@@ -1941,9 +1953,10 @@ requires-dist = [
     { name = "lede-spacy", extras = ["synonyms"], marker = "extra == 'lede-spacy'", specifier = ">=0.4.5" },
     { name = "leidenalg", marker = "extra == 'community'", specifier = ">=0.10" },
     { name = "llama-index-core", marker = "extra == 'llamaindex'", specifier = ">=0.11" },
+    { name = "llm-judge", marker = "extra == 'ab-gate'", git = "https://github.com/yonk-labs/llm-judge.git?rev=main" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0" },
     { name = "pg-raggraph", extras = ["server"], marker = "extra == 'demo'" },
-    { name = "pg-raggraph", extras = ["server", "community", "langchain", "llamaindex", "mcp", "chunkshop", "lede-spacy"], marker = "extra == 'all'" },
+    { name = "pg-raggraph", extras = ["server", "community", "langchain", "llamaindex", "mcp", "chunkshop", "lede-spacy", "ab-gate"], marker = "extra == 'all'" },
     { name = "pgvector", specifier = ">=0.3" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1" },
     { name = "psycopg-pool", specifier = ">=3.1" },
@@ -1960,7 +1973,7 @@ requires-dist = [
     { name = "tiktoken", specifier = ">=0.7" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'server'", specifier = ">=0.27" },
 ]
-provides-extras = ["server", "demo", "community", "langchain", "llamaindex", "mcp", "chunkshop", "lede-spacy", "dev", "bench", "all"]
+provides-extras = ["server", "demo", "community", "langchain", "llamaindex", "mcp", "chunkshop", "lede-spacy", "dev", "bench", "ab-gate", "all"]
 
 [[package]]
 name = "pgvector"
