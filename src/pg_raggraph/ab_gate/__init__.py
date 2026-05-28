@@ -16,6 +16,7 @@ API is the only contract between the two efforts.
 
 from __future__ import annotations
 
+from pg_raggraph.ab_gate.harness import run_harness_mode
 from pg_raggraph.ab_gate.io import (
     ABCaseResult,
     ABRetrievedItem,
@@ -28,6 +29,7 @@ from pg_raggraph.ab_gate.io import (
 from pg_raggraph.ab_gate.judge_seam import (
     _chunkshop_judge_config_to_llm_judge_provider,
 )
+from pg_raggraph.ab_gate.runner import load_gold_questions, run_ab_matrix
 from pg_raggraph.ab_gate.writer import compute_verdict, write_verdict_report
 
 __all__ = [
@@ -40,5 +42,8 @@ __all__ = [
     "MetricVerdict",
     "_chunkshop_judge_config_to_llm_judge_provider",
     "compute_verdict",
+    "load_gold_questions",
+    "run_ab_matrix",
+    "run_harness_mode",
     "write_verdict_report",
 ]

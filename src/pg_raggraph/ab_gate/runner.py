@@ -110,3 +110,43 @@ async def run_ab_matrix(
     }
     (output_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True))
     return paths
+
+
+def load_gold_questions(path: Path) -> list[GoldQuestion]:
+    """Parse a chunkshop-shaped gold-Q YAML file.
+
+    Expected shape (matches chunkshop's ``gold-scotus.yaml`` /
+    ``gold-ntsb.yaml``):
+
+    .. code-block:: yaml
+
+        questions:
+          - id: q1
+            question: "What did X do?"
+            gold_answer: "Y."        # optional
+            required_facts:           # optional
+              - [X, did, Y]
+
+    Each list item under ``required_facts`` is a 3-element sequence
+    coerced to a ``(subject, predicate, object)`` tuple. Empty file or
+    missing ``questions`` key returns an empty list.
+    """
+    import yaml
+
+    raw = yaml.safe_load(Path(path).read_text()) or {}
+    out: list[GoldQuestion] = []
+    for entry in raw.get("questions") or []:
+        rf_raw = entry.get("required_facts")
+        if rf_raw:
+            required_facts = [tuple(triple) for triple in rf_raw]
+        else:
+            required_facts = None
+        out.append(
+            GoldQuestion(
+                id=str(entry["id"]),
+                question=str(entry["question"]),
+                gold_answer=entry.get("gold_answer"),
+                required_facts=required_facts,
+            )
+        )
+    return out
