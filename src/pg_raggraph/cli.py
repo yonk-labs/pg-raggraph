@@ -241,6 +241,126 @@ def ingest_chunkshop_table(
 
 
 @main.command()
+@click.option("-n", "--namespace", default=None, help="Namespace to drain (default: all)")
+@click.option("--batch-size", default=4, type=int, show_default=True, help="Docs per claim")
+@click.option(
+    "--max-iterations",
+    default=0,
+    type=int,
+    show_default=True,
+    help="Stop after N iterations (0 = unlimited; ignored with --once)",
+)
+@click.option(
+    "--rate-limit-rps",
+    default=0.0,
+    type=float,
+    show_default=True,
+    help="Cap docs/second across iterations (0 = unlimited)",
+)
+@click.option(
+    "--once",
+    is_flag=True,
+    help="Run exactly one claim+extract iteration and exit (overrides --max-iterations)",
+)
+@click.option(
+    "--include-failed",
+    is_flag=True,
+    help="Reset 'failed' docs to 'pending' at startup so they're retried",
+)
+@click.pass_context
+def extract(ctx, namespace, batch_size, max_iterations, rate_limit_rps, once, include_failed):
+    """Drain documents.graph_status='pending' — run background extraction.
+
+    Exits 0 when the queue is empty (or --once / --max-iterations is reached).
+    Workers can run concurrently safely; SKIP LOCKED guarantees no overlap.
+    """
+    from pg_raggraph.backfill import (
+        claim_pending,
+        extract_documents,
+        release_processing,
+    )
+
+    if batch_size < 1:
+        raise click.BadParameter("--batch-size must be >= 1")
+    if max_iterations < 0:
+        raise click.BadParameter("--max-iterations must be >= 0")
+    if rate_limit_rps < 0:
+        raise click.BadParameter("--rate-limit-rps must be >= 0")
+
+    async def _extract():
+        kwargs = dict(ctx.obj["kwargs"])
+        if namespace:
+            kwargs["namespace"] = namespace
+        rag = GraphRAG(**kwargs)
+        await rag.connect()
+        try:
+            # Reaper first — recover from prior crashes that left rows in
+            # 'processing'. Cheap UPDATE; safe across workers because peers
+            # holding SKIP-LOCKED rows are protected by row-level locks.
+            await release_processing(rag.db, None)
+
+            if include_failed:
+                if namespace:
+                    await rag.db.execute(
+                        "UPDATE documents SET graph_status = 'pending', graph_error = NULL "
+                        "WHERE namespace = %s AND graph_status = 'failed'",
+                        (namespace,),
+                    )
+                else:
+                    await rag.db.execute(
+                        "UPDATE documents SET graph_status = 'pending', graph_error = NULL "
+                        "WHERE graph_status = 'failed'"
+                    )
+
+            totals = {"claimed": 0, "ready": 0, "failed": 0, "ents": 0, "rels": 0}
+            iteration = 0
+            import time as _time
+
+            while True:
+                iteration += 1
+                iter_started = _time.perf_counter()
+                ids = await claim_pending(rag.db, namespace, batch_size)
+                if not ids:
+                    click.echo(f"Queue drained after {iteration - 1} iteration(s).", err=True)
+                    break
+                stats = await extract_documents(rag, ids)
+                totals["claimed"] += stats.claimed
+                totals["ready"] += stats.ready
+                totals["failed"] += stats.failed
+                totals["ents"] += stats.entities
+                totals["rels"] += stats.relationships
+                click.echo(
+                    f"[iter {iteration}] claimed={stats.claimed} ready={stats.ready} "
+                    f"failed={stats.failed} ents={stats.entities} rels={stats.relationships}",
+                    err=True,
+                )
+
+                if once or (max_iterations and iteration >= max_iterations):
+                    break
+
+                if rate_limit_rps > 0:
+                    # Target a per-iteration wall-time floor so the worker
+                    # never exceeds the configured docs/sec.
+                    elapsed = _time.perf_counter() - iter_started
+                    floor = len(ids) / rate_limit_rps
+                    if elapsed < floor:
+                        await asyncio.sleep(floor - elapsed)
+
+            click.echo(
+                f"Done: {totals['ready']} ready / {totals['failed']} failed "
+                f"of {totals['claimed']} claimed. {totals['ents']} entities, "
+                f"{totals['rels']} relationships."
+            )
+        finally:
+            await rag.close()
+
+    try:
+        run_async(_extract())
+    except Exception as e:
+        _handle_error(e)
+
+
+@main.command()
 @click.argument("question")
 @click.option(
     "-m",
