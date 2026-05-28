@@ -8,9 +8,14 @@ pytestmark = pytest.mark.integration
 
 
 async def test_connect_and_schema(db):
-    """Test that connecting creates the schema."""
+    """Test that connecting creates the schema.
+
+    schema_version is the high-water mark across the baseline schema (1) and
+    every applied migration — _record_migration bumps it via GREATEST. So the
+    floor is SCHEMA_VERSION; the actual value rises with each migration.
+    """
     version = await db.get_meta("schema_version")
-    assert version == str(SCHEMA_VERSION)
+    assert int(version) >= SCHEMA_VERSION
 
 
 async def test_embedding_dim_stored(db):
@@ -105,3 +110,43 @@ async def test_count(db):
     """Test count helper."""
     count = await db.count("documents", "nonexistent_namespace")
     assert count == 0
+
+
+async def test_documents_graph_status_columns(db):
+    """Migration 012: graph_status / graph_extracted_at / graph_error are present.
+
+    New rows default to 'ready' so existing callers (synchronous extract) are
+    unaffected. The deferred-extraction path will explicitly set 'pending'.
+    """
+    cols = await db.fetch_all(
+        "SELECT column_name, data_type, column_default, is_nullable "
+        "FROM information_schema.columns "
+        "WHERE table_name = 'documents' "
+        "AND column_name IN ('graph_status', 'graph_extracted_at', 'graph_error')"
+    )
+    by_name = {c["column_name"]: c for c in cols}
+    assert "graph_status" in by_name
+    assert by_name["graph_status"]["is_nullable"] == "NO"
+    assert "'ready'" in (by_name["graph_status"]["column_default"] or "")
+    assert "graph_extracted_at" in by_name
+    assert "graph_error" in by_name
+
+    # Inserted-without-graph_status row backfills to 'ready' (the default).
+    doc_id = await db.insert_returning_id(
+        "INSERT INTO documents (namespace, content_hash) VALUES (%s, %s) RETURNING id",
+        ("test", "gs_default_check"),
+    )
+    row = await db.fetch_one("SELECT graph_status FROM documents WHERE id = %s", (doc_id,))
+    assert row["graph_status"] == "ready"
+
+
+async def test_documents_graph_status_partial_index(db):
+    """Migration 012: partial index on (namespace, created_at) WHERE pending."""
+    row = await db.fetch_one(
+        "SELECT indexdef FROM pg_indexes "
+        "WHERE tablename = 'documents' AND indexname = 'idx_documents_graph_status_pending'"
+    )
+    assert row is not None, "expected idx_documents_graph_status_pending"
+    indexdef = row["indexdef"]
+    assert "namespace" in indexdef and "created_at" in indexdef
+    assert "graph_status = 'pending'" in indexdef.lower() or "(graph_status" in indexdef.lower()
