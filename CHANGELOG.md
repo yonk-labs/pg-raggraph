@@ -4,7 +4,62 @@
 
 Additive arc, backward-compatible. Completes the chunkshop ↔ pg-raggraph A/B gate by landing the two middle artifacts: the retrieval-mode harness (#48) and the matrix runner (#49). Pairs with v0.5.0a3 (#47 resolver + #50 verdict writer).
 
-_(Sections populated by Task 11.)_
+### Added — A/B retrieval harness + runner
+
+The middle two artifacts of the chunkshop ↔ pg-raggraph A/B gate. With v0.5.0a3 (#47 resolver + #50 writer) already shipped, this release completes the chain.
+
+`src/pg_raggraph/ab_gate/harness.py` — `run_harness_mode(rag, *, corpus_id, mode, gold_questions, top_k=10) → ABRunnerOutput`:
+
+- **`naive_vector`** — pure ANN over `chunks.embedding` with the chunkshop §4.2 fact-row exclusion (`WHERE metadata->>'kind' IS DISTINCT FROM 'fact'`). `IS DISTINCT FROM`, not `!=` — null-safe.
+- **`graph_leg`** — `_encode_question_terms` (lede_spacy NER with whitespace+stoplist fallback on raise/empty) → `resolve_entity_lookup` per term (via #47, shipped in v0.5.0a3) → one-hop fact-triple walk (`metadata->>'kind' = 'fact'`, join to parent episode chunk) → one-hop cooccur walk over `metadata['cooccur']` on episode rows. Only episode chunks are cited; fact rows never appear in the citation list (SC-006).
+- **`hybrid`** — deferred per SC-007. Raises `NotImplementedError` naming issue #48. The 50/50 naive + graph blend stays as a known gap; rerun with the two legs individually and blend in downstream tooling if needed.
+
+`src/pg_raggraph/ab_gate/runner.py` — `run_ab_matrix(rag, *, corpora, modes, gold_questions_per_corpus, output_dir, top_k=10) → dict[(corpus_id, mode), Path]`:
+
+- Sequential per cell — no per-(corpus, mode) parallelism (locked in Out of Scope; the existing per-question pool concurrency already handles intra-mode parallelism).
+- One `ABRunnerOutput` JSON per cell at `<output_dir>/<corpus>__<mode>.json` (double-underscore intentional; avoids collisions with corpus names containing a single underscore).
+- Atomic temp-then-replace per file, so a mid-write process death leaves either the previous file or nothing — never a partial write.
+- A `<output_dir>/manifest.json` lists every file plus `run_started_at`, `run_ended_at`, `pg_raggraph_version`.
+- `load_gold_questions(path)` parses chunkshop's `gold-scotus.yaml` shape verbatim. Alternative formats (JSON, CSV, JSONL) are explicitly out of scope.
+
+### Added — `GoldQuestion` dataclass
+
+Frozen dataclass at `pg_raggraph.ab_gate.io.GoldQuestion` with four fields (`id`, `question`, `gold_answer`, `required_facts`). Re-exported from `pg_raggraph.ab_gate`. Matches the chunkshop `gold-scotus.yaml` / `gold-ntsb.yaml` shape verbatim.
+
+### Added — `pgrg ab-gate` CLI group
+
+New top-level group following the existing `pgrg <group> <command>` pattern:
+
+- `pgrg ab-gate run` — the matrix runner with `--corpus` / `--gold` paired-flag pattern, `--mode` repeatable (`click.Choice`-validated), `--top-k`, `--out`. Mismatched `--corpus` / `--gold` counts raise `click.BadParameter` at parse time.
+
+### Docs
+
+- `docs/cookbook/ab-gate.md` — appended "Running the matrix" section: invocation example, mode reference (naive_vector, graph_leg, hybrid-deferred), output layout diagram (`<corpus>__<mode>.json` + `manifest.json`), reproducibility caveat documenting ANN tie noise as expected.
+- Chunkshop emission contract §4.2 + §4.3 status checkboxes flip from `[ ]` to `[x]` in a follow-up chunkshop PR (tracked but not gating).
+
+### Tests
+
+- `tests/unit/test_ab_gold_question_shape.py` (6)
+- `tests/unit/test_ab_question_encoding.py` (5)
+- `tests/unit/test_ab_harness_graph_leg.py` (2)
+- `tests/unit/test_ab_harness_hybrid.py` (1)
+- `tests/unit/test_ab_runner_orchestrates_matrix.py` (2)
+- `tests/unit/test_ab_runner_output_shape.py` (1)
+- `tests/unit/test_ab_runner_manifest.py` (1)
+- `tests/unit/test_ab_gold_yaml_loader.py` (6)
+- `tests/integration/test_ab_harness_naive_vector.py` (2)
+- `tests/integration/test_ab_harness_graph_leg.py` (4)
+- `tests/integration/test_ab_runner_writes_per_corpus_per_mode.py` (1)
+- `tests/integration/test_ab_runner_latency.py` (1)
+- `tests/integration/test_ab_runner_idempotency.py` (1)
+- `tests/integration/test_cli_ab_gate.py` (4)
+
+Total: 37 new tests, all green.
+
+### Known gaps
+
+- `hybrid` mode is `NotImplementedError`. Re-opens with the 50/50 blend as v1 when scope permits. Tracked in #48.
+- ANN tie-ordering noise: repeated runs may reorder items within score ties; CI does not gate on bit-exact reproducibility.
 
 ## 0.5.0a3 — 2026-05-28 (A/B gate bookend: resolve-entity lookup + results writer)
 

@@ -120,3 +120,88 @@ Changing any of them requires a coordinated PR per contract §5. A unit test (`t
 | `ImportError: llm-judge is required for pg-raggraph A/B-gate verdict computation.` | The `ab-gate` optional extra isn't installed. | `pip install pg-raggraph[ab-gate]` |
 | `resolve_entity_lookup` returns `None` for an obvious match | `config.resolution_threshold` (default 0.85) is too strict for the surface. | Inspect the trgm score with `psql … "SELECT similarity(name, '<surface>') FROM entities WHERE namespace = '<corpus_id>'"` and lower `resolution_threshold` if needed. |
 | Verdict is always INCONCLUSIVE | Corpus is too small or gold-Q set doesn't exercise the graph leg. | Per §3.8 — fix coverage; don't loosen the thresholds. |
+
+## Running the matrix
+
+Once a corpus has been ingested with a chunkshop A/B config (e.g.
+`bakeoff-scotus-ab.yaml`), run the retrieval-mode matrix:
+
+```bash
+pgrg --db postgresql://… ab-gate run \
+    --corpus bakeoff-scotus-ab \
+    --gold docs/samples/bakeoff-scotus/gold-scotus.yaml \
+    --corpus bakeoff-ntsb-ab \
+    --gold docs/samples/bakeoff-ntsb/gold-ntsb.yaml \
+    --mode naive_vector \
+    --mode graph_leg \
+    --top-k 10 \
+    --out runs/ab-gate-2026-05-28/
+```
+
+Pairing: pass `--corpus` and `--gold` in matched pairs (same count,
+same order). Mismatched counts fail at parse time with a clear
+`click.BadParameter` error.
+
+Modes:
+
+- **`naive_vector`** — pure ANN over chunks, fact rows excluded per
+  chunkshop §4.2 (`WHERE metadata->>'kind' IS DISTINCT FROM 'fact'`).
+- **`graph_leg`** — entity-resolve question terms via `resolve_entity_lookup`,
+  walk fact triples and `metadata['cooccur']` edges, return the episode
+  chunks carrying those facts. Only episode chunks are cited — never
+  fact rows.
+- **`hybrid`** — *deferred* per SC-007. Calling with `--mode hybrid`
+  raises `NotImplementedError` naming issue #48. Combine
+  `naive_vector` and `graph_leg` results in your downstream tooling
+  if you need a blended leg today.
+
+### Output layout
+
+```
+runs/ab-gate-2026-05-28/
+├── manifest.json
+├── bakeoff-scotus-ab__naive_vector.json
+├── bakeoff-scotus-ab__graph_leg.json
+├── bakeoff-ntsb-ab__naive_vector.json
+└── bakeoff-ntsb-ab__graph_leg.json
+```
+
+The `__` separator (double-underscore) is intentional — it avoids
+collisions with corpus names that contain a single underscore. Each
+per-cell file follows the `ABRunnerOutput` schema in
+`src/pg_raggraph/ab_gate/io.py`. The `manifest.json` lists every
+file plus run timestamps and `pg_raggraph.__version__`.
+
+### Handing off to the verdict computer
+
+Once the matrix is written, feed the directory to the verdict computer
+(from #50) to compute the GRAPH_WINS / NAIVE_WINS / INCONCLUSIVE
+verdict per chunkshop §3. The verdict surface lives in
+`pg_raggraph.ab_gate.compute_verdict` + `write_verdict_report`; see
+the §4.1 (resolver) / §4.4 (writer) sections above.
+
+### Reproducibility caveat
+
+The matrix is deterministic within ANN tie-ordering noise: the same DB
+state, same gold-Q files, and same modes produce the same retrieved-id
+sets modulo HNSW tie shuffling. Repeated `pgrg ab-gate run` invocations
+may reorder items within score ties. CI does NOT gate on bit-exact
+reproducibility — too sensitive to pgvector index state and hardware.
+
+### Optional live smoke
+
+For an end-to-end check against a real chunkshop A/B corpus (after
+ingesting via chunkshop's `bakeoff-scotus-ab.yaml`):
+
+```bash
+pgrg --db postgresql://… ab-gate run \
+    --corpus bakeoff-scotus-ab \
+    --gold docs/samples/bakeoff-scotus/gold-scotus.yaml \
+    --mode naive_vector --mode graph_leg \
+    --top-k 10 \
+    --out runs/smoke/
+ls runs/smoke/
+cat runs/smoke/manifest.json | jq .
+```
+
+Document the result in the PR description.
