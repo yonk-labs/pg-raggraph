@@ -625,6 +625,7 @@ class GraphRAG:
         living_key: str | None = None,
         living_cadence: str | None = None,
         living_audit_diffs: bool | None = None,
+        defer_extraction: bool = False,
     ):
         """Ingest documents from in-memory records — no disk roundtrip.
 
@@ -675,6 +676,13 @@ class GraphRAG:
                   extraction for this document. Useful when the caller's
                   known_entities/known_relationships already cover what
                   they care about and the LLM would just add noise / cost.
+                - ``defer_extraction`` (bool, optional, default False):
+                  store the document with ``graph_status='pending'`` and
+                  skip extraction during this call. Chunks + embeddings
+                  are still written, so ``naive`` retrieval works
+                  immediately; a background worker (``pgrg extract``)
+                  drains the queue and populates entities/relationships.
+                  Per-record override of the call-level kwarg.
                 - ``pre_chunked`` (list of dict, optional): bypass
                   pg-raggraph's chunker AND embedder. Each entry:
                   ``{"content": str, "embedded_content": str (optional),
@@ -700,6 +708,11 @@ class GraphRAG:
             living_audit_diffs: When True, write hash-level overwrite/supersede
                 events to ``living_audit_log``. Audit rows are not embedded or
                 retrieved.
+            defer_extraction: Batch default. When True, every record stores
+                ``graph_status='pending'`` and skips synchronous LLM/lede
+                extraction; chunks + embeddings still land so ``naive`` works.
+                Drain with ``pgrg extract``. Individual records can override
+                via the ``defer_extraction`` record key.
 
         Returns: same stats shape as ``ingest()``.
 
@@ -823,6 +836,7 @@ class GraphRAG:
                         rec_entities = rec.get("entities")
                         rec_rels = rec.get("relationships")
                         rec_skip_llm = bool(rec.get("skip_llm", False))
+                        rec_defer_extraction = bool(rec.get("defer_extraction", defer_extraction))
                         rec_pre_chunked = rec.get("pre_chunked")
                         living_context = None
                         source_id = rec["source_id"]
@@ -882,6 +896,7 @@ class GraphRAG:
                             skip_llm_for_this_doc=rec_skip_llm,
                             pre_chunked=rec_pre_chunked,
                             living_context=living_context,
+                            defer_extraction=rec_defer_extraction,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -997,6 +1012,7 @@ class GraphRAG:
         skip_llm_for_this_doc: bool = False,
         pre_chunked: list[dict] | None = None,
         living_context: _LivingContext | None = None,
+        defer_extraction: bool = False,
     ):
         """Ingest a single document from in-memory content with all DB
         writes in a single transaction.
@@ -1119,9 +1135,12 @@ class GraphRAG:
         # If llm is None or skip_llm_for_this_doc is set, skip extraction
         # entirely — pure vector RAG mode (with whatever known_entities /
         # known_relationships the caller provides as the only graph signal).
+        # defer_extraction is the new background-extraction opt-in: chunks +
+        # embeddings still land (so naive retrieval works), but extraction is
+        # deferred to a `pgrg extract` worker that drains graph_status='pending'.
         extraction_degraded = False
         _lede_path = getattr(self.config, "fact_extractor", "none") == "lede_spacy"
-        if (llm is None and not _lede_path) or skip_llm_for_this_doc:
+        if defer_extraction or (llm is None and not _lede_path) or skip_llm_for_this_doc:
             from pg_raggraph.models import ExtractionResult
 
             extraction_results = [ExtractionResult() for _ in chunks]
@@ -1306,11 +1325,17 @@ class GraphRAG:
             # serialize to ISO strings instead of crashing the ingest.
             doc_metadata_json = json.dumps(meta, default=_json_default) if meta else "{}"
 
+            # graph_status: 'pending' when extraction is deferred to a
+            # background worker, else 'ready' (matches the migration default
+            # and the pre-feature synchronous behavior).
+            graph_status_value = "pending" if defer_extraction else "ready"
+
             doc_id = await tx.insert_returning_id(
                 "INSERT INTO documents "
                 "(namespace, content_hash, source_path, metadata, "
-                " effective_from, effective_to, retracted, version_label) "
-                "VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s) "
+                " effective_from, effective_to, retracted, version_label, "
+                " graph_status) "
+                "VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s) "
                 "ON CONFLICT (namespace, content_hash) DO UPDATE "
                 "SET source_path = EXCLUDED.source_path, "
                 "    metadata = documents.metadata || EXCLUDED.metadata, "
@@ -1332,6 +1357,7 @@ class GraphRAG:
                     eff_to,
                     retracted_value,
                     version_label,
+                    graph_status_value,
                     retracted_explicit,
                 ),
             )

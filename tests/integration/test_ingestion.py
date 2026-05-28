@@ -178,3 +178,104 @@ async def test_ingest_with_chunk_strategy_hierarchy_title_fallback():
         os.unlink(temp_path)
         await rag.delete("test_hier_fallback")
         await rag.close()
+
+
+async def test_ingest_records_defer_extraction_marks_pending():
+    """defer_extraction=True: chunks land, extraction skipped, graph_status='pending'."""
+    rag = GraphRAG(
+        dsn="postgresql://postgres:postgres@localhost:5434/pg_raggraph",
+        namespace="test_defer_extract",
+    )
+    await rag.connect()
+    try:
+        records = [
+            {
+                "text": "PostgreSQL is a relational database. It supports JSONB columns.",
+                "source_id": "defer:doc1",
+            },
+            {
+                "text": "Background extraction drains pending docs via pgrg extract.",
+                "source_id": "defer:doc2",
+            },
+        ]
+        await rag.ingest_records(records, namespace="test_defer_extract", defer_extraction=True)
+
+        status = await rag.status("test_defer_extract")
+        assert status["documents"] == 2
+        assert status["chunks"] >= 2
+        # No graph yet — extraction was deferred.
+        assert status["entities"] == 0
+        assert status["relationships"] == 0
+
+        # Both rows must be marked pending.
+        rows = await rag.db.fetch_all(
+            "SELECT graph_status FROM documents WHERE namespace = %s",
+            ("test_defer_extract",),
+        )
+        statuses = sorted(r["graph_status"] for r in rows)
+        assert statuses == ["pending", "pending"]
+    finally:
+        await rag.delete("test_defer_extract")
+        await rag.close()
+
+
+async def test_ingest_records_per_record_defer_overrides_batch_default():
+    """Per-record defer_extraction overrides the batch-level kwarg."""
+    rag = GraphRAG(
+        dsn="postgresql://postgres:postgres@localhost:5434/pg_raggraph",
+        namespace="test_defer_mix",
+        # no LLM endpoint; extraction degrades, but graph_status still 'ready'
+        llm_base_url="http://localhost:99999/v1",
+    )
+    await rag.connect()
+    try:
+        records = [
+            {
+                "text": "Doc A becomes ready synchronously (no extraction backend).",
+                "source_id": "mix:ready",
+            },
+            {
+                "text": "Doc B is explicitly deferred via the record key.",
+                "source_id": "mix:pending",
+                "defer_extraction": True,
+            },
+        ]
+        # Batch default False; one record opts in.
+        await rag.ingest_records(records, namespace="test_defer_mix")
+
+        rows = await rag.db.fetch_all(
+            "SELECT source_path, graph_status FROM documents "
+            "WHERE namespace = %s ORDER BY source_path",
+            ("test_defer_mix",),
+        )
+        by_source = {r["source_path"]: r["graph_status"] for r in rows}
+        assert by_source == {"mix:pending": "pending", "mix:ready": "ready"}
+    finally:
+        await rag.delete("test_defer_mix")
+        await rag.close()
+
+
+async def test_ingest_records_default_still_synchronous_ready():
+    """Regression: default behavior unchanged — new docs land as 'ready'."""
+    rag = GraphRAG(
+        dsn="postgresql://postgres:postgres@localhost:5434/pg_raggraph",
+        namespace="test_defer_default",
+        llm_base_url="http://localhost:99999/v1",
+    )
+    await rag.connect()
+    try:
+        records = [
+            {
+                "text": "A baseline doc with no defer_extraction key anywhere.",
+                "source_id": "default:doc",
+            }
+        ]
+        await rag.ingest_records(records, namespace="test_defer_default")
+        row = await rag.db.fetch_one(
+            "SELECT graph_status FROM documents WHERE namespace = %s",
+            ("test_defer_default",),
+        )
+        assert row["graph_status"] == "ready"
+    finally:
+        await rag.delete("test_defer_default")
+        await rag.close()
