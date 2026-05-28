@@ -1554,11 +1554,19 @@ class GraphRAG:
                     retracted = rel[7] if len(rel) > 7 else False
                     retracted_at = rel[8] if len(rel) > 8 else None
                     properties = rel[9] if len(rel) > 9 and rel[9] else {}
+                    # ON CONFLICT … DO UPDATE keeps the row id stable (so
+                    # relationship_chunks below still resolves) and merges
+                    # the strongest weight. Idempotent across ingests of the
+                    # same edge — required since migration 013 made the
+                    # (namespace, src_id, dst_id, rel_type) combination
+                    # uniquely indexed.
                     rel_id = await tx.insert_returning_id(
                         "INSERT INTO relationships "
                         "(namespace, src_id, dst_id, rel_type, weight, description, "
                         "effective_from, effective_to, retracted, retracted_at, properties) "
                         "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb) "
+                        "ON CONFLICT (namespace, src_id, dst_id, rel_type) DO UPDATE "
+                        "SET weight = GREATEST(relationships.weight, EXCLUDED.weight) "
                         "RETURNING id",
                         (
                             ns,
@@ -2459,13 +2467,43 @@ class GraphRAG:
                 if len(namespaces) > 1:
                     raise ValueError(f"cross-namespace merge refused: {sorted(namespaces)}")
 
-                # Repoint relationships. After rewriting src_id and dst_id, any
-                # edge whose src and dst both collapse to keep_id becomes a
-                # self-loop — delete those. Remaining duplicates (same src, dst,
-                # rel_type after the rewrite) collapse to one row each.
+                # Repoint relationships. Migration 013 made
+                # (namespace, src_id, dst_id, rel_type) uniquely indexed, so a
+                # naive UPDATE that rewrites src_id or dst_id can collide with
+                # an existing keep-anchored edge. Pre-delete the about-to-
+                # collide rows so the UPDATE always lands. The semantics match
+                # the prior post-UPDATE collapse (lowest-id wins) — we just
+                # apply the dedup before the rewrite instead of after.
+                #
+                # src_id rewrite collision: a merge_id row (m, Y, rt) collides
+                # if (keep_id, Y, rt) already exists.
+                await tx.execute(
+                    "DELETE FROM relationships m USING relationships k "
+                    "WHERE m.src_id = ANY(%s) "
+                    "  AND k.src_id = %s "
+                    "  AND k.dst_id = m.dst_id "
+                    "  AND k.rel_type = m.rel_type "
+                    "  AND k.namespace = m.namespace "
+                    "  AND k.id <> m.id",
+                    (merge_ids, keep_id),
+                )
                 await tx.execute(
                     "UPDATE relationships SET src_id = %s WHERE src_id = ANY(%s)",
                     (keep_id, merge_ids),
+                )
+                # dst_id rewrite collision: a row (X, m, rt) collides if
+                # (X, keep_id, rt) already exists. X may itself have just been
+                # rewritten to keep_id — in that case the row becomes a
+                # self-loop and the next DELETE handles it.
+                await tx.execute(
+                    "DELETE FROM relationships m USING relationships k "
+                    "WHERE m.dst_id = ANY(%s) "
+                    "  AND k.dst_id = %s "
+                    "  AND k.src_id = m.src_id "
+                    "  AND k.rel_type = m.rel_type "
+                    "  AND k.namespace = m.namespace "
+                    "  AND k.id <> m.id",
+                    (merge_ids, keep_id),
                 )
                 await tx.execute(
                     "UPDATE relationships SET dst_id = %s WHERE dst_id = ANY(%s)",
@@ -2475,14 +2513,6 @@ class GraphRAG:
                 await tx.execute(
                     "DELETE FROM relationships WHERE src_id = dst_id AND "
                     "(src_id = %s OR dst_id = %s)",
-                    (keep_id, keep_id),
-                )
-                # Collapse duplicate edges (keep the lowest id per group).
-                await tx.execute(
-                    "DELETE FROM relationships a USING relationships b "
-                    "WHERE a.id > b.id AND a.src_id = b.src_id AND "
-                    "a.dst_id = b.dst_id AND a.rel_type = b.rel_type AND "
-                    "a.namespace = b.namespace AND (a.src_id = %s OR a.dst_id = %s)",
                     (keep_id, keep_id),
                 )
 

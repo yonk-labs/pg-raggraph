@@ -278,6 +278,11 @@ async def test_merge_entities_drops_self_loops_and_duplicates():
         )
         a, b, c = ids[0]["id"], ids[1]["id"], ids[2]["id"]
 
+        # Both A and B point to C with the same rel_type. After migration 013
+        # (PR-002), duplicate (ns,src,dst,rel_type) rows can't co-exist — but
+        # merging B→A still creates the duplicate-collapse scenario this test
+        # is checking: post-merge, the merge logic must collapse A→C and the
+        # rewritten-from-B→C into one edge.
         await rag.db.execute(
             "INSERT INTO relationships (namespace, src_id, dst_id, rel_type) VALUES "
             "(%s, %s, %s, 'REL'), (%s, %s, %s, 'REL'), "
@@ -293,7 +298,7 @@ async def test_merge_entities_drops_self_loops_and_duplicates():
                 a,
                 c,
                 "merge_selfloop",
-                a,
+                b,
                 c,
             ),
         )

@@ -140,6 +140,43 @@ async def test_documents_graph_status_columns(db):
     assert row["graph_status"] == "ready"
 
 
+async def test_relationships_unique_constraint_present(db):
+    """Migration 013 (PR-002): UNIQUE on (namespace, src_id, dst_id, rel_type)."""
+    row = await db.fetch_one(
+        "SELECT conname FROM pg_constraint WHERE conname = 'relationships_ns_edge_unique'"
+    )
+    assert row is not None, "migration 013's unique constraint must exist"
+
+
+async def test_relationships_insert_is_idempotent_under_unique(db):
+    """Re-inserting the same (ns, src, dst, rel_type) must not raise after PR-002."""
+    dim = db.config.embedding_dim
+    src = await db.insert_returning_id(
+        "INSERT INTO entities (namespace, name, entity_type, embedding) "
+        "VALUES (%s, %s, %s, %s) RETURNING id",
+        ("test", "src_idem", "x", [0.1] * dim),
+    )
+    dst = await db.insert_returning_id(
+        "INSERT INTO entities (namespace, name, entity_type, embedding) "
+        "VALUES (%s, %s, %s, %s) RETURNING id",
+        ("test", "dst_idem", "x", [0.1] * dim),
+    )
+    sql = (
+        "INSERT INTO relationships "
+        "(namespace, src_id, dst_id, rel_type, weight, description, properties) "
+        "VALUES (%s, %s, %s, %s, %s, %s, '{}'::jsonb) "
+        "ON CONFLICT (namespace, src_id, dst_id, rel_type) DO UPDATE "
+        "SET weight = GREATEST(relationships.weight, EXCLUDED.weight) "
+        "RETURNING id"
+    )
+    rid1 = await db.insert_returning_id(sql, ("test", src, dst, "REL", 1.0, "first"))
+    rid2 = await db.insert_returning_id(sql, ("test", src, dst, "REL", 2.0, "second"))
+    rid3 = await db.insert_returning_id(sql, ("test", src, dst, "REL", 1.5, "third"))
+    assert rid1 == rid2 == rid3, "ON CONFLICT must keep the original row id stable"
+    row = await db.fetch_one("SELECT weight FROM relationships WHERE id = %s", (rid1,))
+    assert row["weight"] == 2.0, "GREATEST(weight) must keep the highest seen"
+
+
 async def test_documents_graph_status_partial_index(db):
     """Migration 012: partial index on (namespace, created_at) WHERE pending."""
     row = await db.fetch_one(

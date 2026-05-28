@@ -340,9 +340,13 @@ def extract(
 
         try:
             # Reaper first — recover from prior crashes that left rows in
-            # 'processing'. Cheap UPDATE; safe across workers because peers
-            # holding SKIP-LOCKED rows are protected by row-level locks.
-            await release_processing(rag.db, None)
+            # 'processing'. Scoped to this worker's --namespace so a peer
+            # worker running against a different namespace doesn't have its
+            # in-flight claims stolen. When --namespace is omitted (drain
+            # everything), release_processing logs a warning before doing
+            # the global reap; operators running multi-tenant deployments
+            # should always pass --namespace.
+            await release_processing(rag.db, namespace=namespace)
 
             if include_failed:
                 if namespace:
@@ -368,7 +372,18 @@ def extract(
 
                 iteration += 1
                 iter_started = _time.perf_counter()
+                claim_t0 = _time.perf_counter()
                 ids = await claim_pending(rag.db, namespace, batch_size)
+                # claim is metric-emitted on EVERY iteration including empty
+                # ones so an operator can spot a daemon that's polling a
+                # queue but never finding work (e.g. wrong namespace).
+                rag._emit_metric(
+                    "pgrg.backfill.claim",
+                    namespace=namespace,
+                    batch_size=batch_size,
+                    claimed=len(ids),
+                    latency_ms=(_time.perf_counter() - claim_t0) * 1000,
+                )
                 if not ids:
                     if daemon:
                         # Wait poll_interval or until shutdown — whichever
@@ -383,7 +398,7 @@ def extract(
                     click.echo(f"Queue drained after {iteration - 1} iteration(s).", err=True)
                     break
 
-                stats = await extract_documents(rag, ids)
+                stats = await extract_documents(rag, ids, namespace=namespace)
                 totals["claimed"] += stats.claimed
                 totals["ready"] += stats.ready
                 totals["failed"] += stats.failed
@@ -394,6 +409,24 @@ def extract(
                     f"failed={stats.failed} ents={stats.entities} rels={stats.relationships}",
                     err=True,
                 )
+
+                # Per-iteration queue depth gives operators an at-a-glance
+                # "is this thing converging?" signal. Only meaningful when
+                # the worker has scoped to a namespace (the global summary
+                # is too expensive on large multi-tenant DBs).
+                if namespace:
+                    try:
+                        summary = await rag._graph_status_summary(namespace)
+                        rag._emit_metric(
+                            "pgrg.backfill.queue_depth",
+                            namespace=namespace,
+                            **summary,
+                        )
+                    except Exception as e:
+                        # A summary scan should never break the loop.
+                        logging.getLogger("pg_raggraph.cli").debug(
+                            "queue_depth metric failed: %s", e
+                        )
 
                 if not daemon and (once or (max_iterations and iteration >= max_iterations)):
                     break

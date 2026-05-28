@@ -86,7 +86,7 @@ async def test_release_processing_reaper():
         assert len(ids) == 2
 
         # Simulate worker crash mid-processing: release without extracting.
-        await release_processing(rag.db, ids)
+        await release_processing(rag.db, doc_ids=ids)
 
         rows = await rag.db.fetch_all(
             "SELECT graph_status FROM documents WHERE namespace = %s",
@@ -95,6 +95,88 @@ async def test_release_processing_reaper():
         assert all(r["graph_status"] == "pending" for r in rows)
     finally:
         await rag.delete("test_bf_reaper")
+        await rag.close()
+
+
+async def test_release_processing_namespace_scoped_does_not_touch_peers():
+    """release_processing(namespace=A) must not flip namespace B's 'processing' rows.
+
+    Regression guard for PR-001 / GAP-014: the startup reaper used to be
+    global; a worker starting in namespace A would steal namespace B's
+    in-flight claims. After PR-001, reaper is namespace-scoped.
+    """
+    rag_a = await _make_rag("test_bf_ns_a")
+    rag_b = await _make_rag("test_bf_ns_b")
+    try:
+        # Seed pending in both namespaces, claim both into 'processing'.
+        await rag_a.ingest_records(
+            [{"text": "ns-a doc", "source_id": "bf:nsa:1"}],
+            namespace="test_bf_ns_a",
+            defer_extraction=True,
+        )
+        await rag_b.ingest_records(
+            [{"text": "ns-b doc", "source_id": "bf:nsb:1"}],
+            namespace="test_bf_ns_b",
+            defer_extraction=True,
+        )
+        ids_a = await claim_pending(rag_a.db, "test_bf_ns_a", 8)
+        ids_b = await claim_pending(rag_b.db, "test_bf_ns_b", 8)
+        assert len(ids_a) == 1 and len(ids_b) == 1
+
+        # Worker A's startup reaper fires — must not touch B.
+        await release_processing(rag_a.db, namespace="test_bf_ns_a")
+
+        row_a = await rag_a.db.fetch_one(
+            "SELECT graph_status FROM documents WHERE id = %s", (ids_a[0],)
+        )
+        row_b = await rag_b.db.fetch_one(
+            "SELECT graph_status FROM documents WHERE id = %s", (ids_b[0],)
+        )
+        # A got reaped (pending). B remains processing.
+        assert row_a["graph_status"] == "pending", "namespace A reaper must reclaim A"
+        assert row_b["graph_status"] == "processing", (
+            "namespace A reaper MUST NOT touch namespace B's claims"
+        )
+    finally:
+        await rag_a.delete("test_bf_ns_a")
+        await rag_b.delete("test_bf_ns_b")
+        await rag_a.close()
+        await rag_b.close()
+
+
+async def test_release_processing_global_warns_and_works(caplog):
+    """release_processing() with neither arg reaps globally AND logs a warning.
+
+    The behavior is still available (e.g. for repair scripts) but the warning
+    makes the blast radius visible. Operators running multi-tenant systems
+    should always pass namespace=...
+    """
+    import logging
+
+    rag = await _make_rag("test_bf_global_warn")
+    try:
+        await rag.ingest_records(
+            [{"text": "global reap doc", "source_id": "bf:gw:1"}],
+            namespace="test_bf_global_warn",
+            defer_extraction=True,
+        )
+        await claim_pending(rag.db, "test_bf_global_warn", 8)
+
+        with caplog.at_level(logging.WARNING, logger="pg_raggraph.backfill"):
+            await release_processing(rag.db)  # no kwargs at all
+
+        # Warning must be emitted so the operator sees the blast radius.
+        assert any("no namespace" in rec.message for rec in caplog.records), (
+            f"expected warning about no-namespace reap; got {[r.message for r in caplog.records]}"
+        )
+        # And the work happened.
+        rows = await rag.db.fetch_all(
+            "SELECT graph_status FROM documents WHERE namespace = %s",
+            ("test_bf_global_warn",),
+        )
+        assert all(r["graph_status"] == "pending" for r in rows)
+    finally:
+        await rag.delete("test_bf_global_warn")
         await rag.close()
 
 
@@ -263,6 +345,94 @@ async def test_query_metadata_exposes_graph_status_summary():
         assert len(result.chunks) > 0
     finally:
         await rag.delete("test_bf_query_hint")
+        await rag.close()
+
+
+@pytest.mark.skipif(
+    not _lede_available(),
+    reason="lede / lede-spacy / en_core_web_sm not available",
+)
+async def test_re_extracting_ready_doc_does_not_duplicate_edges():
+    """PR-002 / GAP-014: re-extraction must be idempotent on relationships.
+
+    Migration 013 added a UNIQUE constraint on
+    (namespace, src_id, dst_id, rel_type); the INSERT in _extract_one uses
+    ON CONFLICT DO UPDATE. Calling extract_documents on a doc that's
+    already 'ready' must leave relationship counts unchanged.
+    """
+    ns = "test_bf_re_extract"
+    rag = GraphRAG(
+        dsn=DSN,
+        namespace=ns,
+        fact_extractor="lede_spacy",
+        llm_base_url="",
+    )
+    await rag.connect()
+    try:
+        await rag.ingest_records(
+            [
+                {
+                    "text": (
+                        "NASA launched the Saturn V rocket from Kennedy Space Center. "
+                        "Neil Armstrong walked on the Moon while Michael Collins orbited."
+                    ),
+                    "source_id": "bf:re:1",
+                }
+            ],
+            namespace=ns,
+        )
+
+        before_rels = await rag.db.fetch_one(
+            "SELECT count(*) AS n FROM relationships WHERE namespace = %s", (ns,)
+        )
+        doc = await rag.db.fetch_one("SELECT id FROM documents WHERE namespace = %s", (ns,))
+        assert before_rels["n"] > 0, "lede_spacy should produce edges"
+
+        # Force re-extraction by feeding the ready doc id directly.
+        # (Not the documented happy path — claim_pending is — but it's the
+        # exact code path a peer worker would hit after a global reaper
+        # stole its claim under the pre-PR-001 bug. PR-002 makes it safe.)
+        await extract_documents(rag, [doc["id"]])
+        await extract_documents(rag, [doc["id"]])
+
+        after_rels = await rag.db.fetch_one(
+            "SELECT count(*) AS n FROM relationships WHERE namespace = %s", (ns,)
+        )
+        assert after_rels["n"] == before_rels["n"], (
+            f"re-extraction duplicated edges: {before_rels['n']} → {after_rels['n']}"
+        )
+    finally:
+        await rag.delete(ns)
+        await rag.close()
+
+
+async def test_extract_documents_emits_metric(caplog):
+    """PR-003 / GAP-010: extract_documents emits pgrg.backfill.extract."""
+    import logging as _logging
+
+    rag = await _make_rag("test_bf_metric")
+    try:
+        await rag.ingest_records(
+            [{"text": "metric doc", "source_id": "bf:metric:1"}],
+            namespace="test_bf_metric",
+            defer_extraction=True,
+        )
+        ids = await claim_pending(rag.db, "test_bf_metric", 8)
+
+        with caplog.at_level(_logging.INFO, logger="pg_raggraph.metrics"):
+            stats = await extract_documents(rag, ids, namespace="test_bf_metric")
+
+        events = [r for r in caplog.records if r.getMessage() == "pgrg.backfill.extract"]
+        assert events, "expected at least one pgrg.backfill.extract event"
+        event = events[0]
+        # The metric should carry the fields an operator dashboard needs.
+        for field in ("namespace", "claimed", "ready", "failed", "latency_ms"):
+            assert hasattr(event, field), f"event missing field {field!r}: {event.__dict__}"
+        assert event.namespace == "test_bf_metric"
+        assert event.claimed == stats.claimed
+        assert event.ready == stats.ready
+    finally:
+        await rag.delete("test_bf_metric")
         await rag.close()
 
 

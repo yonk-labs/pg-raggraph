@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -79,29 +80,62 @@ async def claim_pending(db, namespace: str | None, batch_size: int) -> list[int]
     return ids
 
 
-async def release_processing(db, doc_ids: list[int] | None = None) -> None:
+async def release_processing(
+    db,
+    *,
+    namespace: str | None = None,
+    doc_ids: list[int] | None = None,
+) -> None:
     """Return 'processing' rows to 'pending' — crash-recovery reaper.
 
-    Without this, a worker that died mid-extract would leave its claimed rows
-    invisible to future workers. Run on worker startup (or as a periodic
-    janitor) to recover. When ``doc_ids`` is None, reaps every 'processing'
-    row across the whole database.
+    Precedence (most specific wins):
+      * ``doc_ids`` set  → reap exactly those rows (used by recovery scripts).
+      * ``namespace`` set → reap every 'processing' row in that namespace.
+        This is what `pgrg extract` calls at startup, so a peer worker
+        running against a DIFFERENT namespace doesn't have its claims
+        stolen.
+      * neither set     → reap every 'processing' row in the database.
+        DANGEROUS in multi-worker / multi-namespace deployments: a peer
+        worker mid-extract loses its claim, a different worker re-claims
+        the same doc, and (until relationships have ON CONFLICT) the
+        graph gains duplicate edges. Logs a warning when used this way.
+
+    Without a reaper, a worker that died mid-extract would leave its claimed
+    rows invisible to future workers. Run on worker startup (or as a periodic
+    janitor) to recover.
     """
-    if doc_ids is None:
+    if doc_ids is not None:
+        if not doc_ids:
+            return
         await db.execute(
-            "UPDATE documents SET graph_status = 'pending' WHERE graph_status = 'processing'"
+            "UPDATE documents SET graph_status = 'pending' "
+            "WHERE id = ANY(%s) AND graph_status = 'processing'",
+            (doc_ids,),
         )
         return
-    if not doc_ids:
+    if namespace is not None:
+        await db.execute(
+            "UPDATE documents SET graph_status = 'pending' "
+            "WHERE namespace = %s AND graph_status = 'processing'",
+            (namespace,),
+        )
         return
+    logger.warning(
+        "release_processing called with no namespace and no doc_ids — "
+        "this reaps every 'processing' row in the database and can steal "
+        "claims from peer workers. Pass a namespace to scope safely."
+    )
     await db.execute(
-        "UPDATE documents SET graph_status = 'pending' "
-        "WHERE id = ANY(%s) AND graph_status = 'processing'",
-        (doc_ids,),
+        "UPDATE documents SET graph_status = 'pending' WHERE graph_status = 'processing'"
     )
 
 
-async def extract_documents(rag: GraphRAG, doc_ids: list[int]) -> ExtractStats:
+async def extract_documents(
+    rag: GraphRAG,
+    doc_ids: list[int],
+    *,
+    namespace: str | None = None,
+) -> ExtractStats:
     """Extract entities/relationships for each doc id, atomic per doc.
 
     Loads stored chunks, runs the configured extractor (lede_spacy or the LLM
@@ -111,17 +145,23 @@ async def extract_documents(rag: GraphRAG, doc_ids: list[int]) -> ExtractStats:
     separate small UPDATE marks the doc as 'failed' with the error captured
     in ``graph_error``.
 
-    Idempotent in practice: re-running on a 'ready' doc is a no-op because
-    the queue claim filter is 'pending' only; callers should claim via
-    ``claim_pending`` rather than passing arbitrary ids. If a caller passes
-    ids directly, the per-doc transaction will still run extraction and
-    overwrite the status — handy for retries of 'failed' docs but otherwise
-    not what you want.
+    Idempotent on relationships after PR-002 (migration 013 + ON CONFLICT).
+    Re-running on a 'ready' doc is also safe — the relationships INSERT
+    falls through to the existing row's id via ON CONFLICT DO UPDATE.
+    Callers should still claim via ``claim_pending`` rather than passing
+    arbitrary ids; the docstring caveat is just about which path is the
+    documented happy one.
+
+    ``namespace`` is purely for metric labeling (``pgrg.backfill.extract``).
+    The actual namespace each doc lives in is loaded from the doc row, so
+    passing the wrong label here does NOT route writes wrong — just labels
+    metrics wrong.
     """
     stats = ExtractStats()
     if not doc_ids:
         return stats
 
+    t0 = time.perf_counter()
     for doc_id in doc_ids:
         stats.claimed += 1
         try:
@@ -141,6 +181,22 @@ async def extract_documents(rag: GraphRAG, doc_ids: list[int]) -> ExtractStats:
                 )
             except Exception as flip_err:
                 logger.error("Failed to mark doc %s as failed: %s", doc_id, flip_err)
+
+    # One metric event per call covers the whole batch. Per-doc events would
+    # explode log volume for the common case where a batch is many cheap
+    # extractions — operators want claim/extract/queue_depth aggregates.
+    emit = getattr(rag, "_emit_metric", None)
+    if emit is not None:
+        emit(
+            "pgrg.backfill.extract",
+            namespace=namespace,
+            claimed=stats.claimed,
+            ready=stats.ready,
+            failed=stats.failed,
+            entities=stats.entities,
+            relationships=stats.relationships,
+            latency_ms=(time.perf_counter() - t0) * 1000,
+        )
     return stats
 
 
@@ -281,11 +337,17 @@ async def _extract_one(rag: GraphRAG, doc_id: int) -> dict:
                 dst_id = entity_name_to_id.get(rel[1])
                 if not (src_id and dst_id):
                     continue
+                # ON CONFLICT … DO UPDATE preserves the existing row's id (so
+                # relationship_chunks below still resolves) and keeps the
+                # strongest weight seen across extractions. Idempotent under
+                # crash-recovery re-extraction (PR-002 / migration 013).
                 rel_id = await tx.insert_returning_id(
                     "INSERT INTO relationships "
                     "(namespace, src_id, dst_id, rel_type, weight, description, "
                     "effective_from, effective_to, retracted, retracted_at, properties) "
                     "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb) "
+                    "ON CONFLICT (namespace, src_id, dst_id, rel_type) DO UPDATE "
+                    "SET weight = GREATEST(relationships.weight, EXCLUDED.weight) "
                     "RETURNING id",
                     (
                         ns,
