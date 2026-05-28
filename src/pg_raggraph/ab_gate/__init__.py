@@ -24,6 +24,7 @@ from pg_raggraph.ab_gate.io import (
     MetricRollup,
     MetricVerdict,
 )
+from pg_raggraph.ab_gate.writer import compute_verdict
 
 __all__ = [
     "ABCaseResult",
@@ -32,4 +33,5 @@ __all__ = [
     "ABVerdict",
     "MetricRollup",
     "MetricVerdict",
+    "compute_verdict",
 ]
