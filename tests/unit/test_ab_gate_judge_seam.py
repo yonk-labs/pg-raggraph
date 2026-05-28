@@ -3,7 +3,7 @@
 import pytest
 
 
-def test_chunkshop_config_maps_to_llm_judge_provider():
+def test_chunkshop_config_maps_to_llm_judge_provider(monkeypatch):
     """SC-016: a chunkshop-shaped JudgingConfig dict translates to an llm_judge provider instance.
 
     Skipped if llm-judge isn't importable (running base install without the
@@ -19,6 +19,11 @@ def test_chunkshop_config_maps_to_llm_judge_provider():
     from pg_raggraph.ab_gate.judge_seam import (
         _chunkshop_judge_config_to_llm_judge_provider,
     )
+
+    # llm-judge requires an API key to be set in the env when building an
+    # openai-compatible provider. Inject a fake one so the test exercises the
+    # seam without depending on a real key being available in CI.
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key-not-real")
 
     # Chunkshop's JudgingConfig / JudgeProvider shape (paraphrased — reuse the
     # field names chunkshop already emits).
