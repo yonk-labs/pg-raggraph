@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.5.0a1 — 2026-05-28 (background extraction + multi-worker safety + observability)
+
+Additive arc, backward-compatible. The synchronous-extract default is byte-for-byte unchanged (`ingest_records()` with no kwarg additions writes the same rows in the same order). Migration 013's `relationships(namespace, src_id, dst_id, rel_type)` UNIQUE constraint plus `ON CONFLICT DO UPDATE SET weight = GREATEST(...)` on the INSERT make re-ingest idempotent at the edge level — same total entity/relationship counts on a re-run, with `GREATEST` keeping the strongest evidence.
+
+### Added — background extraction (decouple LLM/lede from `ingest()`)
+
+Pass `defer_extraction=True` to `ingest_records()` and the producer returns in chunk + embed time only — **~18 ms/doc on lede_spacy MHR vs 1063 ms/doc synchronous** (59× speedup to "naive-queryable"). The document is immediately retrievable via vector + BM25; entity/relationship extraction is deferred.
+
+- New module **`pg_raggraph.backfill`** with three primitives: `claim_pending` (SKIP-LOCKED queue claim), `extract_documents` (per-doc atomic extraction), `release_processing` (crash-recovery reaper).
+- New CLI subcommand **`pgrg extract`** drains the queue: `--namespace`, `--batch-size`, `--max-iterations`, `--rate-limit-rps`, `--once`, `--include-failed`. Exits 0 when the queue is empty.
+- **`pgrg extract --daemon`** for long-running services — SIGTERM/SIGINT handlers set an `asyncio.Event`; the current batch finishes atomically, then the process exits 0. `--poll-interval` controls the empty-queue back-off.
+- Mixed pattern supported: per-record `{"defer_extraction": True}` overrides the batch-level kwarg.
+- Migration **`012_documents_graph_status.sql`** — adds `graph_status TEXT NOT NULL DEFAULT 'ready'` plus `graph_extracted_at`/`graph_error`, with a partial index on `(namespace, created_at) WHERE graph_status = 'pending'` for fast queue polling.
+
+Total async path (`B+C`, deferred ingest + drain) is **also faster** than synchronous ingest at 40 docs (15.56 s vs 26.27 s); the synchronous path holds per-doc transactions open across extraction and throttles concurrency more than expected. Benchmark: `benchmarks/defer_extraction_bench.py`.
+
+### Added — multi-worker safety invariants (PR-001 + PR-002 from prod-ready audit)
+
+- **Namespace-scoped startup reaper.** `release_processing` is now keyword-only on `namespace=` / `doc_ids=`. The CLI passes its `--namespace`, so a worker starting in namespace A no longer steals namespace B's in-flight 'processing' claims. Global reap (no kwargs) still possible for repair scripts; logs a warning when used.
+- **Edge-level idempotency.** Migration **`013_relationships_unique.sql`** de-duplicates any existing relationship rows (redirects `relationship_chunks` links via `INSERT…ON CONFLICT DO NOTHING`, deletes dups so CASCADE cleans the rest) and adds `UNIQUE (namespace, src_id, dst_id, rel_type)`. Both INSERT paths (`_ingest_one_content` and `_extract_one`) switched to `ON CONFLICT DO UPDATE SET weight = GREATEST(relationships.weight, EXCLUDED.weight) RETURNING id`.
+- `merge_entities` updated to pre-delete colliding rows before the `src_id`/`dst_id` rewrite, matching the prior post-merge dedup semantics under the new constraint.
+
+Together, these make `pgrg extract` workers safe to run concurrently per namespace by construction — `SKIP LOCKED` (claim) and `UNIQUE (...)` + ON CONFLICT (writes) handle every crash-recovery and re-extraction edge.
+
+### Added — observability (PR-003 from prod-ready audit)
+
+Three new metric events on every `pgrg extract` iteration:
+
+- **`pgrg.backfill.claim`** — `namespace`, `batch_size`, `claimed`, `latency_ms` (emitted even on empty iterations, so a wedged daemon polling an empty queue is visible).
+- **`pgrg.backfill.extract`** — `namespace`, `claimed`, `ready`, `failed`, `entities`, `relationships`, `latency_ms`.
+- **`pgrg.backfill.queue_depth`** — per-status doc counts (`pending`, `processing`, `ready`, `failed`); emitted when scoped to a namespace.
+
+Pipes through the existing `_emit_metric` infrastructure (same channel as `pgrg.ingest` / `pgrg.query`).
+
+### Added — query-time graph-status hint
+
+`QueryResult.metadata` gains `graph_status_summary` (per-status doc counts). `GraphRAG.status(namespace)` includes the same under a top-level `graph_status` key. Retrieval semantics are unchanged — naive/local/global/hybrid still return whatever entities/edges exist; the hint just lets callers see whether the graph is still backfilling without changing the result shape.
+
+### Added — benchmarks
+
+- **`benchmarks/defer_extraction_bench.py`** — A/B/C comparison harness: synchronous ingest vs deferred ingest vs drain. Headline 60× speedup to queryable, exact relationship parity, 0.14% entity-dedup variance. Repro: `uv run python -m benchmarks.defer_extraction_bench --docs 40`.
+- **`benchmarks/ingest_perf.py` extended** with `--provider {local,http}` to probe embedding alternatives. Measured: TEI HTTP CPU beats local fastembed **2.1×** on bge-small (66 vs 140 ms/chunk). Results in `benchmarks/ingest_perf_results-2026-05-27.md`.
+
+### Documentation
+
+- **`docs/cookbook/background-extraction.md`** — full guide with three architectural patterns (synchronous / cron drain / always-on daemon), end-to-end FastAPI walkthrough, operator playbook, mid-batch crash recovery semantics, and the measured-impact table.
+- `README.md`, `docs/README.md`, `docs/user-guide.md`, `docs/operations-guide.md`, `CLAUDE.md` — cross-references and discovery paths added so the new subsystem doesn't hide behind one cookbook page.
+
+### Fixed
+
+- **`tests/integration/test_db.py::test_connect_and_schema`** asserted `schema_version == "1"`, which silently relied on `_record_migration`'s GREATEST-update being a no-op against an already-warm DB. Migration 012 surfaced the latent bug; switched to `int(version) >= SCHEMA_VERSION`.
+- `tests/integration/test_cleanup_sprint.py::test_merge_entities_drops_self_loops_and_duplicates` previously pre-seeded duplicate `(a,c,REL)` to test merge-time dedup — the new UNIQUE constraint blocks the pre-seed. Updated to use `(b,c,REL)` so the duplicate is created at merge time (the real code path).
+
+### Production-readiness audit
+
+`skill-output/prod-ready/` contains the 16-finding audit that drove PR-001+002+003. P0s are landed; P1s (timed background reaper, retry counter + cap, extractor health probe, multi-worker concurrency test, cookbook scope-or-note) are tracked there for the next cycle. Single-worker / single-namespace deployments are production-ready at this version; multi-worker deployments are safe by construction after PR-001+002+003.
+
 ## 0.4.0a1 — 2026-05-26 (chunkshop 0.6.1 integration + online embedding migration + code-graph queries)
 
 Additive arc, backward-compatible. Existing query/ingest behavior is byte-for-byte unchanged (`retrieval.py`, `answer.py`, and the `query()` path are untouched). Validated against a 2.5 GB real corpus (MHR/MuSiQue/2Wiki, 1024-dim bge-large): all six retrieval modes return identical results; no accuracy change.
