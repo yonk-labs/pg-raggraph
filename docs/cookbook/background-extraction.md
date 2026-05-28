@@ -144,6 +144,62 @@ stats = await extract_documents(rag, ids)
 print(stats)   # ExtractStats(claimed=1, ready=1, failed=0, entities=…, relationships=…)
 ```
 
+## Measured impact
+
+Benchmark: `benchmarks/defer_extraction_bench.py` against the MHR slice,
+extractor = `lede_spacy` (deterministic, no LLM — keeps the LLM provider
+out of the variance).
+
+Three arms on the same hardware, same corpus, same warm embedding cache:
+
+| Arm | What it measures | Wall time (20 docs) | Wall time (40 docs) |
+|---|---|---:|---:|
+| **A — SYNC** ingest, `defer_extraction=False` | chunk + embed + extract + graph-write, one tx per doc, doc_concurrency=4 | 21.27 s | 26.27 s |
+| **B — DEFER** ingest, `defer_extraction=True` | chunk + embed + mark pending | **0.36 s** | **0.44 s** |
+| **C — DRAIN** via `claim_pending` + `extract_documents` | pgrg-extract equivalent — graph extraction + writes only | 7.24 s | 15.12 s |
+
+Derived headlines:
+
+| Metric | 20 docs | 40 docs |
+|---|---:|---:|
+| Time-to-queryable (B) | 0.36 s (**18 ms/doc**) | 0.44 s (**11 ms/doc**) |
+| Caller speedup (A / B) | **59.0×** | **59.8×** |
+| Async win (A − B) | +20.91 s | +25.83 s |
+| Total async path (B + C) | 7.60 s | 15.56 s |
+| Total-overhead delta ((B+C) − A) | **−13.67 s** | **−10.71 s** |
+| Graph parity (entities A / B+C) | 902 / 901 | 1484 / 1482 |
+| Graph parity (relationships A / B+C) | 2143 / 2143 | 4415 / 4415 |
+
+Three things stand out:
+
+1. **The caller wait drops to "nothing."** 18 ms/doc (20-doc run) is below
+   the latency of most upstream HTTP calls. From the caller's seat,
+   `ingest()` is no longer the slow leg.
+2. **The async path is actually faster end-to-end.** B + C is 64% of A.
+   The synchronous path holds a per-document transaction open across the
+   extraction call, which serializes more than it should at
+   `doc_concurrency=4`; the deferred path writes chunks immediately and
+   runs extraction outside any held transaction.
+3. **Graph parity is exact on edges, ~0.1% on nodes.** The small entity
+   delta is dedup-order interaction (different per-doc execution order →
+   slightly different first-seen entity rows merging). No relationships
+   were lost; no facts were lost.
+
+Repro:
+
+```bash
+uv run python -m benchmarks.defer_extraction_bench --docs 20
+uv run python -m benchmarks.defer_extraction_bench --docs 40
+```
+
+### Caveats
+
+- Numbers reflect lede_spacy. With LLM extraction (Ollama / OpenAI), Arm A
+  gets much slower — the async win is correspondingly larger. Arm C grows
+  the same amount, but the *caller* speedup grows because A grew.
+- Embedding cache is pre-warmed in the harness; cold-cache adds ~140 ms/chunk
+  to both A and B (see `ingest_perf_results-2026-05-27.md`).
+
 ## When to use which surface
 
 | Use case | Surface |

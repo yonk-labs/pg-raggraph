@@ -362,3 +362,13 @@ Append a one-liner under each slice as you complete it. Example:
 - Two pre-existing failures unrelated to this work: test_search_vector_top_terms
   (BM25 indexing of chunkshop top_terms). Verified by git-stashing my changes
   and reproducing on chunkshop-0.6-integration HEAD before my commits.
+- 2026-05-28 — before/after benchmark on MHR (`benchmarks/defer_extraction_bench.py`):
+  | n_docs | SYNC (A) | DEFER (B) | DRAIN (C) | B+C | A/B speedup |
+  |---:|---:|---:|---:|---:|---:|
+  | 20 | 21.27 s | 0.36 s | 7.24 s | 7.60 s | **59.0×** |
+  | 40 | 26.27 s | 0.44 s | 15.12 s | 15.56 s | **59.8×** |
+  Graph parity exact on relationships, ≤0.14% delta on entities (dedup
+  order-of-arrival effect). Total async path (B+C) is *faster* than sync
+  (A) because the synchronous ingest holds per-doc transactions open
+  across extraction, throttling concurrency. Full table in
+  docs/cookbook/background-extraction.md → "Measured impact".
