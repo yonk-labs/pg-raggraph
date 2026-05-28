@@ -65,6 +65,93 @@ LIMIT %(top_k)s
 """
 
 
+# Stopwords for the whitespace fallback. Kept short — the fallback is
+# already a degraded path; aggressive stopping would drop entities too.
+_FALLBACK_STOPWORDS = frozenset(
+    {
+        "a", "an", "the", "and", "or", "but", "if", "of", "in", "on", "at",
+        "to", "for", "from", "by", "with", "is", "are", "was", "were", "be",
+        "been", "being", "do", "does", "did", "doing", "have", "has", "had",
+        "having", "what", "which", "who", "whom", "whose", "where", "when",
+        "why", "how", "this", "that", "these", "those", "i", "you", "he",
+        "she", "it", "we", "they", "say", "said", "says", "saying", "about",
+    }
+)  # fmt: skip
+
+
+def _lede_spacy_entities(text: str) -> list[str]:
+    """Wrap lede_spacy's NER call so it can be patched in tests.
+
+    Reuses the same backend the ``fact_extractor="lede_spacy"`` ingest
+    path uses (see ``src/pg_raggraph/lede_extraction.py``). Symmetric
+    ingest/query encoding is the whole point — see chunkshop §4.2.
+    """
+    import lede
+    import lede_spacy  # noqa: F401  (registers the spacy backend on import)
+
+    if not text.strip():
+        return []
+    raw = lede.extract.metadata(text, backend="spacy").entities
+    out: list[str] = []
+    seen: set[str] = set()
+    for name in raw:
+        name = (name or "").strip()
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        out.append(name)
+    return out
+
+
+def _fallback_whitespace_terms(text: str) -> list[str]:
+    """Whitespace + stoplist fallback for environments without lede_spacy.
+
+    Splits on whitespace, drops empties and stopwords, dedupes case-
+    insensitively (first-seen casing wins). Punctuation at edges is
+    stripped. Not as good as NER — that's the point; the warning in
+    the caller tells the operator to install lede_spacy for quality.
+    """
+    if not text or not text.strip():
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in text.split():
+        tok = raw.strip(".,;:!?\"'()[]{}")
+        if not tok:
+            continue
+        low = tok.lower()
+        if low in _FALLBACK_STOPWORDS:
+            continue
+        if low in seen:
+            continue
+        seen.add(low)
+        out.append(tok)
+    return out
+
+
+def _encode_question_terms(question: str) -> list[str]:
+    """Encode question terms via lede_spacy NER, falling back on raise/empty.
+
+    The fallback covers two cases: lede_spacy not installed (raises) and
+    the NER finding no entities (returns []). In both, we'd rather have
+    whitespace tokens than zero terms — the graph_leg walk degrades
+    gracefully into a noisy lookup instead of returning empty.
+
+    Logs a warning on fallback so operators notice.
+    """
+    if not question or not question.strip():
+        return []
+    try:
+        entities = _lede_spacy_entities(question)
+    except Exception as exc:  # noqa: BLE001 — broad on purpose for fallback
+        logger.warning("lede_spacy NER failed (%s); falling back to whitespace + stoplist", exc)
+        return _fallback_whitespace_terms(question)
+    if entities:
+        return entities
+    logger.warning("lede_spacy NER returned no entities; using whitespace fallback")
+    return _fallback_whitespace_terms(question)
+
+
 async def _run_naive_vector(
     rag: "GraphRAG",
     *,
