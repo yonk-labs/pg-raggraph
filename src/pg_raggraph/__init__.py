@@ -24,6 +24,7 @@ except PackageNotFoundError:
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.models import QueryResult
 from pg_raggraph.profiles import ProfileCalibration, ProfileSpec
+from pg_raggraph.resolution import ResolvedEntity
 
 # Canonical extension allowlist for ingestion. Mirrored by the FastAPI server
 # and the MCP server so all surfaces accept the same set. Stored as a tuple
@@ -49,6 +50,7 @@ __all__ = [
     "ProfileCalibration",
     "ProfileSpec",
     "QueryResult",
+    "ResolvedEntity",
     "__version__",
 ]
 

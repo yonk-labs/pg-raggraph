@@ -1,12 +1,56 @@
-"""Entity resolution — merge duplicate entities using pg_trgm + vector similarity."""
+"""Entity resolution — merge duplicate entities using pg_trgm + vector similarity.
+
+This module exposes two functions:
+
+- ``resolve_entity`` (insert-on-miss, original): used by the ingestion pipeline.
+  This function is byte-for-byte unchanged from v0.5.0a2 and earlier; the A/B-gate
+  work in #47 deliberately added a sibling rather than refactoring this one
+  (Path A per the mission brief).
+- ``resolve_entity_lookup`` (pure read, new in v0.5.0a3): returns a
+  ``ResolvedEntity`` or ``None`` for the chunkshop ↔ pg-raggraph A/B gate. Does
+  NOT mutate any table. Callers handle their own embedding cache.
+"""
 
 from __future__ import annotations
 
 import json
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal  # noqa: F401  # Literal used by resolve_entity_lookup in Task A2
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.db import Database
+
+
+@dataclass(frozen=True)
+class ResolvedEntity:
+    """A resolved entity returned by ``resolve_entity_lookup``.
+
+    Shape locked by the chunkshop emission contract §4.1 and the
+    pg-raggraph mission brief SC-002. All five fields are required.
+
+    Attributes
+    ----------
+    id:
+        ``entities.id`` of the matched row.
+    surface:
+        The input surface string echoed back unchanged — lets callers correlate
+        a batch lookup result with the input that produced it.
+    canonical_name:
+        ``entities.name`` of the matched row (the database's canonical form).
+    score:
+        1.0 for exact matches; otherwise the combined trgm + vector score in
+        [0.0, 1.0]. Lower is a weaker match.
+    match_type:
+        ``'exact'``, ``'trgm'``, or ``'vector'``. ``'exact'`` means namespace +
+        name matched directly; ``'trgm'`` / ``'vector'`` indicates the fuzzy
+        path returned a row above ``config.resolution_threshold``.
+    """
+
+    id: int
+    surface: str
+    canonical_name: str
+    score: float
+    match_type: str
 
 
 async def resolve_entity(
