@@ -339,4 +339,26 @@ Append a one-liner under each slice as you complete it. Example:
 - S1 [c01569f] schema migration committed; test_db.py green; backfill verified on populated bench DB. DC-001 ok.
 ```
 
-(Empty — first entry comes from the next session.)
+- 2026-05-27 session 2 — env recovery green; all six slices landed:
+  - S1 [d58b613] schema migration 012 (graph_status / graph_extracted_at /
+    graph_error + partial index). Includes fix to brittle
+    test_connect_and_schema (now `>= SCHEMA_VERSION`). DC-001 ok.
+  - S2 [c80b5ab] defer_extraction on ingest_records (batch kwarg + per-record
+    override). Three integration tests confirm shape.
+  - S3 [1856897] backfill module: claim_pending (SKIP LOCKED, race-tested),
+    extract_documents (per-doc atomic), release_processing (crash reaper).
+    DC-002 ok.
+  - S4 [63390b5] `pgrg extract` CLI: flags + loop control + reaper at startup.
+  - S5 [f3938d3] `--daemon` mode with SIGTERM/SIGINT → asyncio.Event graceful
+    shutdown. Subprocess test confirms exit 0 + in-flight batch completion.
+    DC-003 ok.
+  - S6 [16e39a0] graph_status_summary on QueryResult.metadata + status().
+    DC-FINAL ok — SC-001..SC-007 all have test evidence.
+  - Docs [aac9142] cookbook/background-extraction.md + CLAUDE.md update.
+  - Embedding probes [SC-009] — TEI HTTP (CPU) beats local fastembed 2.1×
+    on bge-small (66 vs 140 ms/chunk). Results in
+    benchmarks/ingest_perf_results-2026-05-27.md. bge-large / GPU / batch
+    sweep deferred (constraint reasons documented in the results).
+- Two pre-existing failures unrelated to this work: test_search_vector_top_terms
+  (BM25 indexing of chunkshop top_terms). Verified by git-stashing my changes
+  and reproducing on chunkshop-0.6-integration HEAD before my commits.
