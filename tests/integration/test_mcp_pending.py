@@ -83,6 +83,18 @@ async def test_no_banner_when_namespace_has_no_pending_docs():
         await rag.close()
 
 
+def _lede_available() -> bool:
+    try:
+        import lede  # noqa: F401
+        import lede_spacy  # noqa: F401
+        import spacy
+
+        spacy.load("en_core_web_sm")
+        return True
+    except Exception:
+        return False
+
+
 async def test_pgrg_status_also_surfaces_pending_via_footer():
     """SC-004: chokepoint touches every tool, not just retrieval ones."""
     ns = "test_mcp_status_banner"
@@ -100,6 +112,73 @@ async def test_pgrg_status_also_surfaces_pending_via_footer():
         # through the footer, not the banner.
         assert "footer" in response
         assert "/repo/x.md" in response["footer"]
+    finally:
+        await rag.delete(ns)
+        await rag.close()
+
+
+@pytest.mark.skipif(
+    not _lede_available(),
+    reason="lede_spacy + en_core_web_sm required for deterministic in-process extraction",
+)
+async def test_pending_then_drained_lifecycle():
+    """SC-003 + SC-005 + brief E2E: full pending → drained transition.
+
+    1. Ingest a doc with defer_extraction=True.
+    2. Query via MCP pgrg_ask. Expect a banner naming the doc.
+    3. Drain via backfill.extract_documents (the same primitive
+       `pgrg extract` uses; calling it directly skips the subprocess).
+    4. Query again. Expect no banner key.
+    """
+    from pg_raggraph.backfill import claim_pending, extract_documents
+
+    ns = "test_mcp_lifecycle"
+    rag = GraphRAG(
+        dsn=DSN,
+        namespace=ns,
+        fact_extractor="lede_spacy",  # deterministic, no LLM endpoint needed
+        llm_base_url="",
+    )
+    await rag.connect()
+    try:
+        await rag.ingest_records(
+            [
+                {
+                    "text": (
+                        "NASA launched Saturn V from Kennedy Space Center. "
+                        "Neil Armstrong walked on the Moon."
+                    ),
+                    "source_id": "/repo/apollo.md",
+                }
+            ],
+            namespace=ns,
+            defer_extraction=True,
+        )
+
+        server = _server_for(rag)
+
+        # Pre-drain: banner or footer should mention the doc.
+        pre = await _call_tool(
+            server, "pgrg_ask", question="Who walked on the Moon?", namespace=ns
+        )
+        pre_combined = (pre.get("banner") or "") + (pre.get("footer") or "")
+        assert "/repo/apollo.md" in pre_combined, (
+            f"pre-drain: expected /repo/apollo.md in banner/footer; got {pre}"
+        )
+
+        # Drain.
+        ids = await claim_pending(rag.db, ns, batch_size=8)
+        assert len(ids) == 1
+        stats = await extract_documents(rag, ids, namespace=ns)
+        assert stats.ready == 1
+        assert stats.failed == 0
+
+        # Post-drain: no banner/footer keys.
+        post = await _call_tool(
+            server, "pgrg_ask", question="Who walked on the Moon?", namespace=ns
+        )
+        assert "banner" not in post, f"post-drain: unexpected banner: {post.get('banner')!r}"
+        assert "footer" not in post, f"post-drain: unexpected footer: {post.get('footer')!r}"
     finally:
         await rag.delete(ns)
         await rag.close()
