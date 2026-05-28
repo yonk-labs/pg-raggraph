@@ -37,6 +37,68 @@ Missing-extra UX: calling `_chunkshop_judge_config_to_llm_judge_provider` (or th
 - New `docs/cookbook/ab-gate.md` — operator walkthrough: ingest chunkshop A/B sample (`docs/samples/bakeoff-scotus/bakeoff-scotus-ab.yaml`), run #48+#49 (cited as future tickets until they ship), consume #50's verdict.
 - Chunkshop emission contract §4.1 + §4.4 status checkboxes flip from `[ ]` to `[x]` in a follow-up chunkshop PR (tracked but not gating).
 
+## 0.5.0a2 — 2026-05-28 (MCP agent UX: initialize playbook + staleness banner)
+
+Additive arc, backward-compatible. Tools without pending documents see
+byte-for-byte unchanged response dicts. The two ports share a single
+chokepoint (`mcp_helpers._apply_freshness`) so future MCP tools inherit
+the freshness signal automatically.
+
+### Added — MCP `initialize` playbook (PG-1)
+
+`src/pg_raggraph/server_instructions.py` exports `SERVER_INSTRUCTIONS:
+str`, handed to `FastMCP(instructions=…)` at server construction. MCP
+clients (Claude Desktop, Cursor, Zed, MCP CLI) surface it in the
+agent's system prompt for the session. Sections: Answer directly, Tool
+selection by intent, Common chains, Anti-patterns, Limitations.
+Playbook covers the 8 current MCP tools; deliberately avoids
+`pgrg_code_impact` (not currently an MCP tool — adding it is a
+separate effort).
+
+A drift-guard test (`tests/unit/test_instructions_sync.py`) keeps the
+playbook, `docs/user-guide.md` MCP section, and README MCP callout in
+sync. CLAUDE.md "House Rules" documents the invariant.
+
+### Added — Per-file staleness banner (PG-3)
+
+When MCP tool responses cite documents whose `graph_status` is
+`'pending'` or `'processing'`, the response gains a `banner` key
+naming them (with age + lifecycle label) and an optional `footer`
+listing non-cited pending docs (capped at 5 with `+N more` overflow).
+The agent's anti-pattern playbook in `SERVER_INSTRUCTIONS` instructs
+it to Read those documents directly for live content; everything
+NOT in the banner is fresh.
+
+Implementation:
+  * `src/pg_raggraph/mcp_helpers.py` — `PendingDocument` dataclass,
+    `format_stale_banner`, `format_stale_footer`, `_apply_freshness`
+    chokepoint helper. Age uses `documents.created_at` (no schema
+    change required — PG-3's design assumed `updated_at` which
+    pg-raggraph doesn't have).
+  * `src/pg_raggraph/db.py` — new `Database.list_pending_documents
+    (namespace, limit=50)` returns `PendingDocument` rows, ordered
+    by `created_at DESC`, covering both `'pending'` and `'processing'`
+    statuses.
+  * `src/pg_raggraph/mcp_server.py` — every one of the 8 MCP tools
+    wraps its return through `_freshness_wrap`. Defensive: a failed
+    `list_pending_documents` is logged-and-skipped; the tool's answer
+    always wins over the freshness layer.
+
+Backward compatibility:
+  * No pending docs ⇒ no `banner` / `footer` keys added — response
+    shape is byte-for-byte identical to v0.5.0a1.
+  * No new env vars, no new MCP tools, no schema changes.
+
+### Tests
+
+  * `tests/unit/test_server_instructions.py` (5 tests)
+  * `tests/unit/test_mcp_server_uses_instructions.py` (1 test)
+  * `tests/unit/test_mcp_staleness.py` (11 tests)
+  * `tests/unit/test_instructions_sync.py` (4 tests — the drift guard)
+  * `tests/integration/test_db_pending_documents.py` (6 tests)
+  * `tests/integration/test_mcp_pending.py` (4 tests — including the
+    full pending → drained → no-banner lifecycle)
+
 ## 0.5.0a1 — 2026-05-28 (background extraction + multi-worker safety + observability)
 
 Additive arc, backward-compatible. The synchronous-extract default is byte-for-byte unchanged (`ingest_records()` with no kwarg additions writes the same rows in the same order). Migration 013's `relationships(namespace, src_id, dst_id, rel_type)` UNIQUE constraint plus `ON CONFLICT DO UPDATE SET weight = GREATEST(...)` on the INSERT make re-ingest idempotent at the edge level — same total entity/relationship counts on a re-run, with `GREATEST` keeping the strongest evidence.
