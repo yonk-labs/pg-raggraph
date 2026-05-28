@@ -65,6 +65,64 @@ ORDER BY c.embedding <=> %(embedding)s::vector
 LIMIT %(top_k)s
 """
 
+# Fact-triple walk for graph_leg mode.
+#
+# Per chunkshop §4.2: fact rows have ``metadata->>'kind' = 'fact'`` with keys
+# ``subject``, ``predicate``, ``object``. The walk pivots from a resolved
+# entity name to fact rows naming the entity in either ``subject`` or
+# ``object``, then joins to the *parent episode* chunk for citation — the
+# fact row itself is never cited (chunkshop §4.2 / SC-006).
+_GRAPH_LEG_FACT_SQL = """
+WITH facts AS (
+    SELECT DISTINCT c.document_id
+    FROM chunks c
+    JOIN documents d ON d.id = c.document_id
+    WHERE d.namespace = %(namespace)s
+      AND c.metadata->>'kind' = 'fact'
+      AND (
+          c.metadata->>'subject' = ANY(%(names)s)
+          OR c.metadata->>'object' = ANY(%(names)s)
+      )
+)
+SELECT
+    ep.id,
+    COALESCE(ep.embedded_content, ep.content) AS content,
+    d.source_path,
+    1.0::float AS score
+FROM facts f
+JOIN chunks ep ON ep.document_id = f.document_id
+              AND ep.metadata->>'kind' = 'episode'
+JOIN documents d ON d.id = ep.document_id
+LIMIT %(top_k)s
+"""
+
+# Cooccur walk for graph_leg mode.
+#
+# Per chunkshop §4.2: cooccur lives on episode rows in ``metadata['cooccur']``
+# as an array of ``{a, b, weight}`` objects. The walk pivots from a resolved
+# entity name to episode rows whose cooccur array names the entity on either
+# the ``a`` or ``b`` side.
+_GRAPH_LEG_COOCCUR_SQL = """
+SELECT
+    c.id,
+    COALESCE(c.embedded_content, c.content) AS content,
+    d.source_path,
+    COALESCE((co.value->>'weight')::float, 0.5) AS score
+FROM chunks c
+JOIN documents d ON d.id = c.document_id
+CROSS JOIN LATERAL jsonb_array_elements(
+    COALESCE(c.metadata->'cooccur', '[]'::jsonb)
+) co(value)
+WHERE d.namespace = %(namespace)s
+  AND c.metadata->>'kind' = 'episode'
+  AND (
+      co.value->>'a' = ANY(%(names)s)
+      OR co.value->>'b' = ANY(%(names)s)
+  )
+ORDER BY score DESC
+LIMIT %(top_k)s
+"""
+
 
 # Stopwords for the whitespace fallback. Kept short — the fallback is
 # already a degraded path; aggressive stopping would drop entities too.
@@ -217,17 +275,54 @@ async def _run_graph_leg(
     question: str,
     top_k: int,
 ) -> list[ABRetrievedItem]:
-    """Entity-resolve question terms → walk facts + cooccur → return episode chunks.
+    """Entity-resolve → walk fact triples + cooccur edges → episode chunks.
 
-    Task 4 lands the resolution head and a placeholder empty walk so SC-003
-    can be tested with mocks. Task 5 attaches the two SQL walks.
+    Two walks run in sequence (fact-triple, then cooccur). Results are
+    merged by document, deduped by source_path, capped at top_k, ranked
+    by aggregated score (fact-walk = 1.0 per match; cooccur = the edge
+    weight). Only episode chunks are cited — SC-006.
     """
     terms = _encode_question_terms(question)
     resolved = await _resolve_question_entities(rag, corpus_id=corpus_id, terms=terms)
     if not resolved:
         return []
-    # Placeholder — Task 5 attaches the fact-triple and cooccur walks here.
-    return []
+    # Use canonical_name (entity table's name field) as the join key, since
+    # facts/cooccur store surface strings that the resolver already
+    # normalized to canonical_name during entity ingest.
+    names = [r.canonical_name for r in resolved]
+
+    fact_rows = await rag.db.fetch_all(
+        _GRAPH_LEG_FACT_SQL,
+        {"namespace": corpus_id, "names": names, "top_k": top_k},
+    )
+    cooccur_rows = await rag.db.fetch_all(
+        _GRAPH_LEG_COOCCUR_SQL,
+        {"namespace": corpus_id, "names": names, "top_k": top_k},
+    )
+
+    # Merge by source_path. Sum scores when an episode surfaces from both
+    # walks so dual-evidence episodes outrank single-evidence ones.
+    merged: dict[str, tuple[float, str]] = {}
+    for row in list(fact_rows) + list(cooccur_rows):
+        src = row["source_path"] or f"{corpus_id}:chunk:{row['id']}"
+        score = float(row["score"])
+        if src in merged:
+            prev_score, prev_content = merged[src]
+            merged[src] = (prev_score + score, prev_content)
+        else:
+            merged[src] = (score, row["content"] or "")
+
+    # Order by aggregate score DESC and cap at top_k.
+    ranked = sorted(merged.items(), key=lambda kv: kv[1][0], reverse=True)[:top_k]
+    return [
+        ABRetrievedItem(
+            rank=rank,
+            source=src,
+            score=score,
+            content_snippet=content,
+        )
+        for rank, (src, (score, content)) in enumerate(ranked, start=1)
+    ]
 
 
 async def run_harness_mode(
