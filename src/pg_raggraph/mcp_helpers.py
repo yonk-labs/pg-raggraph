@@ -108,3 +108,75 @@ def format_stale_footer(
         + "\n".join(lines)
         + suffix
     )
+
+
+async def _apply_freshness(
+    response: dict,
+    *,
+    rag,  # pg_raggraph.GraphRAG — no annotation to avoid circular import
+    namespace: str | None,
+) -> dict:
+    """Inject `banner` and `footer` keys into an MCP tool's response dict
+    when documents in the namespace are mid-extraction.
+
+    Contract:
+      * namespace is None ⇒ no-op (returns the original response unchanged).
+        Some tools (pgrg_profiles, pgrg_get_namespace_profile with no arg)
+        don't operate on a single namespace; nothing to compute.
+      * No pending docs in the namespace ⇒ no-op (SC-005). The response
+        shape is byte-for-byte identical to v0.5.0a1.
+      * Pending docs exist ⇒ adds:
+          - `banner` (str) when at least one cited document is pending,
+            naming each one (SC-003).
+          - `footer` (str) when at least one non-cited document is pending,
+            listing up to 5 with '... and N more' overflow (SC-004).
+
+    "Cited" is determined from the response's `chunks` (pgrg_query) or
+    `sources` (pgrg_ask) keys. Tools that return neither (pgrg_status,
+    pgrg_profiles, …) treat every pending doc as "non-cited" and surface
+    them through `footer` only — that's still useful freshness signal.
+    """
+    if namespace is None:
+        return response
+
+    pending = await rag.db.list_pending_documents(namespace)
+    if not pending:
+        return response
+
+    cited_sources = _cited_sources_from_response(response)
+
+    cited = [p for p in pending if p.source_path in cited_sources]
+    non_cited = [p for p in pending if p.source_path not in cited_sources]
+
+    banner = format_stale_banner(cited)
+    footer = format_stale_footer(non_cited)
+
+    if banner:
+        response["banner"] = banner
+    if footer:
+        response["footer"] = footer
+    return response
+
+
+def _cited_sources_from_response(response: dict) -> set[str]:
+    """Extract source_path strings cited in a tool's response.
+
+    pgrg_query returns `chunks: [{source: str, ...}]`; pgrg_ask returns
+    `sources: list[str]`. Other tools (pgrg_status) reuse the keys for
+    scalar counts (e.g. `chunks: 1`) — guard against that and treat
+    non-list values as "no cited sources" so the chokepoint falls back
+    to surfacing everything via the footer.
+    """
+    cited: set[str] = set()
+    chunks = response.get("chunks")
+    if isinstance(chunks, list):
+        for chunk in chunks:
+            src = chunk.get("source") if isinstance(chunk, dict) else None
+            if src:
+                cited.add(src)
+    sources = response.get("sources")
+    if isinstance(sources, list):
+        for src in sources:
+            if isinstance(src, str):
+                cited.add(src)
+    return cited
