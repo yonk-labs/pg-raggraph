@@ -30,6 +30,7 @@ from pg_raggraph.ab_gate.io import (
     ABRunnerOutput,
     GoldQuestion,
 )
+from pg_raggraph.resolution import ResolvedEntity, resolve_entity_lookup
 
 if TYPE_CHECKING:
     from pg_raggraph import GraphRAG
@@ -185,6 +186,50 @@ async def _run_naive_vector(
     return items
 
 
+async def _resolve_question_entities(
+    rag: "GraphRAG",
+    *,
+    corpus_id: str,
+    terms: list[str],
+) -> list[ResolvedEntity]:
+    """Resolve each question term via #47's resolve_entity_lookup.
+
+    Returns only the resolved hits (drops Nones). Order preserves the
+    encoder's term order so downstream walks have a stable iteration.
+    """
+    resolved: list[ResolvedEntity] = []
+    for surface in terms:
+        hit = await resolve_entity_lookup(
+            surface,
+            corpus_id=corpus_id,
+            db=rag.db,
+            config=rag.config,
+        )
+        if hit is not None:
+            resolved.append(hit)
+    return resolved
+
+
+async def _run_graph_leg(
+    rag: "GraphRAG",
+    *,
+    corpus_id: str,
+    question: str,
+    top_k: int,
+) -> list[ABRetrievedItem]:
+    """Entity-resolve question terms → walk facts + cooccur → return episode chunks.
+
+    Task 4 lands the resolution head and a placeholder empty walk so SC-003
+    can be tested with mocks. Task 5 attaches the two SQL walks.
+    """
+    terms = _encode_question_terms(question)
+    resolved = await _resolve_question_entities(rag, corpus_id=corpus_id, terms=terms)
+    if not resolved:
+        return []
+    # Placeholder — Task 5 attaches the fact-triple and cooccur walks here.
+    return []
+
+
 async def run_harness_mode(
     rag: "GraphRAG",
     *,
@@ -208,7 +253,9 @@ async def run_harness_mode(
                 rag, corpus_id=corpus_id, question=gold.question, top_k=top_k
             )
         elif mode == "graph_leg":
-            raise NotImplementedError("graph_leg mode lands in Task 4")
+            retrieved = await _run_graph_leg(
+                rag, corpus_id=corpus_id, question=gold.question, top_k=top_k
+            )
         elif mode == "hybrid":
             raise NotImplementedError("hybrid mode lands in Task 6 (or stays NotImplementedError)")
         else:
