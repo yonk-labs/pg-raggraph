@@ -46,7 +46,7 @@ extractor:
 target:
   type: postgres
   dsn_env: CHUNKSHOP_TEST_DSN
-  database: chunkshop_test
+  database: ab_ntsb              # dedicated schema — avoids clobbering scotus on force_overwrite
   table: ntsb_ab
   mode: overwrite
   force_overwrite: true

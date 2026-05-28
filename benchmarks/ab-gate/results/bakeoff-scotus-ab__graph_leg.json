@@ -1,0 +1,167 @@
+{
+  "corpus_id": "bakeoff-scotus-ab",
+  "mode": "graph_leg",
+  "results": [
+    {
+      "gold_answer": null,
+      "gold_doc_id": "case-2019_bostock-v-clayton-county-decision",
+      "latency_ms": 410.0116831250489,
+      "question": "Who wrote the majority opinion in Bostock v. Clayton County?",
+      "question_id": "q1",
+      "retrieved": []
+    },
+    {
+      "gold_answer": null,
+      "gold_doc_id": "case-2019_bostock-v-clayton-county-decision",
+      "latency_ms": 96.54686506837606,
+      "question": "What did Bostock v. Clayton County hold about firing employees for being gay or transgender under Title VII?",
+      "question_id": "q2",
+      "retrieved": [
+        {
+          "content_snippet": "Question Presented: Does Title VII of the Civil Rights Act of 1964, which prohibits against employment discrimination \u201cbecause of . . . sex\u201d encompass discrimination based on an individual\u2019s sexual orientation?\n\nSummary: A case in which the Court held that Title VII of the Civil Rights Act of 1964, which prohibits against employment discrimination \u201cbecause of . . . sex\u201d encompasses discrimination based on an individual\u2019s sexual orientation.\n\nFacts: Gerald Bostock, a gay man, began working for Clayton County, Georgia, as a child welfare services coordinator in 2003. During his ten-year career with Clayton County, Bostock received positive performance evaluations and numerous accolades. In 2013, Bostock began participating in a gay recreational softball league. Shortly thereafter, Bostock received criticism for his participation in the league and for his sexual orientation and identity generally. During a meeting in which Bostock\u2019s supervisor was present, at least one individual openly made disparaging remarks about Bostock\u2019s sexual orientation and his participation in the gay softball league. Around the same time, Clayton County informed Bostock that it would be conducting an internal audit of the program funds he managed. Shortly afterwards, Clayton County terminated Bostock allegedly for \u201cconduct unbecoming of its employees.\u201d\nWithin months of his termination, Bostock filed a charge of discrimination with the Equal Employment Opportunity Commission (EEOC). Three years later, in 2016, he filed a pro se lawsuit against the county alleging discrimination based on sexual orientation, in violation of Title VII of the Civil Rights Act of 1964. The district court dismissed his lawsuit for failure to state a claim, finding that Bostock\u2019s claim relied on an interpretation of Title VII as prohibiting discrimination on the basis of sexual orientation, contrary to a 1979 decision holding otherwise, the continued which was recently affirmed in Evans v. Georgia Regional Hospital, 850 F.3d 1248 (11th Cir. 2017). Bostock appealed, and the US Court of Appeals for the Eleventh Circuit affirmed the lower court. In addition to noting\u00a0 procedural deficiencies in Bostock\u2019s appeal, the Eleventh Circuit panel pointed out that it cannot overrule a prior panel\u2019s holding in the absence of an intervening Supreme Court or Eleventh Circuit en banc decision.\nThis case is consolidated for oral argument with\u00a0Altitude Express v. \nZarda, No. 17-1623.",
+          "rank": 1,
+          "score": 1.0,
+          "source": "chunkshop:case-2019_bostock-v-clayton-county-overview"
+        }
+      ]
+    },
+    {
+      "gold_answer": null,
+      "gold_doc_id": "case-2018_apple-v-pepper-overview",
+      "latency_ms": 63.27074998989701,
+      "question": "What legal issue does Apple v. Pepper concern and what is the question presented?",
+      "question_id": "q3",
+      "retrieved": []
+    },
+    {
+      "gold_answer": null,
+      "gold_doc_id": "case-2018_apple-v-pepper-decision",
+      "latency_ms": 32.44961425662041,
+      "question": "What was the holding in Apple v. Pepper about consumer antitrust standing?",
+      "question_id": "q4",
+      "retrieved": [
+        {
+          "content_snippet": "Question Presented: May consumers sue for antitrust damages against anyone who delivers goods to them, even where they seek damages based on prices set by third parties who would be the immediate victims of the alleged offense?\n\nSummary: A case in which the Court held that consumers may sue for antitrust damages any party who delivers goods to them (in this case, Apple), even where they seek damages based on prices set by third parties (in this case, app developers) who would be the immediate victims of the alleged offense.\n\nFacts: This lawsuit arose out of Apple\u2019s handling of the sale of apps for its iPhone devices. Apple released the iPhone in 2007, and from the outset, it has been a \u201cclosed system,\u201d meaning that Apple controls which apps can be loaded onto an iPhone, which it does via the \u201cApp Store.\u201d Although Apple develops some of the apps sold in the App Store, most are developed by third parties. For every App Store sale made by a third-party developer, Apple receives 30% of the sale price.\nIn 2011, four named plaintiffs filed a putative antitrust class action complaint against Apple, alleging monopolization and attempted monopolization of the iPhone app market. The complaint was dismissed on technical grounds, as were several subsequent attempts at similar lawsuits by both the same and other plaintiffs. In September 2013, a set of plaintiffs included in their allegations sufficient facts for the lawsuit to move forward. Among these facts was the key allegation that each plaintiff had purchased iPhone apps from the App Store, and that these transactions involved Apple collecting the entire purchase price and paying the developers after the sale.\nApple filed yet another motion to dismiss the lawsuit, contending that the plaintiffs lacked statutory standing to sue under the US Supreme Court\u2019s precedent in Illinois Brick Co. v. Illinois, 431 U.S. 720 (1977). Under Illinois Brick, \u201conly the overcharged direct purchaser, and not others in the chain of manufacture or distribution\u201d may bring a lawsuit for antitrust violations. If the plaintiffs are considered to have purchased their iPhone apps directly from the app developers, then they cannot sue Apple. However, if they are considered to have bought the apps from Apple, then they may sue Apple.\nThe district court found that the plaintiffs lacked standing to sue under Illinois Brick and dismissed the case with prejudice. \nOn appeal, the Ninth Circuit reviewed the district court\u2019s decision de novo and found that, contrary to a ruling on the same issue by the US Court of Appeals for the Eighth Circuit, the plaintiffs are direct purchasers from Apple within the meaning of Illinois Brick and thus have standing.",
+          "rank": 1,
+          "score": 1.0,
+          "source": "chunkshop:case-2018_apple-v-pepper-overview"
+        }
+      ]
+    },
+    {
+      "gold_answer": null,
+      "gold_doc_id": "case-2018_air-and-liquid-systems-corp-v-devries-overview",
+      "latency_ms": 73.62558925524354,
+      "question": "Question presented in Air and Liquid Systems Corp v. DeVries about asbestos exposure",
+      "question_id": "q5",
+      "retrieved": []
+    },
+    {
+      "gold_answer": null,
+      "gold_doc_id": "case-2022_allen-v-milligan-decision",
+      "latency_ms": 133.94594099372625,
+      "question": "Allen v. Milligan Alabama congressional redistricting Voting Rights Act decision",
+      "question_id": "q6",
+      "retrieved": [
+        {
+          "content_snippet": "Question Presented: Does Alabama\u2019s 2021 redistricting plan for its seven U.S. House seats violate Section 2 of the Voting Rights Act?\n\nSummary: A case in which the Court held that Alabama\u2019s 2021 redistricting plan for its seven seats in the U.S. House of Representatives likely violates Section 2 of the Voting Rights Act.\n\nFacts: After the 2020 census, Alabama created a redistricting plan for its seven seats in the U.S. House of Representatives. One of the districts in the plan is a majority-Black district. Registered voters and several organizations challenged the map, arguing that the state had illegally packed Black voters into a single district while dividing other clusters of Black voters across multiple districts. The challengers alleged that the map effectively minimizes the number of districts in which Black voters can elect their chosen candidates, in violation of Section 2 of the Voting Rights Act, which bans racial discrimination in voting policies.\nA three-judge district court agreed with the challengers that the map likely violated Section 2 of the VRA, granting a preliminary injunction that ordered the state to draw a new map. Alabama asked the U.S. Supreme Court to freeze the district court\u2019s injunction, which the Court did by a 5-4 decision pending a merits decision.",
+          "rank": 1,
+          "score": 1.0,
+          "source": "chunkshop:case-2022_allen-v-milligan-overview"
+        }
+      ]
+    },
+    {
+      "gold_answer": null,
+      "gold_doc_id": "case-2019_babb-v-wilkie-overview",
+      "latency_ms": 139.6693829447031,
+      "question": "Babb v. Wilkie federal employee age discrimination ADEA but-for causation",
+      "question_id": "q7",
+      "retrieved": []
+    },
+    {
+      "gold_answer": null,
+      "gold_doc_id": "case-2020_greer-v-united-states-decision",
+      "latency_ms": 90.97777865827084,
+      "question": "Greer v. United States plain-error review of unlawful firearm possession Rehaif",
+      "question_id": "q8",
+      "retrieved": [
+        {
+          "content_snippet": "A federal appellate court reviewing the decision of a lower court for plain error may review matters outside the trial record to determine whether the error affected a defendant\u2019s substantial rights, and an error under Rehaif v. United States, is not a basis for plain-error relief unless the defendant first makes a sufficient argument or representation on appeal that he would have presented evidence at trial that he did not in fact know he was a felon. Justice Brett Kavanaugh authored the majority opinion in the consolidated case, Greer v. United States, No. 19-8709.",
+          "rank": 1,
+          "score": 4.0,
+          "source": "chunkshop:case-2020_united-states-v-gary-decision"
+        },
+        {
+          "content_snippet": "Guam can pursue its lawsuit against the federal government over the cleaning costs associated with the Ordot Dump. Justice Clarence Thomas authored the unanimous opinion of the Court.\nSubsection 113(f) allows a party to seek contribution \u201cfrom any other person who is liable or potentially liable under section 107(a) of CERCLA\u201d and provides that \u201ca person who has resolved its liability to the United States . . . may seek contribution from any person who is not party to a settlement referred to in \u00a7 113(F)(2).\u201d The language and structure of this statute support the interpretation that the right of contribution is predicated on CERCLA liability. Because the statutory language is best understood only in reference to CERCLA, the most natural reading of the provision is that a party may seek contribution under CERCLA only after settling a CERCLA-specific liability, not resolving environmental liability under some other law. Thus, the agreement between the EPA and Guam did not trigger the statute of limitations for seeking contribution.",
+          "rank": 2,
+          "score": 3.0,
+          "source": "chunkshop:case-2020_guam-v-united-states-decision"
+        },
+        {
+          "content_snippet": "Question Presented: Is the Quiet Title Act\u2019s statute of limitations a jurisdictional requirement or a claim-processing rule?\n\nSummary: A case in which the Court held that the Quiet Title Act\u2019s statute of limitations is a nonjurisdictional claim-processing rule.\n\nFacts: Robbins Gulch Road runs between Highway 93 and the Bitterroot National Forest, crossing the private properties of Larry Wilkins and Jane Stanton near Connor, Montana. The previous owners of each of their properties had granted the United States an easement for Robbins Gulch Road in 1962.\nIn 2018, Wilkins and Stanton sued the United States under the Quiet Title Act (QTA) to confirm that the easement does not permit public use of the road and to enforce the government\u2019s obligations to patrol and maintain the road against unrestricted public use. The district court granted the federal government\u2019s motion to dismiss for lack of subject-matter jurisdiction, and the U.S. Court of Appeals for the Ninth Circuit affirmed.",
+          "rank": 3,
+          "score": 2.0,
+          "source": "chunkshop:case-2022_wilkins-v-united-states-overview"
+        },
+        {
+          "content_snippet": "Question Presented: May a federal appellate court reviewing the decision of a lower court for plain error review matters outside the trial record to determine whether the error affected a defendant\u2019s substantial rights or impacted the fairness, integrity, or public reputation of the trial.\n\nSummary: A case in which the Court held that under 18 U.S. C. \u00a7922(g)(1), to obtain plain-error relief, a defendant must make a sufficient argument or representation on appeal that he would have presented evidence at trial that he did not know he was a felon.\n\nFacts: In 2007, Tracy A. Greer pleaded guilty to one count of being a felon in possession of a firearm, in violation of 18 U.S.C. \u00a7 922(g), along with numerous other charges not directly relevant to this case. In the plea agreement, the parties agreed that Greer was \u201cpunishable as an Armed Career Criminal\u201d based on his five prior convictions for aggravated burglary under Ohio law. The district court agreed and sentenced Greer to 272 months\u2019 imprisonment.\nIn 2015, the U.S. Supreme Court invalidated the \u201cresidual clause\u201d of the Armed Career Criminal Act (ACCA), and in 2016 it made that invalidation retroactive on collateral review. Greer moved to vacate his sentence, but the district court denied his motion, holding that his convictions qualified under the ACCA\u2019s enumerated-offenses clause, not the residual clause. The U.S. Court of Appeals for the Eleventh Circuit affirmed.\nIn 2019, the U.S. Supreme Court decided Rehaif v. United States, which held that when a person is charged with possessing a gun while prohibited from doing so under 18 U.S.C. \u00a7 922, the prosecution must prove both that the accused knew that they possessed a gun and that they knew they held the relevant status. The Court granted Greer\u2019s petition for writ of certiorari, vacated the judgment affirming his conviction, and remanded for reconsideration in light of Rehaif.\nOn remand, Greer requested that the Eleventh Circuit vacate his conviction or, in the alternative, grant him a new trial, because the prosecution did not prove, nor was the jury instructed to find, that he knew he was a felon when he possessed the firearm.\nThe Eleventh Circuit concluded that although Greer had shown plain error, he could not prove that he was prejudiced by the errors or that they affected the fairness, integrity, or public reputation of his trial. To reach this conclusion, the court looked at the entire trial record and Greer\u2019s previous convictions, not merely the evidence submitted to the jury. \nGreer again petitioned the Supreme Court for review.",
+          "rank": 4,
+          "score": 1.0,
+          "source": "chunkshop:case-2020_greer-v-united-states-overview"
+        },
+        {
+          "content_snippet": "Question Presented: Is a defendant who pleaded guilty to possessing a firearm as a felon, in violation of 18 U.S.C. 922(g)(1) and 924(a), automatically entitled to plain-error relief if the district court did not advise him that one element of that offense is knowledge of his status as a felon, regardless of whether he can show that the district court\u2019s error affected the outcome of the proceedings?\n\nSummary: A case in which the Court will decide whether a defendant who pleaded guilty to possessing a firearm as a felon, in violation of 18 U.S.C. \u00a7\u00a7 922(g)(1) and 924(a), is automatically entitled to plain-error relief if the district court did not advise him that one element of that offense is knowledge of his status as a felon, regardless of whether he can show that the district court\u2019s error affected the outcome of the proceedings.\n\nFacts: In 2017, Michael Andrew Gary was driving with his cousin when police pulled them over for running a red light. Gary admitted he was driving on a suspended license, so he was placed under arrest. Upon a search of his car, police found a loaded gun. He was charged under state law with possession of a firearm by a convicted felon. Five months later, Gary had another encounter with police, and upon consenting to a search, police found him in possession of a stolen firearm which Gary admitted was his. Gary was arrested and charged under state law with possession of a stolen firearm.\nA federal grand jury indicted Gary on two counts of possessing a firearm as a felon, in violation of 18 U.S.C. \u00a7\u00a7 922(g)(1) and 924(a)(2). The state charges were dropped, and Gary pleaded guilty to the two federal charges. The district court advised Gary that if he proceeded to trial, the government would have to prove four elements, but did not mention that the government would also need to prove Gary was aware that he was a felon. Gary agreed with the prosecutor\u2019s summary of the facts and entered a guilty plea.\nGary then appealed his sentence but did not challenge the conviction itself. While the appeal was pending, in 2019, the U.S. Supreme Court decided Rehaif v. United States, holding that when a person is charged with possessing a gun while prohibited from doing so under 18 U.S.C. \u00a7 922, the prosecution must prove both that the accused knew that they possessed a gun and that they knew they held the relevant status. Gary then submitted a letter raising the relevance of the Rehaif decision. After receiving supplemental briefings from the parties on the relevance of Rehaif, the court of appeals vacated Gary\u2019s convictions and remanded to the district court. Because Gary had not challenged the validity of his plea in the district court, the court of appeals reviewed the lower court\u2019s decision for plain error. \nThe court found not only that the error was plain, but also that it was structural and thus necessarily affected the outcome of the proceedings, even without a showing of as much.",
+          "rank": 5,
+          "score": 1.0,
+          "source": "chunkshop:case-2020_united-states-v-gary-overview"
+        },
+        {
+          "content_snippet": "Question Presented: Is a noncitizen who has spent more than six months in immigration detention awaiting resolution of their deportation withholding claim entitled to a hearing before an immigration judge to determine whether they can be released on bond?\n\nSummary: A case in which the Court held that district courts lack jurisdiction to grant class-wide injunctive relief for claims arising under certain provisions of the Immigration and Nationality Act (INA).\n\nFacts: Esteban Aleman Gonzalez and Gutierrez Sanchez are natives and citizens of Mexico who reside in the United States. The federal government had initiated removal proceedings against them, but asylum officers determined that each had a reasonable fear of persecution or torture in Mexico. Gonzalez and Sanchez both requested a bond hearing before an immigration judge after they had been detained for 180 days, but both requests were denied.",
+          "rank": 6,
+          "score": 1.0,
+          "source": "chunkshop:case-2021_garland-v-gonzalez-overview"
+        }
+      ]
+    },
+    {
+      "gold_answer": null,
+      "gold_doc_id": "case-2021_carson-v-makin-decision",
+      "latency_ms": 65.27504604309797,
+      "question": "Carson v. Makin Maine tuition assistance religious schools Free Exercise Clause",
+      "question_id": "q9",
+      "retrieved": []
+    },
+    {
+      "gold_answer": null,
+      "gold_doc_id": "case-2021_dobbs-v-jackson-womens-health-organization-decision",
+      "latency_ms": 119.1501091234386,
+      "question": "Dobbs v. Jackson Women's Health Organization Mississippi 15-week abortion ban",
+      "question_id": "q10",
+      "retrieved": []
+    },
+    {
+      "gold_answer": null,
+      "gold_doc_id": "case-2018_rucho-v-common-cause-decision",
+      "latency_ms": 60.51794299855828,
+      "question": "Rucho v. Common Cause partisan gerrymandering nonjusticiable political question",
+      "question_id": "q11",
+      "retrieved": []
+    },
+    {
+      "gold_answer": null,
+      "gold_doc_id": "case-2019_trump-v-vance-decision",
+      "latency_ms": 44.80259772390127,
+      "question": "Trump v. Vance state grand jury subpoena for presidential financial records",
+      "question_id": "q12",
+      "retrieved": [
+        {
+          "content_snippet": "Question Presented: Does Section Three of the Fourteenth Amendment disqualify Donald Trump from holding the office of President of the United States and thus from appearing on Colorado\u2019s 2024 presidential primary ballot?\n\nSummary: A case in which the Court held that Congress alone must decide whether Section Three of the Fourteenth Amendment disqualifies an individual from running for the office of President.\n\nFacts: In the 2016 U.S. presidential election, Donald Trump was elected as the 45th President, serving for four years. In the 2020 election, Joe Biden was elected as the 46th President, despite Trump's refusal to accept the results. The Electoral College confirmed Biden's victory with 306 votes to Trump's 232. Trump continued to challenge the outcome in court and media. On January 6, 2021, during a Congressional session to certify the election, Trump held a rally, claiming victory and urging supporters to protest at the Capitol. The next day, Vice President Pence certified Biden's win. Trump is currently seeking the Colorado Republican Party\u2019s nomination for the 2024 presidential election.\nA group of Colorado electors, consisting of both registered Republicans and unaffiliated voters, filed a petition in the Denver District Court to prevent Trump from appearing on the Colorado Republican presidential primary ballot. Citing Colorado\u2019s Uniform Election Code, they requested the court to direct Secretary of State Jena Griswold to exclude Trump\u2019s name. Their argument centered on Section Three of the Fourteenth Amendment, claiming Trump was disqualified due to his involvement in the January 6, 2021, insurrection, violating his presidential oath to support the U.S. Constitution.\nThe court found by clear and convincing evidence that Trump engaged in insurrection as those terms are used in Section Three but that Section Three does not apply to the president. Thus, the court denied the petition. On appeal, the Colorado Supreme Court reversed in part, concluding that Section Three disqualifies Trump from holding the office of President of the United States and thus that it would be unlawful under Colorado law to list him on the ballot.",
+          "rank": 1,
+          "score": 1.0,
+          "source": "chunkshop:case-2023_trump-v-anderson-overview"
+        }
+      ]
+    }
+  ]
+}

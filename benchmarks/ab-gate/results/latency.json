@@ -1,0 +1,290 @@
+[
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "graph_leg",
+    "question_id": "q1",
+    "latency_ms": 429.2516871355474
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "graph_leg",
+    "question_id": "q2",
+    "latency_ms": 54.431167896836996
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "graph_leg",
+    "question_id": "q3",
+    "latency_ms": 103.14893582835793
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "graph_leg",
+    "question_id": "q4",
+    "latency_ms": 426.1287688277662
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "graph_leg",
+    "question_id": "q5",
+    "latency_ms": 109.90671580657363
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "graph_leg",
+    "question_id": "q6",
+    "latency_ms": 108.50691376253963
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "graph_leg",
+    "question_id": "q7",
+    "latency_ms": 406.00824588909745
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "graph_leg",
+    "question_id": "q8",
+    "latency_ms": 122.2025160677731
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "graph_leg",
+    "question_id": "q9",
+    "latency_ms": 129.60001500323415
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "graph_leg",
+    "question_id": "q10",
+    "latency_ms": 80.60003537684679
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "graph_leg",
+    "question_id": "q11",
+    "latency_ms": 56.21360382065177
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "graph_leg",
+    "question_id": "q12",
+    "latency_ms": 107.09098307415843
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "naive_vector",
+    "question_id": "q1",
+    "latency_ms": 43.920462019741535
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "naive_vector",
+    "question_id": "q2",
+    "latency_ms": 43.22237195447087
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "naive_vector",
+    "question_id": "q3",
+    "latency_ms": 42.05343499779701
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "naive_vector",
+    "question_id": "q4",
+    "latency_ms": 49.19942608103156
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "naive_vector",
+    "question_id": "q5",
+    "latency_ms": 42.49702114611864
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "naive_vector",
+    "question_id": "q6",
+    "latency_ms": 41.296929121017456
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "naive_vector",
+    "question_id": "q7",
+    "latency_ms": 41.42262879759073
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "naive_vector",
+    "question_id": "q8",
+    "latency_ms": 43.12346503138542
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "naive_vector",
+    "question_id": "q9",
+    "latency_ms": 54.47928607463837
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "naive_vector",
+    "question_id": "q10",
+    "latency_ms": 48.791476991027594
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "naive_vector",
+    "question_id": "q11",
+    "latency_ms": 42.941573075950146
+  },
+  {
+    "corpus": "bakeoff-ntsb-ab",
+    "mode": "naive_vector",
+    "question_id": "q12",
+    "latency_ms": 45.482109766453505
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "graph_leg",
+    "question_id": "q1",
+    "latency_ms": 410.0116831250489
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "graph_leg",
+    "question_id": "q2",
+    "latency_ms": 96.54686506837606
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "graph_leg",
+    "question_id": "q3",
+    "latency_ms": 63.27074998989701
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "graph_leg",
+    "question_id": "q4",
+    "latency_ms": 32.44961425662041
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "graph_leg",
+    "question_id": "q5",
+    "latency_ms": 73.62558925524354
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "graph_leg",
+    "question_id": "q6",
+    "latency_ms": 133.94594099372625
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "graph_leg",
+    "question_id": "q7",
+    "latency_ms": 139.6693829447031
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "graph_leg",
+    "question_id": "q8",
+    "latency_ms": 90.97777865827084
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "graph_leg",
+    "question_id": "q9",
+    "latency_ms": 65.27504604309797
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "graph_leg",
+    "question_id": "q10",
+    "latency_ms": 119.1501091234386
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "graph_leg",
+    "question_id": "q11",
+    "latency_ms": 60.51794299855828
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "graph_leg",
+    "question_id": "q12",
+    "latency_ms": 44.80259772390127
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "naive_vector",
+    "question_id": "q1",
+    "latency_ms": 810.3366391733289
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "naive_vector",
+    "question_id": "q2",
+    "latency_ms": 74.98330902308226
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "naive_vector",
+    "question_id": "q3",
+    "latency_ms": 62.73370888084173
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "naive_vector",
+    "question_id": "q4",
+    "latency_ms": 56.508672423660755
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "naive_vector",
+    "question_id": "q5",
+    "latency_ms": 53.856592159718275
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "naive_vector",
+    "question_id": "q6",
+    "latency_ms": 51.13283172249794
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "naive_vector",
+    "question_id": "q7",
+    "latency_ms": 68.51886725053191
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "naive_vector",
+    "question_id": "q8",
+    "latency_ms": 62.54691677168012
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "naive_vector",
+    "question_id": "q9",
+    "latency_ms": 51.150396931916475
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "naive_vector",
+    "question_id": "q10",
+    "latency_ms": 55.953220929950476
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "naive_vector",
+    "question_id": "q11",
+    "latency_ms": 64.52982500195503
+  },
+  {
+    "corpus": "bakeoff-scotus-ab",
+    "mode": "naive_vector",
+    "question_id": "q12",
+    "latency_ms": 53.54305496439338
+  }
+]

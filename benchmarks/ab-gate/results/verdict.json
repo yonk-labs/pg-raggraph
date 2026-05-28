@@ -1,0 +1,78 @@
+{
+  "per_corpus": [
+    {
+      "scope": "bakeoff-ntsb-ab",
+      "recall_at_10": {
+        "metric": "recall_at_10",
+        "graph": 0.08333333333333333,
+        "naive": 1.0,
+        "delta": -91.66666666666666,
+        "label": "NAIVE_WINS"
+      },
+      "mrr": {
+        "metric": "mrr",
+        "graph": 0.08333333333333333,
+        "naive": 0.8402777777777778,
+        "delta": -0.7569444444444444,
+        "label": "NAIVE_WINS"
+      },
+      "judge_win_rate": {
+        "metric": "judge_win_rate",
+        "graph": 0.08333333333333333,
+        "naive": 1.0,
+        "delta": -0.9166666666666666,
+        "label": "NAIVE_WINS"
+      }
+    },
+    {
+      "scope": "bakeoff-scotus-ab",
+      "recall_at_10": {
+        "metric": "recall_at_10",
+        "graph": 0.0,
+        "naive": 0.75,
+        "delta": -75.0,
+        "label": "NAIVE_WINS"
+      },
+      "mrr": {
+        "metric": "mrr",
+        "graph": 0.0,
+        "naive": 0.4055555555555555,
+        "delta": -0.4055555555555555,
+        "label": "NAIVE_WINS"
+      },
+      "judge_win_rate": {
+        "metric": "judge_win_rate",
+        "graph": 0.3333333333333333,
+        "naive": 0.8333333333333334,
+        "delta": -0.5,
+        "label": "NAIVE_WINS"
+      }
+    }
+  ],
+  "combined": {
+    "scope": "combined",
+    "recall_at_10": {
+      "metric": "recall_at_10",
+      "graph": 0.041666666666666664,
+      "naive": 0.875,
+      "delta": -83.33333333333334,
+      "label": "NAIVE_WINS"
+    },
+    "mrr": {
+      "metric": "mrr",
+      "graph": 0.041666666666666664,
+      "naive": 0.6229166666666667,
+      "delta": -0.58125,
+      "label": "NAIVE_WINS"
+    },
+    "judge_win_rate": {
+      "metric": "judge_win_rate",
+      "graph": 0.20833333333333334,
+      "naive": 0.9166666666666666,
+      "delta": -0.7083333333333333,
+      "label": "NAIVE_WINS"
+    }
+  },
+  "label": "NAIVE_WINS",
+  "rationale": "Recall@10 lift: -83.33pp \u2192 NAIVE_WINS\nMRR delta: -0.5813 \u2192 NAIVE_WINS\nJudge win-rate delta: -0.7083 \u2192 NAIVE_WINS\n\u00a73.3 combiner: NAIVE_WINS"
+}
