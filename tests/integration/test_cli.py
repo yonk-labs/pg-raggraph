@@ -128,3 +128,100 @@ def test_extract_drains_pending_once(runner):
         assert statuses == ["ready", "ready"]
     finally:
         runner.invoke(main, ["--db", TEST_DB, "delete", "-n", "cli_test_extract", "--yes"])
+
+
+def test_extract_daemon_graceful_shutdown(runner):
+    """pgrg extract --daemon: SIGTERM after seeding triggers clean exit.
+
+    Real subprocess (CliRunner can't deliver POSIX signals). Seed pending
+    docs, start the daemon, give it a moment to drain, then SIGTERM and
+    verify exit 0 + the docs flipped to 'ready'.
+    """
+    import asyncio
+    import signal
+    import subprocess
+    import time
+
+    from pg_raggraph import GraphRAG
+
+    ns = "cli_test_daemon"
+
+    async def _seed():
+        rag = GraphRAG(dsn=TEST_DB, namespace=ns)
+        await rag.connect()
+        try:
+            await rag.ingest_records(
+                [{"text": f"daemon doc {i}", "source_id": f"cli:daemon:{i}"} for i in range(3)],
+                namespace=ns,
+                defer_extraction=True,
+            )
+        finally:
+            await rag.close()
+
+    asyncio.run(_seed())
+
+    proc = subprocess.Popen(
+        [
+            "uv",
+            "run",
+            "pgrg",
+            "--db",
+            TEST_DB,
+            "extract",
+            "-n",
+            ns,
+            "--daemon",
+            "--batch-size",
+            "8",
+            "--poll-interval",
+            "0.5",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    try:
+        # Give the daemon time to drain the queue (it polls every 0.5s).
+        time.sleep(2.0)
+        proc.send_signal(signal.SIGTERM)
+        try:
+            stdout, stderr = proc.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            raise
+
+        assert proc.returncode == 0, (
+            f"non-zero exit {proc.returncode}\nstdout: {stdout}\nstderr: {stderr}"
+        )
+        assert "Shutdown signal received" in stderr
+
+        async def _check():
+            rag = GraphRAG(dsn=TEST_DB, namespace=ns)
+            await rag.connect()
+            try:
+                rows = await rag.db.fetch_all(
+                    "SELECT graph_status FROM documents WHERE namespace = %s",
+                    (ns,),
+                )
+                return [r["graph_status"] for r in rows]
+            finally:
+                await rag.close()
+
+        statuses = asyncio.run(_check())
+        # All 3 docs were drained before the signal arrived.
+        assert statuses == ["ready", "ready", "ready"], f"got {statuses}"
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+        runner.invoke(main, ["--db", TEST_DB, "delete", "-n", ns, "--yes"])
+
+
+def test_extract_daemon_rejects_with_once(runner):
+    """--daemon + --once is an obvious misuse; the CLI must refuse it."""
+    result = runner.invoke(
+        main, ["--db", TEST_DB, "extract", "--daemon", "--once", "-n", "any_ns"]
+    )
+    assert result.exit_code != 0
+    assert "mutually exclusive" in result.output.lower()

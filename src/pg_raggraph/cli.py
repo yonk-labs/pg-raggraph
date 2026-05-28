@@ -267,13 +267,40 @@ def ingest_chunkshop_table(
     is_flag=True,
     help="Reset 'failed' docs to 'pending' at startup so they're retried",
 )
+@click.option(
+    "--daemon",
+    is_flag=True,
+    help=(
+        "Long-running mode: keep polling for pending docs. Handles SIGTERM/SIGINT "
+        "gracefully — finishes the in-flight batch, then exits 0."
+    ),
+)
+@click.option(
+    "--poll-interval",
+    default=2.0,
+    type=float,
+    show_default=True,
+    help="Seconds to wait between empty-queue checks in --daemon mode",
+)
 @click.pass_context
-def extract(ctx, namespace, batch_size, max_iterations, rate_limit_rps, once, include_failed):
+def extract(
+    ctx,
+    namespace,
+    batch_size,
+    max_iterations,
+    rate_limit_rps,
+    once,
+    include_failed,
+    daemon,
+    poll_interval,
+):
     """Drain documents.graph_status='pending' — run background extraction.
 
     Exits 0 when the queue is empty (or --once / --max-iterations is reached).
     Workers can run concurrently safely; SKIP LOCKED guarantees no overlap.
     """
+    import signal
+
     from pg_raggraph.backfill import (
         claim_pending,
         extract_documents,
@@ -286,6 +313,10 @@ def extract(ctx, namespace, batch_size, max_iterations, rate_limit_rps, once, in
         raise click.BadParameter("--max-iterations must be >= 0")
     if rate_limit_rps < 0:
         raise click.BadParameter("--rate-limit-rps must be >= 0")
+    if poll_interval <= 0:
+        raise click.BadParameter("--poll-interval must be > 0")
+    if daemon and once:
+        raise click.BadParameter("--daemon and --once are mutually exclusive")
 
     async def _extract():
         kwargs = dict(ctx.obj["kwargs"])
@@ -293,6 +324,20 @@ def extract(ctx, namespace, batch_size, max_iterations, rate_limit_rps, once, in
             kwargs["namespace"] = namespace
         rag = GraphRAG(**kwargs)
         await rag.connect()
+
+        shutdown = asyncio.Event()
+        if daemon:
+            # Cooperative shutdown: signal handlers just set the event so
+            # the loop finishes the in-flight batch atomically before exit.
+            loop = asyncio.get_running_loop()
+            for sig in (signal.SIGTERM, signal.SIGINT):
+                try:
+                    loop.add_signal_handler(sig, shutdown.set)
+                except NotImplementedError:
+                    # Windows event loops don't support add_signal_handler;
+                    # those users get harder shutdowns (KeyboardInterrupt).
+                    pass
+
         try:
             # Reaper first — recover from prior crashes that left rows in
             # 'processing'. Cheap UPDATE; safe across workers because peers
@@ -317,12 +362,27 @@ def extract(ctx, namespace, batch_size, max_iterations, rate_limit_rps, once, in
             import time as _time
 
             while True:
+                if shutdown.is_set():
+                    click.echo("Shutdown signal received; exiting cleanly.", err=True)
+                    break
+
                 iteration += 1
                 iter_started = _time.perf_counter()
                 ids = await claim_pending(rag.db, namespace, batch_size)
                 if not ids:
+                    if daemon:
+                        # Wait poll_interval or until shutdown — whichever
+                        # comes first. asyncio.wait_for raises TimeoutError
+                        # on the timeout branch; treat that as "keep polling."
+                        try:
+                            await asyncio.wait_for(shutdown.wait(), timeout=poll_interval)
+                        except asyncio.TimeoutError:
+                            pass
+                        # Re-check at top of loop (shutdown may now be set).
+                        continue
                     click.echo(f"Queue drained after {iteration - 1} iteration(s).", err=True)
                     break
+
                 stats = await extract_documents(rag, ids)
                 totals["claimed"] += stats.claimed
                 totals["ready"] += stats.ready
@@ -335,7 +395,7 @@ def extract(ctx, namespace, batch_size, max_iterations, rate_limit_rps, once, in
                     err=True,
                 )
 
-                if once or (max_iterations and iteration >= max_iterations):
+                if not daemon and (once or (max_iterations and iteration >= max_iterations)):
                     break
 
                 if rate_limit_rps > 0:
@@ -344,7 +404,10 @@ def extract(ctx, namespace, batch_size, max_iterations, rate_limit_rps, once, in
                     elapsed = _time.perf_counter() - iter_started
                     floor = len(ids) / rate_limit_rps
                     if elapsed < floor:
-                        await asyncio.sleep(floor - elapsed)
+                        try:
+                            await asyncio.wait_for(shutdown.wait(), timeout=floor - elapsed)
+                        except asyncio.TimeoutError:
+                            pass
 
             click.echo(
                 f"Done: {totals['ready']} ready / {totals['failed']} failed "
