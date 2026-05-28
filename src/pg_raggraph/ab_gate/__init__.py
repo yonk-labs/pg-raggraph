@@ -21,6 +21,7 @@ from pg_raggraph.ab_gate.io import (
     ABRetrievedItem,
     ABRunnerOutput,
     ABVerdict,
+    GoldQuestion,
     MetricRollup,
     MetricVerdict,
 )
@@ -34,6 +35,7 @@ __all__ = [
     "ABRetrievedItem",
     "ABRunnerOutput",
     "ABVerdict",
+    "GoldQuestion",
     "MetricRollup",
     "MetricVerdict",
     "_chunkshop_judge_config_to_llm_judge_provider",
