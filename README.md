@@ -2,7 +2,7 @@
 
 > **PostgreSQL-native GraphRAG.** Vector search, full-text search, and knowledge-graph traversal — all in a single SQL query. No Neo4j. No Pinecone. No Apache AGE. Just the Postgres you already run.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Tests](https://img.shields.io/badge/tests-385%20passing-brightgreen)](#tests-and-benchmarks) [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](pyproject.toml) [![Status: alpha](https://img.shields.io/badge/status-alpha%20(0.3.0a3)-orange)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Tests](https://img.shields.io/badge/tests-593%20passing-brightgreen)](#tests-and-benchmarks) [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](pyproject.toml) [![Status: alpha](https://img.shields.io/badge/status-alpha%20(0.4.0a1)-orange)]()
 
 ---
 
@@ -154,7 +154,7 @@ Real numbers from real corpora. No cherry-picking.
 
 Full bake-off report: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](benchmarks/age-bakeoff/results/REPORT-VERDICT.md).
 
-**Test suite:** 385 passing tests (260 unit + 125 integration) across `tests/unit/` and `tests/integration/`, including a 15-test error-path suite that asserts specific exception types on bad DSNs, naive `as_of`, oversize `/ingest`, path traversal, etc. CI runs the full suite against pgvector containers on Python 3.12 and 3.13.
+**Test suite:** 593 passing tests (350 unit + 243 integration) across `tests/unit/` and `tests/integration/`, including a 27-test error-path suite that asserts specific exception types on bad DSNs, naive `as_of`, oversize `/ingest`, path traversal, etc. CI runs the full suite against pgvector containers on Python 3.12 and 3.13.
 
 ## Where to go next
 

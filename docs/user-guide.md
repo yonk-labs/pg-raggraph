@@ -517,12 +517,16 @@ roadmap (dated audit-trail design spec).
 
 ### What's tested
 
-Tier 1 ships with **141 passing tests** including 13 evolution-specific integration tests
-and 3 synthetic-fixture corpora (medical retraction, software versioning, policy
-effective-dates). The fixtures are small (2–4 docs each), purpose-built to exercise the
-metadata code paths. **A real-world retraction-corpus benchmark (e.g., 1000+ medical
-papers with actual retractions) is not yet built — that lands with Tier 2 or as a separate
-benchmark effort.**
+Tier 1 ships with **34 evolution-specific integration tests** across the
+core evolution-tracking, medical-HRT, Python-versioned-docs, living-
+knowledge, and per-fact-temporal-relationships suites — plus 3 synthetic-
+fixture corpora (medical retraction, software versioning, policy
+effective-dates). The fixtures are small (2–4 docs each), purpose-built
+to exercise the metadata code paths. A real-world retraction-corpus
+benchmark (PubMed HRT) **did land** after this section was first
+written — see `benchmarks/medical-hrt/` for 48 abstracts × 15 gold
+questions × 5/5 retraction-aware + 5/5 time-travel passes. Tier 2
+ambitions are tracked in the roadmap.
 
 ---
 
