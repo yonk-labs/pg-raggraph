@@ -69,7 +69,9 @@ def build_server(rag: GraphRAG):
             "MCP server requires the 'mcp' package. Install with: pip install pg-raggraph[mcp]"
         ) from e
 
-    server = FastMCP("pg-raggraph")
+    from pg_raggraph.server_instructions import SERVER_INSTRUCTIONS
+
+    server = FastMCP("pg-raggraph", instructions=SERVER_INSTRUCTIONS)
 
     @server.tool()
     async def pgrg_query(
