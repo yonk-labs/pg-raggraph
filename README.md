@@ -112,6 +112,19 @@ That's the whole loop. From `pip install` to a grounded answer in five minutes.
 
 > **One thing to know about `pgrg serve`** — the bundled FastAPI web UI is for **local development and demos only**. It ships without authentication, rate limiting, or upload size caps. **Do not expose it directly to the public internet.** For production, put it behind a reverse proxy that adds auth, TLS, and rate limits — or embed `create_app()` in your own FastAPI application. See [`docs/user-guide.md#production-deployment`](docs/user-guide.md#production-deployment) for the recommended setup.
 
+## MCP server
+
+Connect pg-raggraph to Claude Desktop, Cursor, Zed, or any MCP-compatible
+client via `pgrg mcp-serve`. The server returns a tuned tool-selection
+playbook in its MCP `initialize` response, so agents pick the right tool
+on the first try instead of grepping the filesystem. When you ingest
+with `defer_extraction=True`, a per-file staleness banner warns the
+agent which documents have fresh chunks but still-pending graph
+extraction.
+
+See [`docs/user-guide.md`](docs/user-guide.md#mcp-server) for the full
+tool list and the `PGRG_MCP_INGEST_ROOTS` allow-list.
+
 ## Tests and benchmarks
 
 Real numbers from real corpora. No cherry-picking.

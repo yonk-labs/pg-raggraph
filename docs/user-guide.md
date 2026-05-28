@@ -909,6 +909,48 @@ The UI is a single HTML file (~200 lines, htmx + vis-network from CDN). No build
 
 ---
 
+## MCP server
+
+`pgrg mcp-serve` exposes pg-raggraph as a Model Context Protocol server
+over stdio. Connect from Claude Desktop, Cursor, Zed, the OpenAI Agent
+SDK, or any MCP-compatible client.
+
+```bash
+pgrg --db postgresql://… mcp-serve
+```
+
+When the client issues `initialize`, the server returns a tuned playbook
+that becomes part of the agent's system prompt for the session. The
+playbook teaches tool selection and warns about common anti-patterns.
+
+### MCP tools
+
+| Tool | When to use |
+|---|---|
+| `pgrg_ask` | "What does the corpus say about X?" — smart-routed retrieval + grounded LLM answer in one call. PRIMARY. |
+| `pgrg_query` | "Get me the raw retrieved chunks" — same retrieval, no LLM grounding. |
+| `pgrg_ingest` | "Add documents to the graph." Paths must be in an allow-listed root via `PGRG_MCP_INGEST_ROOTS`. |
+| `pgrg_delete_document` | "Remove a document." Requires `confirm=True`. |
+| `pgrg_status` | "Is the graph ready / how big is it?" — counts + `graph_status_summary`. |
+| `pgrg_profiles` | "What retrieval profiles are available?" — calibration ladder. |
+| `pgrg_get_namespace_profile` / `pgrg_set_namespace_profile` | Per-namespace default retrieval profile. |
+
+### Staleness banner
+
+When you ingest with `defer_extraction=True` (see
+[`cookbook/background-extraction.md`](cookbook/background-extraction.md)),
+documents are immediately retrievable as chunks but their entity/
+relationship graph entries are written asynchronously by `pgrg extract`.
+Any MCP response that references a pending document is prepended with
+a `⚠️` banner naming the document and instructing the agent to Read it
+directly. The chunks and the non-pending citations remain authoritative;
+only the entity layer lags.
+
+Operators don't need to configure anything — the banner is always-on
+and renders to nothing when no documents are pending.
+
+---
+
 ## Troubleshooting
 
 ### "Cannot connect to PostgreSQL"
