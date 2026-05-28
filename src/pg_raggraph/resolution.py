@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, Literal  # noqa: F401  # Literal used by resolve_entity_lookup in Task A2
+from typing import Any, Literal
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.db import Database
@@ -145,3 +145,60 @@ async def resolve_entity(
         (namespace, name, entity_type, description, embedding, props_json),
     )
     return entity_id
+
+
+async def resolve_entity_lookup(
+    surface: str,
+    *,
+    corpus_id: str,
+    kind: Literal["fact_endpoint", "cooccur_node"] | None = None,
+    db: Database,
+    config: PGRGConfig,
+) -> ResolvedEntity | None:
+    """Look up a canonical entity for a surface string. Pure read — no mutation.
+
+    The A/B-gate counterpart to ``resolve_entity``. Returns ``ResolvedEntity``
+    if a match is found (exact name, then trgm-+-vector fuzzy match above
+    ``config.resolution_threshold``), or ``None`` otherwise.
+
+    Parameters
+    ----------
+    surface:
+        The input surface string from a fact subject/object or a cooccur node.
+        Not normalized by this function; pass it through as-is.
+    corpus_id:
+        Maps identity-equal to pg-raggraph's ``namespace`` column. Scopes the
+        lookup so two corpora with the same surface land on different ids.
+    kind:
+        Optional discriminator from the chunkshop contract §4.1. Accepted but
+        not yet used — present for API stability.
+    db:
+        The connected ``Database`` pool.
+    config:
+        The ``PGRGConfig`` — used for ``trgm_weight`` / ``vec_weight`` /
+        ``min_trgm_score`` / ``resolution_threshold`` on the fuzzy path.
+
+    Returns
+    -------
+    ResolvedEntity | None
+        ``None`` means no match. A returned ``ResolvedEntity`` carries the
+        original ``surface`` echoed back plus the matched ``canonical_name``.
+    """
+    _ = kind  # accepted for API stability; not consulted by exact/fuzzy paths
+
+    # --- Exact-name match (namespace-scoped) -------------------------------
+    row = await db.fetch_one(
+        "SELECT id, name FROM entities WHERE namespace = %s AND name = %s",
+        (corpus_id, surface),
+    )
+    if row is not None:
+        return ResolvedEntity(
+            id=row["id"],
+            surface=surface,
+            canonical_name=row["name"],
+            score=1.0,
+            match_type="exact",
+        )
+
+    # --- Fuzzy / vector path (added in Task A3) ----------------------------
+    return None
