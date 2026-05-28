@@ -1,12 +1,56 @@
-"""Entity resolution — merge duplicate entities using pg_trgm + vector similarity."""
+"""Entity resolution — merge duplicate entities using pg_trgm + vector similarity.
+
+This module exposes two functions:
+
+- ``resolve_entity`` (insert-on-miss, original): used by the ingestion pipeline.
+  This function is byte-for-byte unchanged from v0.5.0a2 and earlier; the A/B-gate
+  work in #47 deliberately added a sibling rather than refactoring this one
+  (Path A per the mission brief).
+- ``resolve_entity_lookup`` (pure read, new in v0.5.0a3): returns a
+  ``ResolvedEntity`` or ``None`` for the chunkshop ↔ pg-raggraph A/B gate. Does
+  NOT mutate any table. Callers handle their own embedding cache.
+"""
 
 from __future__ import annotations
 
 import json
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.db import Database
+
+
+@dataclass(frozen=True)
+class ResolvedEntity:
+    """A resolved entity returned by ``resolve_entity_lookup``.
+
+    Shape locked by the chunkshop emission contract §4.1 and the
+    pg-raggraph mission brief SC-002. All five fields are required.
+
+    Attributes
+    ----------
+    id:
+        ``entities.id`` of the matched row.
+    surface:
+        The input surface string echoed back unchanged — lets callers correlate
+        a batch lookup result with the input that produced it.
+    canonical_name:
+        ``entities.name`` of the matched row (the database's canonical form).
+    score:
+        1.0 for exact matches; otherwise the combined trgm + vector score in
+        [0.0, 1.0]. Lower is a weaker match.
+    match_type:
+        ``'exact'``, ``'trgm'``, or ``'vector'``. ``'exact'`` means namespace +
+        name matched directly; ``'trgm'`` / ``'vector'`` indicates the fuzzy
+        path returned a row above ``config.resolution_threshold``.
+    """
+
+    id: int
+    surface: str
+    canonical_name: str
+    score: float
+    match_type: str
 
 
 async def resolve_entity(
@@ -101,3 +145,103 @@ async def resolve_entity(
         (namespace, name, entity_type, description, embedding, props_json),
     )
     return entity_id
+
+
+async def resolve_entity_lookup(
+    surface: str,
+    *,
+    corpus_id: str,
+    kind: Literal["fact_endpoint", "cooccur_node"] | None = None,
+    db: Database,
+    config: PGRGConfig,
+) -> ResolvedEntity | None:
+    """Look up a canonical entity for a surface string. Pure read — no mutation.
+
+    The A/B-gate counterpart to ``resolve_entity``. Returns ``ResolvedEntity``
+    if a match is found (exact name, then trgm-+-vector fuzzy match above
+    ``config.resolution_threshold``), or ``None`` otherwise.
+
+    Parameters
+    ----------
+    surface:
+        The input surface string from a fact subject/object or a cooccur node.
+        Not normalized by this function; pass it through as-is.
+    corpus_id:
+        Maps identity-equal to pg-raggraph's ``namespace`` column. Scopes the
+        lookup so two corpora with the same surface land on different ids.
+    kind:
+        Optional discriminator from the chunkshop contract §4.1. Accepted but
+        not yet used — present for API stability.
+    db:
+        The connected ``Database`` pool.
+    config:
+        The ``PGRGConfig`` — used for ``trgm_weight`` / ``vec_weight`` /
+        ``min_trgm_score`` / ``resolution_threshold`` on the fuzzy path.
+
+    Returns
+    -------
+    ResolvedEntity | None
+        ``None`` means no match. A returned ``ResolvedEntity`` carries the
+        original ``surface`` echoed back plus the matched ``canonical_name``.
+    """
+    _ = kind  # accepted for API stability; not consulted by exact/fuzzy paths
+
+    # --- Exact-name match (namespace-scoped) -------------------------------
+    row = await db.fetch_one(
+        "SELECT id, name FROM entities WHERE namespace = %s AND name = %s",
+        (corpus_id, surface),
+    )
+    if row is not None:
+        return ResolvedEntity(
+            id=row["id"],
+            surface=surface,
+            canonical_name=row["name"],
+            score=1.0,
+            match_type="exact",
+        )
+
+    # --- Fuzzy / vector path -----------------------------------------------
+    # Embed the surface so the vector leg can score it. Lazy import to avoid
+    # importing fastembed when callers only need the exact path.
+    from pg_raggraph.embedding import get_embedding_provider
+
+    embedder = get_embedding_provider(config)
+    embedded = await embedder.embed([surface])
+    surface_embedding = embedded[0]
+
+    match = await db.fetch_one(
+        """SELECT id, name,
+                  similarity(name, %(surface)s) AS trgm_score,
+                  1 - (embedding <=> %(embedding)s::vector) AS vec_score,
+                  (%(trgm_w)s * similarity(name, %(surface)s) +
+                   %(vec_w)s * (1 - (embedding <=> %(embedding)s::vector))) AS combined
+           FROM entities
+           WHERE namespace = %(namespace)s
+             AND similarity(name, %(surface)s) > %(min_trgm)s
+           ORDER BY combined DESC
+           LIMIT 1""",
+        {
+            "surface": surface,
+            "embedding": surface_embedding,
+            "namespace": corpus_id,
+            "trgm_w": config.trgm_weight,
+            "vec_w": config.vec_weight,
+            "min_trgm": config.min_trgm_score,
+        },
+    )
+
+    if match is None or match["combined"] < config.resolution_threshold:
+        return None
+
+    # Pick the dominant leg: whichever scored higher above the per-metric
+    # midpoint determines whether we tag this 'trgm' or 'vector'. Ties resolve
+    # to 'trgm' since pg_trgm is the cheaper signal and the SQL also gates on it.
+    match_type = "trgm" if match["trgm_score"] >= match["vec_score"] else "vector"
+
+    return ResolvedEntity(
+        id=match["id"],
+        surface=surface,
+        canonical_name=match["name"],
+        score=float(match["combined"]),
+        match_type=match_type,
+    )

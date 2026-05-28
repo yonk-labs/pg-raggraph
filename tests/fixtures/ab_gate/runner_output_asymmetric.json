@@ -1,0 +1,23 @@
+{
+  "corpora": ["bakeoff-scotus", "bakeoff-ntsb"],
+  "modes": ["naive_vector", "graph_leg"],
+  "premeasured_metrics": {
+    "comment": "Synthetic: combined verdict would be GRAPH_WINS (graph wins recall + MRR; judge ties) — but on bakeoff-ntsb, graph loses 3-0. §3.4 asymmetry guard demands INCONCLUSIVE.",
+    "per_corpus": {
+      "bakeoff-scotus": {
+        "naive_vector": {"recall_at_10": 0.40, "mrr": 0.30, "judge_wins": 4,  "judge_total": 15},
+        "graph_leg":    {"recall_at_10": 0.90, "mrr": 0.70, "judge_wins": 14, "judge_total": 15}
+      },
+      "bakeoff-ntsb": {
+        "naive_vector": {"recall_at_10": 0.80, "mrr": 0.60, "judge_wins": 12, "judge_total": 15},
+        "graph_leg":    {"recall_at_10": 0.40, "mrr": 0.20, "judge_wins": 1,  "judge_total": 15}
+      }
+    },
+    "combined": {
+      "naive_vector": {"recall_at_10": 0.60, "mrr": 0.40, "judge_wins": 16, "judge_total": 30},
+      "graph_leg":    {"recall_at_10": 0.66, "mrr": 0.46, "judge_wins": 17, "judge_total": 30}
+    },
+    "expected_verdict": "INCONCLUSIVE",
+    "expected_metric_labels": {"recall_at_10": "GRAPH_WINS", "mrr": "GRAPH_WINS", "judge_win_rate": "TIE"}
+  }
+}
