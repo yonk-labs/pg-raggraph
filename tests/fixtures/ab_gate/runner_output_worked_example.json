@@ -1,0 +1,23 @@
+{
+  "corpora": ["bakeoff-scotus", "bakeoff-ntsb"],
+  "modes": ["naive_vector", "graph_leg"],
+  "premeasured_metrics": {
+    "comment": "Chunkshop contract §3.7 worked-example numbers. The writer accepts a MetricsInput shape directly so we don't have to back-fit retrieved[] arrays to hit these exact aggregates.",
+    "per_corpus": {
+      "bakeoff-scotus": {
+        "naive_vector": {"recall_at_10": 0.58, "mrr": 0.39, "judge_wins": 12, "judge_total": 15},
+        "graph_leg":    {"recall_at_10": 0.68, "mrr": 0.45, "judge_wins": 18, "judge_total": 15}
+      },
+      "bakeoff-ntsb": {
+        "naive_vector": {"recall_at_10": 0.60, "mrr": 0.40, "judge_wins": 0,  "judge_total": 0},
+        "graph_leg":    {"recall_at_10": 0.55, "mrr": 0.36, "judge_wins": 0,  "judge_total": 0}
+      }
+    },
+    "combined": {
+      "naive_vector": {"recall_at_10": 0.59, "mrr": 0.39, "judge_wins": 12, "judge_total": 30},
+      "graph_leg":    {"recall_at_10": 0.62, "mrr": 0.41, "judge_wins": 18, "judge_total": 30}
+    },
+    "expected_verdict": "INCONCLUSIVE",
+    "expected_metric_labels": {"recall_at_10": "TIE", "mrr": "TIE", "judge_win_rate": "GRAPH_WINS"}
+  }
+}
