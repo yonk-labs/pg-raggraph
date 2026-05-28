@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0a4 — 2026-05-28 (A/B gate retrieval harness + runner)
+
+Additive arc, backward-compatible. Completes the chunkshop ↔ pg-raggraph A/B gate by landing the two middle artifacts: the retrieval-mode harness (#48) and the matrix runner (#49). Pairs with v0.5.0a3 (#47 resolver + #50 verdict writer).
+
+_(Sections populated by Task 11.)_
+
 ## 0.5.0a3 — 2026-05-28 (A/B gate bookend: resolve-entity lookup + results writer)
 
 Additive arc, backward-compatible. Bookends the chunkshop ↔ pg-raggraph A/B graph-vs-naive gate by landing the chain-start primitive (`resolve_entity_lookup`, #47) and the chain close-out (results writer, #50) in one release.
