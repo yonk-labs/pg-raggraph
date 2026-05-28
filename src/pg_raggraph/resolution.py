@@ -200,5 +200,48 @@ async def resolve_entity_lookup(
             match_type="exact",
         )
 
-    # --- Fuzzy / vector path (added in Task A3) ----------------------------
-    return None
+    # --- Fuzzy / vector path -----------------------------------------------
+    # Embed the surface so the vector leg can score it. Lazy import to avoid
+    # importing fastembed when callers only need the exact path.
+    from pg_raggraph.embedding import get_embedding_provider
+
+    embedder = get_embedding_provider(config)
+    embedded = await embedder.embed([surface])
+    surface_embedding = embedded[0]
+
+    match = await db.fetch_one(
+        """SELECT id, name,
+                  similarity(name, %(surface)s) AS trgm_score,
+                  1 - (embedding <=> %(embedding)s::vector) AS vec_score,
+                  (%(trgm_w)s * similarity(name, %(surface)s) +
+                   %(vec_w)s * (1 - (embedding <=> %(embedding)s::vector))) AS combined
+           FROM entities
+           WHERE namespace = %(namespace)s
+             AND similarity(name, %(surface)s) > %(min_trgm)s
+           ORDER BY combined DESC
+           LIMIT 1""",
+        {
+            "surface": surface,
+            "embedding": surface_embedding,
+            "namespace": corpus_id,
+            "trgm_w": config.trgm_weight,
+            "vec_w": config.vec_weight,
+            "min_trgm": config.min_trgm_score,
+        },
+    )
+
+    if match is None or match["combined"] < config.resolution_threshold:
+        return None
+
+    # Pick the dominant leg: whichever scored higher above the per-metric
+    # midpoint determines whether we tag this 'trgm' or 'vector'. Ties resolve
+    # to 'trgm' since pg_trgm is the cheaper signal and the SQL also gates on it.
+    match_type = "trgm" if match["trgm_score"] >= match["vec_score"] else "vector"
+
+    return ResolvedEntity(
+        id=match["id"],
+        surface=surface,
+        canonical_name=match["name"],
+        score=float(match["combined"]),
+        match_type=match_type,
+    )
