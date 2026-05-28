@@ -352,7 +352,14 @@ async def run_harness_mode(
                 rag, corpus_id=corpus_id, question=gold.question, top_k=top_k
             )
         elif mode == "hybrid":
-            raise NotImplementedError("hybrid mode lands in Task 6 (or stays NotImplementedError)")
+            raise NotImplementedError(
+                "hybrid mode deferred — see issue #48. The brief's SC-007 "
+                "explicitly permits shipping with NotImplementedError; the "
+                "50/50 naive_vector + graph_leg blend is the v1 if/when "
+                "scope re-opens. Use naive_vector and graph_leg modes "
+                "directly via run_harness_mode and combine results in "
+                "your application code if you need a hybrid leg today."
+            )
         else:
             raise ValueError(f"unknown harness mode: {mode!r}")
         latency_ms = (time.monotonic() - t0) * 1000.0
