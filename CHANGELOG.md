@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.5.0a3 — 2026-05-28 (A/B gate bookend: resolve-entity lookup + results writer)
+
+Additive arc, backward-compatible. Bookends the chunkshop ↔ pg-raggraph A/B graph-vs-naive gate by landing the chain-start primitive (`resolve_entity_lookup`, #47) and the chain close-out (results writer, #50) in one release.
+
+### Added — `resolve_entity_lookup` (#47)
+
+New pure-read function in `pg_raggraph.resolution`: `resolve_entity_lookup(surface, *, corpus_id, kind=None, db, config) -> ResolvedEntity | None`. Path A — the existing `resolve_entity` (insert-on-miss) is byte-for-byte unchanged. `corpus_id` maps identity-equal to pg-raggraph's `namespace`.
+
+- `ResolvedEntity` frozen dataclass (`id`, `surface`, `canonical_name`, `score`, `match_type`) re-exported from both `pg_raggraph.resolution` and the top-level `pg_raggraph` package.
+- Exact path: `match_type='exact'`, `score=1.0`.
+- Fuzzy path: pg_trgm name similarity + pgvector cosine, weighted by `config.trgm_weight` / `vec_weight`, gated by `min_trgm_score` and `resolution_threshold`. Dominant leg becomes `match_type`.
+- No mutation: the function never INSERTs, UPDATEs, or DELETEs. Caller-side caching is the strategy.
+- Per chunkshop emission contract §4.1.
+
+### Added — A/B-gate results writer (#50)
+
+New `pg_raggraph.ab_gate` package — public API:
+
+- `ABRunnerOutput` / `ABCaseResult` / `ABRetrievedItem` — the locked schema #49 emits and #50 consumes (`io.py`).
+- `compute_verdict(runner_outputs, judge_config=...)` — production entry (#49-dependent). `compute_verdict.from_premeasured(payload)` — fixture entry exercised by the unit tests.
+- `write_verdict_report(verdict, out_dir=..., latency_rows=...)` — emits `verdict.json` (round-trippable), `verdict.md` (Inputs / Per-metric / Per-corpus / Walkthrough / Final verdict — mirrors contract §3.7), `latency.json` (informational only — never read back for the verdict).
+- Threshold constants `RECALL_AT_10_LIFT_PP=5.0`, `MRR_DELTA=0.05`, `JUDGE_WIN_RATE_DELTA=0.10` — frozen by a test against contract §3.2 values.
+- `_chunkshop_judge_config_to_llm_judge_provider(config)` — the single auditable seam translating chunkshop's `JudgingConfig` into `llm_judge.providers.LLMProvider`.
+- §3.3 combiner: graph wins ≥2 of 3 metrics + naive wins 0 → GRAPH_WINS; symmetric for NAIVE_WINS; otherwise INCONCLUSIVE.
+- §3.4 asymmetry guard: GRAPH_WINS downgrades to INCONCLUSIVE if graph loses 3-0 on any single corpus (symmetric for NAIVE).
+
+### Added — `pg-raggraph[ab-gate]` optional extra
+
+`pip install pg-raggraph[ab-gate]` adds `llm-judge` (the LLM-as-judge runtime at `/home/yonk/yonk-tools/llm-judge`). The base install is unchanged — llm-judge and its sub-deps are pulled only when callers reach the #50 writer.
+
+Missing-extra UX: calling `_chunkshop_judge_config_to_llm_judge_provider` (or the writer's judge path) without the extra installed raises `ImportError` with the literal install command in the message.
+
+### Docs
+
+- New `docs/cookbook/ab-gate.md` — operator walkthrough: ingest chunkshop A/B sample (`docs/samples/bakeoff-scotus/bakeoff-scotus-ab.yaml`), run #48+#49 (cited as future tickets until they ship), consume #50's verdict.
+- Chunkshop emission contract §4.1 + §4.4 status checkboxes flip from `[ ]` to `[x]` in a follow-up chunkshop PR (tracked but not gating).
+
 ## 0.5.0a1 — 2026-05-28 (background extraction + multi-worker safety + observability)
 
 Additive arc, backward-compatible. The synchronous-extract default is byte-for-byte unchanged (`ingest_records()` with no kwarg additions writes the same rows in the same order). Migration 013's `relationships(namespace, src_id, dst_id, rel_type)` UNIQUE constraint plus `ON CONFLICT DO UPDATE SET weight = GREATEST(...)` on the INSERT make re-ingest idempotent at the edge level — same total entity/relationship counts on a re-run, with `GREATEST` keeping the strongest evidence.
