@@ -702,6 +702,42 @@ pg-raggraph automatically skips documents that haven't changed. You can safely r
 4. Entities are resolved against existing ones (pg_trgm fuzzy + vector similarity)
 5. Everything is stored in PostgreSQL with content hashes for dedup
 
+### Deferred extraction (background drain)
+
+Step 3 above — LLM/lede entity + relationship extraction — is the slow leg.
+On lede_spacy MHR, synchronous extraction costs ~1063 ms/doc; with an LLM
+extractor it's much worse. Most queries — `naive` (vector + BM25) — don't
+even need the graph.
+
+`defer_extraction=True` decouples extraction from `ingest()`:
+
+```python
+# Producer: returns in ~18 ms/doc — chunks + embeddings only.
+await rag.ingest_records(records, namespace="crm", defer_extraction=True)
+# Doc is immediately naive-queryable. Graph fills in later.
+```
+
+A worker drains the queue out-of-band:
+
+```bash
+# One-shot (cron-friendly): exits 0 when queue is empty
+pgrg --db $PGRG_DSN extract --namespace crm --once
+
+# Long-running daemon: SIGTERM-graceful, emits metrics per iteration
+pgrg --db $PGRG_DSN extract --namespace crm --daemon --poll-interval 1.0
+```
+
+Headline numbers (MHR, lede_spacy, 40 docs): **59.8× faster
+time-to-queryable** (0.44s vs 26.27s); the deferred path's total
+wall-time (B+C = 15.56s) is *also* faster than synchronous (26.27s)
+because the synchronous path holds per-doc transactions open across
+extraction.
+
+The full guide — three architectural patterns (sync / cron / always-on
+daemon), worked FastAPI end-to-end example, multi-worker safety
+invariants, operator playbook — is at
+**[cookbook/background-extraction.md](cookbook/background-extraction.md)**.
+
 ### Ingesting from a database (CRM / ERP / app schema)
 
 The patterns above cover files on disk. For pulling rows out of a Postgres database (or any SQL source), see the worked end-to-end cookbook:

@@ -134,6 +134,34 @@ request path); per-tenant ingest rate limits + budget caps; backpressure;
 the rate-limit/cost dependency entirely); ingest in off-peak windows;
 build/repair HNSW after big bulk loads, not during.
 
+**Recommended pattern at fleet scale: deferred extraction.** Pass
+`defer_extraction=True` to `ingest_records()` and the producer returns
+in chunk + embed time only (~18 ms/doc on MHR / lede_spacy — 59× faster
+than synchronous extract). The doc is immediately `naive`-queryable
+(chunks + embeddings + BM25 are written). A `pgrg extract --daemon`
+worker (or a cron-triggered `pgrg extract --once`) drains the queue
+out-of-band. Operationally:
+
+- **Scoping.** Always run with `--namespace` so the startup reaper
+  doesn't touch peer workers in other namespaces.
+- **Backpressure.** `--rate-limit-rps` caps docs/sec across iterations
+  so a fast extractor doesn't pin the LLM endpoint.
+- **Multi-worker.** Run N daemons against the same namespace; `SELECT
+  … FOR UPDATE SKIP LOCKED` (claim) plus the UNIQUE constraint on
+  `relationships(namespace, src_id, dst_id, rel_type)` (migration 013)
+  make this safe by construction.
+- **Observability.** Daemon emits `pgrg.backfill.claim`,
+  `.extract`, and `.queue_depth` events on every iteration — wire
+  these to your metrics pipeline. `pending > 0` for > N minutes means
+  the drain is falling behind; scale out.
+- **Recovery.** A crashed worker leaves rows in `'processing'`. The
+  next `pgrg extract` startup runs `release_processing(namespace=…)`
+  to flip them back to `'pending'`. Recovery is automatic; no manual
+  intervention required.
+
+Full operator guide + architectural patterns:
+[cookbook/background-extraction.md](cookbook/background-extraction.md).
+
 ### K5 — HIGH: unbounded tail latency
 
 **Status:** configurable `statement_timeout_ms` implemented in `221d10d`.

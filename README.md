@@ -17,6 +17,11 @@ Two retrieval workloads are first-class:
 - **Classic GraphRAG** — static corpora, code Q&A, technical docs, multi-hop entity reasoning. Validated at **+18.9% accuracy lift** over plain vector search on a real 909-doc dev codebase.
 - **Evolving knowledge** — corpora where the right answer depends on *time*, *version*, or *retraction status*. Validated on Python 3.10/3.11/3.12 docs (**13/13 perfect version-filter purity**) and PubMed HRT retractions (**15/15 perfect on retraction-aware + time-travel queries**).
 
+Two ingest patterns are also first-class:
+
+- **Synchronous** (the default) — `ingest()` returns when the graph is built. Right for batch loads and small/fast extractors.
+- **Deferred + background drain** — pass `defer_extraction=True` and `ingest_records()` returns in chunk + embed time only (**~18 ms/doc**, 59× faster than synchronous extract on lede_spacy MHR). A `pgrg extract` worker (cron-driven or always-on daemon) backfills entities/relationships out-of-band. Multi-worker safe by construction. See [`docs/cookbook/background-extraction.md`](docs/cookbook/background-extraction.md).
+
 ## Why it exists
 
 Most GraphRAG today means stitching together two or three databases:
@@ -161,6 +166,7 @@ Full bake-off report: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](bench
        │  Walk a worked example           → blog series   │
        │  Get the full API surface        → user-guide.md │
        │  Tier-1 evolving-knowledge       → cookbook      │
+       │  Decouple ingest from extraction → cookbook      │
        │  Avoid common API gotchas        → API-QUICKREF  │
        │  Read the architecture decisions → research/     │
        │  See the unvarnished critique    → ASSESSMENT.md │
@@ -179,6 +185,7 @@ Full bake-off report: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](bench
 | [`docs/cookbook/retrieval-strategy.md`](docs/cookbook/retrieval-strategy.md) | Three SQL shapes for metadata + vector queries — `weighted` (default), `pre_filter`, `vector_first`. When to pick which; recall-shortfall metric. |
 | [`docs/cookbook/metadata-indexes.md`](docs/cookbook/metadata-indexes.md) | Btree / GIN / generated-column indexes on `chunks.metadata` and `documents.metadata`. Runtime API (`recommend_metadata_indexes()`, `apply_metadata_indexes_concurrently()`). |
 | [`docs/cookbook/changing-embedding-dimensions.md`](docs/cookbook/changing-embedding-dimensions.md) | Move a live database to a new embedding model/dimension online via the `pgrg migrate-embeddings` expand/contract column swap — no parallel DB, brief cutover, startup dim-guard. |
+| [`docs/cookbook/background-extraction.md`](docs/cookbook/background-extraction.md) | Decouple LLM/lede extraction from ingest: `defer_extraction=True` + `pgrg extract` (CLI / `--daemon`). Architectural patterns (sync vs cron vs daemon), end-to-end FastAPI walkthrough, multi-worker safety invariants, 60× time-to-queryable benchmark. |
 | [`docs/user-guide.md`](docs/user-guide.md) | Full user guide. Installation, all 6 modes, configuration, REST API, production deployment, troubleshooting. |
 | [`docs/devmem-guide.md`](docs/devmem-guide.md) | `pgrg devmem` — the developer-knowledge-base flavor with code-aware chunking + dev-tuned extraction. |
 | [`docs/chunkshop-user-guide.md`](docs/chunkshop-user-guide.md) | Chunkshop integration guide: chunker-only strategies, Postgres table bridge, CLI import, code-edge graph import, and the `code-impact` symbol-graph query. |
