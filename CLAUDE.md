@@ -122,3 +122,18 @@ tests/
 - Every extracted fact carries provenance metadata: source document, chunk, extraction confidence, `extracted` vs `inferred` vs `ambiguous` classification.
 - Graph schema uses JSONB metadata columns for extensibility — avoid ALTER TABLE migrations for new metadata fields.
 - Namespace-aware design throughout — support multi-tenant isolation via PostgreSQL schemas or namespace columns.
+
+## House Rules
+
+When changing what the MCP tools do or how agents should use them,
+update **all three** of these files in the same commit:
+
+- `src/pg_raggraph/server_instructions.py` — the MCP `initialize`
+  playbook handed to FastMCP. Agents read this every session.
+- `docs/user-guide.md` (MCP server section) — user-facing equivalent.
+- `README.md` (MCP server callout) — top-of-funnel summary.
+
+Each says the same thing to a different audience. Drift between them
+means agents get one story while users read another.
+`tests/unit/test_instructions_sync.py` is the drift guard — if it fails,
+look at all three.

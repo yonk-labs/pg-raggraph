@@ -2,7 +2,7 @@
 
 > **PostgreSQL-native GraphRAG.** Vector search, full-text search, and knowledge-graph traversal — all in a single SQL query. No Neo4j. No Pinecone. No Apache AGE. Just the Postgres you already run.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Tests](https://img.shields.io/badge/tests-593%20passing-brightgreen)](#tests-and-benchmarks) [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](pyproject.toml) [![Status: alpha](https://img.shields.io/badge/status-alpha%20(0.5.0a1)-orange)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Tests](https://img.shields.io/badge/tests-593%20passing-brightgreen)](#tests-and-benchmarks) [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](pyproject.toml) [![Status: alpha](https://img.shields.io/badge/status-alpha%20(0.5.0a2)-orange)]()
 
 ---
 
@@ -111,6 +111,19 @@ Sources:
 That's the whole loop. From `pip install` to a grounded answer in five minutes.
 
 > **One thing to know about `pgrg serve`** — the bundled FastAPI web UI is for **local development and demos only**. It ships without authentication, rate limiting, or upload size caps. **Do not expose it directly to the public internet.** For production, put it behind a reverse proxy that adds auth, TLS, and rate limits — or embed `create_app()` in your own FastAPI application. See [`docs/user-guide.md#production-deployment`](docs/user-guide.md#production-deployment) for the recommended setup.
+
+## MCP server
+
+Connect pg-raggraph to Claude Desktop, Cursor, Zed, or any MCP-compatible
+client via `pgrg mcp-serve`. The server returns a tuned tool-selection
+playbook in its MCP `initialize` response, so agents pick the right tool
+on the first try instead of grepping the filesystem. When you ingest
+with `defer_extraction=True`, a per-file staleness banner warns the
+agent which documents have fresh chunks but still-pending graph
+extraction.
+
+See [`docs/user-guide.md`](docs/user-guide.md#mcp-server) for the full
+tool list and the `PGRG_MCP_INGEST_ROOTS` allow-list.
 
 ## Tests and benchmarks
 

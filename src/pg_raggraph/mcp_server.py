@@ -60,6 +60,28 @@ def _check_path_allowed(path: str, allowed_roots: list[str]) -> str:
     )
 
 
+async def _freshness_wrap(rag, coro, namespace: str | None) -> dict:
+    """Run a tool body, then attach the staleness banner/footer (PG-3).
+
+    Errors from the tool body itself are returned as-is — we don't want
+    the freshness layer to swallow them. Errors from list_pending_documents
+    (e.g. DB transient) are logged-and-skipped: a missing banner is far
+    better than a failed tool call.
+    """
+    from pg_raggraph.mcp_helpers import _apply_freshness
+
+    response = await coro
+    if not isinstance(response, dict):
+        return response  # _tool_error returns dict; passthrough otherwise
+    try:
+        return await _apply_freshness(response, rag=rag, namespace=namespace)
+    except Exception:
+        # Don't let a freshness lookup take down a working tool response.
+        # The agent gets the answer; the banner is best-effort.
+        logger.warning("MCP freshness wrapper failed; returning response as-is", exc_info=True)
+        return response
+
+
 def build_server(rag: GraphRAG):
     """Construct the MCP server with tools bound to a GraphRAG instance."""
     try:
@@ -69,7 +91,9 @@ def build_server(rag: GraphRAG):
             "MCP server requires the 'mcp' package. Install with: pip install pg-raggraph[mcp]"
         ) from e
 
-    server = FastMCP("pg-raggraph")
+    from pg_raggraph.server_instructions import SERVER_INSTRUCTIONS
+
+    server = FastMCP("pg-raggraph", instructions=SERVER_INSTRUCTIONS)
 
     @server.tool()
     async def pgrg_query(
@@ -82,25 +106,29 @@ def build_server(rag: GraphRAG):
 
         mode: smart (default) | naive | naive_boost | local | global | hybrid
         """
-        try:
-            result = await rag.query(question, mode=mode, namespace=namespace, profile=profile)
-            return {
-                "query_mode": result.query_mode,
-                "confidence": result.confidence,
-                "top_score": result.top_score,
-                "latency_ms": result.latency_ms,
-                "chunks": [
-                    {
-                        "content": c.content,
-                        "score": c.score,
-                        "source": c.document_source,
-                    }
-                    for c in result.chunks
-                ],
-                "entities": [e.name for e in result.entities[:20]],
-            }
-        except Exception as exc:
-            return _tool_error("pgrg_query", exc)
+
+        async def _body():
+            try:
+                result = await rag.query(question, mode=mode, namespace=namespace, profile=profile)
+                return {
+                    "query_mode": result.query_mode,
+                    "confidence": result.confidence,
+                    "top_score": result.top_score,
+                    "latency_ms": result.latency_ms,
+                    "chunks": [
+                        {
+                            "content": c.content,
+                            "score": c.score,
+                            "source": c.document_source,
+                        }
+                        for c in result.chunks
+                    ],
+                    "entities": [e.name for e in result.entities[:20]],
+                }
+            except Exception as exc:
+                return _tool_error("pgrg_query", exc)
+
+        return await _freshness_wrap(rag, _body(), namespace)
 
     @server.tool()
     async def pgrg_ask(
@@ -113,40 +141,56 @@ def build_server(rag: GraphRAG):
 
         Falls back to a top-chunk summary if no LLM is configured.
         """
-        try:
-            result = await rag.ask(question, mode=mode, namespace=namespace, profile=profile)
-            return {
-                "answer": result.answer,
-                "confidence": result.confidence,
-                "sources": [c.document_source for c in result.chunks[:5] if c.document_source],
-                "latency_ms": result.latency_ms,
-            }
-        except Exception as exc:
-            return _tool_error("pgrg_ask", exc)
+
+        async def _body():
+            try:
+                result = await rag.ask(question, mode=mode, namespace=namespace, profile=profile)
+                return {
+                    "answer": result.answer,
+                    "confidence": result.confidence,
+                    "sources": [c.document_source for c in result.chunks[:5] if c.document_source],
+                    "latency_ms": result.latency_ms,
+                }
+            except Exception as exc:
+                return _tool_error("pgrg_ask", exc)
+
+        return await _freshness_wrap(rag, _body(), namespace)
 
     @server.tool()
     async def pgrg_profiles() -> dict:
         """Return retrieval profile ladder metadata and calibration estimates."""
-        try:
-            return rag.profiles()
-        except Exception as exc:
-            return _tool_error("pgrg_profiles", exc)
+
+        async def _body():
+            try:
+                return rag.profiles()
+            except Exception as exc:
+                return _tool_error("pgrg_profiles", exc)
+
+        return await _freshness_wrap(rag, _body(), None)
 
     @server.tool()
     async def pgrg_get_namespace_profile(namespace: str | None = None) -> dict:
         """Return the persisted retrieval profile default for a namespace."""
-        try:
-            return await rag.get_namespace_profile(namespace)
-        except Exception as exc:
-            return _tool_error("pgrg_get_namespace_profile", exc)
+
+        async def _body():
+            try:
+                return await rag.get_namespace_profile(namespace)
+            except Exception as exc:
+                return _tool_error("pgrg_get_namespace_profile", exc)
+
+        return await _freshness_wrap(rag, _body(), namespace)
 
     @server.tool()
     async def pgrg_set_namespace_profile(namespace: str, profile: str) -> dict:
         """Persist a namespace retrieval profile default."""
-        try:
-            return await rag.set_namespace_profile(namespace, profile)
-        except Exception as exc:
-            return _tool_error("pgrg_set_namespace_profile", exc)
+
+        async def _body():
+            try:
+                return await rag.set_namespace_profile(namespace, profile)
+            except Exception as exc:
+                return _tool_error("pgrg_set_namespace_profile", exc)
+
+        return await _freshness_wrap(rag, _body(), namespace)
 
     allowed_roots = _resolve_allowed_roots()
 
@@ -165,45 +209,53 @@ def build_server(rag: GraphRAG):
         files. PR-304: an explicit file path with a non-allowed extension is
         rejected here so an LLM agent can't ingest binaries by listing them.
         """
-        if not allowed_roots:
-            return {
-                "error": "MCP ingest is disabled. Set PGRG_MCP_INGEST_ROOTS "
-                "(colon-separated absolute paths) to enable it."
-            }
-        try:
-            safe_paths = [_check_path_allowed(p, allowed_roots) for p in paths]
-            rejected = []
-            for p in safe_paths:
-                if os.path.isfile(p):
-                    ext = os.path.splitext(p)[1].lower()
-                    if ext not in INGEST_ALLOWED_EXTS:
-                        rejected.append(
-                            {
-                                "path": p,
-                                "error": "unsupported_extension",
-                                "ext": ext,
-                            }
-                        )
-            if rejected:
+
+        async def _body():
+            if not allowed_roots:
                 return {
-                    "error": "unsupported_extension",
-                    "rejected": rejected,
-                    "allowed": list(INGEST_ALLOWED_EXTS),
+                    "error": "MCP ingest is disabled. Set PGRG_MCP_INGEST_ROOTS "
+                    "(colon-separated absolute paths) to enable it."
                 }
-            await rag.ingest(safe_paths, namespace=namespace)
-            return await rag.status(namespace=namespace)
-        except PermissionError as exc:
-            return {"error": str(exc)}
-        except Exception as exc:
-            return _tool_error("pgrg_ingest", exc)
+            try:
+                safe_paths = [_check_path_allowed(p, allowed_roots) for p in paths]
+                rejected = []
+                for p in safe_paths:
+                    if os.path.isfile(p):
+                        ext = os.path.splitext(p)[1].lower()
+                        if ext not in INGEST_ALLOWED_EXTS:
+                            rejected.append(
+                                {
+                                    "path": p,
+                                    "error": "unsupported_extension",
+                                    "ext": ext,
+                                }
+                            )
+                if rejected:
+                    return {
+                        "error": "unsupported_extension",
+                        "rejected": rejected,
+                        "allowed": list(INGEST_ALLOWED_EXTS),
+                    }
+                await rag.ingest(safe_paths, namespace=namespace)
+                return await rag.status(namespace=namespace)
+            except PermissionError as exc:
+                return {"error": str(exc)}
+            except Exception as exc:
+                return _tool_error("pgrg_ingest", exc)
+
+        return await _freshness_wrap(rag, _body(), namespace)
 
     @server.tool()
     async def pgrg_status(namespace: str | None = None) -> dict:
         """Return counts of documents, chunks, entities, and relationships."""
-        try:
-            return await rag.status(namespace=namespace)
-        except Exception as exc:
-            return _tool_error("pgrg_status", exc)
+
+        async def _body():
+            try:
+                return await rag.status(namespace=namespace)
+            except Exception as exc:
+                return _tool_error("pgrg_status", exc)
+
+        return await _freshness_wrap(rag, _body(), namespace)
 
     @server.tool()
     async def pgrg_delete_document(
@@ -213,16 +265,20 @@ def build_server(rag: GraphRAG):
 
         Requires confirm=True as a guard against accidental deletion by agents.
         """
-        if not confirm:
-            return {
-                "error": "Deletion refused. Pass confirm=True to acknowledge this "
-                "is intentional and not an agent hallucination."
-            }
-        try:
-            count = await rag.delete_document(source_path, namespace=namespace)
-            return {"deleted": count}
-        except Exception as exc:
-            return _tool_error("pgrg_delete_document", exc)
+
+        async def _body():
+            if not confirm:
+                return {
+                    "error": "Deletion refused. Pass confirm=True to acknowledge this "
+                    "is intentional and not an agent hallucination."
+                }
+            try:
+                count = await rag.delete_document(source_path, namespace=namespace)
+                return {"deleted": count}
+            except Exception as exc:
+                return _tool_error("pgrg_delete_document", exc)
+
+        return await _freshness_wrap(rag, _body(), namespace)
 
     return server
 
