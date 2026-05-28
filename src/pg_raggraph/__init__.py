@@ -1813,6 +1813,11 @@ class GraphRAG:
                     config=self.config,
                 )
             result.context = packed.text
+            # Background-extraction status hint. Lets callers see whether the
+            # graph is still backfilling (`pending > 0`) without changing the
+            # retrieval result shape. Read-only, single GROUP BY — cheap.
+            with self.db.readonly():
+                result.metadata["graph_status_summary"] = await self._graph_status_summary(ns)
             self._emit_metric(
                 "pgrg.query",
                 namespace=ns,
@@ -2075,7 +2080,7 @@ class GraphRAG:
         return await self.db.apply_metadata_indexes_concurrently()
 
     async def status(self, namespace: str | None = None) -> dict:
-        """Get graph statistics."""
+        """Get graph statistics, including background-extraction status counts."""
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
         with self.db.tenant(ns):
@@ -2095,7 +2100,29 @@ class GraphRAG:
                 )["cnt"],
                 "entities": await self.db.count("entities", ns),
                 "relationships": await self.db.count("relationships", ns),
+                "graph_status": await self._graph_status_summary(ns),
             }
+
+    async def _graph_status_summary(self, namespace: str) -> dict[str, int]:
+        """Per-status doc count for the namespace.
+
+        Returns all four lifecycle keys (pending/processing/ready/failed) so
+        callers can rely on the shape without defaulting. The partial index
+        on (namespace, created_at) WHERE graph_status='pending' keeps the
+        common 'pending > 0' check cheap; the full GROUP BY scans the
+        documents table but is sub-ms at typical sizes.
+        """
+        rows = await self.db.fetch_all(
+            "SELECT graph_status, COUNT(*) AS n FROM documents "
+            "WHERE namespace = %s GROUP BY graph_status",
+            (namespace,),
+        )
+        summary = {"pending": 0, "processing": 0, "ready": 0, "failed": 0}
+        for row in rows:
+            key = row["graph_status"]
+            if key in summary:
+                summary[key] = int(row["n"])
+        return summary
 
     async def code_impact(
         self,

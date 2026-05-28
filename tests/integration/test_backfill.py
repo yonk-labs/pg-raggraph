@@ -201,6 +201,71 @@ async def test_full_cycle_defer_then_extract_via_lede_spacy():
         await rag.close()
 
 
+async def test_status_includes_graph_status_summary():
+    """rag.status() returns per-status counts under 'graph_status'."""
+    rag = await _make_rag("test_bf_status")
+    try:
+        await rag.ingest_records(
+            [
+                {"text": "a", "source_id": "bf:status:1"},
+                {"text": "b", "source_id": "bf:status:2"},
+            ],
+            namespace="test_bf_status",
+            defer_extraction=True,
+        )
+        await rag.ingest_records(
+            [{"text": "c immediate", "source_id": "bf:status:3"}],
+            namespace="test_bf_status",
+            defer_extraction=False,
+        )
+
+        s = await rag.status("test_bf_status")
+        assert "graph_status" in s
+        gs = s["graph_status"]
+        assert set(gs.keys()) == {"pending", "processing", "ready", "failed"}
+        assert gs["pending"] == 2
+        assert gs["ready"] == 1
+        assert gs["failed"] == 0
+    finally:
+        await rag.delete("test_bf_status")
+        await rag.close()
+
+
+async def test_query_metadata_exposes_graph_status_summary():
+    """QueryResult.metadata.graph_status_summary surfaces queue state."""
+    rag = await _make_rag("test_bf_query_hint")
+    try:
+        # Two pending docs so naive can still retrieve, but the hint shows
+        # the graph isn't fully built.
+        await rag.ingest_records(
+            [
+                {
+                    "text": "Background extraction is decoupled from ingest in pg-raggraph.",
+                    "source_id": "bf:hint:1",
+                },
+                {
+                    "text": "The CLI subcommand pgrg extract drains pending docs.",
+                    "source_id": "bf:hint:2",
+                },
+            ],
+            namespace="test_bf_query_hint",
+            defer_extraction=True,
+        )
+
+        result = await rag.query(
+            "background extraction", mode="naive", namespace="test_bf_query_hint"
+        )
+        assert "graph_status_summary" in result.metadata
+        gs = result.metadata["graph_status_summary"]
+        assert gs["pending"] == 2
+        assert gs["ready"] == 0
+        # Naive retrieval still works on pending docs (chunks are written).
+        assert len(result.chunks) > 0
+    finally:
+        await rag.delete("test_bf_query_hint")
+        await rag.close()
+
+
 async def test_extract_documents_marks_failed_on_exception():
     """When _extract_one raises, the row flips to 'failed' with graph_error set."""
     rag = await _make_rag("test_bf_fail")
