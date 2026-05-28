@@ -251,3 +251,119 @@ class _ComputeVerdict:
 
 
 compute_verdict = _ComputeVerdict()
+
+
+# ============================================================================
+# Verdict report writer — emits verdict.json + verdict.md + latency.json.
+# ============================================================================
+
+
+import json as _json  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+
+def _render_markdown(verdict: ABVerdict) -> str:
+    """Render an ABVerdict as Markdown mirroring chunkshop contract §3.7."""
+    lines: list[str] = []
+    lines.append("# A/B Gate Verdict")
+    lines.append("")
+    lines.append(
+        "> Computed per chunkshop emission contract §3 (combiner) + §3.4 (asymmetry guard)."
+    )
+    lines.append("")
+
+    # --- Inputs ---------------------------------------------------------
+    lines.append("## Inputs")
+    lines.append("")
+    lines.append("| Corpus | Modes seen |")
+    lines.append("|---|---|")
+    for rollup in verdict.per_corpus:
+        lines.append(f"| {rollup.scope} | naive_vector, graph_leg |")
+    lines.append("")
+
+    # --- Per-metric deltas (combined) ----------------------------------
+    lines.append("## Per-metric deltas")
+    lines.append("")
+    if verdict.combined is not None:
+        c = verdict.combined
+        lines.append("| Metric | Naive | Graph | Delta | Label |")
+        lines.append("|---|---|---|---|---|")
+        lines.append(
+            f"| Recall@10 | {c.recall_at_10.naive:.4f} | {c.recall_at_10.graph:.4f} "
+            f"| {c.recall_at_10.delta:+.2f}pp | {c.recall_at_10.label} |"
+        )
+        lines.append(
+            f"| MRR | {c.mrr.naive:.4f} | {c.mrr.graph:.4f} | {c.mrr.delta:+.4f} | {c.mrr.label} |"
+        )
+        lines.append(
+            f"| Judge win-rate | {c.judge_win_rate.naive:.4f} | {c.judge_win_rate.graph:.4f} "
+            f"| {c.judge_win_rate.delta:+.4f} | {c.judge_win_rate.label} |"
+        )
+    lines.append("")
+
+    # --- Per-corpus breakdown ------------------------------------------
+    lines.append("## Per-corpus breakdown")
+    lines.append("")
+    for rollup in verdict.per_corpus:
+        lines.append(f"### {rollup.scope}")
+        lines.append("")
+        lines.append("| Metric | Naive | Graph | Delta | Label |")
+        lines.append("|---|---|---|---|---|")
+        lines.append(
+            f"| Recall@10 | {rollup.recall_at_10.naive:.4f} | {rollup.recall_at_10.graph:.4f} "
+            f"| {rollup.recall_at_10.delta:+.2f}pp | {rollup.recall_at_10.label} |"
+        )
+        lines.append(
+            f"| MRR | {rollup.mrr.naive:.4f} | {rollup.mrr.graph:.4f} "
+            f"| {rollup.mrr.delta:+.4f} | {rollup.mrr.label} |"
+        )
+        lines.append(
+            f"| Judge win-rate | {rollup.judge_win_rate.naive:.4f} "
+            f"| {rollup.judge_win_rate.graph:.4f} "
+            f"| {rollup.judge_win_rate.delta:+.4f} | {rollup.judge_win_rate.label} |"
+        )
+        lines.append("")
+
+    # --- Walkthrough ----------------------------------------------------
+    lines.append("## Verdict computation walkthrough")
+    lines.append("")
+    lines.append("```")
+    lines.append(verdict.rationale or "(no rationale)")
+    lines.append("```")
+    lines.append("")
+
+    # --- Final verdict --------------------------------------------------
+    lines.append("## Final verdict")
+    lines.append("")
+    lines.append(f"**{verdict.label}**")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
+def write_verdict_report(
+    verdict: ABVerdict,
+    *,
+    out_dir: Path,
+    latency_rows: list[dict[str, Any]],
+) -> None:
+    """Emit verdict.json, verdict.md, and latency.json under ``out_dir``.
+
+    Parameters
+    ----------
+    verdict:
+        The ``ABVerdict`` from ``compute_verdict``.
+    out_dir:
+        Output directory; created if missing.
+    latency_rows:
+        Informational latency rows shaped per SC-015. Caller's responsibility
+        to populate; #50 does not consult this file when computing the verdict.
+    """
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    (out_dir / "verdict.json").write_text(
+        _json.dumps(verdict.to_dict(), indent=2), encoding="utf-8"
+    )
+    (out_dir / "verdict.md").write_text(_render_markdown(verdict), encoding="utf-8")
+    (out_dir / "latency.json").write_text(_json.dumps(latency_rows, indent=2), encoding="utf-8")

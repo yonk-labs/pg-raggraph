@@ -82,3 +82,81 @@ def test_per_corpus_asymmetry_overrides_combined_win():
         f"asymmetric fixture must have exactly one corpus where graph loses all 3 "
         f"metrics; got {len(losing_rollups)}"
     )
+
+
+import re  # noqa: E402
+
+
+def test_markdown_output_has_required_sections(tmp_path):
+    """SC-014: verdict.md mirrors §3.7's worked-example structure."""
+    from pg_raggraph.ab_gate import compute_verdict, write_verdict_report
+
+    fixture = _load_premeasured(FIXTURE_DIR / "runner_output_worked_example.json")
+    verdict = compute_verdict.from_premeasured(fixture)
+
+    write_verdict_report(verdict, out_dir=tmp_path, latency_rows=[])
+
+    md = (tmp_path / "verdict.md").read_text(encoding="utf-8")
+
+    required_headers = [
+        r"^#\s+A/B Gate Verdict",
+        r"^##\s+Inputs",
+        r"^##\s+Per-metric deltas",
+        r"^##\s+Per-corpus breakdown",
+        r"^##\s+Verdict computation walkthrough",
+        r"^##\s+Final verdict",
+    ]
+    for pattern in required_headers:
+        assert re.search(pattern, md, re.MULTILINE), (
+            f"verdict.md is missing header matching {pattern!r}"
+        )
+    # The final verdict line MUST be present.
+    assert "INCONCLUSIVE" in md
+
+
+def test_verdict_json_round_trips(tmp_path):
+    """SC-013: verdict.json on disk parses back to an equivalent ABVerdict shape."""
+    from pg_raggraph.ab_gate import compute_verdict, write_verdict_report
+
+    fixture = _load_premeasured(FIXTURE_DIR / "runner_output_worked_example.json")
+    verdict = compute_verdict.from_premeasured(fixture)
+
+    write_verdict_report(verdict, out_dir=tmp_path, latency_rows=[])
+
+    reparsed = json.loads((tmp_path / "verdict.json").read_text(encoding="utf-8"))
+    assert reparsed == verdict.to_dict()
+
+
+def test_latency_json_is_emitted_but_not_read_for_verdict(tmp_path):
+    """SC-015: latency.json shape is documented, but mutating it doesn't change the verdict."""
+    from pg_raggraph.ab_gate import compute_verdict, write_verdict_report
+
+    fixture = _load_premeasured(FIXTURE_DIR / "runner_output_worked_example.json")
+    verdict_1 = compute_verdict.from_premeasured(fixture)
+
+    latency = [
+        {
+            "corpus": "bakeoff-scotus",
+            "mode": "graph_leg",
+            "question_id": "q1",
+            "latency_ms": 100.0,
+        },
+        {
+            "corpus": "bakeoff-scotus",
+            "mode": "naive_vector",
+            "question_id": "q1",
+            "latency_ms": 20.0,
+        },
+    ]
+    write_verdict_report(verdict_1, out_dir=tmp_path, latency_rows=latency)
+
+    rows = json.loads((tmp_path / "latency.json").read_text(encoding="utf-8"))
+    assert isinstance(rows, list)
+    assert {"corpus", "mode", "question_id", "latency_ms"} <= set(rows[0].keys())
+
+    # Mutate latency.json on disk: this MUST NOT affect a subsequent verdict
+    # computation, because compute_verdict never reads latency.json.
+    (tmp_path / "latency.json").write_text("[]", encoding="utf-8")
+    verdict_2 = compute_verdict.from_premeasured(fixture)
+    assert verdict_1.label == verdict_2.label
+    assert verdict_1.to_dict() == verdict_2.to_dict()
