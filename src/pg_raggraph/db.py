@@ -1064,6 +1064,45 @@ class Database:
             row = await self.fetch_one(q.as_string(None))
         return row["cnt"] if row else 0
 
+    async def list_pending_documents(
+        self,
+        namespace: str,
+        limit: int = 50,
+    ) -> list[Any]:
+        """Return documents in the namespace whose graph extraction is
+        not yet complete — graph_status in ('pending', 'processing').
+
+        Used by the MCP staleness-banner chokepoint (mcp_helpers.py) to
+        warn agents that listed documents have fresh chunks but stale
+        entity/relationship graphs.
+
+        Sort order is most-recent-pending-first (created_at DESC) so
+        the agent sees the freshest deferred ingests at the top of the
+        banner — those are the ones most likely to be relevant to the
+        agent's current question.
+        """
+        from pg_raggraph.mcp_helpers import PendingDocument
+
+        rows = await self.fetch_all(
+            "SELECT namespace, id, source_path, created_at, graph_status "
+            "FROM documents "
+            "WHERE namespace = %s "
+            "  AND graph_status IN ('pending', 'processing') "
+            "ORDER BY created_at DESC "
+            "LIMIT %s",
+            (namespace, limit),
+        )
+        return [
+            PendingDocument(
+                namespace=row["namespace"],
+                document_id=str(row["id"]),
+                source_path=row["source_path"],
+                created_at=row["created_at"],
+                graph_status=row["graph_status"],
+            )
+            for row in rows
+        ]
+
 
 class Transaction:
     """Single-connection transaction scope.
