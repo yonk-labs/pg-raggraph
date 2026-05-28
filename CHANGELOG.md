@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.0a5 — 2026-05-28 (A/B gate live verdict — NAIVE_WINS)
+
+Wires the #47–#50 chain to real chunkshop emission and runs the gate end-to-end.
+The synthetic fixtures of a4 masked three integration gaps, all closed here:
+
+### Added
+- **Entity materialization** — `pg_raggraph.ab_gate.ingest.materialize_entities_from_corpus`
+  + `pgrg ab-gate materialize`. Builds graph entities 1:1 from imported fact
+  endpoints + cooccur nodes (prerequisite for `graph_leg`).
+- **Production `compute_verdict(runner_outputs, judge_config)`** — replaces the
+  NotImplementedError stub. Computes recall@10 + MRR from runner output vs
+  `gold_doc_id`, judge win-rate via the llm-judge seam; shared `_verdict_from_payload`
+  with the fixture path. `pgrg ab-gate verdict` CLI.
+- **`gold_doc_id`** optional field on `GoldQuestion` + `ABCaseResult`; `load_gold_questions`
+  now auto-detects chunkshop's `[{query, gold_doc_id}]` gold format.
+- `benchmarks/ab-gate/` — ingest configs, the live verdict artifacts, and RESULTS.md.
+
+### Result
+Live run on SCOTUS + NTSB with a gpt-4o-mini judge: **NAIVE_WINS, 3 metrics to 0**
+(combined recall@10 −83.3pp, MRR −0.581, judge win-rate −0.708). Per chunkshop
+contract §3.8 this freezes edge-tier work. Details: `benchmarks/ab-gate/RESULTS.md`.
+
 ## 0.5.0a4 — 2026-05-28 (A/B gate retrieval harness + runner)
 
 Additive arc, backward-compatible. Completes the chunkshop ↔ pg-raggraph A/B gate by landing the two middle artifacts: the retrieval-mode harness (#48) and the matrix runner (#49). Pairs with v0.5.0a3 (#47 resolver + #50 verdict writer).
