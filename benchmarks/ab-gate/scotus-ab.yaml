@@ -1,0 +1,64 @@
+# A/B-gate ingest config for SCOTUS — pg-raggraph-adapted copy.
+#
+# Adapted from ../chunkshop/docs/samples/bakeoff-scotus/bakeoff-scotus-ab.yaml
+# with ONE deliberate change: the embedder model is BAAI/bge-base-en-v1.5
+# (not the Xenova int8 variant) so the chunk-embedding space exactly matches
+# what pg-raggraph's query side uses for the naive_vector leg. Both are 768-d;
+# using the identical model removes the int8-vs-fp perturbation that would
+# otherwise slightly handicap the naive baseline.
+#
+# Run from the chunkshop repo (so source paths + extras resolve):
+#   cd ../chunkshop/python
+#   export CHUNKSHOP_TEST_DSN=postgresql://postgres:postgres@localhost:5434/chunkshop_test
+#   uv run --no-sync chunkshop ingest --config /home/yonk/yonk-tools/pg-raggraph/benchmarks/ab-gate/scotus-ab.yaml
+
+cell_name: scotus_ab_gate
+
+source:
+  type: json_corpus
+  path: /home/yonk/yonk-tools/pg-raggraph/benchmarks/age-bakeoff/src/age_bakeoff/extraction/data/scotus.json
+  documents_key: documents
+  id_field: id
+  content_field: content
+  title_field: title
+
+chunker:
+  type: consolidation
+  base:
+    type: hierarchy
+    prefix_heading: true
+    min_section_chars: 100
+  consolidator:
+    mode: lede_spacy
+    confidence_floor: 0.0
+    max_facts: 20
+    model: en_core_web_sm
+  fact_max_chars: 1200
+
+embedder:
+  type: fastembed
+  model_name: BAAI/bge-base-en-v1.5   # matched to pg-raggraph query side (768-d)
+  dim: 768
+  threads: 4
+  batch_size: 64
+
+extractor:
+  type: cooccurrence
+  top_k: 15
+  min_chars: 3
+  max_summary_chars: 1000
+  min_pair_count: 1
+
+target:
+  type: postgres
+  dsn_env: CHUNKSHOP_TEST_DSN
+  database: chunkshop_test
+  table: scotus_ab
+  mode: overwrite
+  force_overwrite: true
+  hnsw: false
+
+runtime:
+  omp_num_threads: 4
+  heartbeat_every: 20
+  log_path: /tmp/chunkshop-scotus-ab.log

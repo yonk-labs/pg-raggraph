@@ -67,6 +67,10 @@ class ABCaseResult:
     gold_answer: str | None
     retrieved: list[ABRetrievedItem]
     latency_ms: float
+    #: The retrieval gold target (chunkshop ``gold_doc_id``). recall@10 / MRR
+    #: (contract §3.1) are computed by matching this against ``retrieved[].source``.
+    #: Optional + default None so legacy payloads / fixtures still construct.
+    gold_doc_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -119,6 +123,7 @@ class ABRunnerOutput:
                         for item in r.get("retrieved", [])
                     ],
                     latency_ms=r["latency_ms"],
+                    gold_doc_id=r.get("gold_doc_id"),
                 )
                 for r in data.get("results", [])
             ],
@@ -213,3 +218,8 @@ class GoldQuestion:
     question: str
     gold_answer: str | None = None
     required_facts: list[tuple[str, str, str]] | None = None
+    #: Retrieval gold target from chunkshop's ``{query, gold_doc_id}`` gold
+    #: files. The harness forwards it onto ``ABCaseResult.gold_doc_id`` so the
+    #: verdict writer can score recall@10 / MRR (contract §3.1). None for
+    #: answer-only gold sets that skip retrieval scoring.
+    gold_doc_id: str | None = None

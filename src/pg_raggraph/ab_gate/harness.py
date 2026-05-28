@@ -370,6 +370,7 @@ async def run_harness_mode(
                 gold_answer=gold.gold_answer,
                 retrieved=retrieved,
                 latency_ms=latency_ms,
+                gold_doc_id=gold.gold_doc_id,
             )
         )
     return ABRunnerOutput(corpus_id=corpus_id, mode=mode, results=results)
