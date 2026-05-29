@@ -1,53 +1,66 @@
 # A/B Gate — Verdict (chunkshop ↔ pg-raggraph)
 
-**Date:** 2026-05-28/29. Three corpora now: SCOTUS + NTSB (clean prose) and
-**MHR / MultiHop-RAG (the graph-favorable, multi-hop corpus)**.
-**Verdict:** **Vector is never beaten.** Across all three corpora and all three
-modes, the production-shaped `hybrid` mode ties naive at best; `graph_leg`
-(graph-as-primary) always loses. **Important honesty caveat:** the graph
-operations tested are *shallow* (1-hop lookup + entity-overlap rerank) — true
-multi-hop traversal (chase fact edges across documents) is NOT implemented, so
-this does not refute the "graph helps multi-hop" thesis; it shows the *shallow*
-graph ops don't beat vector even on multi-hop data. See "What was NOT tested."
-**Pipeline:** pg-raggraph `feat/ab-gate-real-verdict`
+> ## ⚠️ CORRECTION (2026-05-29) — read this first
+>
+> An earlier version of this doc claimed **"vector is never beaten across three
+> corpora (SCOTUS / NTSB / MHR)."** That conclusion was **wrong for MHR and is
+> retracted.** Root cause: the MHR namespace had **zero `relationships` rows** —
+> the A/B materializer only ever inserted *entities*, never edges — so the
+> "graph" modes there walked an **empty graph**. The MHR "graph loses / ties"
+> numbers measured an empty edge table, not graph retrieval. They prove nothing.
+>
+> Separately, chunkshop's `lede_spacy` facts are grammatical subject-verb-object
+> fragments (pronouns, truncated nouns, singletons), **not** an entity-resolved,
+> traversable knowledge graph — so building edges from them wouldn't have fixed
+> it either. That's a finding about *that emission*, not about GraphRAG.
+>
+> **The real test, on a real graph:** re-run on `bench_musique` — an
+> LLM-extracted KG (9,809 typed edges: `PART_OF` / `LOCATED_IN` /
+> `PARTICIPATED_IN`…; avg degree 2.25), 100 compositional 2/3/4-hop questions —
+> using the library's **actual** recursive-traversal mode (`local`, `max_hops=2`).
+> **Result: graph traversal BEATS pure vector by ~4-5pp** end-to-end, stable
+> across two independent answer-generation runs and two judges (gemma + gpt-5-mini,
+> 82% agreement): `local` 44-47% vs `naive` 39-43%. See "Real-graph multi-hop
+> (MuSiQue)" below. The blogs' "graph helps multi-hop" thesis is **corroborated**,
+> with honest caveats (flat retrieval recall; the lift is answer-context, not
+> recall; modest magnitude). The SCOTUS / NTSB rows below stand — those are
+> clean single-domain prose where single-doc lookup suffices and graph isn't
+> expected to help.
+
+**Date:** 2026-05-28/29. **Pipeline:** pg-raggraph `feat/ab-gate-real-verdict`.
 
 ## Cross-corpus summary (the headline)
 
-| Corpus | shape | naive vs graph_leg | naive vs hybrid (judge) |
+| Corpus | shape | graph vs vector | reading |
 |---|---|---|---|
-| SCOTUS | clean legal prose | NAIVE 3–0 (−75pp recall) | near-parity (judge TIE) |
-| NTSB | clean accident reports | NAIVE 3–0 (−92pp recall) | near-parity (judge −0.08) |
-| **MHR** | **multi-hop news QA** | NAIVE (judge 0.74 vs 0.40) | **EXACT TIE (judge 0.74 = 0.74)** |
+| SCOTUS | clean legal prose | NAIVE wins / ties | single-doc lookup; graph not expected to help. Valid. |
+| NTSB | clean accident reports | NAIVE wins / ties | same. Valid. |
+| ~~MHR (ab-gate)~~ | ~~multi-hop news~~ | ~~"NAIVE wins"~~ | **RETRACTED — empty graph (0 edges). Measured nothing.** |
+| **MuSiQue** (real KG) | **multi-hop, LLM-extracted graph** | **GRAPH (`local`) WINS +4-5pp** | the real test — graph traversal beats vector. |
 
-The MHR row is the one that answers "but what about data designed for graph?"
-— see the dedicated section below. Short version: even on multi-hop QA, the
-shallow graph augmentation ties vector on answer correctness; it does not win.
+## Two different harnesses — don't conflate them
 
-## What was NOT tested (the load-bearing caveat)
+There are two distinct experiments in this story, and the early confusion came
+from treating the first as if it answered the second:
 
-The harness's graph operations are **shallow**:
-- `graph_leg` = 1-hop: resolve question entities → fact rows / cooccur edges
-  naming them → return the parent episode chunk.
-- `hybrid` = rerank the vector candidate set by entity-overlap centrality.
+1. **The ab-gate harness** (`ab_gate/harness.py`) tests *chunkshop's emission*
+   (`fact` rows + `cooccur` edges) via **shallow** ops only — `graph_leg`
+   (1-hop: question entities → fact/cooccur naming them → parent chunk) and
+   `hybrid` (rerank vector candidates by entity-overlap centrality). It has **no
+   recursive CTE walk**. On clean prose (SCOTUS / NTSB) it shows shallow
+   chunkshop-emission augmentation doesn't beat vector — a valid, narrow result.
 
-Neither does **multi-hop traversal** — follow a fact edge from document A to an
-entity, then to document B, then to C, assembling evidence across the chain.
-That deep-traversal operation is the one GraphRAG's thesis (and the yonk.dev
-blogs) is really about, and it is **not implemented here** (no recursive CTE
-walk in `ab_gate/harness.py`). So the correct reading of these results is:
+2. **Deep multi-hop traversal** — follow a fact edge A→B→C across documents,
+   assembling evidence along the chain — is the operation GraphRAG's thesis (and
+   the yonk.dev blogs) is really about. The ab-gate harness does **not** do it.
+   It IS implemented in the library (`retrieval.py:_build_local_query`,
+   `WITH RECURSIVE … WHERE depth < max_hops`), tested above on `bench_musique`
+   via `local` mode — and there it **beats vector by ~4-5pp**.
 
-> *Shallow* graph augmentation (1-hop facts + cooccur rerank over chunkshop's
-> emission) does not beat vector retrieval, even on multi-hop data. Whether
-> *deep multi-hop traversal* beats vector remains genuinely untested.
-
-This is the honest boundary of the experiment.
-
-This run tests **all three** modes the chunkshop emission contract §4.2 defines
-— `naive_vector`, `graph_leg` (graph-as-primary), and `hybrid`
-(graph-as-augmentation: vector seeds candidates, graph reranks them by entity
-overlap). The earlier run tested only the first two; chunkshop correctly flagged
-that the production-shaped `hybrid` mode — the one the facts/cooccur emission was
-designed to feed — was missing. It's now implemented and tested.
+The retracted MHR ab-gate run failed because it combined the worst of both: it
+pointed the *shallow* harness at a namespace whose edge table was *empty*. The
+corrected MuSiQue run uses the *deep* library traversal on a *real* graph — and
+that is the run that answers the thesis question.
 
 ## Headline: two graph modes, two stories
 
@@ -104,62 +117,92 @@ why `hybrid` (no question NER) was the comparison that mattered.
 **Latency (§3.6, informational):** naive p50 51 ms, graph_leg 105 ms, hybrid
 ~110 ms (two queries + rerank).
 
-## MHR / MultiHop-RAG — the graph-FAVORABLE corpus (2026-05-29)
+## ~~MHR / MultiHop-RAG (ab-gate)~~ — RETRACTED (empty graph)
 
-SCOTUS + NTSB are clean single-domain prose where single-doc lookup answers
-most questions — the regime pg-raggraph's own bake-off + the yonk.dev blogs
-already say graph won't help. So the real test is a corpus where answers need
-**cross-document, multi-hop** reasoning. MHR (MultiHop-RAG) is that: 609 news
-articles, 50-question seed-42 subset spanning inference / comparison / temporal
-/ null queries, each with a gold **answer** (no single gold doc — multi-hop).
+**This section's numbers are invalid and retracted.** The MHR namespace
+(`bakeoff-mhr-ab`) had **2,288 entities but 0 `relationships`** — the A/B
+materializer (`ab_gate/ingest.py:materialize_entities_from_corpus`) only ever
+inserted entity nodes, never edges. The library's recursive-traversal modes
+walk the `relationships` table; with zero edges there was nothing to walk, so
+the harness fell back to a *shallow 1-hop metadata peek* and called it
+`graph_leg`. The reported "naive 0.74 vs graph 0.40 / hybrid tie 0.74" measured
+**an empty edge table against vector**, not graph retrieval. It proves nothing
+about graph-vs-vector and must not be cited.
 
-Because there's no single `gold_doc_id`, recall@10 / MRR are N/A (both TIE) and
-the **LLM judge on answer correctness is the metric** — which is the right one
-for multi-hop, and the one graph is supposed to help. Coverage was full for all
-modes (graph_leg 50/50 — MHR questions are entity-rich, so question-NER works,
-unlike NTSB).
+The fix is **not** "build edges from chunkshop facts" — `lede_spacy` facts are
+grammatical SVO fragments (pronouns like "He"/"They", truncated objects,
+~1:1 distinct surfaces), not an entity-resolved KG. The fix is a real
+LLM-extracted graph + the library's real traversal → see below.
 
-| Comparison | judge naive | judge graph | Δ | read |
-|---|---:|---:|---:|---|
-| naive vs `graph_leg` | 0.740 | 0.400 | −0.340 | graph-as-primary loses even on multi-hop |
-| naive vs `hybrid` | 0.740 | **0.740** | **±0.000** | **exact tie on answer quality** |
+## Real-graph multi-hop (MuSiQue) — the corrected test (2026-05-29)
 
-`hybrid` was not a no-op — its rerank changed the top-10 on 46/50 questions and
-the top-1 on 30/50 — yet answer correctness landed exactly equal. The graph
-centrality rerank reshuffled chunks without changing how often the synthesized
-answer was judged acceptable.
+`bench_musique`: a genuine LLM-extracted knowledge graph — **9,809 typed edges**
+(`PART_OF`, `LOCATED_IN`, `MEMBER_OF`, `PARTICIPATED_IN`, `WON`, `BORDERS`…),
+8,723 nodes, avg degree 2.25, 11,792 `entity_chunks` links. 100 compositional
+2/3/4-hop MuSiQue questions with gold answers. Modes run via the **library's
+real** `rag.ask()` (`benchmarks/musique/run.py`): `naive` (pure vector) vs
+`local` (recursive entity traversal, `max_hops=2`) + `global`/`hybrid`/
+`naive_boost`/`smart`. Answer-gen: Qwen @ 192.168.1.193. Dual judge: gemma @
+192.168.1.133 + gpt-5-mini (82% binarized agreement).
 
-**The honest takeaway:** even on the corpus designed for graph, the *shallow*
-graph augmentation ties vector — it doesn't win. BUT (see "What was NOT tested")
-this harness never performs deep multi-hop traversal, which is graph's strongest
-theoretical case. So MHR shows "1-hop facts + cooccur rerank don't beat vector
-on multi-hop QA," not "graph can't help multi-hop." The blogs' thesis about
-deep traversal stands untested, not refuted.
+**EM/F1 are dead metrics here** (verbose answers; a prior run found 27% of EM=0
+answers were judged fully-correct). The metrics are **support_recall**
+(retrieval) and **LLM judge** (end-to-end answer quality, 0-3 → %).
 
-(Cooccur was sparse on MHR — 95/609 episodes carried edges — so the fact graph,
-not cooccur, carried most of the graph signal. Artifacts: `results-mhr/`.)
+| Mode | support_recall | judge (gemma) | judge (gpt-5-mini) |
+|---|---:|---:|---:|
+| **naive** (pure vector) | 59.3% | 40.3% | 39.0% |
+| naive_boost (1-hop rerank) | 59.3% | 42.0% | 40.7% |
+| **`local`** (recursive traversal) | 57.8% | **45.3%** | **44.0%** |
+| global | 58.4% | 44.0% | 38.0% |
+| hybrid (vector+traversal) | 59.3% | 47.7% | 39.7% |
+| smart | 56.5% | 42.7% | 41.7% |
+
+**Robust finding — `local` beats `naive` by ~4-5pp, both judges, two runs:**
+gemma 45.3 vs 40.3 (+5.0), gpt-5-mini 44.0 vs 39.0 (+5.0); an earlier
+independent answer-gen run had gemma 47.0 vs 43.3 (+3.7). On a real graph with
+real recursive traversal, **graph traversal beats pure vector on multi-hop QA.**
+
+**Honest caveats (do not over-claim):**
+1. **Retrieval recall is FLAT** (~58-59% every mode). Graph does NOT surface
+   more gold paragraphs — the lift comes from better entity-neighborhood
+   *answer-context*, a softer effect than a recall win.
+2. **Per-hop splits (n=33) are noise** — the two runs disagree on *which* hop
+   benefits. Do NOT claim "graph helps 2-hop specifically." Only the overall
+   `local` > `naive` lift is stable.
+3. **Only `local` is judge-robust.** gemma rates `hybrid` best (47.7);
+   gpt-5-mini rates it near-worst (39.7). `global` similar. `local` is the one
+   mode both judges put above naive.
+4. **Modest magnitude** (+4-5pp at ~40-45% absolute). Real, not a blowout.
+
+Artifacts: `benchmarks/musique/_results/results-full-6mode-dual-judge.json`.
+(The retracted `results-mhr/` empty-graph artifacts are kept only as the
+cautionary example of materializing nodes without edges.)
 
 ## What this licenses for §3.8
 
 §3.8 maps NAIVE WINS → "freeze edge-tier work; deprioritize Rust RM-C consumers;
-reconsider whether facts/cooccur are worth maintaining." The complete 3-mode
-run **supports** that direction — naive wins or ties every metric in both
-comparisons; graph wins nothing. But weight the nuance honestly:
+reconsider whether facts/cooccur are worth maintaining." Re-weighted after the
+corrected MuSiQue run, the picture splits cleanly by **what graph you build**:
 
-- It is **not** evidence that facts/cooccur are *harmful* — hybrid ties on
-  answer quality. It's evidence they don't *help enough to justify the cost* on
-  these two clean technical corpora.
-- The `hybrid` reranker is a **simple, untuned centrality heuristic** (entity
-  overlap among retrieved docs). A relevance-tuned graph reranker, or a
-  larger/messier corpus with real cross-document entity reasoning, could shift
-  the hybrid result. This run does not rule that out.
-- n = 24 questions. The hybrid deltas (−12.5pp, −0.11) are small enough to be
-  partly noise; the judge tie is the most robust signal and it says "parity."
+- **chunkshop's `lede_spacy` facts/cooccur** (the ab-gate subject): on clean
+  prose, the *shallow* ops over them don't beat vector — and the facts aren't an
+  entity-resolved graph anyway. So freezing **edge-tier investment over the
+  lede_spacy emission** stays defensible. That is a narrow claim about *that
+  emission*, not about graph retrieval.
+- **A real LLM-extracted graph + deep traversal** (MuSiQue / `local`): graph
+  **does** beat vector on multi-hop (+4-5pp, both judges). So do **not**
+  generalize "freeze edge work" into "graph doesn't help" — for the workload
+  graph is actually for (multi-hop over a resolved KG), it helps.
+- **Keep RM-C / emission primitives.** The thing that would most improve the
+  win is a *better graph* (resolved entities, typed edges), which is exactly
+  what RM-C-style consumers + LLM extraction produce. Retiring them would
+  remove the substrate that made `local` win.
 
-Consistent with pg-raggraph's prior benchmarks (AGE bake-off, pg-agents): on
-clean technical corpora a single vector ranking matches or beats graph. The
-new contribution here is showing it holds in the *production-shaped hybrid mode*,
-not just graph-as-primary — and that hybrid's loss is parity-grade, not a rout.
+Consistent with pg-raggraph's prior benchmarks on *clean technical* corpora
+(AGE bake-off, pg-agents): single vector ranking matches/beats graph there. The
+corrected contribution: on a **real multi-hop KG**, recursive traversal
+(`local`) beats vector — modestly, via answer-context rather than recall.
 
 ## How the run was produced
 
