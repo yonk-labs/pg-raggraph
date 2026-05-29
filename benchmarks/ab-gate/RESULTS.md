@@ -1,9 +1,46 @@
-# A/B Gate — Complete Verdict (chunkshop ↔ pg-raggraph)
+# A/B Gate — Verdict (chunkshop ↔ pg-raggraph)
 
-**Date:** 2026-05-28 (3-mode run; supersedes the earlier 2-mode provisional)
-**Verdict:** **NAIVE WINS** — across *both* graph modes, graph never wins a
-single metric. But the two modes tell very different stories (see below).
+**Date:** 2026-05-28/29. Three corpora now: SCOTUS + NTSB (clean prose) and
+**MHR / MultiHop-RAG (the graph-favorable, multi-hop corpus)**.
+**Verdict:** **Vector is never beaten.** Across all three corpora and all three
+modes, the production-shaped `hybrid` mode ties naive at best; `graph_leg`
+(graph-as-primary) always loses. **Important honesty caveat:** the graph
+operations tested are *shallow* (1-hop lookup + entity-overlap rerank) — true
+multi-hop traversal (chase fact edges across documents) is NOT implemented, so
+this does not refute the "graph helps multi-hop" thesis; it shows the *shallow*
+graph ops don't beat vector even on multi-hop data. See "What was NOT tested."
 **Pipeline:** pg-raggraph `feat/ab-gate-real-verdict`
+
+## Cross-corpus summary (the headline)
+
+| Corpus | shape | naive vs graph_leg | naive vs hybrid (judge) |
+|---|---|---|---|
+| SCOTUS | clean legal prose | NAIVE 3–0 (−75pp recall) | near-parity (judge TIE) |
+| NTSB | clean accident reports | NAIVE 3–0 (−92pp recall) | near-parity (judge −0.08) |
+| **MHR** | **multi-hop news QA** | NAIVE (judge 0.74 vs 0.40) | **EXACT TIE (judge 0.74 = 0.74)** |
+
+The MHR row is the one that answers "but what about data designed for graph?"
+— see the dedicated section below. Short version: even on multi-hop QA, the
+shallow graph augmentation ties vector on answer correctness; it does not win.
+
+## What was NOT tested (the load-bearing caveat)
+
+The harness's graph operations are **shallow**:
+- `graph_leg` = 1-hop: resolve question entities → fact rows / cooccur edges
+  naming them → return the parent episode chunk.
+- `hybrid` = rerank the vector candidate set by entity-overlap centrality.
+
+Neither does **multi-hop traversal** — follow a fact edge from document A to an
+entity, then to document B, then to C, assembling evidence across the chain.
+That deep-traversal operation is the one GraphRAG's thesis (and the yonk.dev
+blogs) is really about, and it is **not implemented here** (no recursive CTE
+walk in `ab_gate/harness.py`). So the correct reading of these results is:
+
+> *Shallow* graph augmentation (1-hop facts + cooccur rerank over chunkshop's
+> emission) does not beat vector retrieval, even on multi-hop data. Whether
+> *deep multi-hop traversal* beats vector remains genuinely untested.
+
+This is the honest boundary of the experiment.
 
 This run tests **all three** modes the chunkshop emission contract §4.2 defines
 — `naive_vector`, `graph_leg` (graph-as-primary), and `hybrid`
@@ -66,6 +103,41 @@ why `hybrid` (no question NER) was the comparison that mattered.
 
 **Latency (§3.6, informational):** naive p50 51 ms, graph_leg 105 ms, hybrid
 ~110 ms (two queries + rerank).
+
+## MHR / MultiHop-RAG — the graph-FAVORABLE corpus (2026-05-29)
+
+SCOTUS + NTSB are clean single-domain prose where single-doc lookup answers
+most questions — the regime pg-raggraph's own bake-off + the yonk.dev blogs
+already say graph won't help. So the real test is a corpus where answers need
+**cross-document, multi-hop** reasoning. MHR (MultiHop-RAG) is that: 609 news
+articles, 50-question seed-42 subset spanning inference / comparison / temporal
+/ null queries, each with a gold **answer** (no single gold doc — multi-hop).
+
+Because there's no single `gold_doc_id`, recall@10 / MRR are N/A (both TIE) and
+the **LLM judge on answer correctness is the metric** — which is the right one
+for multi-hop, and the one graph is supposed to help. Coverage was full for all
+modes (graph_leg 50/50 — MHR questions are entity-rich, so question-NER works,
+unlike NTSB).
+
+| Comparison | judge naive | judge graph | Δ | read |
+|---|---:|---:|---:|---|
+| naive vs `graph_leg` | 0.740 | 0.400 | −0.340 | graph-as-primary loses even on multi-hop |
+| naive vs `hybrid` | 0.740 | **0.740** | **±0.000** | **exact tie on answer quality** |
+
+`hybrid` was not a no-op — its rerank changed the top-10 on 46/50 questions and
+the top-1 on 30/50 — yet answer correctness landed exactly equal. The graph
+centrality rerank reshuffled chunks without changing how often the synthesized
+answer was judged acceptable.
+
+**The honest takeaway:** even on the corpus designed for graph, the *shallow*
+graph augmentation ties vector — it doesn't win. BUT (see "What was NOT tested")
+this harness never performs deep multi-hop traversal, which is graph's strongest
+theoretical case. So MHR shows "1-hop facts + cooccur rerank don't beat vector
+on multi-hop QA," not "graph can't help multi-hop." The blogs' thesis about
+deep traversal stands untested, not refuted.
+
+(Cooccur was sparse on MHR — 95/609 episodes carried edges — so the fact graph,
+not cooccur, carried most of the graph signal. Artifacts: `results-mhr/`.)
 
 ## What this licenses for §3.8
 
