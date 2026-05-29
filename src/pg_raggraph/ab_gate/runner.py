@@ -113,40 +113,63 @@ async def run_ab_matrix(
 
 
 def load_gold_questions(path: Path) -> list[GoldQuestion]:
-    """Parse a chunkshop-shaped gold-Q YAML file.
+    """Parse a gold-Q YAML file. Two formats are accepted (auto-detected):
 
-    Expected shape (matches chunkshop's ``gold-scotus.yaml`` /
-    ``gold-ntsb.yaml``):
+    1. **chunkshop format** — a top-level list of ``{query, gold_doc_id}``
+       (the shape of the real ``gold-scotus.yaml`` / ``gold-ntsb.yaml``).
+       Ids are auto-generated (``q1``, ``q2``, …); ``gold_doc_id`` is the
+       retrieval target used for recall@10 / MRR (contract §3.1):
 
-    .. code-block:: yaml
+       .. code-block:: yaml
 
-        questions:
-          - id: q1
-            question: "What did X do?"
-            gold_answer: "Y."        # optional
-            required_facts:           # optional
-              - [X, did, Y]
+           - { query: "Who wrote the majority opinion?", gold_doc_id: "case-x-decision" }
 
-    Each list item under ``required_facts`` is a 3-element sequence
-    coerced to a ``(subject, predicate, object)`` tuple. Empty file or
-    missing ``questions`` key returns an empty list.
+    2. **dict format** — a ``{questions: [...]}`` mapping with explicit
+       ``id`` / ``question`` / ``gold_answer`` / ``required_facts``:
+
+       .. code-block:: yaml
+
+           questions:
+             - id: q1
+               question: "What did X do?"
+               gold_answer: "Y."
+               required_facts:
+                 - [X, did, Y]
+
+    Empty file returns an empty list.
     """
     import yaml
 
-    raw = yaml.safe_load(Path(path).read_text()) or {}
-    out: list[GoldQuestion] = []
+    raw = yaml.safe_load(Path(path).read_text())
+    if not raw:
+        return []
+
+    # Format 1 — chunkshop top-level list of {query, gold_doc_id}.
+    if isinstance(raw, list):
+        out: list[GoldQuestion] = []
+        for i, entry in enumerate(raw, start=1):
+            out.append(
+                GoldQuestion(
+                    id=str(entry.get("id") or f"q{i}"),
+                    question=str(entry["query"]),
+                    gold_answer=entry.get("gold_answer"),
+                    gold_doc_id=entry.get("gold_doc_id"),
+                )
+            )
+        return out
+
+    # Format 2 — {questions: [...]} dict.
+    out = []
     for entry in raw.get("questions") or []:
         rf_raw = entry.get("required_facts")
-        if rf_raw:
-            required_facts = [tuple(triple) for triple in rf_raw]
-        else:
-            required_facts = None
+        required_facts = [tuple(triple) for triple in rf_raw] if rf_raw else None
         out.append(
             GoldQuestion(
                 id=str(entry["id"]),
                 question=str(entry["question"]),
                 gold_answer=entry.get("gold_answer"),
                 required_facts=required_facts,
+                gold_doc_id=entry.get("gold_doc_id"),
             )
         )
     return out

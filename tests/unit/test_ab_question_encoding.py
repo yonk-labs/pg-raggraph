@@ -6,14 +6,22 @@ from unittest.mock import patch
 from pg_raggraph.ab_gate.harness import _encode_question_terms
 
 
-def test_lede_spacy_path_returns_extracted_entities():
-    """When lede_spacy returns entities, those are the encoded terms."""
+def test_lede_spacy_path_expands_entities_into_resolvable_terms():
+    """When lede_spacy returns entities, they're expanded into full phrases +
+    component word-tokens (verdict-hardening — see _expand_entity_terms).
+
+    Multi-word NER phrases ("Title VII") don't match single-surface entity
+    nodes, so the encoder also emits the component words so they can resolve.
+    """
     with patch(
         "pg_raggraph.ab_gate.harness._lede_spacy_entities",
         return_value=["Bostock", "Title VII"],
     ):
         terms = _encode_question_terms("What did Bostock say about Title VII?")
-    assert terms == ["Bostock", "Title VII"]
+    assert "Bostock" in terms
+    assert "Title VII" in terms
+    assert "Title" in terms
+    assert "VII" in terms
 
 
 def test_fallback_path_when_lede_spacy_raises(caplog):

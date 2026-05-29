@@ -133,10 +133,13 @@ Return ONLY a JSON object: {"score": 0|1|2|3, "rationale": "brief reason"}"""
 class JudgeConfig:
     def __init__(self, kind: str):
         if kind == "local":
-            self.url = ANSWER_URL
-            self.model = ANSWER_MODEL
+            # Judge endpoint decouples from the answer-generation endpoint so a
+            # separate model can grade (less self-grading bias). Defaults to the
+            # answer endpoint for back-compat when the JUDGE_* envs are unset.
+            self.url = os.environ.get("PGRG_JUDGE_LLM_URL", ANSWER_URL)
+            self.model = os.environ.get("PGRG_JUDGE_LLM_MODEL", ANSWER_MODEL)
             self.api_key = ""
-            self.label = f"local ({ANSWER_MODEL.split('/')[-1]})"
+            self.label = f"local ({self.model.split('/')[-1]})"
         elif kind == "openai":
             self.url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
             self.model = os.environ.get("OPENAI_JUDGE_MODEL", "gpt-4o-mini")
@@ -171,19 +174,25 @@ async def llm_judge(
     headers = {"Content-Type": "application/json"}
     if judge.api_key:
         headers["Authorization"] = f"Bearer {judge.api_key}"
+    body: dict = {
+        "model": judge.model,
+        "messages": [
+            {"role": "system", "content": JUDGE_PROMPT},
+            {"role": "user", "content": user_content},
+        ],
+        "response_format": {"type": "json_object"},
+    }
+    # gpt-5 family rejects non-default temperature; use minimal reasoning to
+    # keep the grading call cheap. Everything else gets deterministic temp=0.
+    if judge.model.startswith("gpt-5"):
+        body["reasoning_effort"] = "minimal"
+    else:
+        body["temperature"] = 0.0
     try:
         resp = await client.post(
             f"{judge.url}/chat/completions",
             headers=headers,
-            json={
-                "model": judge.model,
-                "messages": [
-                    {"role": "system", "content": JUDGE_PROMPT},
-                    {"role": "user", "content": user_content},
-                ],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.0,
-            },
+            json=body,
             timeout=120,
         )
         resp.raise_for_status()

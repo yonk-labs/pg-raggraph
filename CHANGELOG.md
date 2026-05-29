@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.5.0a5 — 2026-05-28 (A/B gate live verdict — NAIVE_WINS)
+
+Wires the #47–#50 chain to real chunkshop emission and runs the gate end-to-end.
+The synthetic fixtures of a4 masked three integration gaps, all closed here:
+
+### Added
+- **Entity materialization** — `pg_raggraph.ab_gate.ingest.materialize_entities_from_corpus`
+  + `pgrg ab-gate materialize`. Builds graph entities 1:1 from imported fact
+  endpoints + cooccur nodes (prerequisite for `graph_leg`).
+- **Production `compute_verdict(runner_outputs, judge_config)`** — replaces the
+  NotImplementedError stub. Computes recall@10 + MRR from runner output vs
+  `gold_doc_id`, judge win-rate via the llm-judge seam; shared `_verdict_from_payload`
+  with the fixture path. `pgrg ab-gate verdict` CLI.
+- **`gold_doc_id`** optional field on `GoldQuestion` + `ABCaseResult`; `load_gold_questions`
+  now auto-detects chunkshop's `[{query, gold_doc_id}]` gold format.
+- **`hybrid` mode** (`harness._run_hybrid`) — the production-shaped mode: vector
+  seeds top-30 candidates, graph reranks by fact/cooccur entity-overlap
+  centrality (no question NER → full coverage). `compute_verdict(graph_mode=…)`
+  + `pgrg ab-gate verdict --graph-mode hybrid` compare naive vs hybrid.
+- **Query-term encoder hardening** (`_expand_entity_terms`) — expands multi-word
+  NER phrases into component tokens so they resolve against single-surface nodes.
+- `benchmarks/ab-gate/` — ingest configs, complete 3-mode verdict artifacts, RESULTS.md.
+
+### Result (complete 3-mode run, SCOTUS + NTSB, gpt-4o-mini judge)
+- naive vs `graph_leg` (graph-as-primary): **NAIVE_WINS 3-0** (−75.0pp / −0.535 / −0.667).
+- naive vs `hybrid` (graph-as-augmentation): **NAIVE_WINS 2-0-1** (−12.5pp / −0.113 / judge **TIE**).
+
+Graph wins no metric in either comparison, so chunkshop contract §3.8's
+NAIVE-WINS direction holds — but `hybrid` ties on answer quality, so the honest
+reading is "graph doesn't earn its cost on these clean corpora," not "graph is
+harmful." Details + caveats: `benchmarks/ab-gate/RESULTS.md`.
+
 ## 0.5.0a4 — 2026-05-28 (A/B gate retrieval harness + runner)
 
 Additive arc, backward-compatible. Completes the chunkshop ↔ pg-raggraph A/B gate by landing the two middle artifacts: the retrieval-mode harness (#48) and the matrix runner (#49). Pairs with v0.5.0a3 (#47 resolver + #50 verdict writer).

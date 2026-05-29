@@ -1014,7 +1014,9 @@ def ab_gate():
     """A/B retrieval benchmark harness (chunkshop ↔ pg-raggraph A/B gate).
 
     Subcommands:
-      run     — run the {corpora × modes} matrix and write per-cell JSONs.
+      materialize — build graph entities from imported fact/cooccur surfaces.
+      run         — run the {corpora × modes} matrix and write per-cell JSONs.
+      verdict     — apply the contract §3 combiner to runner output + write report.
 
     See ``docs/cookbook/ab-gate.md`` for the full operator workflow.
     """
@@ -1097,5 +1099,141 @@ def ab_gate_run(ctx, corpora, gold_paths, modes, top_k, output_dir):
 
     try:
         run_async(_run())
+    except Exception as e:
+        _handle_error(e)
+
+
+@ab_gate.command("materialize")
+@click.option(
+    "--namespace",
+    "-n",
+    "namespaces",
+    multiple=True,
+    required=True,
+    help="Corpus id (= namespace) to materialize. Repeat for multiple.",
+)
+@click.pass_context
+def ab_gate_materialize(ctx, namespaces):
+    """Materialize graph entities from imported fact/cooccur surfaces.
+
+    Prerequisite for the graph_leg of `pgrg ab-gate run`: reads every
+    distinct fact subject/object + cooccur node from the corpus's chunks
+    (imported via `pgrg ingest-chunkshop-table`) and inserts one entity per
+    distinct surface so `resolve_entity_lookup` can find them. Idempotent.
+    """
+    from pg_raggraph.ab_gate import materialize_entities_from_corpus
+
+    async def _run():
+        kwargs = dict(ctx.obj["kwargs"])
+        rag = GraphRAG(**kwargs)
+        await rag.connect()
+        try:
+            for ns in namespaces:
+                count = await materialize_entities_from_corpus(rag, ns)
+                click.echo(f"{ns}: materialized {count} new entities")
+        finally:
+            await rag.close()
+
+    try:
+        run_async(_run())
+    except Exception as e:
+        _handle_error(e)
+
+
+@ab_gate.command("verdict")
+@click.option(
+    "--runs",
+    "runs_dir",
+    required=True,
+    type=click.Path(file_okay=False, exists=True),
+    help="Directory of per-(corpus, mode) JSONs from `ab-gate run`.",
+)
+@click.option(
+    "--out",
+    "output_dir",
+    required=True,
+    type=click.Path(file_okay=False),
+    help="Where to write verdict.json / verdict.md / latency.json.",
+)
+@click.option(
+    "--judge-provider",
+    default="none",
+    show_default=True,
+    help="LLM judge provider kind: none | mock | openai | openai-compatible | "
+    "anthropic | ollama | gemini | openrouter. 'none' skips the judge metric "
+    "(recall@10 + MRR still decide the verdict).",
+)
+@click.option("--judge-model", default=None, help="Judge model name.")
+@click.option("--judge-base-url", default=None, help="Judge endpoint base URL.")
+@click.option(
+    "--judge-api-key-env",
+    default=None,
+    help="Env var holding the judge API key (e.g. OPENAI_API_KEY).",
+)
+@click.option(
+    "--graph-mode",
+    default="graph_leg",
+    type=click.Choice(["graph_leg", "hybrid"]),
+    show_default=True,
+    help="Which mode plays the 'graph' side: graph_leg (graph-as-primary) or "
+    "hybrid (graph-as-augmentation). Run once per mode for the full §3 gate.",
+)
+@click.pass_context
+def ab_gate_verdict(
+    ctx,
+    runs_dir,
+    output_dir,
+    judge_provider,
+    judge_model,
+    judge_base_url,
+    judge_api_key_env,
+    graph_mode,
+):
+    """Apply the contract §3 combiner to runner output and write the report."""
+    from pathlib import Path
+
+    from pg_raggraph.ab_gate import compute_verdict, write_verdict_report
+    from pg_raggraph.ab_gate.io import ABRunnerOutput
+
+    runs = Path(runs_dir)
+    cell_files = sorted(p for p in runs.glob("*__*.json") if p.name != "manifest.json")
+    if not cell_files:
+        raise click.BadParameter(
+            f"no per-(corpus, mode) JSON files (<corpus>__<mode>.json) found in {runs_dir}",
+            ctx=ctx,
+        )
+
+    judge_config = None
+    if judge_provider.lower() != "none":
+        judge_config = {
+            "provider": {
+                "kind": judge_provider.lower(),
+                "model": judge_model,
+                "base_url": judge_base_url,
+                "api_key_env": judge_api_key_env,
+            }
+        }
+
+    import json as _json
+
+    outputs = [ABRunnerOutput.from_dict(_json.loads(p.read_text())) for p in cell_files]
+    # Latency rows for the informational latency.json (§3.6).
+    latency_rows = [
+        {
+            "corpus": o.corpus_id,
+            "mode": o.mode,
+            "question_id": c.question_id,
+            "latency_ms": c.latency_ms,
+        }
+        for o in outputs
+        for c in o.results
+    ]
+
+    try:
+        verdict = compute_verdict(outputs, judge_config=judge_config, graph_mode=graph_mode)
+        write_verdict_report(verdict, out_dir=Path(output_dir), latency_rows=latency_rows)
+        click.echo(f"Verdict (naive vs {graph_mode}): {verdict.label}")
+        click.echo(verdict.rationale)
+        click.echo(f"\nReport written to {output_dir}/verdict.json + verdict.md")
     except Exception as e:
         _handle_error(e)

@@ -162,6 +162,144 @@ def _format_rationale(combined: MetricRollup, label: str, extra: str) -> str:
 
 
 # ============================================================================
+# Production-path helpers — retrieval scoring + judge + payload assembly.
+# ============================================================================
+
+
+def _verdict_from_payload(payload: dict[str, Any]) -> ABVerdict:
+    """Build an ABVerdict from a per_corpus + combined metrics payload.
+
+    Shared by both the production ``__call__`` and the fixture
+    ``from_premeasured`` path — the §3.3 combiner + §3.4 asymmetry guard live
+    here so the two entry points can never diverge on verdict logic.
+    """
+    per_corpus_rollups = [
+        _build_rollup(scope=corpus_id, naive=cells["naive_vector"], graph=cells["graph_leg"])
+        for corpus_id, cells in payload["per_corpus"].items()
+    ]
+    combined_rollup = _build_rollup(
+        scope="combined",
+        naive=payload["combined"]["naive_vector"],
+        graph=payload["combined"]["graph_leg"],
+    )
+    combined_label = _combine(combined_rollup)
+    final_label, extra = _apply_asymmetry_guard(combined_label, per_corpus_rollups)
+    rationale = _format_rationale(combined_rollup, final_label, extra)
+    return ABVerdict(
+        per_corpus=per_corpus_rollups,
+        combined=combined_rollup,
+        label=final_label,
+        rationale=rationale,
+    )
+
+
+def _coerce_runner_outputs(runner_outputs: list[Any]) -> list[Any]:
+    """Accept a mixed list of ABRunnerOutput instances and/or JSON paths."""
+    import json as _j
+    from pathlib import Path as _P
+
+    from pg_raggraph.ab_gate.io import ABRunnerOutput
+
+    out: list[ABRunnerOutput] = []
+    for item in runner_outputs:
+        if isinstance(item, ABRunnerOutput):
+            out.append(item)
+        elif isinstance(item, (str, _P)):
+            data = _j.loads(_P(item).read_text())
+            out.append(ABRunnerOutput.from_dict(data))
+        elif isinstance(item, dict):
+            out.append(ABRunnerOutput.from_dict(item))
+        else:
+            raise TypeError(
+                f"runner_outputs items must be ABRunnerOutput, path, or dict; got {type(item)}"
+            )
+    return out
+
+
+def _source_matches_gold(source: str, gold_doc_id: str) -> bool:
+    """A retrieved source matches the gold target if the gold_doc_id is present.
+
+    pg-raggraph stores sources as ``source_path`` (e.g. ``chunkshop:<doc_id>``)
+    or ``namespace:doc_id``; the chunkshop gold gives the bare ``doc_id``. A
+    substring match tolerates the prefix without false-positives because the
+    bakeoff doc ids are full, suffix-distinct strings (…-decision vs …-overview).
+    """
+    if not gold_doc_id or not source:
+        return False
+    return gold_doc_id == source or gold_doc_id in source
+
+
+def _score_retrieval(output: Any, cutoff: int) -> tuple[list[int], list[float]]:
+    """Per-question (hit, reciprocal-rank) arrays for one runner output.
+
+    hit = 1 if gold_doc_id appears in the top-`cutoff` retrieved sources.
+    rr  = 1 / rank_of_first_gold_hit (0 if not in top-cutoff). Cases without a
+    gold_doc_id are skipped (can't score retrieval without a target).
+    """
+    hits: list[int] = []
+    rrs: list[float] = []
+    for case in output.results:
+        gold = case.gold_doc_id
+        if not gold:
+            continue
+        rank_hit = 0
+        for item in case.retrieved[:cutoff]:
+            if _source_matches_gold(item.source, gold):
+                rank_hit = item.rank
+                break
+        hits.append(1 if rank_hit else 0)
+        rrs.append(1.0 / rank_hit if rank_hit else 0.0)
+    return hits, rrs
+
+
+def _judge_output(output: Any, judge_provider: Any | None) -> list[bool]:
+    """Per-question acceptability flags via llm-judge (empty when no provider).
+
+    For each case: synthesize an answer from the mode's retrieved chunks
+    (``generate_answer``), then score it (``llm_score``). ``passed`` is the
+    contract's "acceptable" bar. The same provider doubles as answer generator
+    and judge — both legs use identical machinery so the graph-vs-naive
+    comparison is fair (the only difference is the retrieved context).
+    """
+    if judge_provider is None:
+        return []
+    from llm_judge.models import EvalCase
+    from llm_judge.scorers import generate_answer, llm_score
+
+    flags: list[bool] = []
+    for case in output.results:
+        chunks = [item.content_snippet for item in case.retrieved if item.content_snippet]
+        eval_case = EvalCase(
+            case_id=case.question_id,
+            question=case.question,
+            answer="",
+            expected=case.gold_answer or "",
+            chunks=chunks,
+        )
+        answer = generate_answer(eval_case, judge_provider)
+        eval_case.answer = answer.answer or ""
+        decision = llm_score(eval_case, judge_provider)
+        flags.append(bool(decision.passed))
+    return flags
+
+
+def _metrics_dict(hits: list[int], rrs: list[float], judge_flags: list[bool]) -> dict[str, float]:
+    """Aggregate per-question arrays into the {recall_at_10, mrr, judge_*} dict
+    that ``_build_rollup`` consumes."""
+    n = len(hits)
+    recall = (sum(hits) / n) if n else 0.0
+    mrr = (sum(rrs) / len(rrs)) if rrs else 0.0
+    judge_wins = sum(1 for f in judge_flags if f)
+    judge_total = len(judge_flags)
+    return {
+        "recall_at_10": recall,
+        "mrr": mrr,
+        "judge_wins": judge_wins,
+        "judge_total": judge_total,
+    }
+
+
+# ============================================================================
 # Public entry — compute_verdict.
 #
 # The function is exposed as a class-with-__call__ so the fixture-driven
@@ -192,19 +330,94 @@ class _ComputeVerdict:
         runner_outputs: list[Any],
         *,
         judge_config: Any | None = None,
+        recall_cutoff: int = 10,
+        graph_mode: str = "graph_leg",
     ) -> ABVerdict:
-        """Production path. Implementation lands when #49 emits real
-        ABRunnerOutput files (Task B4 wires the file-loading path; the
-        retrieval-metric + judge integration happens here).
+        """Production path: compute a verdict from real A/B runner output.
 
-        For now, raise NotImplementedError so callers know this path is the
-        intended seam — fixture path (from_premeasured) is the only fully
-        wired path until #49 ships.
+        Parameters
+        ----------
+        runner_outputs:
+            A list of ``ABRunnerOutput`` instances, or paths (str / Path) to
+            their JSON files. Must include ``naive_vector`` and ``graph_mode``
+            for each corpus.
+        judge_config:
+            Chunkshop-shaped ``JudgingConfig`` dict (see ``judge_seam``). When
+            None, the LLM-judge metric is skipped (judge_total = 0 → TIE on
+            that metric); recall@10 + MRR still decide the verdict.
+        recall_cutoff:
+            Top-K for recall (contract §3.1 uses 10).
+        graph_mode:
+            Which mode plays the "graph" side of the naive-vs-graph comparison.
+            ``"graph_leg"`` (default) tests graph-as-primary; ``"hybrid"`` tests
+            graph-as-augmentation (the production-shaped mode). The contract's
+            gate is over both — run this twice, once per graph_mode.
+
+        Recall@10 and MRR are computed by matching each case's ``gold_doc_id``
+        against ``retrieved[].source`` (contract §3.1). The judge metric runs
+        llm-judge: an answer is synthesized from each mode's retrieved chunks,
+        then scored for acceptability; win-rate = fraction of "passed" answers.
         """
-        raise NotImplementedError(
-            "compute_verdict(runner_outputs, ...) requires #49 emission. "
-            "Use compute_verdict.from_premeasured(payload) for fixture-based "
-            "verdict computation until #49 lands."
+        outputs = _coerce_runner_outputs(runner_outputs)
+
+        # Group by corpus → {mode: ABRunnerOutput}.
+        by_corpus: dict[str, dict[str, Any]] = {}
+        for out in outputs:
+            by_corpus.setdefault(out.corpus_id, {})[out.mode] = out
+
+        judge_provider = None
+        if judge_config is not None:
+            from pg_raggraph.ab_gate.judge_seam import (
+                _chunkshop_judge_config_to_llm_judge_provider,
+            )
+
+            judge_provider = _chunkshop_judge_config_to_llm_judge_provider(judge_config)
+
+        # Score naive_vector + the chosen graph_mode into per-question arrays.
+        # The chosen graph_mode is remapped into the payload's "graph_leg" slot
+        # so the §3 rollup/combiner logic stays mode-name-agnostic.
+        per_corpus_payload: dict[str, dict[str, dict[str, float]]] = {}
+        combined_raw: dict[str, dict[str, list]] = {
+            "naive_vector": {"hits": [], "rrs": [], "judge": []},
+            "graph": {"hits": [], "rrs": [], "judge": []},
+        }
+
+        for corpus_id, modes in by_corpus.items():
+            cells: dict[str, dict[str, float]] = {}
+            for mode, slot in (("naive_vector", "naive_vector"), (graph_mode, "graph")):
+                out = modes.get(mode)
+                if out is None:
+                    raise ValueError(
+                        f"corpus {corpus_id!r} is missing the {mode!r} runner output; "
+                        f"naive_vector and {graph_mode} are required to compute this verdict."
+                    )
+                hits, rrs = _score_retrieval(out, recall_cutoff)
+                judge_flags = _judge_output(out, judge_provider)
+                cells[slot] = _metrics_dict(hits, rrs, judge_flags)
+                combined_raw[slot]["hits"].extend(hits)
+                combined_raw[slot]["rrs"].extend(rrs)
+                combined_raw[slot]["judge"].extend(judge_flags)
+            # _build_rollup expects keys "naive_vector" + "graph_leg".
+            per_corpus_payload[corpus_id] = {
+                "naive_vector": cells["naive_vector"],
+                "graph_leg": cells["graph"],
+            }
+
+        combined_payload = {
+            "naive_vector": _metrics_dict(
+                combined_raw["naive_vector"]["hits"],
+                combined_raw["naive_vector"]["rrs"],
+                combined_raw["naive_vector"]["judge"],
+            ),
+            "graph_leg": _metrics_dict(
+                combined_raw["graph"]["hits"],
+                combined_raw["graph"]["rrs"],
+                combined_raw["graph"]["judge"],
+            ),
+        }
+
+        return _verdict_from_payload(
+            {"per_corpus": per_corpus_payload, "combined": combined_payload}
         )
 
     @staticmethod
@@ -228,26 +441,7 @@ class _ComputeVerdict:
               },
             }
         """
-        per_corpus_rollups = [
-            _build_rollup(scope=corpus_id, naive=cells["naive_vector"], graph=cells["graph_leg"])
-            for corpus_id, cells in payload["per_corpus"].items()
-        ]
-        combined_rollup = _build_rollup(
-            scope="combined",
-            naive=payload["combined"]["naive_vector"],
-            graph=payload["combined"]["graph_leg"],
-        )
-
-        combined_label = _combine(combined_rollup)
-        final_label, extra = _apply_asymmetry_guard(combined_label, per_corpus_rollups)
-        rationale = _format_rationale(combined_rollup, final_label, extra)
-
-        return ABVerdict(
-            per_corpus=per_corpus_rollups,
-            combined=combined_rollup,
-            label=final_label,
-            rationale=rationale,
-        )
+        return _verdict_from_payload(payload)
 
 
 compute_verdict = _ComputeVerdict()
