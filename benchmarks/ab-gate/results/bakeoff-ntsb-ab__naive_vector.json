@@ -5,7 +5,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20071229X02007",
-      "latency_ms": 43.920462019741535,
+      "latency_ms": 43.189967051148415,
       "question": "elderly pilot accident on private grass airstrip with trees and utility wires",
       "question_id": "q1",
       "retrieved": [
@@ -74,7 +74,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20071229X02007",
-      "latency_ms": 43.22237195447087,
+      "latency_ms": 47.17798624187708,
       "question": "Piper PA-22 final approach short turf runway tree strike",
       "question_id": "q2",
       "retrieved": [
@@ -143,7 +143,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20071231X02009",
-      "latency_ms": 42.05343499779701,
+      "latency_ms": 41.34567826986313,
       "question": "Beech A23 hard landing porpoise nose gear collapse Death Valley",
       "question_id": "q3",
       "retrieved": [
@@ -212,7 +212,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20071231X02009",
-      "latency_ms": 49.19942608103156,
+      "latency_ms": 45.96606083214283,
       "question": "nosewheel landing gear failed after bounced touchdown on runway 5",
       "question_id": "q4",
       "retrieved": [
@@ -281,7 +281,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20080102X00005",
-      "latency_ms": 42.49702114611864,
+      "latency_ms": 40.85381096228957,
       "question": "loss of directional control on landing rollway runway 21 Belen New Mexico",
       "question_id": "q5",
       "retrieved": [
@@ -350,7 +350,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20080104X00020",
-      "latency_ms": 41.296929121017456,
+      "latency_ms": 47.97134594991803,
       "question": "Cessna 172 Skyhawk landing on icy snow-covered runway in Wisconsin",
       "question_id": "q6",
       "retrieved": [
@@ -419,7 +419,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20080104X00020",
-      "latency_ms": 41.42262879759073,
+      "latency_ms": 47.11997602134943,
       "question": "pilot completed three takeoffs and full stop landings before runway switch",
       "question_id": "q7",
       "retrieved": [
@@ -488,7 +488,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20080108X00029",
-      "latency_ms": 43.12346503138542,
+      "latency_ms": 42.79576987028122,
       "question": "Cessna 210 fatal crash into mountains southeast of Arteaga Mexico",
       "question_id": "q8",
       "retrieved": [
@@ -557,7 +557,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20080108X00029",
-      "latency_ms": 54.47928607463837,
+      "latency_ms": 51.67468870058656,
       "question": "private pilot fatal accident XB-GTS Mesa de las Tablas Coahuila",
       "question_id": "q9",
       "retrieved": [
@@ -626,7 +626,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20080108X00031",
-      "latency_ms": 48.791476991027594,
+      "latency_ms": 48.11430722475052,
       "question": "Panama-registered Cessna 172 fatal mountain crash near Boquete Chiriqui",
       "question_id": "q10",
       "retrieved": [
@@ -695,7 +695,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20080108X00031",
-      "latency_ms": 42.941573075950146,
+      "latency_ms": 39.23826478421688,
       "question": "Islas Secas departing flight three fatalities one serious injury",
       "question_id": "q11",
       "retrieved": [
@@ -764,7 +764,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20080109X00035",
-      "latency_ms": 45.482109766453505,
+      "latency_ms": 52.15287208557129,
       "question": "amateur built Vans RV-8 left wing strike after going around at Latrobe",
       "question_id": "q12",
       "retrieved": [

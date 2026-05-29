@@ -5,7 +5,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "case-2019_bostock-v-clayton-county-decision",
-      "latency_ms": 810.3366391733289,
+      "latency_ms": 787.0518420822918,
       "question": "Who wrote the majority opinion in Bostock v. Clayton County?",
       "question_id": "q1",
       "retrieved": [
@@ -74,7 +74,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "case-2019_bostock-v-clayton-county-decision",
-      "latency_ms": 74.98330902308226,
+      "latency_ms": 72.47433485463262,
       "question": "What did Bostock v. Clayton County hold about firing employees for being gay or transgender under Title VII?",
       "question_id": "q2",
       "retrieved": [
@@ -143,7 +143,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "case-2018_apple-v-pepper-overview",
-      "latency_ms": 62.73370888084173,
+      "latency_ms": 54.25320891663432,
       "question": "What legal issue does Apple v. Pepper concern and what is the question presented?",
       "question_id": "q3",
       "retrieved": [
@@ -212,7 +212,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "case-2018_apple-v-pepper-decision",
-      "latency_ms": 56.508672423660755,
+      "latency_ms": 58.91193216666579,
       "question": "What was the holding in Apple v. Pepper about consumer antitrust standing?",
       "question_id": "q4",
       "retrieved": [
@@ -281,7 +281,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "case-2018_air-and-liquid-systems-corp-v-devries-overview",
-      "latency_ms": 53.856592159718275,
+      "latency_ms": 57.75247095152736,
       "question": "Question presented in Air and Liquid Systems Corp v. DeVries about asbestos exposure",
       "question_id": "q5",
       "retrieved": [
@@ -350,7 +350,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "case-2022_allen-v-milligan-decision",
-      "latency_ms": 51.13283172249794,
+      "latency_ms": 52.41622496396303,
       "question": "Allen v. Milligan Alabama congressional redistricting Voting Rights Act decision",
       "question_id": "q6",
       "retrieved": [
@@ -419,7 +419,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "case-2019_babb-v-wilkie-overview",
-      "latency_ms": 68.51886725053191,
+      "latency_ms": 60.00868370756507,
       "question": "Babb v. Wilkie federal employee age discrimination ADEA but-for causation",
       "question_id": "q7",
       "retrieved": [
@@ -488,7 +488,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "case-2020_greer-v-united-states-decision",
-      "latency_ms": 62.54691677168012,
+      "latency_ms": 59.59190661087632,
       "question": "Greer v. United States plain-error review of unlawful firearm possession Rehaif",
       "question_id": "q8",
       "retrieved": [
@@ -557,7 +557,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "case-2021_carson-v-makin-decision",
-      "latency_ms": 51.150396931916475,
+      "latency_ms": 56.836599949747324,
       "question": "Carson v. Makin Maine tuition assistance religious schools Free Exercise Clause",
       "question_id": "q9",
       "retrieved": [
@@ -626,7 +626,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "case-2021_dobbs-v-jackson-womens-health-organization-decision",
-      "latency_ms": 55.953220929950476,
+      "latency_ms": 56.94966297596693,
       "question": "Dobbs v. Jackson Women's Health Organization Mississippi 15-week abortion ban",
       "question_id": "q10",
       "retrieved": [
@@ -695,7 +695,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "case-2018_rucho-v-common-cause-decision",
-      "latency_ms": 64.52982500195503,
+      "latency_ms": 58.13296139240265,
       "question": "Rucho v. Common Cause partisan gerrymandering nonjusticiable political question",
       "question_id": "q11",
       "retrieved": [
@@ -764,7 +764,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "case-2019_trump-v-vance-decision",
-      "latency_ms": 53.54305496439338,
+      "latency_ms": 52.125349175184965,
       "question": "Trump v. Vance state grand jury subpoena for presidential financial records",
       "question_id": "q12",
       "retrieved": [

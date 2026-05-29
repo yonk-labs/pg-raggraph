@@ -28,23 +28,23 @@
       "scope": "bakeoff-scotus-ab",
       "recall_at_10": {
         "metric": "recall_at_10",
-        "graph": 0.0,
+        "graph": 0.16666666666666666,
         "naive": 0.75,
-        "delta": -75.0,
+        "delta": -58.333333333333336,
         "label": "NAIVE_WINS"
       },
       "mrr": {
         "metric": "mrr",
-        "graph": 0.0,
+        "graph": 0.0925925925925926,
         "naive": 0.4055555555555555,
-        "delta": -0.4055555555555555,
+        "delta": -0.3129629629629629,
         "label": "NAIVE_WINS"
       },
       "judge_win_rate": {
         "metric": "judge_win_rate",
-        "graph": 0.3333333333333333,
+        "graph": 0.4166666666666667,
         "naive": 0.8333333333333334,
-        "delta": -0.5,
+        "delta": -0.4166666666666667,
         "label": "NAIVE_WINS"
       }
     }
@@ -53,26 +53,26 @@
     "scope": "combined",
     "recall_at_10": {
       "metric": "recall_at_10",
-      "graph": 0.041666666666666664,
+      "graph": 0.125,
       "naive": 0.875,
-      "delta": -83.33333333333334,
+      "delta": -75.0,
       "label": "NAIVE_WINS"
     },
     "mrr": {
       "metric": "mrr",
-      "graph": 0.041666666666666664,
+      "graph": 0.08796296296296297,
       "naive": 0.6229166666666667,
-      "delta": -0.58125,
+      "delta": -0.5349537037037038,
       "label": "NAIVE_WINS"
     },
     "judge_win_rate": {
       "metric": "judge_win_rate",
-      "graph": 0.20833333333333334,
+      "graph": 0.25,
       "naive": 0.9166666666666666,
-      "delta": -0.7083333333333333,
+      "delta": -0.6666666666666666,
       "label": "NAIVE_WINS"
     }
   },
   "label": "NAIVE_WINS",
-  "rationale": "Recall@10 lift: -83.33pp \u2192 NAIVE_WINS\nMRR delta: -0.5813 \u2192 NAIVE_WINS\nJudge win-rate delta: -0.7083 \u2192 NAIVE_WINS\n\u00a73.3 combiner: NAIVE_WINS"
+  "rationale": "Recall@10 lift: -75.00pp \u2192 NAIVE_WINS\nMRR delta: -0.5350 \u2192 NAIVE_WINS\nJudge win-rate delta: -0.6667 \u2192 NAIVE_WINS\n\u00a73.3 combiner: NAIVE_WINS"
 }

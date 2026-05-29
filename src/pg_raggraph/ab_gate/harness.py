@@ -188,15 +188,51 @@ def _fallback_whitespace_terms(text: str) -> list[str]:
     return out
 
 
+def _expand_entity_terms(entities: list[str]) -> list[str]:
+    """Expand NER noun phrases into resolvable terms.
+
+    lede_spacy NER yields full phrases ("Bostock v. Clayton County"), but the
+    materialized entity nodes are single surfaces ("Bostock", "Clayton County").
+    A full-phrase lookup resolves to nothing, so we emit BOTH the full phrase
+    (it might exact-match a multi-word node) AND each component word-token (so
+    "Bostock" / "Clayton" / "County" can resolve individually).
+
+    Dedup is case-insensitive, first-seen wins. Edge punctuation is stripped;
+    stopwords and single-character joiners (the "v" in "X v. Y") are dropped.
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def _add(term: str) -> None:
+        term = term.strip(".,;:!?\"'()[]{} ")
+        if len(term) < 2:
+            return
+        low = term.lower()
+        if low in seen or low in _FALLBACK_STOPWORDS:
+            return
+        seen.add(low)
+        out.append(term)
+
+    for ent in entities:
+        if not ent or not ent.strip():
+            continue
+        _add(ent)  # full phrase — may exact-match a multi-word node
+        for token in ent.split():  # component words — resolve individually
+            _add(token)
+    return out
+
+
 def _encode_question_terms(question: str) -> list[str]:
     """Encode question terms via lede_spacy NER, falling back on raise/empty.
 
-    The fallback covers two cases: lede_spacy not installed (raises) and
-    the NER finding no entities (returns []). In both, we'd rather have
-    whitespace tokens than zero terms — the graph_leg walk degrades
-    gracefully into a noisy lookup instead of returning empty.
+    On a successful NER pass, multi-word entities are expanded into their
+    component tokens (see ``_expand_entity_terms``) so they resolve against
+    the single-surface entity nodes graph_leg walks.
 
-    Logs a warning on fallback so operators notice.
+    The whitespace fallback covers two cases: lede_spacy not installed
+    (raises) and NER finding no entities (returns []). In both, whitespace
+    tokens beat zero terms — the walk degrades into a noisy lookup instead
+    of returning empty. Logs a warning on fallback so operators notice.
     """
     if not question or not question.strip():
         return []
@@ -206,7 +242,7 @@ def _encode_question_terms(question: str) -> list[str]:
         logger.warning("lede_spacy NER failed (%s); falling back to whitespace + stoplist", exc)
         return _fallback_whitespace_terms(question)
     if entities:
-        return entities
+        return _expand_entity_terms(entities)
     logger.warning("lede_spacy NER returned no entities; using whitespace fallback")
     return _fallback_whitespace_terms(question)
 

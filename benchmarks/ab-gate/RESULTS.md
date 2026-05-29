@@ -1,41 +1,73 @@
-# A/B Gate — Live Verdict (chunkshop ↔ pg-raggraph)
+# A/B Gate — PROVISIONAL Verdict (chunkshop ↔ pg-raggraph)
 
 **Date:** 2026-05-28
-**Verdict:** **NAIVE_WINS** (3 metrics to 0, both corpora)
+**Verdict:** **NAIVE WINS vs `graph_leg`** — but ⚠️ **INCOMPLETE**: the third
+contract mode (`hybrid`) was never tested. See "Scope limitation" below.
 **Pipeline version:** pg-raggraph `feat/ab-gate-real-verdict` (post-v0.5.0a4)
 
-This is the real run the chunkshop emission contract §3 was written to settle:
-does the graph leg (chunkshop's `lede_spacy` facts + cooccur edges, resolved
-through pg-raggraph entities) beat naive vector retrieval? It does not.
+This run answers a narrower question than the contract's §3 gate: does
+**graph-as-primary retrieval** (`graph_leg` — entity-resolve the question, then
+walk facts/cooccur) beat naive vector? No. But the contract (§4.2) defines
+**three** modes, and the production-shaped one — `hybrid` (vector seeds the
+candidate set, graph expands/reranks) — is `NotImplementedError` in the harness
+and was not run. **The §3.8 directive must not be honored on this evidence.**
 
-## Verdict (contract §3)
+> ## ⚠️ Scope limitation — `hybrid` mode untested
+>
+> Contract §4.2 lists three modes: `naive_vector`, `graph_leg`, `hybrid`. This
+> run tested the first two — the extremes of the design space (vector-only vs
+> graph-only). It did **not** test `hybrid`, which is the mode chunkshop's
+> facts/cooccur emission was designed to feed.
+>
+> Why this is decisive, not cosmetic: `graph_leg` fails by construction when
+> question NER is weak — it must entity-resolve the *question* to seed the
+> walk, and NTSB's descriptive keyword queries (and ~3/12 SCOTUS questions even
+> after the query-encoder fix) yield no resolvable entities → forced misses.
+> `hybrid` has a completely different failure profile: the vector leg seeds
+> candidates, so the graph never has to entity-resolve the question — it only
+> expands/reranks what vector already found. A large part of the −75pp gap is
+> an artifact of "graph-as-primary needs entity-rich queries," **not** an
+> indictment of the facts/cooccur data.
+>
+> Tracking: pg-raggraph issue (implement + A/B-test `hybrid`). Until that lands,
+> this verdict is "naive beats graph-as-primary," NOT "naive beats graph."
 
-| Scope | Metric | naive | graph | Δ | Label |
+## Results vs `graph_leg` (contract §3 metrics, 2 of 3 modes)
+
+These numbers use the improved query-term encoder (`_expand_entity_terms`,
+2026-05-28) which lifted `graph_leg` SCOTUS coverage from 5/12 → 9/12 questions.
+
+| Scope | Metric | naive | graph_leg | Δ | Label |
 |---|---|---:|---:|---:|---|
-| **combined** | Recall@10 | 0.875 | 0.042 | **−83.3pp** | NAIVE_WINS |
-| **combined** | MRR | 0.623 | 0.042 | **−0.581** | NAIVE_WINS |
-| **combined** | Judge win-rate | 0.917 | 0.208 | **−0.708** | NAIVE_WINS |
-| scotus | Recall@10 | 0.750 | 0.000 | −75.0pp | NAIVE_WINS |
-| scotus | MRR | 0.406 | 0.000 | −0.406 | NAIVE_WINS |
-| scotus | Judge win-rate | 0.833 | 0.333 | −0.500 | NAIVE_WINS |
+| **combined** | Recall@10 | 0.875 | 0.125 | **−75.0pp** | NAIVE_WINS |
+| **combined** | MRR | 0.623 | 0.088 | **−0.535** | NAIVE_WINS |
+| **combined** | Judge win-rate | 0.917 | 0.250 | **−0.667** | NAIVE_WINS |
+| scotus | Recall@10 | 0.750 | 0.167 | −58.3pp | NAIVE_WINS |
+| scotus | MRR | 0.406 | 0.093 | −0.313 | NAIVE_WINS |
+| scotus | Judge win-rate | 0.833 | 0.417 | −0.417 | NAIVE_WINS |
 | ntsb | Recall@10 | 1.000 | 0.083 | −91.7pp | NAIVE_WINS |
 | ntsb | MRR | 0.840 | 0.083 | −0.757 | NAIVE_WINS |
 | ntsb | Judge win-rate | 1.000 | 0.083 | −0.917 | NAIVE_WINS |
 
-§3.3 combiner: graph wins 0 of 3, naive wins 3 → **NAIVE_WINS**. §3.4 asymmetry
-guard not triggered (graph loses both corpora too). All three metrics agree —
-this is the least ambiguous verdict shape the contract defines.
+§3.3 combiner (naive vs graph_leg): graph wins 0 of 3 → NAIVE_WINS. But this is
+a 2-mode comparison; the contract's gate is over all three modes.
 
-**Latency (§3.6, informational):** naive p50 51 ms, graph p50 105 ms. Graph is
-~2× slower AND lower quality, so latency doesn't change the call.
+**Latency (§3.6, informational):** naive p50 51 ms, graph_leg p50 105 ms.
 
-## Per §3.8 — what this means for chunkshop's roadmap
+> _Earlier run (pre-encoder-fix) reported combined recall −83.3pp / graph_leg
+> 5/12 SCOTUS coverage. The encoder fix narrowed it to −75pp / 9/12 — direction
+> unchanged, magnitude reduced. Both predate the hybrid mode being tested._
 
-> NAIVE WINS → freeze edge-tier work; deprioritize Rust RM-C consumers;
-> reconsider whether the existing facts/cooccur are worth maintaining.
+## Per §3.8 — what this does and does NOT license
 
-This reinforces pg-raggraph's prior benchmarks (AGE bake-off, pg-agents) where
-naive vector matched or beat graph traversal on clean technical corpora.
+§3.8 maps NAIVE WINS → "freeze edge-tier work; deprioritize Rust RM-C consumers;
+reconsider whether facts/cooccur are worth maintaining." **That directive is
+NOT triggered by this run**, because the experiment didn't test `hybrid` — the
+mode where the emission was designed to win. Discarding CS-5 provenance, CS-1
+extractor coverage, or RM-C ports on this evidence would be acting on an
+incomplete experiment. The directional finding (graph-as-primary < naive) is
+consistent with pg-raggraph's prior benchmarks (AGE bake-off, pg-agents), but
+the roadmap call waits on the `hybrid` result.
 
 ## How the run was produced
 
@@ -71,28 +103,29 @@ Embedder note: chunkshop emits with `BAAI/bge-base-en-v1.5` (768-d) and the
 pg-raggraph query side uses the same model, so naive_vector compares vectors in
 one embedding space (no int8-vs-fp handicap to the baseline).
 
-## Honest caveats (why this is "directional", not a tournament result)
+## Honest caveats
 
-These do **not** flip the verdict (a −83pp recall gap is not a measurement
-artifact), but they bound how hard to lean on the magnitude:
+**The headline caveat is the untested `hybrid` mode (top of doc) — that's what
+makes this verdict provisional, not just "directional."** The rest bound the
+magnitude of the `naive` vs `graph_leg` comparison that WAS run:
 
 1. **Small gold sets.** 12 questions per corpus. The contract's own gold-ntsb
    note flags this: one query flips aggregate recall@1 by ~0.08. Treat the
    *direction* as solid, the *exact deltas* as noisy.
-2. **graph_leg covered only 5/12 questions per corpus.** When `lede_spacy` NER
-   found no named entities in a question (common for NTSB's descriptive
-   keyword queries), the harness fell back to whitespace tokens, which resolve
-   poorly. The graph leg's recall ceiling was self-limited by question-term
-   encoding, not just by the fact graph. A stronger query-side entity encoder
-   would raise graph recall — but it starts so far behind (0.04 vs 0.88
-   combined) that closing an 83pp gap is implausible without a redesign.
+2. **`graph_leg` is graph-as-PRIMARY — wrong mode for the data.** It must
+   entity-resolve the *question* to seed the walk. After the query-encoder fix
+   (`_expand_entity_terms`) coverage rose to 9/12 (SCOTUS) and 6/12 (NTSB), but
+   descriptive keyword questions still yield no resolvable entities → forced
+   misses. This is exactly the failure `hybrid` avoids (vector seeds the
+   candidates; graph only expands them). The −75pp gap is substantially an
+   artifact of testing graph in its worst-fit mode.
 3. **2/12 SCOTUS gold docs absent.** The `bostock-...-decision` doc was dropped
    by pg-raggraph's content-hash dedup at import (identical concatenated text
-   to a sibling doc). Symmetric across both legs (neither can retrieve it), so
-   the comparison stays fair; it just caps SCOTUS recall at 10/12 for both.
+   to a sibling doc). Symmetric across both legs, so the comparison stays fair;
+   it just caps SCOTUS recall at 10/12 for both.
 4. **Materialization is 1:1 (no fuzzy collapse).** Maximizes graph reachability
    under the harness's `subject = ANY(canonical_names)` join — i.e. it favors
-   graph. Graph still lost decisively.
+   graph. graph_leg still lost — but again, in its worst-fit mode.
 
 ## Artifacts
 

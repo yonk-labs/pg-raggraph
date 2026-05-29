@@ -13,9 +13,9 @@
 
 | Metric | Naive | Graph | Delta | Label |
 |---|---|---|---|---|
-| Recall@10 | 0.8750 | 0.0417 | -83.33pp | NAIVE_WINS |
-| MRR | 0.6229 | 0.0417 | -0.5813 | NAIVE_WINS |
-| Judge win-rate | 0.9167 | 0.2083 | -0.7083 | NAIVE_WINS |
+| Recall@10 | 0.8750 | 0.1250 | -75.00pp | NAIVE_WINS |
+| MRR | 0.6229 | 0.0880 | -0.5350 | NAIVE_WINS |
+| Judge win-rate | 0.9167 | 0.2500 | -0.6667 | NAIVE_WINS |
 
 ## Per-corpus breakdown
 
@@ -31,16 +31,16 @@
 
 | Metric | Naive | Graph | Delta | Label |
 |---|---|---|---|---|
-| Recall@10 | 0.7500 | 0.0000 | -75.00pp | NAIVE_WINS |
-| MRR | 0.4056 | 0.0000 | -0.4056 | NAIVE_WINS |
-| Judge win-rate | 0.8333 | 0.3333 | -0.5000 | NAIVE_WINS |
+| Recall@10 | 0.7500 | 0.1667 | -58.33pp | NAIVE_WINS |
+| MRR | 0.4056 | 0.0926 | -0.3130 | NAIVE_WINS |
+| Judge win-rate | 0.8333 | 0.4167 | -0.4167 | NAIVE_WINS |
 
 ## Verdict computation walkthrough
 
 ```
-Recall@10 lift: -83.33pp → NAIVE_WINS
-MRR delta: -0.5813 → NAIVE_WINS
-Judge win-rate delta: -0.7083 → NAIVE_WINS
+Recall@10 lift: -75.00pp → NAIVE_WINS
+MRR delta: -0.5350 → NAIVE_WINS
+Judge win-rate delta: -0.6667 → NAIVE_WINS
 §3.3 combiner: NAIVE_WINS
 ```
 

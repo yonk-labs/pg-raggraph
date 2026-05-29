@@ -5,7 +5,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20071229X02007",
-      "latency_ms": 429.2516871355474,
+      "latency_ms": 426.84421222656965,
       "question": "elderly pilot accident on private grass airstrip with trees and utility wires",
       "question_id": "q1",
       "retrieved": [
@@ -20,7 +20,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20071229X02007",
-      "latency_ms": 54.431167896836996,
+      "latency_ms": 145.16637567430735,
       "question": "Piper PA-22 final approach short turf runway tree strike",
       "question_id": "q2",
       "retrieved": []
@@ -28,7 +28,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20071231X02009",
-      "latency_ms": 103.14893582835793,
+      "latency_ms": 274.89806804805994,
       "question": "Beech A23 hard landing porpoise nose gear collapse Death Valley",
       "question_id": "q3",
       "retrieved": []
@@ -36,7 +36,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20071231X02009",
-      "latency_ms": 426.1287688277662,
+      "latency_ms": 373.3264789916575,
       "question": "nosewheel landing gear failed after bounced touchdown on runway 5",
       "question_id": "q4",
       "retrieved": [
@@ -51,7 +51,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20080102X00005",
-      "latency_ms": 109.90671580657363,
+      "latency_ms": 192.7019520662725,
       "question": "loss of directional control on landing rollway runway 21 Belen New Mexico",
       "question_id": "q5",
       "retrieved": []
@@ -59,15 +59,22 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20080104X00020",
-      "latency_ms": 108.50691376253963,
+      "latency_ms": 203.88795295730233,
       "question": "Cessna 172 Skyhawk landing on icy snow-covered runway in Wisconsin",
       "question_id": "q6",
-      "retrieved": []
+      "retrieved": [
+        {
+          "content_snippet": "Page 1 of 3\nNational Transportation Safety Board\nAviation Accident Factual Report\nLocation:\nBoquete, Panama\nAccident Number:\nDFW08WA050\nDate & Time:\n12/23/2007, 1200 CST \nRegistration:\nAircraft:\nCessna 172\nAircraft Damage:\nDestroyed\nDefining Event:\nInjuries:\n3 Fatal, 1 Serious\nFlight Conducted Under:\nNon-U.S., Non-Commercial\nOn December 23, 2007, a Panama registered Cessna 172, HP762, was destroyed upon impact \nwith terrain in the mountainous region of Chiriqui near Boquete, Panama.  The pilot and two \npassengers sustained fatal injuries and one passenger sustained serious injuries.  The airplane \ndeparted Islas Secas at approximately 1145 central daylight time.  It was reported that the last \ncommunication occurred around 1203.\nThe investigation is under the jurisdiction of the government of Panama. Further information \npertaining to this accident may be obtained from:\nDireccion de Aeronautica Civil \nApartados 7501 y 7615 \nPanama 5\nhttp://www.aeronautica.gob.pa\nThis report is for information purposes only and contains only information released by the \nPanamanian Government.\n\nPage 2 of 3\nDFW08WA050\nPilot Information  \nCertificate: \nAge:\nAirplane Rating(s):\nSeat Occupied:\nOther Aircraft Rating(s): \nRestraint Used: \nInstrument Rating(s):\nSecond Pilot Present:\nInstructor Rating(s): \nToxicology Performed: \nMedical Certification:\n\nLast FAA Medical Exam:\nOccupational Pilot:\nLast Flight Review or Equivalent:\nFlight Time:\nAircraft and Owner/Operator Information\nAircraft Make:\nCessna\nRegistration:\nModel/Series:\n172 \nAircraft Category:\nAirplane\nYear of Manufacture:\nAmateur Built:\nNo\nAirworthiness Certificate:\nSerial Number:\nLanding Gear Type: \nSeats: \nDate/Type of Last Inspection:\n\nCertified Max Gross Wt.:\nTime Since Last Inspection:\nEngines:\n\nAirframe Total Time:\n\nEngine Manufacturer:\nELT:\nEngine Model/Series:\nRegistered Owner:\nRated Power:\nOperator:\nOperating Certificate(s) \nHeld:\nNone\n\nPage 3 of 3\nDFW08WA050\nMeteorological Information and Flight Plan\nConditions at Accident Site:\nCondition of Light:\nObservation Facility, Elevation:\nDistance from Accident Site:\nObservation Time:\n\nDirection from Accident Site:\nLowest Cloud Condition:\n\nVisibility\nLowest Ceiling:\n\nVisibility (RVR):\nWind Speed/Gusts: \n / \nTurbulence Type \nForecast/Actual:\n / \nWind Direction:\nTurbulence Severity \nForecast/Actual:\n / \nAltimeter Setting:\nTemperature/Dew Point:\n\nPrecipitation and Obscuration:\nDeparture Point: \nIslas Secas \nType of Flight Plan Filed:\nUnknown\nDestination: \nVolcan \nType of Clearance:\nDeparture Time:\n\nType of Airspace: \nAirport Information\nAirport:\n\nRunway Surface Type:\nAirport Elevation:\nRunway Surface Condition:\nRunway Used:\nIFR Approach:\nRunway Length/Width:\n\nVFR Approach/Landing:\nWreckage and Impact Information\nCrew Injuries:\n1 Fatal\nAircraft Damage:\nDestroyed\nPassenger Injuries:\n2 Fatal, 1 Serious\nAircraft Fire:\nGround Injuries:\nN/A\nAircraft Explosion:\nTotal Injuries:\n3 Fatal, 1 Serious\nLatitude, Longitude:\n\nAdministrative Information\nInvestigator In Charge (IIC):\nJason T Aguilera\nAdditional Participating Persons:\nInvestigation Docket:\nNTSB accident and incident dockets serve as permanent archival information for the NTSB\u2019s \ninvestigations. Dockets released prior to June 1, 2009 are publicly available from the NTSB\u2019s \nRecord Management Division at pubinq@ntsb.gov, or at 800-877-6799. Dockets released after \nthis date are available at http://dms.ntsb.gov/pubdms/.",
+          "rank": 1,
+          "score": 1.0,
+          "source": "chunkshop:20080108X00031"
+        }
+      ]
     },
     {
       "gold_answer": null,
       "gold_doc_id": "20080104X00020",
-      "latency_ms": 406.00824588909745,
+      "latency_ms": 392.2852398827672,
       "question": "pilot completed three takeoffs and full stop landings before runway switch",
       "question_id": "q7",
       "retrieved": [
@@ -88,7 +95,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20080108X00029",
-      "latency_ms": 122.2025160677731,
+      "latency_ms": 240.1081109419465,
       "question": "Cessna 210 fatal crash into mountains southeast of Arteaga Mexico",
       "question_id": "q8",
       "retrieved": [
@@ -103,7 +110,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20080108X00029",
-      "latency_ms": 129.60001500323415,
+      "latency_ms": 423.15654130652547,
       "question": "private pilot fatal accident XB-GTS Mesa de las Tablas Coahuila",
       "question_id": "q9",
       "retrieved": []
@@ -111,7 +118,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20080108X00031",
-      "latency_ms": 80.60003537684679,
+      "latency_ms": 67.79639469459653,
       "question": "Panama-registered Cessna 172 fatal mountain crash near Boquete Chiriqui",
       "question_id": "q10",
       "retrieved": [
@@ -126,7 +133,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20080108X00031",
-      "latency_ms": 56.21360382065177,
+      "latency_ms": 165.0337358005345,
       "question": "Islas Secas departing flight three fatalities one serious injury",
       "question_id": "q11",
       "retrieved": []
@@ -134,7 +141,7 @@
     {
       "gold_answer": null,
       "gold_doc_id": "20080109X00035",
-      "latency_ms": 107.09098307415843,
+      "latency_ms": 123.4189597889781,
       "question": "amateur built Vans RV-8 left wing strike after going around at Latrobe",
       "question_id": "q12",
       "retrieved": []
