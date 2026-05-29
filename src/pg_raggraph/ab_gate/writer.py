@@ -331,6 +331,7 @@ class _ComputeVerdict:
         *,
         judge_config: Any | None = None,
         recall_cutoff: int = 10,
+        graph_mode: str = "graph_leg",
     ) -> ABVerdict:
         """Production path: compute a verdict from real A/B runner output.
 
@@ -338,14 +339,19 @@ class _ComputeVerdict:
         ----------
         runner_outputs:
             A list of ``ABRunnerOutput`` instances, or paths (str / Path) to
-            their JSON files. Must include both ``naive_vector`` and
-            ``graph_leg`` modes for each corpus.
+            their JSON files. Must include ``naive_vector`` and ``graph_mode``
+            for each corpus.
         judge_config:
             Chunkshop-shaped ``JudgingConfig`` dict (see ``judge_seam``). When
             None, the LLM-judge metric is skipped (judge_total = 0 → TIE on
             that metric); recall@10 + MRR still decide the verdict.
         recall_cutoff:
             Top-K for recall (contract §3.1 uses 10).
+        graph_mode:
+            Which mode plays the "graph" side of the naive-vs-graph comparison.
+            ``"graph_leg"`` (default) tests graph-as-primary; ``"hybrid"`` tests
+            graph-as-augmentation (the production-shaped mode). The contract's
+            gate is over both — run this twice, once per graph_mode.
 
         Recall@10 and MRR are computed by matching each case's ``gold_doc_id``
         against ``retrieved[].source`` (contract §3.1). The judge metric runs
@@ -367,40 +373,47 @@ class _ComputeVerdict:
 
             judge_provider = _chunkshop_judge_config_to_llm_judge_provider(judge_config)
 
-        # Score every (corpus, mode) into per-question arrays so both the
-        # per-corpus rollups and the combined rollup (concatenated per §3.4)
-        # are computed from the same raw signal.
+        # Score naive_vector + the chosen graph_mode into per-question arrays.
+        # The chosen graph_mode is remapped into the payload's "graph_leg" slot
+        # so the §3 rollup/combiner logic stays mode-name-agnostic.
         per_corpus_payload: dict[str, dict[str, dict[str, float]]] = {}
-        # Accumulators for the combined rollup (concatenate across corpora).
         combined_raw: dict[str, dict[str, list]] = {
             "naive_vector": {"hits": [], "rrs": [], "judge": []},
-            "graph_leg": {"hits": [], "rrs": [], "judge": []},
+            "graph": {"hits": [], "rrs": [], "judge": []},
         }
 
         for corpus_id, modes in by_corpus.items():
             cells: dict[str, dict[str, float]] = {}
-            for mode in ("naive_vector", "graph_leg"):
+            for mode, slot in (("naive_vector", "naive_vector"), (graph_mode, "graph")):
                 out = modes.get(mode)
                 if out is None:
                     raise ValueError(
                         f"corpus {corpus_id!r} is missing the {mode!r} runner output; "
-                        "both naive_vector and graph_leg are required to compute a verdict."
+                        f"naive_vector and {graph_mode} are required to compute this verdict."
                     )
                 hits, rrs = _score_retrieval(out, recall_cutoff)
                 judge_flags = _judge_output(out, judge_provider)
-                cells[mode] = _metrics_dict(hits, rrs, judge_flags)
-                combined_raw[mode]["hits"].extend(hits)
-                combined_raw[mode]["rrs"].extend(rrs)
-                combined_raw[mode]["judge"].extend(judge_flags)
-            per_corpus_payload[corpus_id] = cells
+                cells[slot] = _metrics_dict(hits, rrs, judge_flags)
+                combined_raw[slot]["hits"].extend(hits)
+                combined_raw[slot]["rrs"].extend(rrs)
+                combined_raw[slot]["judge"].extend(judge_flags)
+            # _build_rollup expects keys "naive_vector" + "graph_leg".
+            per_corpus_payload[corpus_id] = {
+                "naive_vector": cells["naive_vector"],
+                "graph_leg": cells["graph"],
+            }
 
         combined_payload = {
-            mode: _metrics_dict(
-                combined_raw[mode]["hits"],
-                combined_raw[mode]["rrs"],
-                combined_raw[mode]["judge"],
-            )
-            for mode in ("naive_vector", "graph_leg")
+            "naive_vector": _metrics_dict(
+                combined_raw["naive_vector"]["hits"],
+                combined_raw["naive_vector"]["rrs"],
+                combined_raw["naive_vector"]["judge"],
+            ),
+            "graph_leg": _metrics_dict(
+                combined_raw["graph"]["hits"],
+                combined_raw["graph"]["rrs"],
+                combined_raw["graph"]["judge"],
+            ),
         }
 
         return _verdict_from_payload(

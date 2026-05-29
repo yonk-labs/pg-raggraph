@@ -124,6 +124,64 @@ LIMIT %(top_k)s
 """
 
 
+# Hybrid mode (vector-seeds + graph-rerank).
+#
+# Per chunkshop §4.2, hybrid is the production-shaped mode: the vector leg
+# seeds a candidate set, then the graph reranks those candidates by entity
+# overlap. Crucially it does NOT entity-resolve the question (graph_leg's
+# weak-NER failure), only the retrieved chunks. We pull a wider vector seed
+# (top_k × _HYBRID_SEED_MULT) with document_id, then fetch each seed doc's
+# fact endpoints + cooccur nodes and boost docs that share entities with
+# OTHER seed docs (topical centrality within the retrieved set).
+_HYBRID_SEED_MULT = 3
+_HYBRID_GRAPH_WEIGHT = 0.5
+
+_HYBRID_SEED_SQL = """
+SELECT
+    c.id,
+    c.document_id,
+    COALESCE(c.embedded_content, c.content) AS content,
+    d.source_path,
+    1 - (c.embedding <=> %(embedding)s::vector) AS score
+FROM chunks c
+JOIN documents d ON d.id = c.document_id
+WHERE d.namespace = %(namespace)s
+  AND c.metadata->>'kind' IS DISTINCT FROM 'fact'
+ORDER BY c.embedding <=> %(embedding)s::vector
+LIMIT %(seed_k)s
+"""
+
+# Fact endpoints + cooccur nodes for a set of seed documents (for centrality).
+_HYBRID_DOC_NODES_SQL = """
+SELECT c.document_id, val
+FROM chunks c
+JOIN documents d ON d.id = c.document_id
+CROSS JOIN LATERAL (VALUES (c.metadata->>'subject'), (c.metadata->>'object')) AS f(val)
+WHERE d.namespace = %(namespace)s
+  AND c.metadata->>'kind' = 'fact'
+  AND c.document_id = ANY(%(doc_ids)s)
+  AND val IS NOT NULL AND length(trim(val)) > 0
+UNION ALL
+SELECT c.document_id, co.value->>'a'
+FROM chunks c
+JOIN documents d ON d.id = c.document_id
+CROSS JOIN LATERAL jsonb_array_elements(COALESCE(c.metadata->'cooccur', '[]'::jsonb)) co(value)
+WHERE d.namespace = %(namespace)s
+  AND c.metadata->>'kind' = 'episode'
+  AND c.document_id = ANY(%(doc_ids)s)
+  AND co.value->>'a' IS NOT NULL AND length(trim(co.value->>'a')) > 0
+UNION ALL
+SELECT c.document_id, co.value->>'b'
+FROM chunks c
+JOIN documents d ON d.id = c.document_id
+CROSS JOIN LATERAL jsonb_array_elements(COALESCE(c.metadata->'cooccur', '[]'::jsonb)) co(value)
+WHERE d.namespace = %(namespace)s
+  AND c.metadata->>'kind' = 'episode'
+  AND c.document_id = ANY(%(doc_ids)s)
+  AND co.value->>'b' IS NOT NULL AND length(trim(co.value->>'b')) > 0
+"""
+
+
 # Stopwords for the whitespace fallback. Kept short — the fallback is
 # already a degraded path; aggressive stopping would drop entities too.
 _FALLBACK_STOPWORDS = frozenset(
@@ -361,6 +419,109 @@ async def _run_graph_leg(
     ]
 
 
+def _blend_hybrid_candidates(
+    candidates: list[dict],
+    doc_to_nodes: dict,
+    *,
+    top_k: int,
+    graph_weight: float,
+) -> list[ABRetrievedItem]:
+    """Rerank vector candidates by graph centrality (pure, deterministic).
+
+    centrality(doc) = Σ over the doc's fact/cooccur nodes of (how many OTHER
+    seed docs also carry that node) — i.e. topical overlap within the
+    retrieved set. Blended score = (1-w)·norm(vector) + w·norm(centrality).
+    Empty graph signal (no shared nodes / no nodes) degrades to pure vector
+    order, so hybrid never does worse than naive on the seed it was given.
+    """
+    if not candidates:
+        return []
+
+    # node → number of distinct seed docs containing it.
+    node_doc_freq: dict[str, int] = {}
+    for nodes in doc_to_nodes.values():
+        for n in nodes:
+            node_doc_freq[n] = node_doc_freq.get(n, 0) + 1
+
+    def _centrality(doc_id) -> float:
+        nodes = doc_to_nodes.get(doc_id, set())
+        return float(sum(node_doc_freq.get(n, 0) - 1 for n in nodes))
+
+    vmax = max(c["vector_score"] for c in candidates) or 1.0
+    vmin = min(c["vector_score"] for c in candidates)
+    vrange = (vmax - vmin) or 1.0
+    cents = {c["document_id"]: _centrality(c["document_id"]) for c in candidates}
+    cmax = max(cents.values()) or 1.0
+
+    scored = []
+    for c in candidates:
+        vnorm = (c["vector_score"] - vmin) / vrange
+        cnorm = cents[c["document_id"]] / cmax if cmax else 0.0
+        blended = (1.0 - graph_weight) * vnorm + graph_weight * cnorm
+        scored.append((blended, c))
+    # Stable sort: ties keep vector order (candidates arrive vector-sorted).
+    scored.sort(key=lambda bc: bc[0], reverse=True)
+
+    return [
+        ABRetrievedItem(
+            rank=rank,
+            source=c["source"],
+            score=round(blended, 6),
+            content_snippet=c["content"] or "",
+        )
+        for rank, (blended, c) in enumerate(scored[:top_k], start=1)
+    ]
+
+
+async def _run_hybrid(
+    rag: "GraphRAG",
+    *,
+    corpus_id: str,
+    question: str,
+    top_k: int,
+) -> list[ABRetrievedItem]:
+    """Vector-seeds + graph-rerank. See _HYBRID_* SQL + _blend_hybrid_candidates.
+
+    The graph reranks the *retrieved chunks* by entity overlap — it never
+    entity-resolves the question, so this mode is immune to graph_leg's
+    weak-NER failure (chunkshop §4.2).
+    """
+    embedder = rag._get_embedder()
+    [embedding] = await embedder.embed([question])
+    seed_k = max(top_k * _HYBRID_SEED_MULT, top_k)
+    seed_rows = await rag.db.fetch_all(
+        _HYBRID_SEED_SQL,
+        {"embedding": embedding, "namespace": corpus_id, "seed_k": seed_k},
+    )
+    if not seed_rows:
+        return []
+
+    candidates = [
+        {
+            "id": r["id"],
+            "document_id": r["document_id"],
+            "source": r["source_path"] or f"{corpus_id}:chunk:{r['id']}",
+            "content": r["content"] or "",
+            "vector_score": float(r["score"]),
+        }
+        for r in seed_rows
+    ]
+
+    doc_ids = list({c["document_id"] for c in candidates})
+    node_rows = await rag.db.fetch_all(
+        _HYBRID_DOC_NODES_SQL, {"namespace": corpus_id, "doc_ids": doc_ids}
+    )
+    doc_to_nodes: dict = {}
+    for row in node_rows:
+        val = (row["val"] or "").strip()
+        if val:
+            doc_to_nodes.setdefault(row["document_id"], set()).add(val)
+
+    return _blend_hybrid_candidates(
+        candidates, doc_to_nodes, top_k=top_k, graph_weight=_HYBRID_GRAPH_WEIGHT
+    )
+
+
 async def run_harness_mode(
     rag: "GraphRAG",
     *,
@@ -388,13 +549,8 @@ async def run_harness_mode(
                 rag, corpus_id=corpus_id, question=gold.question, top_k=top_k
             )
         elif mode == "hybrid":
-            raise NotImplementedError(
-                "hybrid mode deferred — see issue #48. The brief's SC-007 "
-                "explicitly permits shipping with NotImplementedError; the "
-                "50/50 naive_vector + graph_leg blend is the v1 if/when "
-                "scope re-opens. Use naive_vector and graph_leg modes "
-                "directly via run_harness_mode and combine results in "
-                "your application code if you need a hybrid leg today."
+            retrieved = await _run_hybrid(
+                rag, corpus_id=corpus_id, question=gold.question, top_k=top_k
             )
         else:
             raise ValueError(f"unknown harness mode: {mode!r}")

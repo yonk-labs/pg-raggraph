@@ -1170,9 +1170,24 @@ def ab_gate_materialize(ctx, namespaces):
     default=None,
     help="Env var holding the judge API key (e.g. OPENAI_API_KEY).",
 )
+@click.option(
+    "--graph-mode",
+    default="graph_leg",
+    type=click.Choice(["graph_leg", "hybrid"]),
+    show_default=True,
+    help="Which mode plays the 'graph' side: graph_leg (graph-as-primary) or "
+    "hybrid (graph-as-augmentation). Run once per mode for the full §3 gate.",
+)
 @click.pass_context
 def ab_gate_verdict(
-    ctx, runs_dir, output_dir, judge_provider, judge_model, judge_base_url, judge_api_key_env
+    ctx,
+    runs_dir,
+    output_dir,
+    judge_provider,
+    judge_model,
+    judge_base_url,
+    judge_api_key_env,
+    graph_mode,
 ):
     """Apply the contract §3 combiner to runner output and write the report."""
     from pathlib import Path
@@ -1215,9 +1230,9 @@ def ab_gate_verdict(
     ]
 
     try:
-        verdict = compute_verdict(outputs, judge_config=judge_config)
+        verdict = compute_verdict(outputs, judge_config=judge_config, graph_mode=graph_mode)
         write_verdict_report(verdict, out_dir=Path(output_dir), latency_rows=latency_rows)
-        click.echo(f"Verdict: {verdict.label}")
+        click.echo(f"Verdict (naive vs {graph_mode}): {verdict.label}")
         click.echo(verdict.rationale)
         click.echo(f"\nReport written to {output_dir}/verdict.json + verdict.md")
     except Exception as e:

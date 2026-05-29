@@ -1,135 +1,131 @@
-# A/B Gate — PROVISIONAL Verdict (chunkshop ↔ pg-raggraph)
+# A/B Gate — Complete Verdict (chunkshop ↔ pg-raggraph)
 
-**Date:** 2026-05-28
-**Verdict:** **NAIVE WINS vs `graph_leg`** — but ⚠️ **INCOMPLETE**: the third
-contract mode (`hybrid`) was never tested. See "Scope limitation" below.
-**Pipeline version:** pg-raggraph `feat/ab-gate-real-verdict` (post-v0.5.0a4)
+**Date:** 2026-05-28 (3-mode run; supersedes the earlier 2-mode provisional)
+**Verdict:** **NAIVE WINS** — across *both* graph modes, graph never wins a
+single metric. But the two modes tell very different stories (see below).
+**Pipeline:** pg-raggraph `feat/ab-gate-real-verdict`
 
-This run answers a narrower question than the contract's §3 gate: does
-**graph-as-primary retrieval** (`graph_leg` — entity-resolve the question, then
-walk facts/cooccur) beat naive vector? No. But the contract (§4.2) defines
-**three** modes, and the production-shaped one — `hybrid` (vector seeds the
-candidate set, graph expands/reranks) — is `NotImplementedError` in the harness
-and was not run. **The §3.8 directive must not be honored on this evidence.**
+This run tests **all three** modes the chunkshop emission contract §4.2 defines
+— `naive_vector`, `graph_leg` (graph-as-primary), and `hybrid`
+(graph-as-augmentation: vector seeds candidates, graph reranks them by entity
+overlap). The earlier run tested only the first two; chunkshop correctly flagged
+that the production-shaped `hybrid` mode — the one the facts/cooccur emission was
+designed to feed — was missing. It's now implemented and tested.
 
-> ## ⚠️ Scope limitation — `hybrid` mode untested
->
-> Contract §4.2 lists three modes: `naive_vector`, `graph_leg`, `hybrid`. This
-> run tested the first two — the extremes of the design space (vector-only vs
-> graph-only). It did **not** test `hybrid`, which is the mode chunkshop's
-> facts/cooccur emission was designed to feed.
->
-> Why this is decisive, not cosmetic: `graph_leg` fails by construction when
-> question NER is weak — it must entity-resolve the *question* to seed the
-> walk, and NTSB's descriptive keyword queries (and ~3/12 SCOTUS questions even
-> after the query-encoder fix) yield no resolvable entities → forced misses.
-> `hybrid` has a completely different failure profile: the vector leg seeds
-> candidates, so the graph never has to entity-resolve the question — it only
-> expands/reranks what vector already found. A large part of the −75pp gap is
-> an artifact of "graph-as-primary needs entity-rich queries," **not** an
-> indictment of the facts/cooccur data.
->
-> Tracking: pg-raggraph issue (implement + A/B-test `hybrid`). Until that lands,
-> this verdict is "naive beats graph-as-primary," NOT "naive beats graph."
+## Headline: two graph modes, two stories
 
-## Results vs `graph_leg` (contract §3 metrics, 2 of 3 modes)
+| Comparison | Recall@10 Δ | MRR Δ | Judge Δ | §3.3 verdict |
+|---|---:|---:|---:|---|
+| naive vs **`graph_leg`** (graph-as-primary) | **−75.0pp** | **−0.535** | **−0.667** | NAIVE_WINS 3–0 (blowout) |
+| naive vs **`hybrid`** (graph-as-augmentation) | −12.5pp | −0.113 | **−0.042 → TIE** | NAIVE_WINS 2–0–1 (near-parity) |
 
-These numbers use the improved query-term encoder (`_expand_entity_terms`,
-2026-05-28) which lifted `graph_leg` SCOTUS coverage from 5/12 → 9/12 questions.
+**The nuance that matters for §3.8:** `graph_leg` loses catastrophically, but
+`hybrid` is *near parity* — it **ties on answer quality** (the LLM judge: 0.875
+vs 0.917 combined; SCOTUS exactly 0.833 = 0.833) and loses retrieval only
+slightly. So the honest reading is **not** "graph is useless/harmful" — it's
+"**graph doesn't earn its cost on these corpora.**" Even in its best mode the
+graph layer is, at most, neutral here; the simple centrality reranker slightly
+drags recall by demoting a few gold docs that vector alone ranked higher.
+
+## naive vs `hybrid` (the decisive, production-shaped comparison)
+
+`hybrid` = `naive_vector` seeds the top-30 candidates, then they're reranked by
+graph centrality (how many fact/cooccur nodes each candidate's doc shares with
+*other* retrieved docs). It never entity-resolves the question — so it has full
+12/12 coverage on both corpora, unlike `graph_leg`.
+
+| Scope | Metric | naive | hybrid | Δ | Label |
+|---|---|---:|---:|---:|---|
+| **combined** | Recall@10 | 0.875 | 0.750 | −12.5pp | NAIVE_WINS |
+| **combined** | MRR | 0.623 | 0.510 | −0.113 | NAIVE_WINS |
+| **combined** | Judge win-rate | 0.917 | 0.875 | −0.042 | **TIE** |
+| scotus | Recall@10 | 0.750 | 0.583 | −16.7pp | NAIVE_WINS |
+| scotus | MRR | 0.406 | 0.306 | −0.100 | NAIVE_WINS |
+| scotus | Judge win-rate | 0.833 | 0.833 | ±0.000 | **TIE** |
+| ntsb | Recall@10 | 1.000 | 0.917 | −8.3pp | NAIVE_WINS |
+| ntsb | MRR | 0.840 | 0.715 | −0.125 | NAIVE_WINS |
+| ntsb | Judge win-rate | 1.000 | 0.917 | −0.083 | **TIE** |
+
+Combiner: naive wins recall + MRR, judge ties → NAIVE_WINS, but by small
+margins and with answer quality tied. **Hybrid did not beat naive on any
+metric — but it didn't lose answer quality either.**
+
+## naive vs `graph_leg` (graph-as-primary)
 
 | Scope | Metric | naive | graph_leg | Δ | Label |
 |---|---|---:|---:|---:|---|
-| **combined** | Recall@10 | 0.875 | 0.125 | **−75.0pp** | NAIVE_WINS |
-| **combined** | MRR | 0.623 | 0.088 | **−0.535** | NAIVE_WINS |
-| **combined** | Judge win-rate | 0.917 | 0.250 | **−0.667** | NAIVE_WINS |
-| scotus | Recall@10 | 0.750 | 0.167 | −58.3pp | NAIVE_WINS |
-| scotus | MRR | 0.406 | 0.093 | −0.313 | NAIVE_WINS |
-| scotus | Judge win-rate | 0.833 | 0.417 | −0.417 | NAIVE_WINS |
-| ntsb | Recall@10 | 1.000 | 0.083 | −91.7pp | NAIVE_WINS |
-| ntsb | MRR | 0.840 | 0.083 | −0.757 | NAIVE_WINS |
-| ntsb | Judge win-rate | 1.000 | 0.083 | −0.917 | NAIVE_WINS |
+| **combined** | Recall@10 | 0.875 | 0.125 | −75.0pp | NAIVE_WINS |
+| **combined** | MRR | 0.623 | 0.088 | −0.535 | NAIVE_WINS |
+| **combined** | Judge win-rate | 0.917 | 0.250 | −0.667 | NAIVE_WINS |
 
-§3.3 combiner (naive vs graph_leg): graph wins 0 of 3 → NAIVE_WINS. But this is
-a 2-mode comparison; the contract's gate is over all three modes.
+`graph_leg` must entity-resolve the *question* to seed its walk, so it fails by
+construction on weak-NER questions (NTSB descriptive queries; ~3/12 SCOTUS even
+after the query-encoder fix). Coverage: SCOTUS 9/12, NTSB 6/12. This is graph in
+its worst-fit mode — the −75pp gap is largely that artifact, which is exactly
+why `hybrid` (no question NER) was the comparison that mattered.
 
-**Latency (§3.6, informational):** naive p50 51 ms, graph_leg p50 105 ms.
+**Latency (§3.6, informational):** naive p50 51 ms, graph_leg 105 ms, hybrid
+~110 ms (two queries + rerank).
 
-> _Earlier run (pre-encoder-fix) reported combined recall −83.3pp / graph_leg
-> 5/12 SCOTUS coverage. The encoder fix narrowed it to −75pp / 9/12 — direction
-> unchanged, magnitude reduced. Both predate the hybrid mode being tested._
-
-## Per §3.8 — what this does and does NOT license
+## What this licenses for §3.8
 
 §3.8 maps NAIVE WINS → "freeze edge-tier work; deprioritize Rust RM-C consumers;
-reconsider whether facts/cooccur are worth maintaining." **That directive is
-NOT triggered by this run**, because the experiment didn't test `hybrid` — the
-mode where the emission was designed to win. Discarding CS-5 provenance, CS-1
-extractor coverage, or RM-C ports on this evidence would be acting on an
-incomplete experiment. The directional finding (graph-as-primary < naive) is
-consistent with pg-raggraph's prior benchmarks (AGE bake-off, pg-agents), but
-the roadmap call waits on the `hybrid` result.
+reconsider whether facts/cooccur are worth maintaining." The complete 3-mode
+run **supports** that direction — naive wins or ties every metric in both
+comparisons; graph wins nothing. But weight the nuance honestly:
+
+- It is **not** evidence that facts/cooccur are *harmful* — hybrid ties on
+  answer quality. It's evidence they don't *help enough to justify the cost* on
+  these two clean technical corpora.
+- The `hybrid` reranker is a **simple, untuned centrality heuristic** (entity
+  overlap among retrieved docs). A relevance-tuned graph reranker, or a
+  larger/messier corpus with real cross-document entity reasoning, could shift
+  the hybrid result. This run does not rule that out.
+- n = 24 questions. The hybrid deltas (−12.5pp, −0.11) are small enough to be
+  partly noise; the judge tie is the most robust signal and it says "parity."
+
+Consistent with pg-raggraph's prior benchmarks (AGE bake-off, pg-agents): on
+clean technical corpora a single vector ranking matches or beats graph. The
+new contribution here is showing it holds in the *production-shaped hybrid mode*,
+not just graph-as-primary — and that hybrid's loss is parity-grade, not a rout.
 
 ## How the run was produced
 
 ```bash
-# 1. chunkshop emits facts + cooccur into its own pgvector schema (per corpus)
-cd ../chunkshop/python
-export CHUNKSHOP_TEST_DSN=postgresql://postgres:postgres@localhost:5434/chunkshop_test
-uv run --no-sync chunkshop ingest --config <pg-raggraph>/benchmarks/ab-gate/scotus-ab.yaml
-uv run --no-sync chunkshop ingest --config <pg-raggraph>/benchmarks/ab-gate/ntsb-ab.yaml
-
-# 2. import into pg-raggraph (dim-768 DB, metadata preserved), per corpus
+# corpora already emitted by chunkshop into schemas ab_scotus / ab_ntsb and
+# imported into pg_raggraph_768 (namespaces bakeoff-scotus-ab / -ntsb-ab),
+# entities materialized (3851 + 22). Then:
 export PGRG_DSN=postgresql://postgres:postgres@localhost:5434/pg_raggraph_768
 export PGRG_EMBEDDING_DIM=768 PGRG_EMBEDDING_MODEL=BAAI/bge-base-en-v1.5
-pgrg ingest-chunkshop-table --chunkshop-dsn $CHUNKSHOP_TEST_DSN --schema ab_scotus --table scotus_ab -n bakeoff-scotus-ab --skip-llm
-pgrg ingest-chunkshop-table --chunkshop-dsn $CHUNKSHOP_TEST_DSN --schema ab_ntsb   --table ntsb_ab   -n bakeoff-ntsb-ab   --skip-llm
-
-# 3. materialize graph entities from fact endpoints + cooccur nodes
-pgrg ab-gate materialize -n bakeoff-scotus-ab -n bakeoff-ntsb-ab
-
-# 4. run the matrix
 pgrg ab-gate run \
-  --corpus bakeoff-scotus-ab --gold ../chunkshop/docs/samples/bakeoff-scotus/gold-scotus.yaml \
-  --corpus bakeoff-ntsb-ab   --gold ../chunkshop/docs/samples/bakeoff-ntsb/gold-ntsb.yaml \
-  --mode naive_vector --mode graph_leg --top-k 10 --out /tmp/ab-runs
+  --corpus bakeoff-scotus-ab --gold .../gold-scotus.yaml \
+  --corpus bakeoff-ntsb-ab   --gold .../gold-ntsb.yaml \
+  --mode naive_vector --mode graph_leg --mode hybrid --top-k 10 --out runs/
 
-# 5. verdict with an LLM judge
-export OPENAI_API_KEY=...   # gpt-4o-mini
-pgrg ab-gate verdict --runs /tmp/ab-runs --out /tmp/ab-verdict \
-  --judge-provider openai --judge-model gpt-4o-mini --judge-api-key-env OPENAI_API_KEY
+export OPENAI_API_KEY=...   # gpt-4o-mini judge
+pgrg ab-gate verdict --runs runs/ --out v-hybrid   --graph-mode hybrid   --judge-provider openai --judge-model gpt-4o-mini --judge-api-key-env OPENAI_API_KEY
+pgrg ab-gate verdict --runs runs/ --out v-graphleg --graph-mode graph_leg --judge-provider openai --judge-model gpt-4o-mini --judge-api-key-env OPENAI_API_KEY
 ```
 
-Embedder note: chunkshop emits with `BAAI/bge-base-en-v1.5` (768-d) and the
-pg-raggraph query side uses the same model, so naive_vector compares vectors in
-one embedding space (no int8-vs-fp handicap to the baseline).
+Embedder: chunkshop emits + pg-raggraph queries with the same `BAAI/bge-base-en-v1.5`
+(768-d), so naive_vector compares vectors in one space.
 
-## Honest caveats
+## Caveats
 
-**The headline caveat is the untested `hybrid` mode (top of doc) — that's what
-makes this verdict provisional, not just "directional."** The rest bound the
-magnitude of the `naive` vs `graph_leg` comparison that WAS run:
-
-1. **Small gold sets.** 12 questions per corpus. The contract's own gold-ntsb
-   note flags this: one query flips aggregate recall@1 by ~0.08. Treat the
-   *direction* as solid, the *exact deltas* as noisy.
-2. **`graph_leg` is graph-as-PRIMARY — wrong mode for the data.** It must
-   entity-resolve the *question* to seed the walk. After the query-encoder fix
-   (`_expand_entity_terms`) coverage rose to 9/12 (SCOTUS) and 6/12 (NTSB), but
-   descriptive keyword questions still yield no resolvable entities → forced
-   misses. This is exactly the failure `hybrid` avoids (vector seeds the
-   candidates; graph only expands them). The −75pp gap is substantially an
-   artifact of testing graph in its worst-fit mode.
-3. **2/12 SCOTUS gold docs absent.** The `bostock-...-decision` doc was dropped
-   by pg-raggraph's content-hash dedup at import (identical concatenated text
-   to a sibling doc). Symmetric across both legs, so the comparison stays fair;
-   it just caps SCOTUS recall at 10/12 for both.
-4. **Materialization is 1:1 (no fuzzy collapse).** Maximizes graph reachability
-   under the harness's `subject = ANY(canonical_names)` join — i.e. it favors
-   graph. graph_leg still lost — but again, in its worst-fit mode.
+1. **Small gold sets** — 12 Q/corpus; treat direction as solid, exact deltas as
+   noisy. The hybrid judge tie is the most robust signal.
+2. **`hybrid` reranker is a v1 heuristic** — entity-overlap centrality, untuned.
+   Not the last word on graph-as-augmentation; a relevance-aware reranker is the
+   obvious next experiment.
+3. **2/12 SCOTUS gold docs absent** (content-hash dedup at import) — symmetric
+   across all modes; caps SCOTUS recall at 10/12 for everyone.
+4. **`graph_leg` materialization is 1:1** (favors graph reachability). It still
+   lost — in its worst-fit mode.
 
 ## Artifacts
 
-- `results/verdict.json` / `results/verdict.md` — the computed verdict.
-- `results/<corpus>__<mode>.json` — raw per-cell runner output (retrieved lists).
-- `results/latency.json` — per-question latency.
-- `scotus-ab.yaml` / `ntsb-ab.yaml` — the chunkshop ingest configs used.
+- `results/verdict-naive-vs-hybrid.{json,md}` — the decisive comparison.
+- `results/verdict-naive-vs-graphleg.{json,md}` — graph-as-primary.
+- `results/<corpus>__<mode>.json` — raw per-cell runner output (3 modes × 2 corpora).
+- `results/latency.json`, `results/manifest.json`.
+- `scotus-ab.yaml` / `ntsb-ab.yaml` — chunkshop ingest configs.

@@ -105,6 +105,22 @@ def test_accepts_paths_and_objects(tmp_path):
     assert verdict.combined.recall_at_10.label == "GRAPH_WINS"
 
 
+def test_graph_mode_selects_which_mode_is_the_graph_side():
+    """graph_mode='hybrid' compares naive vs hybrid; default compares naive vs graph_leg."""
+    naive = _output("naive_vector", {"q1": None, "q2": None})
+    graph_leg = _output("graph_leg", {"q1": None, "q2": None})  # also misses
+    hybrid = _output("hybrid", {"q1": 1, "q2": 1})  # hybrid hits
+
+    # Default (graph_leg): both miss → recall TIE (0 vs 0) → not GRAPH_WINS.
+    v_leg = compute_verdict([naive, graph_leg, hybrid], judge_config=None)
+    assert v_leg.combined.recall_at_10.graph == pytest.approx(0.0)
+
+    # graph_mode=hybrid: hybrid wins recall+mrr → GRAPH_WINS.
+    v_hyb = compute_verdict([naive, graph_leg, hybrid], judge_config=None, graph_mode="hybrid")
+    assert v_hyb.combined.recall_at_10.graph == pytest.approx(1.0)
+    assert v_hyb.label == "GRAPH_WINS"
+
+
 def test_premeasured_path_still_works():
     """Regression: the fixture path (from_premeasured) is unchanged."""
     payload = {
