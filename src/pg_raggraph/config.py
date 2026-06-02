@@ -480,6 +480,14 @@ class PGRGConfig(BaseSettings):
     w_sem: float = 0.50
     w_bm25: float = 0.20
     w_graph: float = 0.20
+
+    # Fusion strategy for hybrid retrieval (issue #57). "linear" (default)
+    # preserves the weighted-sum behavior byte-for-byte; "rrf" fuses by
+    # per-leg rank (Σ wᵢ / (rrf_k + rankᵢ)), which is scale-free across the
+    # cosine / ts_rank legs. Applies to naive + hybrid modes only.
+    fusion: Literal["linear", "rrf"] = "linear"
+    rrf_k: int = 60  # RRF damping constant (standard default)
+
     w_recent: float = 0.10
     w_supersession: float = 0.10
     temporal_half_life_years: float = 5.0
