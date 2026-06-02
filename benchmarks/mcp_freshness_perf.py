@@ -21,7 +21,6 @@ import time
 from pg_raggraph import GraphRAG
 from pg_raggraph.mcp_helpers import _apply_freshness
 
-
 DSN = "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
 NS = "bench_mcp_freshness"
 SAMPLES = 200
@@ -75,7 +74,9 @@ async def main() -> None:
     print(f"namespace: {NS}")
     print(f"samples per cell: {SAMPLES}")
     print()
-    print(f"{'pending docs':>12s}  {'p50 ms':>8s}  {'p95 ms':>8s}  {'mean ms':>8s}  {'banner?':>8s}")
+    print(
+        f"{'pending docs':>12s}  {'p50 ms':>8s}  {'p95 ms':>8s}  {'mean ms':>8s}  {'banner?':>8s}"
+    )
     print("-" * 56)
 
     try:

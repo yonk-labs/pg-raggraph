@@ -21,7 +21,6 @@ import time
 from pg_raggraph import GraphRAG
 from pg_raggraph.resolution import resolve_entity_lookup
 
-
 DSN = "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
 NS = "bench_resolve_lookup"
 SAMPLES = 500
@@ -45,7 +44,9 @@ async def _seed(rag: GraphRAG, start: int, end: int) -> None:
     )
 
 
-async def _bench_one(rag: GraphRAG, surfaces: list[str], samples: int) -> tuple[float, float, float, int]:
+async def _bench_one(
+    rag: GraphRAG, surfaces: list[str], samples: int
+) -> tuple[float, float, float, int]:
     """Run `samples` lookups picking surfaces round-robin; return (calls/s, p50, p95, hit_count)."""
     durs_ms: list[float] = []
     hits = 0

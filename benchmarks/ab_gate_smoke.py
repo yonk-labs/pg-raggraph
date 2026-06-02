@@ -45,7 +45,6 @@ from pg_raggraph.ab_gate import (
     write_verdict_report,
 )
 
-
 DSN = "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
 NS = "bench_ab_smoke"
 
@@ -154,7 +153,7 @@ async def main() -> None:
     print("=== Bench C — A/B gate end-to-end smoke ===")
     print(f"  corpus: {len(CORPUS)} synthetic episodes")
     print(f"  gold:   {len(GOLD)} questions")
-    print(f"  judge:  synthetic 50/50 (production wiring waits for llm-judge integration)")
+    print("  judge:  synthetic 50/50 (production wiring waits for llm-judge integration)")
     print()
 
     rag = GraphRAG(dsn=DSN, namespace=NS)
@@ -171,8 +170,10 @@ async def main() -> None:
         await _ingest(rag)
         t_ingest = time.perf_counter() - t0
         s = await rag.status(NS)
-        print(f"[stage 1: ingest] {t_ingest:.2f}s — docs={s['documents']} "
-              f"chunks={s['chunks']} ents={s['entities']} rels={s['relationships']}")
+        print(
+            f"[stage 1: ingest] {t_ingest:.2f}s — docs={s['documents']} "
+            f"chunks={s['chunks']} ents={s['entities']} rels={s['relationships']}"
+        )
 
         # === Stage 2: run the A/B matrix
         t0 = time.perf_counter()
@@ -189,11 +190,12 @@ async def main() -> None:
         for (corpus, mode), path in cells.items():
             data = json.loads(path.read_text())
             n_results = len(data.get("results", []))
-            avg_lat = (
-                sum(r.get("latency_ms", 0) for r in data.get("results", [])) / max(n_results, 1)
+            avg_lat = sum(r.get("latency_ms", 0) for r in data.get("results", [])) / max(
+                n_results, 1
             )
-            print(f"  - {corpus} × {mode} → {path.name} ({n_results} results, "
-                  f"{avg_lat:.1f}ms avg)")
+            print(
+                f"  - {corpus} × {mode} → {path.name} ({n_results} results, {avg_lat:.1f}ms avg)"
+            )
 
         # === Stage 3: build premeasured payload from runner output
         t0 = time.perf_counter()
@@ -209,25 +211,29 @@ async def main() -> None:
         for (corpus, mode), path in cells.items():
             data = json.loads(path.read_text())
             for case in data.get("results", []):
-                latency_rows.append({
-                    "corpus": corpus,
-                    "mode": mode,
-                    "question_id": case.get("question_id"),
-                    "latency_ms": case.get("latency_ms", 0),
-                })
+                latency_rows.append(
+                    {
+                        "corpus": corpus,
+                        "mode": mode,
+                        "question_id": case.get("question_id"),
+                        "latency_ms": case.get("latency_ms", 0),
+                    }
+                )
         write_verdict_report(verdict, out_dir=out_dir, latency_rows=latency_rows)
         artifacts = sorted(out_dir.glob("verdict*")) + sorted(out_dir.glob("latency*"))
-        print(f"[stage 4: report]")
+        print("[stage 4: report]")
         for f in artifacts:
             print(f"  - {f.name} ({f.stat().st_size} bytes)")
 
         print()
         print("=== HEADLINE ===")
         total = t_ingest + t_matrix + t_verdict
-        print(f"  Total wall: {total:.2f}s ({t_ingest:.2f} ingest + "
-              f"{t_matrix:.2f} matrix + {t_verdict:.3f} verdict)")
+        print(
+            f"  Total wall: {total:.2f}s ({t_ingest:.2f} ingest + "
+            f"{t_matrix:.2f} matrix + {t_verdict:.3f} verdict)"
+        )
         print(f"  Verdict: {verdict.label}")
-        print(f"  Pipeline composed end-to-end via from_premeasured() seam.")
+        print("  Pipeline composed end-to-end via from_premeasured() seam.")
         print(f"  Output preserved at: {out_dir}")
     finally:
         await rag.delete(NS)
