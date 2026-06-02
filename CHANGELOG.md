@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0a6 — 2026-06-01 (optional RRF fusion)
+
+### Added
+- **Optional RRF fusion mode** (`fusion="rrf"`, issue #57) — alongside the
+  default linear weighted scoring. Fuses retrieval legs by rank
+  (Σ wᵢ / (rrf_k + rankᵢ)) instead of a weighted sum of differently-scaled
+  scores, so it is scale-free across the cosine and BM25 legs. Config knobs
+  `fusion` + `rrf_k` (default `"linear"` / `60`); per-call override on
+  `query()` / `ask()`. Applies to `naive` and `hybrid` modes. **Additive and
+  default-off** — the linear path is byte-identical when `fusion="linear"`.
+  A/B runner in `benchmarks/rrf-ab/`.
+
 ## 0.5.0a5 — 2026-05-28 (A/B gate live verdict — NAIVE_WINS)
 
 Wires the #47–#50 chain to real chunkshop emission and runs the gate end-to-end.

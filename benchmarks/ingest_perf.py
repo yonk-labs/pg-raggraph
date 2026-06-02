@@ -25,7 +25,6 @@ from pg_raggraph import GraphRAG
 from pg_raggraph.chunking import chunk_document
 from pg_raggraph.config import PGRGConfig
 
-
 TEST_DSN = "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
 NS = "ingest_perf_probe"
 
@@ -47,7 +46,9 @@ def _make_rag(provider: str, base_url: str | None, model: str | None, dim: int) 
     return GraphRAG(**kwargs)
 
 
-async def main(n_docs: int, provider: str, base_url: str | None, model: str | None, dim: int) -> None:
+async def main(
+    n_docs: int, provider: str, base_url: str | None, model: str | None, dim: int
+) -> None:
     bundle = load_mhr()
     docs = bundle.corpus_docs[:n_docs]
     total_chars = sum(len(d.text) for d in docs)
@@ -134,7 +135,11 @@ if __name__ == "__main__":
     ap.add_argument("--docs", type=int, default=20)
     ap.add_argument("--provider", choices=["local", "http"], default="local")
     ap.add_argument("--base-url", default=None, help="HTTP embedding endpoint base URL")
-    ap.add_argument("--model", default=None, help="Override embedding_model (e.g. BAAI/bge-large-en-v1.5)")
-    ap.add_argument("--dim", type=int, default=384, help="Embedding dimension (must match the chosen model)")
+    ap.add_argument(
+        "--model", default=None, help="Override embedding_model (e.g. BAAI/bge-large-en-v1.5)"
+    )
+    ap.add_argument(
+        "--dim", type=int, default=384, help="Embedding dimension (must match the chosen model)"
+    )
     a = ap.parse_args()
     asyncio.run(main(a.docs, a.provider, a.base_url, a.model, a.dim))

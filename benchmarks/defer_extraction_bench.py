@@ -103,9 +103,7 @@ async def _graph_counts(rag) -> dict:
         "JOIN documents d ON d.id = c.document_id WHERE d.namespace = %s",
         (ns,),
     )
-    ents = await rag.db.fetch_one(
-        "SELECT count(*) AS n FROM entities WHERE namespace = %s", (ns,)
-    )
+    ents = await rag.db.fetch_one("SELECT count(*) AS n FROM entities WHERE namespace = %s", (ns,))
     rels = await rag.db.fetch_one(
         "SELECT count(*) AS n FROM relationships WHERE namespace = %s", (ns,)
     )
@@ -122,7 +120,7 @@ async def main(n_docs: int) -> None:
     docs = bundle.corpus_docs[:n_docs]
     n_chars = sum(len(d.text) for d in docs)
     print(f"corpus: {n_docs} docs, {n_chars:,} chars")
-    print(f"extractor: lede_spacy (deterministic, no LLM)")
+    print("extractor: lede_spacy (deterministic, no LLM)")
     print()
 
     # Pre-warm the embedding cache so cold-cache noise doesn't masquerade as
@@ -172,21 +170,23 @@ async def main(n_docs: int) -> None:
     print("=== ARM C — DRAIN (pgrg extract equivalent) ===")
     print(f"  wall:        {t_c:7.2f}s  ({1000 * t_c / n_docs:6.1f} ms/doc)")
     print(f"  iterations:  {drain_stats['iters']}")
-    print(f"  claimed/ready/failed: {drain_stats['claimed']}/{drain_stats['ready']}/{drain_stats['failed']}")
+    print(
+        f"  claimed/ready/failed: {drain_stats['claimed']}/{drain_stats['ready']}/{drain_stats['failed']}"
+    )
     print(f"  graph (post): {graph_b_post}")
     print()
     print("=== HEADLINE ===")
     print(f"  Time-to-queryable (B):       {t_b:7.2f}s   {1000 * t_b / n_docs:6.1f} ms/doc")
     print(f"  Time-to-full-graph SYNC (A): {t_a:7.2f}s   {1000 * t_a / n_docs:6.1f} ms/doc")
-    print(f"  Time-to-full-graph DEFER (B+C): {t_b + t_c:7.2f}s   {1000 * (t_b + t_c) / n_docs:6.1f} ms/doc")
+    print(
+        f"  Time-to-full-graph DEFER (B+C): {t_b + t_c:7.2f}s   {1000 * (t_b + t_c) / n_docs:6.1f} ms/doc"
+    )
     speedup_b_vs_a = t_a / t_b if t_b > 0 else float("inf")
     overhead = (t_b + t_c) - t_a
     print(
         f"  Async win (A - B):           {t_a - t_b:+7.2f}s  ← what the caller no longer waits for"
     )
-    print(
-        f"  Caller speedup (A / B):      {speedup_b_vs_a:6.2f}×  ← perceived 'non-event' factor"
-    )
+    print(f"  Caller speedup (A / B):      {speedup_b_vs_a:6.2f}×  ← perceived 'non-event' factor")
     print(
         f"  Total overhead ((B+C) - A):  {overhead:+7.2f}s  ← signed; near 0 means async is free"
     )

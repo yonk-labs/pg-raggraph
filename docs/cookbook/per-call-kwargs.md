@@ -2,7 +2,7 @@
 
 > **TL;DR.** Most of the behavior that used to be config-only is now overridable per-call. Multi-tenant servers sharing one `GraphRAG` instance can pick different retrieval policies per request without mutating shared config — no locks, no races.
 
-`GraphRAG.query()` and `GraphRAG.ask()` accept eight keyword-only arguments that override their matching `config.*` field for one call. Pass `None` (the default) and the call falls back to config. Pass an explicit value and the call uses that value once.
+`GraphRAG.query()` and `GraphRAG.ask()` accept nine keyword-only arguments that override their matching `config.*` field for one call. Pass `None` (the default) and the call falls back to config. Pass an explicit value and the call uses that value once.
 
 ```python
 # Default — uses config for everything
@@ -32,6 +32,7 @@ All keyword-only after the first positional `question`. Order doesn't matter; ea
 | `supersession_behavior` | `"hide" \| "prefer_new" \| "surface_both" \| None` | How to handle superseded docs | `config.supersession_behavior` |
 | `memory_tier` | `"provisional" \| "consolidated" \| "both" \| None` | chunkshop SP-A tier filter (only fires on chunks with `metadata.tier`) | `config.memory_tier` |
 | `retrieval_strategy` | `"weighted" \| "pre_filter" \| "vector_first" \| None` | SQL shape for `naive` / `naive_boost` modes | `config.retrieval_strategy` |
+| `fusion` | `"linear" \| "rrf" \| None` | Leg-fusion math for `naive` / `hybrid` modes — `linear` weighted sum (default) vs scale-free rank fusion | `config.fusion` |
 | `rerank` | `bool` | Cross-encoder rerank (off by default; off-by-design until you opt in) | — (per-call only) |
 
 `mode`, `as_of`, `version_filter`, `rerank` are per-call only because they were never config-driven. The rest mirror config fields with explicit `None`-falls-back-to-config semantics.
@@ -131,6 +132,19 @@ result = await rag.ask(
 
 See [`retrieval-strategy.md`](retrieval-strategy.md) for the full decision matrix and bench numbers.
 
+### Pattern 6 — rank fusion instead of the linear weighted sum
+
+```python
+# Most queries: config default (linear weighted sum of the cosine + BM25 legs)
+result = await rag.query(q, mode="naive")
+
+# This corpus has wildly different score scales across legs: fuse by rank instead
+result = await rag.query(q, mode="naive", fusion="rrf")
+result = await rag.ask(q, mode="hybrid", fusion="rrf")
+```
+
+`fusion="rrf"` fuses the legs by rank (`Σ wᵢ / (rrf_k + rankᵢ)`) rather than summing differently-scaled scores, so it's scale-free across the cosine and BM25 legs. Applies to `naive` and `hybrid` only; default-off. See [`rrf-fusion.md`](rrf-fusion.md).
+
 ## Composing multiple kwargs
 
 The kwargs compose. Each adds its WHERE clause (or scoring term) independently:
@@ -184,5 +198,6 @@ If a future refactor regresses any of these, the source-level pins fail loudly.
 
 - [`docs/EVOLUTION-API-QUICKREF.md`](../EVOLUTION-API-QUICKREF.md) — the per-call vs config-default decision matrix at API level
 - [`retrieval-strategy.md`](retrieval-strategy.md) — `retrieval_strategy` deep dive with bench numbers
+- [`rrf-fusion.md`](rrf-fusion.md) — `fusion` deep dive (rank fusion vs the linear weighted sum)
 - [`metadata-indexes.md`](metadata-indexes.md) — how `memory_tier` chunks get their `metadata.tier` field stamped at ingest
 - [`chunkshop-integration.md`](chunkshop-integration.md) — Pattern M (SP-A bridge), where `memory_tier="consolidated"` is the O2 rule
