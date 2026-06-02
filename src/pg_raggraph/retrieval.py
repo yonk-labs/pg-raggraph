@@ -103,6 +103,35 @@ def _effective_retrieval_strategy(cfg: PGRGConfig, override: str | None) -> str:
     return override
 
 
+_FUSION_VALUES = ("linear", "rrf")
+
+
+def _effective_fusion(cfg: PGRGConfig, override: str | None) -> str:
+    """Resolve the fusion mode after applying the per-query override.
+
+    ``None`` falls back to ``cfg.fusion`` (``"linear"`` by default —
+    backward-compatible). Validates against the Literal set.
+    """
+    if override is None:
+        return cfg.fusion
+    if override not in _FUSION_VALUES:
+        raise ValueError(f"Invalid fusion {override!r}. Must be one of: {_FUSION_VALUES}")
+    return override
+
+
+def _rrf_fused_base_expr() -> str:
+    """RRF base-score SQL fragment: Σ wᵢ / (rrf_k + rankᵢ) over the vec + bm25
+    legs. Replaces the linear weighted-sum ``base`` as the argument to
+    ``evolution_score_expr`` so evolution decay applies as an outer term
+    (issue #57). The naive path has no graph leg, so the graph term is
+    dropped. ``vec_rank``/``bm25_rank`` are produced by the ``ranked`` CTE.
+    """
+    return (
+        "%(w_sem)s / (%(rrf_k)s + vec_rank) + "
+        "%(w_bm25)s / (%(rrf_k)s + bm25_rank)"
+    )
+
+
 def _merge_params(base: dict, extra: dict) -> dict:
     """Merge two bind-param dicts, raising on key collision.
 

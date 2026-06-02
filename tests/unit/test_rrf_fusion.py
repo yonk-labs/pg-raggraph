@@ -28,3 +28,30 @@ def test_fusion_accepts_rrf():
 def test_fusion_rejects_unknown():
     with pytest.raises(ValueError):
         PGRGConfig(fusion="bogus")
+
+
+from pg_raggraph.retrieval import _effective_fusion, _rrf_fused_base_expr
+
+
+def test_effective_fusion_none_falls_back_to_config():
+    assert _effective_fusion(PGRGConfig(fusion="rrf"), None) == "rrf"
+    assert _effective_fusion(PGRGConfig(), None) == "linear"
+
+
+def test_effective_fusion_override_wins():
+    cfg = PGRGConfig(fusion="linear")
+    assert _effective_fusion(cfg, "rrf") == "rrf"
+    assert _effective_fusion(cfg, "linear") == "linear"
+
+
+def test_effective_fusion_invalid_raises():
+    with pytest.raises(ValueError, match="Invalid fusion"):
+        _effective_fusion(PGRGConfig(), "bogus")
+
+
+def test_rrf_fused_base_expr_shape():
+    expr = _rrf_fused_base_expr()
+    assert "%(w_sem)s" in expr and "vec_rank" in expr
+    assert "%(w_bm25)s" in expr and "bm25_rank" in expr
+    assert "%(rrf_k)s" in expr
+    assert "graph" not in expr
