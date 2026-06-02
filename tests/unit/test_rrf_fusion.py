@@ -108,3 +108,18 @@ def test_prefilter_rrf_keeps_filtered_cte_and_ranks():
 def test_prefilter_linear_unchanged():
     sql, _ = _build_naive_prefilter(PGRGConfig())
     assert "rank()" not in sql
+
+
+from pg_raggraph.retrieval import _build_naive_vector_first
+
+
+def test_vector_first_rrf_keeps_bare_hnsw_cte_and_postfilter():
+    sql, _ = _build_naive_vector_first(PGRGConfig(), fusion="rrf")
+    assert "LIMIT %(vector_first_k)s" in sql
+    assert "rank() OVER (ORDER BY vec_score DESC)" in sql
+    assert "WHERE d.namespace = %(namespace)s" in sql
+
+
+def test_vector_first_linear_unchanged():
+    sql, _ = _build_naive_vector_first(PGRGConfig())
+    assert "rank()" not in sql
