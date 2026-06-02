@@ -1,0 +1,33 @@
+Using default DSN with well-known credentials (postgresql://postgres:postgres@localhost:5434/...). Override with PGRG_DSN before any non-local deployment.
+Using local embedding provider. The local embedder is per-process; for multi-worker or multi-tenant deployments, use a shared HTTP embedding endpoint instead. See docs/deployment-embedding-scaling.md F3/F5.
+==========================================================================
+RRF A/B AT SCALE — linear vs rrf on full MuSiQue (naive, rank-sensitive)
+==========================================================================
+corpus docs   : 1700
+questions     : 100 (with gold in corpus)
+gold docs/q   : 3.0 avg
+fetch top_k   : 20   metrics at recall@(1, 5, 10), nDCG@10, MRR
+
+[ingest] 1700 docs (chunks + embeddings, no graph)...
+[ingest] done in 55.1s
+  ...20/100
+  ...40/100
+  ...60/100
+  ...80/100
+  ...100/100
+
+==========================================================================
+RESULTS  (n=100 questions, 1700 docs)
+==========================================================================
+metric           linear        rrf      delta
+--------------------------------------------
+nDCG@10          0.5581     0.5308    -0.0273
+MRR              0.7809     0.7300    -0.0509
+recall@1         0.6600     0.6100    -0.0500
+recall@5         0.9400     0.9200    -0.0200
+recall@10        0.9600     0.9600    +0.0000
+--------------------------------------------
+top-10 reordered by RRF: 99/100 questions
+latency/query: linear 82ms  rrf 87ms
+
+VERDICT: LINEAR AHEAD on rank-sensitive metrics (dNDCG=-0.0273, dMRR=-0.0509)
