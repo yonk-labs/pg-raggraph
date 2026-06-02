@@ -320,6 +320,7 @@ def _build_naive_query_twostage(
     memory_tier: str | None = None,
     mf_soft_sql: str = "",
     mf_hard_sql: str = "",
+    fusion: str = "linear",
 ) -> tuple[str, dict]:
     """Two-stage naive retrieval (K1).
 
@@ -342,6 +343,11 @@ def _build_naive_query_twostage(
     CTE's ``documents`` join — when evolution_tier == "off" the clauses
     list is empty and both builders are byte-stable.
     """
+    if fusion == "rrf":
+        return _build_naive_query_twostage_rrf(
+            cfg, as_of, version_filter, evolution_aware, retracted_behavior,
+            supersession_behavior, memory_tier, mf_soft_sql, mf_hard_sql,
+        )
     base = (
         "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
         "%(w_bm25)s * ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) + "
@@ -388,6 +394,74 @@ SELECT cand.id, cand.content, cand.metadata,
        {evolution_score_expr(base, cfg, evolution_aware, retracted_behavior)} AS score
 FROM candidates cand
 JOIN documents d ON d.id = cand.document_id
+ORDER BY score DESC
+LIMIT %(top_k)s
+"""
+    return sql, extra_params
+
+
+def _build_naive_query_twostage_rrf(
+    cfg: PGRGConfig,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
+    memory_tier: str | None = None,
+    mf_soft_sql: str = "",
+    mf_hard_sql: str = "",
+) -> tuple[str, dict]:
+    """RRF variant of the two-stage naive builder. Stage-1 candidate CTE is
+    unchanged (bare-distance ORDER BY → HNSW). Stage-2 re-scores via RRF rank
+    fusion over the candidate pool, re-joining documents for evolution columns.
+    """
+    rrf_base = _rrf_fused_base_expr()
+    clauses, extra_params = evolution_where_clauses(
+        cfg, doc_alias="d", as_of=as_of, version_filter=version_filter,
+        evolution_aware=evolution_aware, retracted_behavior=retracted_behavior,
+        supersession_behavior=supersession_behavior,
+    )
+    mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="c", override=memory_tier)
+    if mt_clause:
+        clauses.append(mt_clause)
+        extra_params = _merge_params(extra_params, mt_params)
+    if mf_hard_sql:
+        clauses.append(mf_hard_sql)
+    extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
+    sql = f"""
+WITH candidates AS (
+    SELECT c.id, c.embedding, c.search_vector,
+           COALESCE(c.embedded_content, c.content) AS content,
+           c.metadata, c.document_id
+    FROM chunks c
+    JOIN documents d ON d.id = c.document_id
+    WHERE d.namespace = %(namespace)s{extra_where}
+    ORDER BY c.embedding <=> %(embedding)s::vector
+    LIMIT %(candidate_k)s
+),
+scored AS (
+    SELECT cand.id, cand.content, cand.metadata, cand.document_id,
+           1 - (cand.embedding <=> %(embedding)s::vector) AS vec_score,
+           ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score
+    FROM candidates cand
+),
+ranked AS (
+    SELECT scored.*,
+           rank() OVER (ORDER BY vec_score DESC) AS vec_rank,
+           rank() OVER (ORDER BY bm25_score DESC) AS bm25_rank
+    FROM scored
+)
+SELECT r.id, r.content, r.metadata,
+       d.source_path,
+       d.metadata AS doc_metadata,
+       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       (SELECT dv.document_id FROM document_versions dv
+        WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
+           AS superseded_by_id,
+       r.vec_score, r.bm25_score,
+       {evolution_score_expr(rrf_base, cfg, evolution_aware, retracted_behavior)} AS score
+FROM ranked r
+JOIN documents d ON d.id = r.document_id
 ORDER BY score DESC
 LIMIT %(top_k)s
 """

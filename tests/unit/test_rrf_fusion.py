@@ -77,3 +77,19 @@ def test_naive_rrf_emits_ranked_cte():
     assert "%(rrf_k)s" in sql
     assert "JOIN documents d ON d.id = r.document_id" in sql
     assert "ORDER BY score DESC" in sql
+
+
+from pg_raggraph.retrieval import _build_naive_query_twostage
+
+
+def test_twostage_rrf_keeps_candidate_cte_and_ranks():
+    sql, _ = _build_naive_query_twostage(PGRGConfig(), fusion="rrf")
+    assert "ORDER BY c.embedding <=> %(embedding)s::vector" in sql
+    assert "LIMIT %(candidate_k)s" in sql
+    assert "rank() OVER (ORDER BY vec_score DESC)" in sql
+    assert "%(rrf_k)s" in sql
+
+
+def test_twostage_linear_unchanged():
+    sql, _ = _build_naive_query_twostage(PGRGConfig())
+    assert "rank()" not in sql
