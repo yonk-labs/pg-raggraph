@@ -96,7 +96,9 @@ async def _ensure_ingested(rag: GraphRAG, corpus_files: list[str]) -> int:
         print(f"[ingest] namespace has {have} docs, expected {want} — wiping and re-ingesting")
         await rag.delete(namespace=NAMESPACE)
     t0 = time.perf_counter()
-    print(f"[ingest] ingesting {want} docs into namespace={NAMESPACE} (bge-small CPU embeddings)...")
+    print(
+        f"[ingest] ingesting {want} docs into namespace={NAMESPACE} (bge-small CPU embeddings)..."
+    )
     # defer_extraction: naive mode needs only chunks + embeddings, no graph.
     await rag.ingest(paths, namespace=NAMESPACE)
     status = await rag.status(NAMESPACE)

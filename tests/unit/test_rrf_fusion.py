@@ -7,9 +7,21 @@ ordering is covered by tests/integration/test_rrf_fusion_it.py.
 
 from __future__ import annotations
 
+import inspect
+
 import pytest
 
 from pg_raggraph.config import PGRGConfig
+from pg_raggraph.retrieval import (
+    _build_naive_prefilter,
+    _build_naive_query,
+    _build_naive_query_twostage,
+    _build_naive_vector_first,
+    _effective_fusion,
+    _rrf_fused_base_expr,
+    _rrf_merge,
+)
+from pg_raggraph.retrieval import query as retrieval_query
 
 
 def test_fusion_defaults_to_linear():
@@ -28,9 +40,6 @@ def test_fusion_accepts_rrf():
 def test_fusion_rejects_unknown():
     with pytest.raises(ValueError):
         PGRGConfig(fusion="bogus")
-
-
-from pg_raggraph.retrieval import _effective_fusion, _rrf_fused_base_expr
 
 
 def test_effective_fusion_none_falls_back_to_config():
@@ -57,9 +66,6 @@ def test_rrf_fused_base_expr_shape():
     assert "graph" not in expr
 
 
-from pg_raggraph.retrieval import _build_naive_query
-
-
 def test_naive_linear_sql_unchanged_shape():
     """SC-006: default (linear) path must NOT contain any RRF machinery."""
     sql, _ = _build_naive_query(PGRGConfig())  # fusion defaults to linear
@@ -79,9 +85,6 @@ def test_naive_rrf_emits_ranked_cte():
     assert "ORDER BY score DESC" in sql
 
 
-from pg_raggraph.retrieval import _build_naive_query_twostage
-
-
 def test_twostage_rrf_keeps_candidate_cte_and_ranks():
     sql, _ = _build_naive_query_twostage(PGRGConfig(), fusion="rrf")
     assert "ORDER BY c.embedding <=> %(embedding)s::vector" in sql
@@ -93,9 +96,6 @@ def test_twostage_rrf_keeps_candidate_cte_and_ranks():
 def test_twostage_linear_unchanged():
     sql, _ = _build_naive_query_twostage(PGRGConfig())
     assert "rank()" not in sql
-
-
-from pg_raggraph.retrieval import _build_naive_prefilter
 
 
 def test_prefilter_rrf_keeps_filtered_cte_and_ranks():
@@ -110,9 +110,6 @@ def test_prefilter_linear_unchanged():
     assert "rank()" not in sql
 
 
-from pg_raggraph.retrieval import _build_naive_vector_first
-
-
 def test_vector_first_rrf_keeps_bare_hnsw_cte_and_postfilter():
     sql, _ = _build_naive_vector_first(PGRGConfig(), fusion="rrf")
     assert "LIMIT %(vector_first_k)s" in sql
@@ -125,17 +122,10 @@ def test_vector_first_linear_unchanged():
     assert "rank()" not in sql
 
 
-import inspect
-from pg_raggraph.retrieval import query as retrieval_query
-
-
 def test_query_exposes_fusion_param():
     sig = inspect.signature(retrieval_query)
     assert "fusion" in sig.parameters
     assert sig.parameters["fusion"].default is None
-
-
-from pg_raggraph.retrieval import _rrf_merge
 
 
 def test_rrf_merge_reorders_vs_max_score():

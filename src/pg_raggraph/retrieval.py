@@ -126,15 +126,10 @@ def _rrf_fused_base_expr() -> str:
     (issue #57). The naive path has no graph leg, so the graph term is
     dropped. ``vec_rank``/``bm25_rank`` are produced by the ``ranked`` CTE.
     """
-    return (
-        "%(w_sem)s / (%(rrf_k)s + vec_rank) + "
-        "%(w_bm25)s / (%(rrf_k)s + bm25_rank)"
-    )
+    return "%(w_sem)s / (%(rrf_k)s + vec_rank) + %(w_bm25)s / (%(rrf_k)s + bm25_rank)"
 
 
-def _rrf_merge(
-    local_rows: list, global_rows: list, k: int, top_k: int
-) -> list:
+def _rrf_merge(local_rows: list, global_rows: list, k: int, top_k: int) -> list:
     """Reciprocal Rank Fusion across two already-ranked result lists
     (issue #57). Each list is assumed ordered best-first, so list position
     is the rank. A chunk's fused score is Σ 1/(k + rank) over the lists it
@@ -218,8 +213,15 @@ def _build_naive_query(
 ) -> tuple[str, dict]:
     if fusion == "rrf":
         return _build_naive_query_rrf(
-            cfg, as_of, version_filter, evolution_aware, retracted_behavior,
-            supersession_behavior, memory_tier, mf_soft_sql, mf_hard_sql,
+            cfg,
+            as_of,
+            version_filter,
+            evolution_aware,
+            retracted_behavior,
+            supersession_behavior,
+            memory_tier,
+            mf_soft_sql,
+            mf_hard_sql,
         )
     base = (
         "%(w_sem)s * (1 - (c.embedding <=> %(embedding)s::vector)) + "
@@ -244,7 +246,8 @@ def _build_naive_query(
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     # PRG-1 consumer-surface columns (d.metadata/retracted/version_label/
     # effective_from/effective_to/superseded_by_id) are intentionally repeated
-    # in all three builders below — keep the three SELECT blocks in sync.
+    # across the naive builders (single-pass/two-stage/pre_filter/vector_first)
+    # and their RRF variants — keep these SELECT blocks in sync.
     sql = f"""
 SELECT c.id, COALESCE(c.embedded_content, c.content) AS content, c.metadata,
        d.source_path,
@@ -369,8 +372,15 @@ def _build_naive_query_twostage(
     """
     if fusion == "rrf":
         return _build_naive_query_twostage_rrf(
-            cfg, as_of, version_filter, evolution_aware, retracted_behavior,
-            supersession_behavior, memory_tier, mf_soft_sql, mf_hard_sql,
+            cfg,
+            as_of,
+            version_filter,
+            evolution_aware,
+            retracted_behavior,
+            supersession_behavior,
+            memory_tier,
+            mf_soft_sql,
+            mf_hard_sql,
         )
     base = (
         "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
@@ -441,8 +451,12 @@ def _build_naive_query_twostage_rrf(
     """
     rrf_base = _rrf_fused_base_expr()
     clauses, extra_params = evolution_where_clauses(
-        cfg, doc_alias="d", as_of=as_of, version_filter=version_filter,
-        evolution_aware=evolution_aware, retracted_behavior=retracted_behavior,
+        cfg,
+        doc_alias="d",
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
         supersession_behavior=supersession_behavior,
     )
     mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="c", override=memory_tier)
@@ -520,8 +534,15 @@ def _build_naive_prefilter(
     """
     if fusion == "rrf":
         return _build_naive_prefilter_rrf(
-            cfg, as_of, version_filter, evolution_aware, retracted_behavior,
-            supersession_behavior, memory_tier, mf_soft_sql, mf_hard_sql,
+            cfg,
+            as_of,
+            version_filter,
+            evolution_aware,
+            retracted_behavior,
+            supersession_behavior,
+            memory_tier,
+            mf_soft_sql,
+            mf_hard_sql,
         )
     base = (
         "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
@@ -587,8 +608,12 @@ def _build_naive_prefilter_rrf(
     over that subset."""
     rrf_base = _rrf_fused_base_expr()
     clauses, extra_params = evolution_where_clauses(
-        cfg, doc_alias="d", as_of=as_of, version_filter=version_filter,
-        evolution_aware=evolution_aware, retracted_behavior=retracted_behavior,
+        cfg,
+        doc_alias="d",
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
         supersession_behavior=supersession_behavior,
     )
     mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="c", override=memory_tier)
@@ -670,8 +695,15 @@ def _build_naive_vector_first(
     """
     if fusion == "rrf":
         return _build_naive_vector_first_rrf(
-            cfg, as_of, version_filter, evolution_aware, retracted_behavior,
-            supersession_behavior, memory_tier, mf_soft_sql, mf_hard_sql,
+            cfg,
+            as_of,
+            version_filter,
+            evolution_aware,
+            retracted_behavior,
+            supersession_behavior,
+            memory_tier,
+            mf_soft_sql,
+            mf_hard_sql,
         )
     base = (
         "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
@@ -740,8 +772,12 @@ def _build_naive_vector_first_rrf(
     CTE so RRF ranks only post-filtered rows."""
     rrf_base = _rrf_fused_base_expr()
     clauses, extra_params = evolution_where_clauses(
-        cfg, doc_alias="d", as_of=as_of, version_filter=version_filter,
-        evolution_aware=evolution_aware, retracted_behavior=retracted_behavior,
+        cfg,
+        doc_alias="d",
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
         supersession_behavior=supersession_behavior,
     )
     mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="cand", override=memory_tier)
@@ -1236,9 +1272,7 @@ async def query(
                 cid = row["id"]
                 if cid not in seen or row["score"] > seen[cid]["score"]:
                     seen[cid] = row
-            rows = sorted(seen.values(), key=lambda r: r["score"], reverse=True)[
-                :effective_top_k
-            ]
+            rows = sorted(seen.values(), key=lambda r: r["score"], reverse=True)[:effective_top_k]
     else:
         rows = []
 
