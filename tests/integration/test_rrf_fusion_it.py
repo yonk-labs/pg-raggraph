@@ -168,3 +168,161 @@ async def test_naive_rrf_with_evolution_on(seeded_rag_evolution):
     """
     res = await seeded_rag_evolution.query("a dated fact", mode="naive", fusion="rrf")
     assert res is not None  # executing without SQL error is the assertion
+
+
+# --- Correctness tests (added after honest gap review) ---------------------
+#
+# The smoke tests above prove RRF *runs*. The three below prove it is
+# *correct*: every naive RRF builder actually executes against Postgres
+# (incl. pre_filter / vector_first, which no other test exercised), the
+# single-pass RRF SQL computes the exact RRF formula, and the evolution
+# re-join actually applies temporal decay (not just "doesn't crash").
+
+
+@pytest.mark.parametrize("strategy", ["weighted", "pre_filter", "vector_first"])
+async def test_naive_rrf_every_strategy_executes(seeded_rag, strategy):
+    """Each retrieval_strategy drives a different naive RRF SQL builder.
+
+    'weighted' + default two_stage=True -> two-stage builder; 'pre_filter' ->
+    pre_filter builder; 'vector_first' -> vector_first builder. Before this,
+    pre_filter and vector_first RRF SQL had NEVER touched Postgres — a syntax
+    or column error in those f-strings would have shipped undetected.
+    """
+    res = await seeded_rag.query(
+        "PostgreSQL pgvector database",
+        mode="naive",
+        fusion="rrf",
+        retrieval_strategy=strategy,
+    )
+    assert res.chunks, f"strategy={strategy} returned no chunks"
+    scores = [c.score for c in res.chunks]
+    assert scores == sorted(scores, reverse=True), f"strategy={strategy} not ordered by score"
+
+
+async def test_naive_rrf_single_pass_executes(seeded_rag):
+    """The single-pass naive RRF builder (two_stage=False) executes.
+
+    The default config uses two_stage=True, so without this the single-pass
+    _build_naive_query_rrf SQL would only ever be unit-tested as a string.
+    """
+    seeded_rag.config.two_stage_retrieval = False
+    res = await seeded_rag.query(
+        "PostgreSQL pgvector database",
+        mode="naive",
+        fusion="rrf",
+        retrieval_strategy="weighted",
+    )
+    assert res.chunks
+    scores = [c.score for c in res.chunks]
+    assert scores == sorted(scores, reverse=True)
+
+
+async def test_naive_rrf_score_matches_formula(seeded_rag):
+    """The naive RRF SQL computes score = w_sem/(k+vec_rank) + w_bm25/(k+bm25_rank).
+
+    Execute the single-pass builder's SQL directly, recompute the SQL rank()
+    values in Python from the returned per-leg scores (rank() = 1 + count of
+    strictly-greater rows, which matches SQL tie semantics), and verify each
+    row's fused score. The corpus (4 chunks) is smaller than top_k, so the
+    returned set == the full scored set and the recomputed ranks are exact.
+    """
+    from pg_raggraph.embedding import get_embedding_provider
+    from pg_raggraph.retrieval import _build_naive_query_rrf, _to_or_tsquery
+
+    rag = seeded_rag
+    cfg = rag.config
+    cfg.two_stage_retrieval = False  # exercise the single-pass RRF builder
+    q = "PostgreSQL pgvector database"
+    embedder = get_embedding_provider(cfg)
+    q_emb = (await embedder.embed([q]))[0]
+
+    sql, extra = _build_naive_query_rrf(cfg)  # evolution_tier 'off' -> base only
+    params = {
+        "embedding": q_emb,
+        "tsquery": _to_or_tsquery(q),
+        "namespace": "test_rrf_fusion",
+        "top_k": 50,
+        "w_sem": cfg.w_sem,
+        "w_bm25": cfg.w_bm25,
+        "rrf_k": cfg.rrf_k,
+        **extra,
+    }
+    rows = await rag.db.fetch_all(sql, params)
+    assert rows, "RRF SQL returned no rows"
+
+    def sql_rank(row, key):
+        v = float(row[key])
+        return 1 + sum(1 for o in rows if float(o[key]) > v)
+
+    for row in rows:
+        vec_rank = sql_rank(row, "vec_score")
+        bm25_rank = sql_rank(row, "bm25_score")
+        expected = cfg.w_sem / (cfg.rrf_k + vec_rank) + cfg.w_bm25 / (cfg.rrf_k + bm25_rank)
+        assert abs(float(row["score"]) - expected) < 1e-6, (
+            f"RRF score mismatch: got {row['score']}, expected {expected} "
+            f"(vec_rank={vec_rank}, bm25_rank={bm25_rank})"
+        )
+
+
+@pytest.fixture
+async def seeded_rag_evolution_dated():
+    """Two documents with identical chunk content but different effective_from.
+
+    Identical content -> identical embedding -> identical vec/bm25 -> identical
+    RRF base. So any ranking difference is attributable solely to the temporal
+    boost, which is exactly what we want to assert.
+    """
+    from datetime import datetime, timezone
+
+    rag = GraphRAG(dsn=TEST_DSN, namespace="test_rrf_dated", evolution_tier="structural")
+    await rag.connect()
+
+    from pg_raggraph.embedding import get_embedding_provider
+
+    embedder = get_embedding_provider(rag.config)
+    ns = "test_rrf_dated"
+    text = "The quarterly revenue figure for the reporting period under review."
+    emb = (await embedder.embed([text]))[0]
+
+    for label, eff in (
+        ("old.md", datetime(2018, 1, 1, tzinfo=timezone.utc)),
+        ("new.md", datetime(2025, 1, 1, tzinfo=timezone.utc)),
+    ):
+        doc_id = await rag.db.insert_returning_id(
+            "INSERT INTO documents (namespace, content_hash, source_path, effective_from) "
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (ns, f"hash_{label}", label, eff),
+        )
+        await rag.db.insert_returning_id(
+            "INSERT INTO chunks (document_id, content, embedding, token_count) "
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (doc_id, text, emb, len(text.split())),
+        )
+
+    yield rag
+
+    await rag.delete("test_rrf_dated")
+    await rag.close()
+
+
+async def test_naive_rrf_evolution_applies_temporal_decay(seeded_rag_evolution_dated):
+    """Correctness for the locked design decision: RRF ranks the base legs,
+    then evolution applies decay as an outer term.
+
+    Two chunks with identical content (identical RRF base) but different
+    effective_from must reorder by recency — proving the temporal boost is
+    actually applied on top of the RRF score, not merely that the query runs.
+    """
+    rag = seeded_rag_evolution_dated
+    res = await rag.query(
+        "quarterly revenue figure reporting period",
+        mode="naive",
+        fusion="rrf",
+    )
+    assert len(res.chunks) == 2, "expected both dated chunks"
+    # Newer effective_from -> larger temporal boost -> higher fused score -> first.
+    assert res.chunks[0].document_source == "new.md", (
+        "evolution decay not applied under RRF: the newer chunk did not rank "
+        f"first (got order: {[c.document_source for c in res.chunks]})"
+    )
+    assert res.chunks[0].score > res.chunks[1].score
