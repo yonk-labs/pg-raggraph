@@ -326,3 +326,35 @@ async def test_naive_rrf_evolution_applies_temporal_decay(seeded_rag_evolution_d
         f"first (got order: {[c.document_source for c in res.chunks]})"
     )
     assert res.chunks[0].score > res.chunks[1].score
+
+
+async def test_hybrid_rrf_matches_rrf_merge_of_legs(seeded_rag):
+    """Hybrid RRF correctness: the hybrid rrf result equals _rrf_merge applied
+    to the separately-run local and global rankings.
+
+    Deterministic on the manually-seeded graph (no LLM). This is the end-to-end
+    counterpart to the unit reorder proof — it verifies the production hybrid
+    path actually rank-fuses the two legs, not just that it returns chunks.
+    """
+    from pg_raggraph.retrieval import _rrf_merge
+
+    rag = seeded_rag
+    q = "PostgreSQL GraphRAG frameworks"
+    top_k = rag.config.top_k
+
+    local = await rag.query(q, mode="local")
+    glob = await rag.query(q, mode="global")
+    # Public results are already score-sorted, so list position == leg rank,
+    # exactly what the internal hybrid merge sees.
+    local_rows = [{"id": c.chunk_id, "score": c.score} for c in local.chunks]
+    global_rows = [{"id": c.chunk_id, "score": c.score} for c in glob.chunks]
+    expected = _rrf_merge(local_rows, global_rows, rag.config.rrf_k, top_k)
+    expected_ids = [r["id"] for r in expected]
+
+    hybrid = await rag.query(q, mode="hybrid", fusion="rrf")
+    got_ids = [c.chunk_id for c in hybrid.chunks]
+
+    assert got_ids, "hybrid rrf returned no chunks"
+    assert got_ids == expected_ids, (
+        f"hybrid rrf order {got_ids} != _rrf_merge of local+global {expected_ids}"
+    )
