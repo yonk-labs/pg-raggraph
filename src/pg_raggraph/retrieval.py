@@ -103,6 +103,54 @@ def _effective_retrieval_strategy(cfg: PGRGConfig, override: str | None) -> str:
     return override
 
 
+_FUSION_VALUES = ("linear", "rrf")
+
+
+def _effective_fusion(cfg: PGRGConfig, override: str | None) -> str:
+    """Resolve the fusion mode after applying the per-query override.
+
+    ``None`` falls back to ``cfg.fusion`` (``"linear"`` by default —
+    backward-compatible). Validates against the Literal set.
+    """
+    if override is None:
+        return cfg.fusion
+    if override not in _FUSION_VALUES:
+        raise ValueError(f"Invalid fusion {override!r}. Must be one of: {_FUSION_VALUES}")
+    return override
+
+
+def _rrf_fused_base_expr() -> str:
+    """RRF base-score SQL fragment: Σ wᵢ / (rrf_k + rankᵢ) over the vec + bm25
+    legs. Replaces the linear weighted-sum ``base`` as the argument to
+    ``evolution_score_expr`` so evolution decay applies as an outer term
+    (issue #57). The naive path has no graph leg, so the graph term is
+    dropped. ``vec_rank``/``bm25_rank`` are produced by the ``ranked`` CTE.
+    """
+    return "%(w_sem)s / (%(rrf_k)s + vec_rank) + %(w_bm25)s / (%(rrf_k)s + bm25_rank)"
+
+
+def _rrf_merge(local_rows: list, global_rows: list, k: int, top_k: int) -> list:
+    """Reciprocal Rank Fusion across two already-ranked result lists
+    (issue #57). Each list is assumed ordered best-first, so list position
+    is the rank. A chunk's fused score is Σ 1/(k + rank) over the lists it
+    appears in (equal weights = textbook RRF). Returns dict rows sorted by
+    fused score, trimmed to top_k, with the fused value written to ``score``.
+    """
+    fused: dict = {}
+    for rows in (local_rows, global_rows):
+        for rank, row in enumerate(rows, start=1):
+            cid = row["id"]
+            contrib = 1.0 / (k + rank)
+            if cid in fused:
+                fused[cid]["_rrf"] += contrib
+            else:
+                fused[cid] = {**dict(row), "_rrf": contrib}
+    ordered = sorted(fused.values(), key=lambda r: r["_rrf"], reverse=True)[:top_k]
+    for r in ordered:
+        r["score"] = r.pop("_rrf")
+    return ordered
+
+
 def _merge_params(base: dict, extra: dict) -> dict:
     """Merge two bind-param dicts, raising on key collision.
 
@@ -161,7 +209,20 @@ def _build_naive_query(
     memory_tier: str | None = None,
     mf_soft_sql: str = "",
     mf_hard_sql: str = "",
+    fusion: str = "linear",
 ) -> tuple[str, dict]:
+    if fusion == "rrf":
+        return _build_naive_query_rrf(
+            cfg,
+            as_of,
+            version_filter,
+            evolution_aware,
+            retracted_behavior,
+            supersession_behavior,
+            memory_tier,
+            mf_soft_sql,
+            mf_hard_sql,
+        )
     base = (
         "%(w_sem)s * (1 - (c.embedding <=> %(embedding)s::vector)) + "
         "%(w_bm25)s * ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) + "
@@ -185,7 +246,8 @@ def _build_naive_query(
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
     # PRG-1 consumer-surface columns (d.metadata/retracted/version_label/
     # effective_from/effective_to/superseded_by_id) are intentionally repeated
-    # in all three builders below — keep the three SELECT blocks in sync.
+    # across the naive builders (single-pass/two-stage/pre_filter/vector_first)
+    # and their RRF variants — keep these SELECT blocks in sync.
     sql = f"""
 SELECT c.id, COALESCE(c.embedded_content, c.content) AS content, c.metadata,
        d.source_path,
@@ -206,6 +268,75 @@ LIMIT %(top_k)s
     return sql, extra_params
 
 
+def _build_naive_query_rrf(
+    cfg: PGRGConfig,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
+    memory_tier: str | None = None,
+    mf_soft_sql: str = "",
+    mf_hard_sql: str = "",
+) -> tuple[str, dict]:
+    """RRF variant of ``_build_naive_query`` (issue #57). The base legs
+    (vec_score, bm25_score) are SELECTed in a ``scored`` CTE, rank()-ed in a
+    ``ranked`` CTE, then fused by ``_rrf_fused_base_expr()``. The outer SELECT
+    re-joins ``documents d`` so ``evolution_score_expr`` keeps its d.* columns
+    (temporal_boost_expr reads d.effective_from / d.created_at). The mf_soft
+    bias term is intentionally dropped under RRF — soft metadata bias is a
+    score-scale nudge that has no meaning once we fuse by rank.
+    """
+    rrf_base = _rrf_fused_base_expr()
+    clauses, extra_params = evolution_where_clauses(
+        cfg,
+        doc_alias="d",
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
+        supersession_behavior=supersession_behavior,
+    )
+    mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="c", override=memory_tier)
+    if mt_clause:
+        clauses.append(mt_clause)
+        extra_params = _merge_params(extra_params, mt_params)
+    if mf_hard_sql:
+        clauses.append(mf_hard_sql)
+    extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
+    sql = f"""
+WITH scored AS (
+    SELECT c.id, COALESCE(c.embedded_content, c.content) AS content, c.metadata,
+           c.document_id,
+           1 - (c.embedding <=> %(embedding)s::vector) AS vec_score,
+           ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score
+    FROM chunks c
+    JOIN documents d ON d.id = c.document_id
+    WHERE d.namespace = %(namespace)s{extra_where}
+),
+ranked AS (
+    SELECT scored.*,
+           rank() OVER (ORDER BY vec_score DESC) AS vec_rank,
+           rank() OVER (ORDER BY bm25_score DESC) AS bm25_rank
+    FROM scored
+)
+SELECT r.id, r.content, r.metadata,
+       d.source_path,
+       d.metadata AS doc_metadata,
+       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       (SELECT dv.document_id FROM document_versions dv
+        WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
+           AS superseded_by_id,
+       r.vec_score, r.bm25_score,
+       {evolution_score_expr(rrf_base, cfg, evolution_aware, retracted_behavior)} AS score
+FROM ranked r
+JOIN documents d ON d.id = r.document_id
+ORDER BY score DESC
+LIMIT %(top_k)s
+"""
+    return sql, extra_params
+
+
 def _build_naive_query_twostage(
     cfg: PGRGConfig,
     as_of: datetime | None = None,
@@ -216,6 +347,7 @@ def _build_naive_query_twostage(
     memory_tier: str | None = None,
     mf_soft_sql: str = "",
     mf_hard_sql: str = "",
+    fusion: str = "linear",
 ) -> tuple[str, dict]:
     """Two-stage naive retrieval (K1).
 
@@ -238,6 +370,18 @@ def _build_naive_query_twostage(
     CTE's ``documents`` join — when evolution_tier == "off" the clauses
     list is empty and both builders are byte-stable.
     """
+    if fusion == "rrf":
+        return _build_naive_query_twostage_rrf(
+            cfg,
+            as_of,
+            version_filter,
+            evolution_aware,
+            retracted_behavior,
+            supersession_behavior,
+            memory_tier,
+            mf_soft_sql,
+            mf_hard_sql,
+        )
     base = (
         "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
         "%(w_bm25)s * ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) + "
@@ -290,6 +434,78 @@ LIMIT %(top_k)s
     return sql, extra_params
 
 
+def _build_naive_query_twostage_rrf(
+    cfg: PGRGConfig,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
+    memory_tier: str | None = None,
+    mf_soft_sql: str = "",
+    mf_hard_sql: str = "",
+) -> tuple[str, dict]:
+    """RRF variant of the two-stage naive builder. Stage-1 candidate CTE is
+    unchanged (bare-distance ORDER BY → HNSW). Stage-2 re-scores via RRF rank
+    fusion over the candidate pool, re-joining documents for evolution columns.
+    """
+    rrf_base = _rrf_fused_base_expr()
+    clauses, extra_params = evolution_where_clauses(
+        cfg,
+        doc_alias="d",
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
+        supersession_behavior=supersession_behavior,
+    )
+    mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="c", override=memory_tier)
+    if mt_clause:
+        clauses.append(mt_clause)
+        extra_params = _merge_params(extra_params, mt_params)
+    if mf_hard_sql:
+        clauses.append(mf_hard_sql)
+    extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
+    sql = f"""
+WITH candidates AS (
+    SELECT c.id, c.embedding, c.search_vector,
+           COALESCE(c.embedded_content, c.content) AS content,
+           c.metadata, c.document_id
+    FROM chunks c
+    JOIN documents d ON d.id = c.document_id
+    WHERE d.namespace = %(namespace)s{extra_where}
+    ORDER BY c.embedding <=> %(embedding)s::vector
+    LIMIT %(candidate_k)s
+),
+scored AS (
+    SELECT cand.id, cand.content, cand.metadata, cand.document_id,
+           1 - (cand.embedding <=> %(embedding)s::vector) AS vec_score,
+           ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score
+    FROM candidates cand
+),
+ranked AS (
+    SELECT scored.*,
+           rank() OVER (ORDER BY vec_score DESC) AS vec_rank,
+           rank() OVER (ORDER BY bm25_score DESC) AS bm25_rank
+    FROM scored
+)
+SELECT r.id, r.content, r.metadata,
+       d.source_path,
+       d.metadata AS doc_metadata,
+       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       (SELECT dv.document_id FROM document_versions dv
+        WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
+           AS superseded_by_id,
+       r.vec_score, r.bm25_score,
+       {evolution_score_expr(rrf_base, cfg, evolution_aware, retracted_behavior)} AS score
+FROM ranked r
+JOIN documents d ON d.id = r.document_id
+ORDER BY score DESC
+LIMIT %(top_k)s
+"""
+    return sql, extra_params
+
+
 def _build_naive_prefilter(
     cfg: PGRGConfig,
     as_of: datetime | None = None,
@@ -300,6 +516,7 @@ def _build_naive_prefilter(
     memory_tier: str | None = None,
     mf_soft_sql: str = "",
     mf_hard_sql: str = "",
+    fusion: str = "linear",
 ) -> tuple[str, dict]:
     """Naive retrieval, ``retrieval_strategy='pre_filter'`` path.
 
@@ -315,6 +532,18 @@ def _build_naive_prefilter(
     scan to identify matches. Use this strategy with an index strategy;
     see docs/cookbook/retrieval-strategy.md (TODO).
     """
+    if fusion == "rrf":
+        return _build_naive_prefilter_rrf(
+            cfg,
+            as_of,
+            version_filter,
+            evolution_aware,
+            retracted_behavior,
+            supersession_behavior,
+            memory_tier,
+            mf_soft_sql,
+            mf_hard_sql,
+        )
     base = (
         "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
         "%(w_bm25)s * ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) + "
@@ -363,6 +592,75 @@ LIMIT %(top_k)s
     return sql, extra_params
 
 
+def _build_naive_prefilter_rrf(
+    cfg: PGRGConfig,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
+    memory_tier: str | None = None,
+    mf_soft_sql: str = "",
+    mf_hard_sql: str = "",
+) -> tuple[str, dict]:
+    """RRF variant of the pre_filter naive builder. The ``filtered`` CTE
+    materializes the predicate subset (no vector ORDER BY), then RRF ranks
+    over that subset."""
+    rrf_base = _rrf_fused_base_expr()
+    clauses, extra_params = evolution_where_clauses(
+        cfg,
+        doc_alias="d",
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
+        supersession_behavior=supersession_behavior,
+    )
+    mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="c", override=memory_tier)
+    if mt_clause:
+        clauses.append(mt_clause)
+        extra_params = _merge_params(extra_params, mt_params)
+    if mf_hard_sql:
+        clauses.append(mf_hard_sql)
+    extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
+    sql = f"""
+WITH filtered AS (
+    SELECT c.id, c.embedding, c.search_vector,
+           COALESCE(c.embedded_content, c.content) AS content,
+           c.metadata, c.document_id
+    FROM chunks c
+    JOIN documents d ON d.id = c.document_id
+    WHERE d.namespace = %(namespace)s{extra_where}
+),
+scored AS (
+    SELECT cand.id, cand.content, cand.metadata, cand.document_id,
+           1 - (cand.embedding <=> %(embedding)s::vector) AS vec_score,
+           ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score
+    FROM filtered cand
+),
+ranked AS (
+    SELECT scored.*,
+           rank() OVER (ORDER BY vec_score DESC) AS vec_rank,
+           rank() OVER (ORDER BY bm25_score DESC) AS bm25_rank
+    FROM scored
+)
+SELECT r.id, r.content, r.metadata,
+       d.source_path,
+       d.metadata AS doc_metadata,
+       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       (SELECT dv.document_id FROM document_versions dv
+        WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
+           AS superseded_by_id,
+       r.vec_score, r.bm25_score,
+       {evolution_score_expr(rrf_base, cfg, evolution_aware, retracted_behavior)} AS score
+FROM ranked r
+JOIN documents d ON d.id = r.document_id
+ORDER BY score DESC
+LIMIT %(top_k)s
+"""
+    return sql, extra_params
+
+
 def _build_naive_vector_first(
     cfg: PGRGConfig,
     as_of: datetime | None = None,
@@ -373,6 +671,7 @@ def _build_naive_vector_first(
     memory_tier: str | None = None,
     mf_soft_sql: str = "",
     mf_hard_sql: str = "",
+    fusion: str = "linear",
 ) -> tuple[str, dict]:
     """Naive retrieval, ``retrieval_strategy='vector_first'`` path.
 
@@ -394,6 +693,18 @@ def _build_naive_vector_first(
     and memory_tier — same set as weighted/pre_filter. The trade is
     "HNSW-fast seed, then trim" vs "scoped scan, single pass."
     """
+    if fusion == "rrf":
+        return _build_naive_vector_first_rrf(
+            cfg,
+            as_of,
+            version_filter,
+            evolution_aware,
+            retracted_behavior,
+            supersession_behavior,
+            memory_tier,
+            mf_soft_sql,
+            mf_hard_sql,
+        )
     base = (
         "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
         "%(w_bm25)s * ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) + "
@@ -439,6 +750,77 @@ SELECT cand.id, cand.content, cand.metadata,
 FROM candidates cand
 JOIN documents d ON d.id = cand.document_id
 WHERE d.namespace = %(namespace)s{extra_where}
+ORDER BY score DESC
+LIMIT %(top_k)s
+"""
+    return sql, extra_params
+
+
+def _build_naive_vector_first_rrf(
+    cfg: PGRGConfig,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
+    memory_tier: str | None = None,
+    mf_soft_sql: str = "",
+    mf_hard_sql: str = "",
+) -> tuple[str, dict]:
+    """RRF variant of the vector_first naive builder. The bare HNSW seed CTE
+    is unchanged; the namespace/evolution post-filter moves into the scored
+    CTE so RRF ranks only post-filtered rows."""
+    rrf_base = _rrf_fused_base_expr()
+    clauses, extra_params = evolution_where_clauses(
+        cfg,
+        doc_alias="d",
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
+        supersession_behavior=supersession_behavior,
+    )
+    mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="cand", override=memory_tier)
+    if mt_clause:
+        clauses.append(mt_clause)
+        extra_params = _merge_params(extra_params, mt_params)
+    if mf_hard_sql:
+        clauses.append(mf_hard_sql)
+    extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
+    sql = f"""
+WITH candidates AS (
+    SELECT c.id, c.embedding, c.search_vector,
+           COALESCE(c.embedded_content, c.content) AS content,
+           c.metadata, c.document_id
+    FROM chunks c
+    ORDER BY c.embedding <=> %(embedding)s::vector
+    LIMIT %(vector_first_k)s
+),
+scored AS (
+    SELECT cand.id, cand.content, cand.metadata, cand.document_id,
+           1 - (cand.embedding <=> %(embedding)s::vector) AS vec_score,
+           ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score
+    FROM candidates cand
+    JOIN documents d ON d.id = cand.document_id
+    WHERE d.namespace = %(namespace)s{extra_where}
+),
+ranked AS (
+    SELECT scored.*,
+           rank() OVER (ORDER BY vec_score DESC) AS vec_rank,
+           rank() OVER (ORDER BY bm25_score DESC) AS bm25_rank
+    FROM scored
+)
+SELECT r.id, r.content, r.metadata,
+       d.source_path,
+       d.metadata AS doc_metadata,
+       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       (SELECT dv.document_id FROM document_versions dv
+        WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
+           AS superseded_by_id,
+       r.vec_score, r.bm25_score,
+       {evolution_score_expr(rrf_base, cfg, evolution_aware, retracted_behavior)} AS score
+FROM ranked r
+JOIN documents d ON d.id = r.document_id
 ORDER BY score DESC
 LIMIT %(top_k)s
 """
@@ -649,6 +1031,7 @@ async def query(
     summary_base_mode: str | None = None,
     metadata_filters: dict | None = None,
     trace_emit: Callable[[dict], None] | None = None,
+    fusion: str | None = None,
 ) -> QueryResult:
     """Execute a retrieval query against the knowledge graph.
 
@@ -659,6 +1042,8 @@ async def query(
     valid_modes = ("naive", "local", "global", "hybrid", "naive_boost", "smart", "summary")
     if mode not in valid_modes:
         raise ValueError(f"Invalid mode '{mode}'. Must be one of: {valid_modes}")
+
+    effective_fusion = _effective_fusion(config, fusion)
 
     # Smart, naive_boost, and summary modes are handled in separate functions
     if mode == "summary":
@@ -739,6 +1124,7 @@ async def query(
         "w_sem": config.w_sem,
         "w_bm25": config.w_bm25,
         "w_graph": config.w_graph,
+        "rrf_k": config.rrf_k,
         **evolution_bind_params(config),
     }
 
@@ -779,6 +1165,7 @@ async def query(
                 memory_tier,
                 mf_soft_sql,
                 mf_hard_sql,
+                fusion=effective_fusion,
             )
         elif effective_strategy == "vector_first":
             sql, extra = _build_naive_vector_first(
@@ -791,6 +1178,7 @@ async def query(
                 memory_tier,
                 mf_soft_sql,
                 mf_hard_sql,
+                fusion=effective_fusion,
             )
             # vector_first needs an extra bind param for its oversample CTE.
             params["vector_first_k"] = effective_top_k * config.retrieval_oversample_factor
@@ -806,6 +1194,7 @@ async def query(
                 memory_tier,
                 mf_soft_sql,
                 mf_hard_sql,
+                fusion=effective_fusion,
             )
         else:
             sql, extra = _build_naive_query(
@@ -818,6 +1207,7 @@ async def query(
                 memory_tier,
                 mf_soft_sql,
                 mf_hard_sql,
+                fusion=effective_fusion,
             )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
         # Recall guard for vector_first — when post-filter trims below top_k,
@@ -873,13 +1263,16 @@ async def query(
         )
         local_rows = await db.fetch_all(local_sql, _merge_params(params, local_extra))
         global_rows = await db.fetch_all(global_sql, _merge_params(params, global_extra))
-        # Deduplicate by chunk ID, prefer higher score
-        seen = {}
-        for row in local_rows + global_rows:
-            cid = row["id"]
-            if cid not in seen or row["score"] > seen[cid]["score"]:
-                seen[cid] = row
-        rows = sorted(seen.values(), key=lambda r: r["score"], reverse=True)[:effective_top_k]
+        if effective_fusion == "rrf":
+            rows = _rrf_merge(local_rows, global_rows, config.rrf_k, effective_top_k)
+        else:
+            # Deduplicate by chunk ID, prefer higher score (linear — unchanged).
+            seen = {}
+            for row in local_rows + global_rows:
+                cid = row["id"]
+                if cid not in seen or row["score"] > seen[cid]["score"]:
+                    seen[cid] = row
+            rows = sorted(seen.values(), key=lambda r: r["score"], reverse=True)[:effective_top_k]
     else:
         rows = []
 

@@ -38,6 +38,7 @@ Our graph approach: **adjacency tables** (`entities` + `relationships`) with pro
 5. **Chunking** — auto-detects markdown (heading-aware), code (function/class boundaries for Python/JS/TS/Go/Rust), or plain text (sentence-aware). Hard token-split fallback prevents oversized chunks from overflowing LLM context
 6. **Ingestion profiles** — `conservative` / `balanced` (default) / `aggressive` / `max` control `doc_concurrency` and `extract_concurrency` for CPU budget
 7. **`pgrg devmem`** — convenience CLI for developer knowledge bases with dev-tuned extraction prompt (person/service/library/file/commit/incident/ADR entities) and code-aware chunking
+8. **Background extraction** — opt-in `defer_extraction=True` on `ingest_records()` writes chunks + embeddings and marks the doc `'pending'` in `documents.graph_status`; entity/relationship extraction runs out-of-band via `pgrg extract` (CLI; supports `--once`, `--max-iterations`, `--rate-limit-rps`, `--include-failed`, `--daemon` with SIGTERM-graceful shutdown). Two surfaces — off-server CLI and in-process daemon — share one `extract_documents` primitive in `src/pg_raggraph/backfill.py`, which claims via `SELECT … FOR UPDATE SKIP LOCKED` (no broker, no advisory locks — single-DB thesis). Query path surfaces `result.metadata['graph_status_summary']` so callers can see whether the graph is still backfilling. See `docs/cookbook/background-extraction.md`.
 
 ### Prior Art to Reference
 Detailed research docs are in `research/`:
@@ -121,3 +122,18 @@ tests/
 - Every extracted fact carries provenance metadata: source document, chunk, extraction confidence, `extracted` vs `inferred` vs `ambiguous` classification.
 - Graph schema uses JSONB metadata columns for extensibility — avoid ALTER TABLE migrations for new metadata fields.
 - Namespace-aware design throughout — support multi-tenant isolation via PostgreSQL schemas or namespace columns.
+
+## House Rules
+
+When changing what the MCP tools do or how agents should use them,
+update **all three** of these files in the same commit:
+
+- `src/pg_raggraph/server_instructions.py` — the MCP `initialize`
+  playbook handed to FastMCP. Agents read this every session.
+- `docs/user-guide.md` (MCP server section) — user-facing equivalent.
+- `README.md` (MCP server callout) — top-of-funnel summary.
+
+Each says the same thing to a different audience. Drift between them
+means agents get one story while users read another.
+`tests/unit/test_instructions_sync.py` is the drift guard — if it fails,
+look at all three.

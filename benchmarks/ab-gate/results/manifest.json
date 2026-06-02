@@ -1,0 +1,43 @@
+{
+  "files": [
+    {
+      "corpus": "bakeoff-scotus-ab",
+      "mode": "naive_vector",
+      "path": "bakeoff-scotus-ab__naive_vector.json",
+      "question_count": 12
+    },
+    {
+      "corpus": "bakeoff-scotus-ab",
+      "mode": "graph_leg",
+      "path": "bakeoff-scotus-ab__graph_leg.json",
+      "question_count": 12
+    },
+    {
+      "corpus": "bakeoff-scotus-ab",
+      "mode": "hybrid",
+      "path": "bakeoff-scotus-ab__hybrid.json",
+      "question_count": 12
+    },
+    {
+      "corpus": "bakeoff-ntsb-ab",
+      "mode": "naive_vector",
+      "path": "bakeoff-ntsb-ab__naive_vector.json",
+      "question_count": 12
+    },
+    {
+      "corpus": "bakeoff-ntsb-ab",
+      "mode": "graph_leg",
+      "path": "bakeoff-ntsb-ab__graph_leg.json",
+      "question_count": 12
+    },
+    {
+      "corpus": "bakeoff-ntsb-ab",
+      "mode": "hybrid",
+      "path": "bakeoff-ntsb-ab__hybrid.json",
+      "question_count": 12
+    }
+  ],
+  "pg_raggraph_version": "0.5.0a5",
+  "run_ended_at": "2026-05-29T01:35:14.951269+00:00",
+  "run_started_at": "2026-05-29T01:35:05.703737+00:00"
+}

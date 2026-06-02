@@ -228,6 +228,15 @@ class QueryResult(BaseModel):
     top_score: float = 0.0
     avg_score: float = 0.0
     confidence: str = "unknown"  # high | medium | low | unknown
+    metadata: dict = Field(default_factory=dict)
+    """Per-result metadata. Current keys (forward-compatible — callers should
+    treat unknown keys as advisory):
+
+      * ``graph_status_summary`` — per-status doc counts for the queried
+        namespace. Set when background extraction is in play; lets a caller
+        decide whether to retry (`pending > 0` means the graph is still
+        backfilling) without breaking the existing API shape.
+    """
 
     def populate_confidence(
         self,

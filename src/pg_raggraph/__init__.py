@@ -19,11 +19,12 @@ try:
     __version__ = _pkg_version("pg-raggraph")
 except PackageNotFoundError:
     # Editable install without installed metadata (rare). Mirror pyproject.
-    __version__ = "0.4.0a1"
+    __version__ = "0.5.0a7"
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.models import QueryResult
 from pg_raggraph.profiles import ProfileCalibration, ProfileSpec
+from pg_raggraph.resolution import ResolvedEntity
 
 # Canonical extension allowlist for ingestion. Mirrored by the FastAPI server
 # and the MCP server so all surfaces accept the same set. Stored as a tuple
@@ -49,6 +50,7 @@ __all__ = [
     "ProfileCalibration",
     "ProfileSpec",
     "QueryResult",
+    "ResolvedEntity",
     "__version__",
 ]
 
@@ -625,6 +627,7 @@ class GraphRAG:
         living_key: str | None = None,
         living_cadence: str | None = None,
         living_audit_diffs: bool | None = None,
+        defer_extraction: bool = False,
     ):
         """Ingest documents from in-memory records — no disk roundtrip.
 
@@ -675,6 +678,13 @@ class GraphRAG:
                   extraction for this document. Useful when the caller's
                   known_entities/known_relationships already cover what
                   they care about and the LLM would just add noise / cost.
+                - ``defer_extraction`` (bool, optional, default False):
+                  store the document with ``graph_status='pending'`` and
+                  skip extraction during this call. Chunks + embeddings
+                  are still written, so ``naive`` retrieval works
+                  immediately; a background worker (``pgrg extract``)
+                  drains the queue and populates entities/relationships.
+                  Per-record override of the call-level kwarg.
                 - ``pre_chunked`` (list of dict, optional): bypass
                   pg-raggraph's chunker AND embedder. Each entry:
                   ``{"content": str, "embedded_content": str (optional),
@@ -700,6 +710,11 @@ class GraphRAG:
             living_audit_diffs: When True, write hash-level overwrite/supersede
                 events to ``living_audit_log``. Audit rows are not embedded or
                 retrieved.
+            defer_extraction: Batch default. When True, every record stores
+                ``graph_status='pending'`` and skips synchronous LLM/lede
+                extraction; chunks + embeddings still land so ``naive`` works.
+                Drain with ``pgrg extract``. Individual records can override
+                via the ``defer_extraction`` record key.
 
         Returns: same stats shape as ``ingest()``.
 
@@ -823,6 +838,7 @@ class GraphRAG:
                         rec_entities = rec.get("entities")
                         rec_rels = rec.get("relationships")
                         rec_skip_llm = bool(rec.get("skip_llm", False))
+                        rec_defer_extraction = bool(rec.get("defer_extraction", defer_extraction))
                         rec_pre_chunked = rec.get("pre_chunked")
                         living_context = None
                         source_id = rec["source_id"]
@@ -882,6 +898,7 @@ class GraphRAG:
                             skip_llm_for_this_doc=rec_skip_llm,
                             pre_chunked=rec_pre_chunked,
                             living_context=living_context,
+                            defer_extraction=rec_defer_extraction,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -997,6 +1014,7 @@ class GraphRAG:
         skip_llm_for_this_doc: bool = False,
         pre_chunked: list[dict] | None = None,
         living_context: _LivingContext | None = None,
+        defer_extraction: bool = False,
     ):
         """Ingest a single document from in-memory content with all DB
         writes in a single transaction.
@@ -1119,9 +1137,12 @@ class GraphRAG:
         # If llm is None or skip_llm_for_this_doc is set, skip extraction
         # entirely — pure vector RAG mode (with whatever known_entities /
         # known_relationships the caller provides as the only graph signal).
+        # defer_extraction is the new background-extraction opt-in: chunks +
+        # embeddings still land (so naive retrieval works), but extraction is
+        # deferred to a `pgrg extract` worker that drains graph_status='pending'.
         extraction_degraded = False
         _lede_path = getattr(self.config, "fact_extractor", "none") == "lede_spacy"
-        if (llm is None and not _lede_path) or skip_llm_for_this_doc:
+        if defer_extraction or (llm is None and not _lede_path) or skip_llm_for_this_doc:
             from pg_raggraph.models import ExtractionResult
 
             extraction_results = [ExtractionResult() for _ in chunks]
@@ -1306,11 +1327,17 @@ class GraphRAG:
             # serialize to ISO strings instead of crashing the ingest.
             doc_metadata_json = json.dumps(meta, default=_json_default) if meta else "{}"
 
+            # graph_status: 'pending' when extraction is deferred to a
+            # background worker, else 'ready' (matches the migration default
+            # and the pre-feature synchronous behavior).
+            graph_status_value = "pending" if defer_extraction else "ready"
+
             doc_id = await tx.insert_returning_id(
                 "INSERT INTO documents "
                 "(namespace, content_hash, source_path, metadata, "
-                " effective_from, effective_to, retracted, version_label) "
-                "VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s) "
+                " effective_from, effective_to, retracted, version_label, "
+                " graph_status) "
+                "VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s) "
                 "ON CONFLICT (namespace, content_hash) DO UPDATE "
                 "SET source_path = EXCLUDED.source_path, "
                 "    metadata = documents.metadata || EXCLUDED.metadata, "
@@ -1332,6 +1359,7 @@ class GraphRAG:
                     eff_to,
                     retracted_value,
                     version_label,
+                    graph_status_value,
                     retracted_explicit,
                 ),
             )
@@ -1528,11 +1556,19 @@ class GraphRAG:
                     retracted = rel[7] if len(rel) > 7 else False
                     retracted_at = rel[8] if len(rel) > 8 else None
                     properties = rel[9] if len(rel) > 9 and rel[9] else {}
+                    # ON CONFLICT … DO UPDATE keeps the row id stable (so
+                    # relationship_chunks below still resolves) and merges
+                    # the strongest weight. Idempotent across ingests of the
+                    # same edge — required since migration 013 made the
+                    # (namespace, src_id, dst_id, rel_type) combination
+                    # uniquely indexed.
                     rel_id = await tx.insert_returning_id(
                         "INSERT INTO relationships "
                         "(namespace, src_id, dst_id, rel_type, weight, description, "
                         "effective_from, effective_to, retracted, retracted_at, properties) "
                         "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb) "
+                        "ON CONFLICT (namespace, src_id, dst_id, rel_type) DO UPDATE "
+                        "SET weight = GREATEST(relationships.weight, EXCLUDED.weight) "
                         "RETURNING id",
                         (
                             ns,
@@ -1673,6 +1709,7 @@ class GraphRAG:
         rerank: bool = False,
         metadata_filters: dict | None = None,
         trace_emit: Callable[[dict], None] | None = None,
+        fusion: str | None = None,
     ) -> QueryResult:
         """Query the knowledge graph.
 
@@ -1730,6 +1767,10 @@ class GraphRAG:
                 Adds ~30-80 ms p50 latency, zero per-query LLM cost.
                 Model and factor configured via PGRGConfig.rerank_model
                 and rerank_factor.
+            fusion: per-call override of ``config.fusion``. ``"linear"``
+                (default) preserves weighted-sum scoring; ``"rrf"`` fuses by
+                per-leg rank (scale-free). ``None`` falls back to config.
+                Applies to ``naive`` and ``hybrid`` modes only.
         """
         from pg_raggraph.context import pack_query_context
         from pg_raggraph.profiles import resolve_profile
@@ -1770,6 +1811,7 @@ class GraphRAG:
                     top_k_override=top_k_override,
                     metadata_filters=metadata_filters,
                     trace_emit=trace_emit,
+                    fusion=fusion,
                 )
             if rerank:
                 from pg_raggraph.reranker import FastEmbedReranker, apply_reranker
@@ -1787,6 +1829,11 @@ class GraphRAG:
                     config=self.config,
                 )
             result.context = packed.text
+            # Background-extraction status hint. Lets callers see whether the
+            # graph is still backfilling (`pending > 0`) without changing the
+            # retrieval result shape. Read-only, single GROUP BY — cheap.
+            with self.db.readonly():
+                result.metadata["graph_status_summary"] = await self._graph_status_summary(ns)
             self._emit_metric(
                 "pgrg.query",
                 namespace=ns,
@@ -1818,6 +1865,7 @@ class GraphRAG:
         rerank: bool = False,
         metadata_filters: dict | None = None,
         trace_emit: Callable[[dict], None] | None = None,
+        fusion: str | None = None,
     ) -> QueryResult:
         """Query + LLM answer synthesis.
 
@@ -1855,6 +1903,7 @@ class GraphRAG:
             rerank=rerank,
             metadata_filters=metadata_filters,
             trace_emit=trace_emit,
+            fusion=fusion,
         )
         # Reuse the shared LLM client (same pool as ingestion).
         llm = None
@@ -2049,7 +2098,7 @@ class GraphRAG:
         return await self.db.apply_metadata_indexes_concurrently()
 
     async def status(self, namespace: str | None = None) -> dict:
-        """Get graph statistics."""
+        """Get graph statistics, including background-extraction status counts."""
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
         with self.db.tenant(ns):
@@ -2069,7 +2118,29 @@ class GraphRAG:
                 )["cnt"],
                 "entities": await self.db.count("entities", ns),
                 "relationships": await self.db.count("relationships", ns),
+                "graph_status": await self._graph_status_summary(ns),
             }
+
+    async def _graph_status_summary(self, namespace: str) -> dict[str, int]:
+        """Per-status doc count for the namespace.
+
+        Returns all four lifecycle keys (pending/processing/ready/failed) so
+        callers can rely on the shape without defaulting. The partial index
+        on (namespace, created_at) WHERE graph_status='pending' keeps the
+        common 'pending > 0' check cheap; the full GROUP BY scans the
+        documents table but is sub-ms at typical sizes.
+        """
+        rows = await self.db.fetch_all(
+            "SELECT graph_status, COUNT(*) AS n FROM documents "
+            "WHERE namespace = %s GROUP BY graph_status",
+            (namespace,),
+        )
+        summary = {"pending": 0, "processing": 0, "ready": 0, "failed": 0}
+        for row in rows:
+            key = row["graph_status"]
+            if key in summary:
+                summary[key] = int(row["n"])
+        return summary
 
     async def code_impact(
         self,
@@ -2406,13 +2477,43 @@ class GraphRAG:
                 if len(namespaces) > 1:
                     raise ValueError(f"cross-namespace merge refused: {sorted(namespaces)}")
 
-                # Repoint relationships. After rewriting src_id and dst_id, any
-                # edge whose src and dst both collapse to keep_id becomes a
-                # self-loop — delete those. Remaining duplicates (same src, dst,
-                # rel_type after the rewrite) collapse to one row each.
+                # Repoint relationships. Migration 013 made
+                # (namespace, src_id, dst_id, rel_type) uniquely indexed, so a
+                # naive UPDATE that rewrites src_id or dst_id can collide with
+                # an existing keep-anchored edge. Pre-delete the about-to-
+                # collide rows so the UPDATE always lands. The semantics match
+                # the prior post-UPDATE collapse (lowest-id wins) — we just
+                # apply the dedup before the rewrite instead of after.
+                #
+                # src_id rewrite collision: a merge_id row (m, Y, rt) collides
+                # if (keep_id, Y, rt) already exists.
+                await tx.execute(
+                    "DELETE FROM relationships m USING relationships k "
+                    "WHERE m.src_id = ANY(%s) "
+                    "  AND k.src_id = %s "
+                    "  AND k.dst_id = m.dst_id "
+                    "  AND k.rel_type = m.rel_type "
+                    "  AND k.namespace = m.namespace "
+                    "  AND k.id <> m.id",
+                    (merge_ids, keep_id),
+                )
                 await tx.execute(
                     "UPDATE relationships SET src_id = %s WHERE src_id = ANY(%s)",
                     (keep_id, merge_ids),
+                )
+                # dst_id rewrite collision: a row (X, m, rt) collides if
+                # (X, keep_id, rt) already exists. X may itself have just been
+                # rewritten to keep_id — in that case the row becomes a
+                # self-loop and the next DELETE handles it.
+                await tx.execute(
+                    "DELETE FROM relationships m USING relationships k "
+                    "WHERE m.dst_id = ANY(%s) "
+                    "  AND k.dst_id = %s "
+                    "  AND k.src_id = m.src_id "
+                    "  AND k.rel_type = m.rel_type "
+                    "  AND k.namespace = m.namespace "
+                    "  AND k.id <> m.id",
+                    (merge_ids, keep_id),
                 )
                 await tx.execute(
                     "UPDATE relationships SET dst_id = %s WHERE dst_id = ANY(%s)",
@@ -2422,14 +2523,6 @@ class GraphRAG:
                 await tx.execute(
                     "DELETE FROM relationships WHERE src_id = dst_id AND "
                     "(src_id = %s OR dst_id = %s)",
-                    (keep_id, keep_id),
-                )
-                # Collapse duplicate edges (keep the lowest id per group).
-                await tx.execute(
-                    "DELETE FROM relationships a USING relationships b "
-                    "WHERE a.id > b.id AND a.src_id = b.src_id AND "
-                    "a.dst_id = b.dst_id AND a.rel_type = b.rel_type AND "
-                    "a.namespace = b.namespace AND (a.src_id = %s OR a.dst_id = %s)",
                     (keep_id, keep_id),
                 )
 

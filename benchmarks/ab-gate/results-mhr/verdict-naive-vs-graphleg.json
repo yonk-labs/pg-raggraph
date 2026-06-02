@@ -1,0 +1,54 @@
+{
+  "per_corpus": [
+    {
+      "scope": "bakeoff-mhr-ab",
+      "recall_at_10": {
+        "metric": "recall_at_10",
+        "graph": 0.0,
+        "naive": 0.0,
+        "delta": 0.0,
+        "label": "TIE"
+      },
+      "mrr": {
+        "metric": "mrr",
+        "graph": 0.0,
+        "naive": 0.0,
+        "delta": 0.0,
+        "label": "TIE"
+      },
+      "judge_win_rate": {
+        "metric": "judge_win_rate",
+        "graph": 0.4,
+        "naive": 0.74,
+        "delta": -0.33999999999999997,
+        "label": "NAIVE_WINS"
+      }
+    }
+  ],
+  "combined": {
+    "scope": "combined",
+    "recall_at_10": {
+      "metric": "recall_at_10",
+      "graph": 0.0,
+      "naive": 0.0,
+      "delta": 0.0,
+      "label": "TIE"
+    },
+    "mrr": {
+      "metric": "mrr",
+      "graph": 0.0,
+      "naive": 0.0,
+      "delta": 0.0,
+      "label": "TIE"
+    },
+    "judge_win_rate": {
+      "metric": "judge_win_rate",
+      "graph": 0.4,
+      "naive": 0.74,
+      "delta": -0.33999999999999997,
+      "label": "NAIVE_WINS"
+    }
+  },
+  "label": "INCONCLUSIVE",
+  "rationale": "Recall@10 lift: +0.00pp \u2192 TIE\nMRR delta: +0.0000 \u2192 TIE\nJudge win-rate delta: -0.3400 \u2192 NAIVE_WINS\n\u00a73.3 combiner: INCONCLUSIVE"
+}

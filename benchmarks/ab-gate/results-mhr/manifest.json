@@ -1,0 +1,25 @@
+{
+  "files": [
+    {
+      "corpus": "bakeoff-mhr-ab",
+      "mode": "naive_vector",
+      "path": "bakeoff-mhr-ab__naive_vector.json",
+      "question_count": 50
+    },
+    {
+      "corpus": "bakeoff-mhr-ab",
+      "mode": "graph_leg",
+      "path": "bakeoff-mhr-ab__graph_leg.json",
+      "question_count": 50
+    },
+    {
+      "corpus": "bakeoff-mhr-ab",
+      "mode": "hybrid",
+      "path": "bakeoff-mhr-ab__hybrid.json",
+      "question_count": 50
+    }
+  ],
+  "pg_raggraph_version": "0.5.0a5",
+  "run_ended_at": "2026-05-29T11:14:27.599577+00:00",
+  "run_started_at": "2026-05-29T11:13:57.309948+00:00"
+}

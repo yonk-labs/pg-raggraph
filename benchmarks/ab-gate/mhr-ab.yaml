@@ -1,0 +1,67 @@
+# A/B-gate ingest config for MultiHop-RAG (MHR) — the graph-FAVORABLE corpus.
+#
+# Unlike SCOTUS/NTSB (clean single-domain prose, single-doc lookup), MHR is
+# multi-hop news QA: answers require connecting evidence ACROSS documents
+# (inference / comparison / temporal queries). This is the workload GraphRAG
+# is designed for — the fair test of whether chunkshop's facts/cooccur help.
+#
+# Corpus generated from benchmarks/e2e/datasets/mhr.py (609 docs); gold is the
+# 50-question seed-42 subset (benchmarks/ab-gate/gold-mhr.yaml). MHR questions
+# have gold ANSWERS (not single gold docs), so the LLM judge is the primary
+# metric here — recall@10/MRR are N/A for multi-hop (no single gold_doc_id).
+#
+# Run:
+#   cd ../chunkshop/python
+#   export CHUNKSHOP_TEST_DSN=postgresql://postgres:postgres@localhost:5434/chunkshop_test
+#   uv run --no-sync chunkshop ingest --config /home/yonk/yonk-tools/pg-raggraph/benchmarks/ab-gate/mhr-ab.yaml
+
+cell_name: mhr_ab_gate
+
+source:
+  type: json_corpus
+  path: /home/yonk/yonk-tools/pg-raggraph/benchmarks/ab-gate/mhr-corpus.json
+  documents_key: documents
+  id_field: id
+  content_field: content
+  title_field: title
+
+chunker:
+  type: consolidation
+  base:
+    type: hierarchy
+    prefix_heading: true
+    min_section_chars: 100
+  consolidator:
+    mode: lede_spacy
+    confidence_floor: 0.0
+    max_facts: 20
+    model: en_core_web_sm
+  fact_max_chars: 1200
+
+embedder:
+  type: fastembed
+  model_name: BAAI/bge-base-en-v1.5   # matched to pg-raggraph query side (768-d)
+  dim: 768
+  threads: 4
+  batch_size: 64
+
+extractor:
+  type: cooccurrence
+  top_k: 15
+  min_chars: 3
+  max_summary_chars: 1000
+  min_pair_count: 1
+
+target:
+  type: postgres
+  dsn_env: CHUNKSHOP_TEST_DSN
+  database: ab_mhr               # dedicated schema
+  table: mhr_ab
+  mode: overwrite
+  force_overwrite: true
+  hnsw: false
+
+runtime:
+  omp_num_threads: 4
+  heartbeat_every: 50
+  log_path: /tmp/chunkshop-mhr-ab.log

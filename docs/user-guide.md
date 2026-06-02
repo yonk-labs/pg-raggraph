@@ -517,12 +517,16 @@ roadmap (dated audit-trail design spec).
 
 ### What's tested
 
-Tier 1 ships with **141 passing tests** including 13 evolution-specific integration tests
-and 3 synthetic-fixture corpora (medical retraction, software versioning, policy
-effective-dates). The fixtures are small (2–4 docs each), purpose-built to exercise the
-metadata code paths. **A real-world retraction-corpus benchmark (e.g., 1000+ medical
-papers with actual retractions) is not yet built — that lands with Tier 2 or as a separate
-benchmark effort.**
+Tier 1 ships with **34 evolution-specific integration tests** across the
+core evolution-tracking, medical-HRT, Python-versioned-docs, living-
+knowledge, and per-fact-temporal-relationships suites — plus 3 synthetic-
+fixture corpora (medical retraction, software versioning, policy
+effective-dates). The fixtures are small (2–4 docs each), purpose-built
+to exercise the metadata code paths. A real-world retraction-corpus
+benchmark (PubMed HRT) **did land** after this section was first
+written — see `benchmarks/medical-hrt/` for 48 abstracts × 15 gold
+questions × 5/5 retraction-aware + 5/5 time-travel passes. Tier 2
+ambitions are tracked in the roadmap.
 
 ---
 
@@ -702,6 +706,42 @@ pg-raggraph automatically skips documents that haven't changed. You can safely r
 4. Entities are resolved against existing ones (pg_trgm fuzzy + vector similarity)
 5. Everything is stored in PostgreSQL with content hashes for dedup
 
+### Deferred extraction (background drain)
+
+Step 3 above — LLM/lede entity + relationship extraction — is the slow leg.
+On lede_spacy MHR, synchronous extraction costs ~1063 ms/doc; with an LLM
+extractor it's much worse. Most queries — `naive` (vector + BM25) — don't
+even need the graph.
+
+`defer_extraction=True` decouples extraction from `ingest()`:
+
+```python
+# Producer: returns in ~18 ms/doc — chunks + embeddings only.
+await rag.ingest_records(records, namespace="crm", defer_extraction=True)
+# Doc is immediately naive-queryable. Graph fills in later.
+```
+
+A worker drains the queue out-of-band:
+
+```bash
+# One-shot (cron-friendly): exits 0 when queue is empty
+pgrg --db $PGRG_DSN extract --namespace crm --once
+
+# Long-running daemon: SIGTERM-graceful, emits metrics per iteration
+pgrg --db $PGRG_DSN extract --namespace crm --daemon --poll-interval 1.0
+```
+
+Headline numbers (MHR, lede_spacy, 40 docs): **59.8× faster
+time-to-queryable** (0.44s vs 26.27s); the deferred path's total
+wall-time (B+C = 15.56s) is *also* faster than synchronous (26.27s)
+because the synchronous path holds per-doc transactions open across
+extraction.
+
+The full guide — three architectural patterns (sync / cron / always-on
+daemon), worked FastAPI end-to-end example, multi-worker safety
+invariants, operator playbook — is at
+**[cookbook/background-extraction.md](cookbook/background-extraction.md)**.
+
 ### Ingesting from a database (CRM / ERP / app schema)
 
 The patterns above cover files on disk. For pulling rows out of a Postgres database (or any SQL source), see the worked end-to-end cookbook:
@@ -866,6 +906,48 @@ Visit `http://localhost:8080`:
 - **Provenance** — each answer shows which chunks contributed
 
 The UI is a single HTML file (~200 lines, htmx + vis-network from CDN). No build step, no node_modules.
+
+---
+
+## MCP server
+
+`pgrg mcp-serve` exposes pg-raggraph as a Model Context Protocol server
+over stdio. Connect from Claude Desktop, Cursor, Zed, the OpenAI Agent
+SDK, or any MCP-compatible client.
+
+```bash
+pgrg --db postgresql://… mcp-serve
+```
+
+When the client issues `initialize`, the server returns a tuned playbook
+that becomes part of the agent's system prompt for the session. The
+playbook teaches tool selection and warns about common anti-patterns.
+
+### MCP tools
+
+| Tool | When to use |
+|---|---|
+| `pgrg_ask` | "What does the corpus say about X?" — smart-routed retrieval + grounded LLM answer in one call. PRIMARY. |
+| `pgrg_query` | "Get me the raw retrieved chunks" — same retrieval, no LLM grounding. |
+| `pgrg_ingest` | "Add documents to the graph." Paths must be in an allow-listed root via `PGRG_MCP_INGEST_ROOTS`. |
+| `pgrg_delete_document` | "Remove a document." Requires `confirm=True`. |
+| `pgrg_status` | "Is the graph ready / how big is it?" — counts + `graph_status_summary`. |
+| `pgrg_profiles` | "What retrieval profiles are available?" — calibration ladder. |
+| `pgrg_get_namespace_profile` / `pgrg_set_namespace_profile` | Per-namespace default retrieval profile. |
+
+### Staleness banner
+
+When you ingest with `defer_extraction=True` (see
+[`cookbook/background-extraction.md`](cookbook/background-extraction.md)),
+documents are immediately retrievable as chunks but their entity/
+relationship graph entries are written asynchronously by `pgrg extract`.
+Any MCP response that references a pending document is prepended with
+a `⚠️` banner naming the document and instructing the agent to Read it
+directly. The chunks and the non-pending citations remain authoritative;
+only the entity layer lags.
+
+Operators don't need to configure anything — the banner is always-on
+and renders to nothing when no documents are pending.
 
 ---
 
