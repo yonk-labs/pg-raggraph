@@ -93,3 +93,18 @@ def test_twostage_rrf_keeps_candidate_cte_and_ranks():
 def test_twostage_linear_unchanged():
     sql, _ = _build_naive_query_twostage(PGRGConfig())
     assert "rank()" not in sql
+
+
+from pg_raggraph.retrieval import _build_naive_prefilter
+
+
+def test_prefilter_rrf_keeps_filtered_cte_and_ranks():
+    sql, _ = _build_naive_prefilter(PGRGConfig(), fusion="rrf")
+    assert "WITH filtered AS" in sql
+    assert "ORDER BY c.embedding" not in sql
+    assert "rank() OVER (ORDER BY vec_score DESC)" in sql
+
+
+def test_prefilter_linear_unchanged():
+    sql, _ = _build_naive_prefilter(PGRGConfig())
+    assert "rank()" not in sql
