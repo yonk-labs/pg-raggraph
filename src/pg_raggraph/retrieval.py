@@ -190,7 +190,13 @@ def _build_naive_query(
     memory_tier: str | None = None,
     mf_soft_sql: str = "",
     mf_hard_sql: str = "",
+    fusion: str = "linear",
 ) -> tuple[str, dict]:
+    if fusion == "rrf":
+        return _build_naive_query_rrf(
+            cfg, as_of, version_filter, evolution_aware, retracted_behavior,
+            supersession_behavior, memory_tier, mf_soft_sql, mf_hard_sql,
+        )
     base = (
         "%(w_sem)s * (1 - (c.embedding <=> %(embedding)s::vector)) + "
         "%(w_bm25)s * ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) + "
@@ -229,6 +235,75 @@ SELECT c.id, COALESCE(c.embedded_content, c.content) AS content, c.metadata,
 FROM chunks c
 JOIN documents d ON d.id = c.document_id
 WHERE d.namespace = %(namespace)s{extra_where}
+ORDER BY score DESC
+LIMIT %(top_k)s
+"""
+    return sql, extra_params
+
+
+def _build_naive_query_rrf(
+    cfg: PGRGConfig,
+    as_of: datetime | None = None,
+    version_filter: str | None = None,
+    evolution_aware: bool | None = None,
+    retracted_behavior: str | None = None,
+    supersession_behavior: str | None = None,
+    memory_tier: str | None = None,
+    mf_soft_sql: str = "",
+    mf_hard_sql: str = "",
+) -> tuple[str, dict]:
+    """RRF variant of ``_build_naive_query`` (issue #57). The base legs
+    (vec_score, bm25_score) are SELECTed in a ``scored`` CTE, rank()-ed in a
+    ``ranked`` CTE, then fused by ``_rrf_fused_base_expr()``. The outer SELECT
+    re-joins ``documents d`` so ``evolution_score_expr`` keeps its d.* columns
+    (temporal_boost_expr reads d.effective_from / d.created_at). The mf_soft
+    bias term is intentionally dropped under RRF — soft metadata bias is a
+    score-scale nudge that has no meaning once we fuse by rank.
+    """
+    rrf_base = _rrf_fused_base_expr()
+    clauses, extra_params = evolution_where_clauses(
+        cfg,
+        doc_alias="d",
+        as_of=as_of,
+        version_filter=version_filter,
+        evolution_aware=evolution_aware,
+        retracted_behavior=retracted_behavior,
+        supersession_behavior=supersession_behavior,
+    )
+    mt_clause, mt_params = memory_tier_clause(cfg, chunk_alias="c", override=memory_tier)
+    if mt_clause:
+        clauses.append(mt_clause)
+        extra_params = _merge_params(extra_params, mt_params)
+    if mf_hard_sql:
+        clauses.append(mf_hard_sql)
+    extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
+    sql = f"""
+WITH scored AS (
+    SELECT c.id, COALESCE(c.embedded_content, c.content) AS content, c.metadata,
+           c.document_id,
+           1 - (c.embedding <=> %(embedding)s::vector) AS vec_score,
+           ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score
+    FROM chunks c
+    JOIN documents d ON d.id = c.document_id
+    WHERE d.namespace = %(namespace)s{extra_where}
+),
+ranked AS (
+    SELECT scored.*,
+           rank() OVER (ORDER BY vec_score DESC) AS vec_rank,
+           rank() OVER (ORDER BY bm25_score DESC) AS bm25_rank
+    FROM scored
+)
+SELECT r.id, r.content, r.metadata,
+       d.source_path,
+       d.metadata AS doc_metadata,
+       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       (SELECT dv.document_id FROM document_versions dv
+        WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
+           AS superseded_by_id,
+       r.vec_score, r.bm25_score,
+       {evolution_score_expr(rrf_base, cfg, evolution_aware, retracted_behavior)} AS score
+FROM ranked r
+JOIN documents d ON d.id = r.document_id
 ORDER BY score DESC
 LIMIT %(top_k)s
 """

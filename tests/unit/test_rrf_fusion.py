@@ -55,3 +55,25 @@ def test_rrf_fused_base_expr_shape():
     assert "%(w_bm25)s" in expr and "bm25_rank" in expr
     assert "%(rrf_k)s" in expr
     assert "graph" not in expr
+
+
+from pg_raggraph.retrieval import _build_naive_query
+
+
+def test_naive_linear_sql_unchanged_shape():
+    """SC-006: default (linear) path must NOT contain any RRF machinery."""
+    sql, _ = _build_naive_query(PGRGConfig())  # fusion defaults to linear
+    assert "rank()" not in sql
+    assert "WITH scored AS" not in sql
+    assert "ORDER BY score DESC" in sql
+
+
+def test_naive_rrf_emits_ranked_cte():
+    """SC-003: RRF path wraps the legs in a ranked CTE and fuses by rank."""
+    sql, _ = _build_naive_query(PGRGConfig(), fusion="rrf")
+    assert "WITH scored AS" in sql
+    assert "rank() OVER (ORDER BY vec_score DESC)" in sql
+    assert "rank() OVER (ORDER BY bm25_score DESC)" in sql
+    assert "%(rrf_k)s" in sql
+    assert "JOIN documents d ON d.id = r.document_id" in sql
+    assert "ORDER BY score DESC" in sql
