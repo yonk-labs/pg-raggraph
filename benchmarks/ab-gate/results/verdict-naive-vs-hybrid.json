@@ -1,0 +1,78 @@
+{
+  "per_corpus": [
+    {
+      "scope": "bakeoff-ntsb-ab",
+      "recall_at_10": {
+        "metric": "recall_at_10",
+        "graph": 0.9166666666666666,
+        "naive": 1.0,
+        "delta": -8.333333333333337,
+        "label": "NAIVE_WINS"
+      },
+      "mrr": {
+        "metric": "mrr",
+        "graph": 0.7152777777777778,
+        "naive": 0.8402777777777778,
+        "delta": -0.125,
+        "label": "NAIVE_WINS"
+      },
+      "judge_win_rate": {
+        "metric": "judge_win_rate",
+        "graph": 0.9166666666666666,
+        "naive": 1.0,
+        "delta": -0.08333333333333337,
+        "label": "TIE"
+      }
+    },
+    {
+      "scope": "bakeoff-scotus-ab",
+      "recall_at_10": {
+        "metric": "recall_at_10",
+        "graph": 0.5833333333333334,
+        "naive": 0.75,
+        "delta": -16.666666666666664,
+        "label": "NAIVE_WINS"
+      },
+      "mrr": {
+        "metric": "mrr",
+        "graph": 0.3055555555555555,
+        "naive": 0.4055555555555555,
+        "delta": -0.09999999999999998,
+        "label": "NAIVE_WINS"
+      },
+      "judge_win_rate": {
+        "metric": "judge_win_rate",
+        "graph": 0.8333333333333334,
+        "naive": 0.8333333333333334,
+        "delta": 0.0,
+        "label": "TIE"
+      }
+    }
+  ],
+  "combined": {
+    "scope": "combined",
+    "recall_at_10": {
+      "metric": "recall_at_10",
+      "graph": 0.75,
+      "naive": 0.875,
+      "delta": -12.5,
+      "label": "NAIVE_WINS"
+    },
+    "mrr": {
+      "metric": "mrr",
+      "graph": 0.5104166666666666,
+      "naive": 0.6229166666666667,
+      "delta": -0.11250000000000004,
+      "label": "NAIVE_WINS"
+    },
+    "judge_win_rate": {
+      "metric": "judge_win_rate",
+      "graph": 0.875,
+      "naive": 0.9166666666666666,
+      "delta": -0.04166666666666663,
+      "label": "TIE"
+    }
+  },
+  "label": "NAIVE_WINS",
+  "rationale": "Recall@10 lift: -12.50pp \u2192 NAIVE_WINS\nMRR delta: -0.1125 \u2192 NAIVE_WINS\nJudge win-rate delta: -0.0417 \u2192 TIE\n\u00a73.3 combiner: NAIVE_WINS"
+}

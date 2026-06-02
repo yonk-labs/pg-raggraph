@@ -241,6 +241,222 @@ def ingest_chunkshop_table(
 
 
 @main.command()
+@click.option("-n", "--namespace", default=None, help="Namespace to drain (default: all)")
+@click.option("--batch-size", default=4, type=int, show_default=True, help="Docs per claim")
+@click.option(
+    "--max-iterations",
+    default=0,
+    type=int,
+    show_default=True,
+    help="Stop after N iterations (0 = unlimited; ignored with --once)",
+)
+@click.option(
+    "--rate-limit-rps",
+    default=0.0,
+    type=float,
+    show_default=True,
+    help="Cap docs/second across iterations (0 = unlimited)",
+)
+@click.option(
+    "--once",
+    is_flag=True,
+    help="Run exactly one claim+extract iteration and exit (overrides --max-iterations)",
+)
+@click.option(
+    "--include-failed",
+    is_flag=True,
+    help="Reset 'failed' docs to 'pending' at startup so they're retried",
+)
+@click.option(
+    "--daemon",
+    is_flag=True,
+    help=(
+        "Long-running mode: keep polling for pending docs. Handles SIGTERM/SIGINT "
+        "gracefully — finishes the in-flight batch, then exits 0."
+    ),
+)
+@click.option(
+    "--poll-interval",
+    default=2.0,
+    type=float,
+    show_default=True,
+    help="Seconds to wait between empty-queue checks in --daemon mode",
+)
+@click.pass_context
+def extract(
+    ctx,
+    namespace,
+    batch_size,
+    max_iterations,
+    rate_limit_rps,
+    once,
+    include_failed,
+    daemon,
+    poll_interval,
+):
+    """Drain documents.graph_status='pending' — run background extraction.
+
+    Exits 0 when the queue is empty (or --once / --max-iterations is reached).
+    Workers can run concurrently safely; SKIP LOCKED guarantees no overlap.
+    """
+    import signal
+
+    from pg_raggraph.backfill import (
+        claim_pending,
+        extract_documents,
+        release_processing,
+    )
+
+    if batch_size < 1:
+        raise click.BadParameter("--batch-size must be >= 1")
+    if max_iterations < 0:
+        raise click.BadParameter("--max-iterations must be >= 0")
+    if rate_limit_rps < 0:
+        raise click.BadParameter("--rate-limit-rps must be >= 0")
+    if poll_interval <= 0:
+        raise click.BadParameter("--poll-interval must be > 0")
+    if daemon and once:
+        raise click.BadParameter("--daemon and --once are mutually exclusive")
+
+    async def _extract():
+        kwargs = dict(ctx.obj["kwargs"])
+        if namespace:
+            kwargs["namespace"] = namespace
+        rag = GraphRAG(**kwargs)
+        await rag.connect()
+
+        shutdown = asyncio.Event()
+        if daemon:
+            # Cooperative shutdown: signal handlers just set the event so
+            # the loop finishes the in-flight batch atomically before exit.
+            loop = asyncio.get_running_loop()
+            for sig in (signal.SIGTERM, signal.SIGINT):
+                try:
+                    loop.add_signal_handler(sig, shutdown.set)
+                except NotImplementedError:
+                    # Windows event loops don't support add_signal_handler;
+                    # those users get harder shutdowns (KeyboardInterrupt).
+                    pass
+
+        try:
+            # Reaper first — recover from prior crashes that left rows in
+            # 'processing'. Scoped to this worker's --namespace so a peer
+            # worker running against a different namespace doesn't have its
+            # in-flight claims stolen. When --namespace is omitted (drain
+            # everything), release_processing logs a warning before doing
+            # the global reap; operators running multi-tenant deployments
+            # should always pass --namespace.
+            await release_processing(rag.db, namespace=namespace)
+
+            if include_failed:
+                if namespace:
+                    await rag.db.execute(
+                        "UPDATE documents SET graph_status = 'pending', graph_error = NULL "
+                        "WHERE namespace = %s AND graph_status = 'failed'",
+                        (namespace,),
+                    )
+                else:
+                    await rag.db.execute(
+                        "UPDATE documents SET graph_status = 'pending', graph_error = NULL "
+                        "WHERE graph_status = 'failed'"
+                    )
+
+            totals = {"claimed": 0, "ready": 0, "failed": 0, "ents": 0, "rels": 0}
+            iteration = 0
+            import time as _time
+
+            while True:
+                if shutdown.is_set():
+                    click.echo("Shutdown signal received; exiting cleanly.", err=True)
+                    break
+
+                iteration += 1
+                iter_started = _time.perf_counter()
+                claim_t0 = _time.perf_counter()
+                ids = await claim_pending(rag.db, namespace, batch_size)
+                # claim is metric-emitted on EVERY iteration including empty
+                # ones so an operator can spot a daemon that's polling a
+                # queue but never finding work (e.g. wrong namespace).
+                rag._emit_metric(
+                    "pgrg.backfill.claim",
+                    namespace=namespace,
+                    batch_size=batch_size,
+                    claimed=len(ids),
+                    latency_ms=(_time.perf_counter() - claim_t0) * 1000,
+                )
+                if not ids:
+                    if daemon:
+                        # Wait poll_interval or until shutdown — whichever
+                        # comes first. asyncio.wait_for raises TimeoutError
+                        # on the timeout branch; treat that as "keep polling."
+                        try:
+                            await asyncio.wait_for(shutdown.wait(), timeout=poll_interval)
+                        except asyncio.TimeoutError:
+                            pass
+                        # Re-check at top of loop (shutdown may now be set).
+                        continue
+                    click.echo(f"Queue drained after {iteration - 1} iteration(s).", err=True)
+                    break
+
+                stats = await extract_documents(rag, ids, namespace=namespace)
+                totals["claimed"] += stats.claimed
+                totals["ready"] += stats.ready
+                totals["failed"] += stats.failed
+                totals["ents"] += stats.entities
+                totals["rels"] += stats.relationships
+                click.echo(
+                    f"[iter {iteration}] claimed={stats.claimed} ready={stats.ready} "
+                    f"failed={stats.failed} ents={stats.entities} rels={stats.relationships}",
+                    err=True,
+                )
+
+                # Per-iteration queue depth gives operators an at-a-glance
+                # "is this thing converging?" signal. Only meaningful when
+                # the worker has scoped to a namespace (the global summary
+                # is too expensive on large multi-tenant DBs).
+                if namespace:
+                    try:
+                        summary = await rag._graph_status_summary(namespace)
+                        rag._emit_metric(
+                            "pgrg.backfill.queue_depth",
+                            namespace=namespace,
+                            **summary,
+                        )
+                    except Exception as e:
+                        # A summary scan should never break the loop.
+                        logging.getLogger("pg_raggraph.cli").debug(
+                            "queue_depth metric failed: %s", e
+                        )
+
+                if not daemon and (once or (max_iterations and iteration >= max_iterations)):
+                    break
+
+                if rate_limit_rps > 0:
+                    # Target a per-iteration wall-time floor so the worker
+                    # never exceeds the configured docs/sec.
+                    elapsed = _time.perf_counter() - iter_started
+                    floor = len(ids) / rate_limit_rps
+                    if elapsed < floor:
+                        try:
+                            await asyncio.wait_for(shutdown.wait(), timeout=floor - elapsed)
+                        except asyncio.TimeoutError:
+                            pass
+
+            click.echo(
+                f"Done: {totals['ready']} ready / {totals['failed']} failed "
+                f"of {totals['claimed']} claimed. {totals['ents']} entities, "
+                f"{totals['rels']} relationships."
+            )
+        finally:
+            await rag.close()
+
+    try:
+        run_async(_extract())
+    except Exception as e:
+        _handle_error(e)
+
+
+@main.command()
 @click.argument("question")
 @click.option(
     "-m",
@@ -784,5 +1000,240 @@ def devmem_status(ctx, namespace):
 
     try:
         run_async(_status())
+    except Exception as e:
+        _handle_error(e)
+
+
+# ---------------------------------------------------------------------------
+# pgrg ab-gate group — A/B retrieval benchmark harness + runner (#48 + #49)
+# ---------------------------------------------------------------------------
+
+
+@main.group("ab-gate")
+def ab_gate():
+    """A/B retrieval benchmark harness (chunkshop ↔ pg-raggraph A/B gate).
+
+    Subcommands:
+      materialize — build graph entities from imported fact/cooccur surfaces.
+      run         — run the {corpora × modes} matrix and write per-cell JSONs.
+      verdict     — apply the contract §3 combiner to runner output + write report.
+
+    See ``docs/cookbook/ab-gate.md`` for the full operator workflow.
+    """
+
+
+@ab_gate.command("run")
+@click.option(
+    "--corpus",
+    "corpora",
+    multiple=True,
+    required=True,
+    help="Corpus id (= namespace). Repeat once per corpus; pair 1:1 with --gold.",
+)
+@click.option(
+    "--gold",
+    "gold_paths",
+    multiple=True,
+    required=True,
+    type=click.Path(dir_okay=False),
+    help="Gold-Q YAML file. Pair 1:1 with --corpus (same flag count, same order).",
+)
+@click.option(
+    "--mode",
+    "modes",
+    multiple=True,
+    required=True,
+    type=click.Choice(["naive_vector", "graph_leg", "hybrid"], case_sensitive=False),
+    help="Retrieval mode. Repeat to run multiple modes.",
+)
+@click.option(
+    "--top-k",
+    default=10,
+    type=int,
+    show_default=True,
+    help="Top-K items per question.",
+)
+@click.option(
+    "--out",
+    "output_dir",
+    required=True,
+    type=click.Path(file_okay=False),
+    help="Output directory. Created if missing. Existing files are overwritten.",
+)
+@click.pass_context
+def ab_gate_run(ctx, corpora, gold_paths, modes, top_k, output_dir):
+    """Run the A/B matrix and write per-(corpus, mode) JSONs + manifest.json."""
+    from pathlib import Path
+
+    from pg_raggraph.ab_gate import load_gold_questions, run_ab_matrix
+
+    if len(corpora) != len(gold_paths):
+        raise click.BadParameter(
+            f"--corpus/--gold pairing mismatch: got {len(corpora)} corpora and "
+            f"{len(gold_paths)} gold files. Pass exactly one --gold per --corpus, "
+            f"in matching order.",
+            ctx=ctx,
+        )
+    output_dir = Path(output_dir)
+
+    async def _run():
+        kwargs = dict(ctx.obj["kwargs"])
+        rag = GraphRAG(**kwargs)
+        await rag.connect()
+        try:
+            gold_per_corpus: dict[str, list] = {}
+            for corpus_id, gold_path in zip(corpora, gold_paths):
+                gold_per_corpus[corpus_id] = load_gold_questions(Path(gold_path))
+            paths = await run_ab_matrix(
+                rag,
+                corpora=list(corpora),
+                modes=list(modes),
+                gold_questions_per_corpus=gold_per_corpus,
+                output_dir=output_dir,
+                top_k=top_k,
+            )
+            click.echo(f"Wrote {len(paths)} per-(corpus, mode) files to {output_dir}")
+            click.echo(f"Manifest: {output_dir / 'manifest.json'}")
+        finally:
+            await rag.close()
+
+    try:
+        run_async(_run())
+    except Exception as e:
+        _handle_error(e)
+
+
+@ab_gate.command("materialize")
+@click.option(
+    "--namespace",
+    "-n",
+    "namespaces",
+    multiple=True,
+    required=True,
+    help="Corpus id (= namespace) to materialize. Repeat for multiple.",
+)
+@click.pass_context
+def ab_gate_materialize(ctx, namespaces):
+    """Materialize graph entities from imported fact/cooccur surfaces.
+
+    Prerequisite for the graph_leg of `pgrg ab-gate run`: reads every
+    distinct fact subject/object + cooccur node from the corpus's chunks
+    (imported via `pgrg ingest-chunkshop-table`) and inserts one entity per
+    distinct surface so `resolve_entity_lookup` can find them. Idempotent.
+    """
+    from pg_raggraph.ab_gate import materialize_entities_from_corpus
+
+    async def _run():
+        kwargs = dict(ctx.obj["kwargs"])
+        rag = GraphRAG(**kwargs)
+        await rag.connect()
+        try:
+            for ns in namespaces:
+                count = await materialize_entities_from_corpus(rag, ns)
+                click.echo(f"{ns}: materialized {count} new entities")
+        finally:
+            await rag.close()
+
+    try:
+        run_async(_run())
+    except Exception as e:
+        _handle_error(e)
+
+
+@ab_gate.command("verdict")
+@click.option(
+    "--runs",
+    "runs_dir",
+    required=True,
+    type=click.Path(file_okay=False, exists=True),
+    help="Directory of per-(corpus, mode) JSONs from `ab-gate run`.",
+)
+@click.option(
+    "--out",
+    "output_dir",
+    required=True,
+    type=click.Path(file_okay=False),
+    help="Where to write verdict.json / verdict.md / latency.json.",
+)
+@click.option(
+    "--judge-provider",
+    default="none",
+    show_default=True,
+    help="LLM judge provider kind: none | mock | openai | openai-compatible | "
+    "anthropic | ollama | gemini | openrouter. 'none' skips the judge metric "
+    "(recall@10 + MRR still decide the verdict).",
+)
+@click.option("--judge-model", default=None, help="Judge model name.")
+@click.option("--judge-base-url", default=None, help="Judge endpoint base URL.")
+@click.option(
+    "--judge-api-key-env",
+    default=None,
+    help="Env var holding the judge API key (e.g. OPENAI_API_KEY).",
+)
+@click.option(
+    "--graph-mode",
+    default="graph_leg",
+    type=click.Choice(["graph_leg", "hybrid"]),
+    show_default=True,
+    help="Which mode plays the 'graph' side: graph_leg (graph-as-primary) or "
+    "hybrid (graph-as-augmentation). Run once per mode for the full §3 gate.",
+)
+@click.pass_context
+def ab_gate_verdict(
+    ctx,
+    runs_dir,
+    output_dir,
+    judge_provider,
+    judge_model,
+    judge_base_url,
+    judge_api_key_env,
+    graph_mode,
+):
+    """Apply the contract §3 combiner to runner output and write the report."""
+    from pathlib import Path
+
+    from pg_raggraph.ab_gate import compute_verdict, write_verdict_report
+    from pg_raggraph.ab_gate.io import ABRunnerOutput
+
+    runs = Path(runs_dir)
+    cell_files = sorted(p for p in runs.glob("*__*.json") if p.name != "manifest.json")
+    if not cell_files:
+        raise click.BadParameter(
+            f"no per-(corpus, mode) JSON files (<corpus>__<mode>.json) found in {runs_dir}",
+            ctx=ctx,
+        )
+
+    judge_config = None
+    if judge_provider.lower() != "none":
+        judge_config = {
+            "provider": {
+                "kind": judge_provider.lower(),
+                "model": judge_model,
+                "base_url": judge_base_url,
+                "api_key_env": judge_api_key_env,
+            }
+        }
+
+    import json as _json
+
+    outputs = [ABRunnerOutput.from_dict(_json.loads(p.read_text())) for p in cell_files]
+    # Latency rows for the informational latency.json (§3.6).
+    latency_rows = [
+        {
+            "corpus": o.corpus_id,
+            "mode": o.mode,
+            "question_id": c.question_id,
+            "latency_ms": c.latency_ms,
+        }
+        for o in outputs
+        for c in o.results
+    ]
+
+    try:
+        verdict = compute_verdict(outputs, judge_config=judge_config, graph_mode=graph_mode)
+        write_verdict_report(verdict, out_dir=Path(output_dir), latency_rows=latency_rows)
+        click.echo(f"Verdict (naive vs {graph_mode}): {verdict.label}")
+        click.echo(verdict.rationale)
+        click.echo(f"\nReport written to {output_dir}/verdict.json + verdict.md")
     except Exception as e:
         _handle_error(e)

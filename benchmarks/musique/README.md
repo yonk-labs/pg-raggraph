@@ -35,9 +35,49 @@ uv run python benchmarks/musique/ingest.py
 uv run python benchmarks/musique/run.py --judge both
 ```
 
+## Graph-vs-vector — the corrected verdict (2026-05-29)
+
+The decisive graph-vs-vector run. It adds the **pure recursive-traversal** modes
+(`local` = entity-neighborhood walk via `WITH RECURSIVE … max_hops=2`; `global`)
+that earlier runs omitted, and grades with **two** judges to separate signal
+from judge noise. `run.py` now decouples the judge endpoint from the
+answer-generation endpoint, so a different model can grade:
+
+```bash
+# Graph: bench_musique on port 5434 (384-dim bge-small), an LLM-extracted KG
+#        (9,809 typed edges). Built by ingest.py above.
+export PGRG_DSN="postgresql://postgres:postgres@localhost:5434/pg_raggraph"
+# Answer generation — local Qwen:
+export PGRG_TEST_LLM_URL="http://192.168.1.193:8000/v1"
+export PGRG_TEST_LLM_MODEL="Intel/Qwen3-Coder-Next-int4-AutoRound"
+# Judge A — local gemma (free), decoupled from the answer model:
+export PGRG_JUDGE_LLM_URL="http://192.168.1.133:8000/v1"
+export PGRG_JUDGE_LLM_MODEL="cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit"
+# Judge B — gpt-5-mini (small cost). NB: never default to gpt-4x.
+export OPENAI_API_KEY="…"        # work key
+export OPENAI_JUDGE_MODEL="gpt-5-mini"
+
+uv run python benchmarks/musique/run.py \
+  --modes naive,naive_boost,local,global,hybrid,smart \
+  --judge both \
+  --out-tag full-6mode-dual-judge
+```
+
+**Headline:** `local` (recursive traversal) beats `naive` (pure vector) by
+**~4-5pp** end-to-end — judge gemma 45.3 vs 40.3, gpt-5-mini 44.0 vs 39.0 —
+stable across two independent answer-gen runs and both judges (82% agreement).
+On a real graph with real traversal, **graph wins on multi-hop QA.** Caveats:
+retrieval recall is flat (the lift is answer-context, not recall); per-hop n≈33
+splits are noisy (3-hop is the consistent winner; 4-hop magnitude is unreliable);
+only `local` is judge-robust. Full write-up:
+[`docs/blogs/04-graph-vs-vector-the-empty-graph.md`](../../docs/blogs/04-graph-vs-vector-the-empty-graph.md).
+Artifacts: `_results/results-full-6mode-dual-judge.json`.
+
 ## Modes tested
 
-`naive` (baseline vector + BM25), `naive_boost` (1-hop graph re-rank), `hybrid` (full local + global + vector + FTS), `smart` (confidence-routed).
+`naive` (baseline vector + BM25), `naive_boost` (1-hop graph re-rank), `local`
+(recursive entity-neighborhood traversal, `max_hops=2`), `global` (global graph),
+`hybrid` (full local + global + vector + FTS), `smart` (confidence-routed).
 
 ## Metrics
 

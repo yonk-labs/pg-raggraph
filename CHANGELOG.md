@@ -1,5 +1,276 @@
 # Changelog
 
+## 0.5.0a7 — 2026-06-02 (chunkshop 0.8.2 floor)
+
+### Changed
+- **Bumped the optional `chunkshop` floor `>=0.7.0` → `>=0.8.2`.** Picks up
+  chunkshop 0.8.x (10-language codeparse, import-aware resolution, opt-in
+  OpenAI-compatible remote embedder, connection-reuse/parallel-search perf).
+  No pg-raggraph API change — the `chunkshop:*` chunker delegation
+  (`symbol_aware`/`code_aware` included) and bridge surfaces validate clean
+  against 0.8.2 (453 unit + 29 chunkshop integration tests green).
+
+## 0.5.0a6 — 2026-06-01 (optional RRF fusion)
+
+### Added
+- **Optional RRF fusion mode** (`fusion="rrf"`, issue #57) — alongside the
+  default linear weighted scoring. Fuses retrieval legs by rank
+  (Σ wᵢ / (rrf_k + rankᵢ)) instead of a weighted sum of differently-scaled
+  scores, so it is scale-free across the cosine and BM25 legs. Config knobs
+  `fusion` + `rrf_k` (default `"linear"` / `60`); per-call override on
+  `query()` / `ask()`. Applies to `naive` and `hybrid` modes. **Additive and
+  default-off** — the linear path is byte-identical when `fusion="linear"`.
+  A/B runner in `benchmarks/rrf-ab/`.
+
+## 0.5.0a5 — 2026-05-28 (A/B gate live verdict — NAIVE_WINS)
+
+Wires the #47–#50 chain to real chunkshop emission and runs the gate end-to-end.
+The synthetic fixtures of a4 masked three integration gaps, all closed here:
+
+### Added
+- **Entity materialization** — `pg_raggraph.ab_gate.ingest.materialize_entities_from_corpus`
+  + `pgrg ab-gate materialize`. Builds graph entities 1:1 from imported fact
+  endpoints + cooccur nodes (prerequisite for `graph_leg`).
+- **Production `compute_verdict(runner_outputs, judge_config)`** — replaces the
+  NotImplementedError stub. Computes recall@10 + MRR from runner output vs
+  `gold_doc_id`, judge win-rate via the llm-judge seam; shared `_verdict_from_payload`
+  with the fixture path. `pgrg ab-gate verdict` CLI.
+- **`gold_doc_id`** optional field on `GoldQuestion` + `ABCaseResult`; `load_gold_questions`
+  now auto-detects chunkshop's `[{query, gold_doc_id}]` gold format.
+- **`hybrid` mode** (`harness._run_hybrid`) — the production-shaped mode: vector
+  seeds top-30 candidates, graph reranks by fact/cooccur entity-overlap
+  centrality (no question NER → full coverage). `compute_verdict(graph_mode=…)`
+  + `pgrg ab-gate verdict --graph-mode hybrid` compare naive vs hybrid.
+- **Query-term encoder hardening** (`_expand_entity_terms`) — expands multi-word
+  NER phrases into component tokens so they resolve against single-surface nodes.
+- `benchmarks/ab-gate/` — ingest configs, complete 3-mode verdict artifacts, RESULTS.md.
+
+### Result (complete 3-mode run, SCOTUS + NTSB, gpt-4o-mini judge)
+- naive vs `graph_leg` (graph-as-primary): **NAIVE_WINS 3-0** (−75.0pp / −0.535 / −0.667).
+- naive vs `hybrid` (graph-as-augmentation): **NAIVE_WINS 2-0-1** (−12.5pp / −0.113 / judge **TIE**).
+
+Graph wins no metric in either comparison, so chunkshop contract §3.8's
+NAIVE-WINS direction holds — but `hybrid` ties on answer quality, so the honest
+reading is "graph doesn't earn its cost on these clean corpora," not "graph is
+harmful." Details + caveats: `benchmarks/ab-gate/RESULTS.md`.
+
+## 0.5.0a4 — 2026-05-28 (A/B gate retrieval harness + runner)
+
+Additive arc, backward-compatible. Completes the chunkshop ↔ pg-raggraph A/B gate by landing the two middle artifacts: the retrieval-mode harness (#48) and the matrix runner (#49). Pairs with v0.5.0a3 (#47 resolver + #50 verdict writer).
+
+### Added — A/B retrieval harness + runner
+
+The middle two artifacts of the chunkshop ↔ pg-raggraph A/B gate. With v0.5.0a3 (#47 resolver + #50 writer) already shipped, this release completes the chain.
+
+`src/pg_raggraph/ab_gate/harness.py` — `run_harness_mode(rag, *, corpus_id, mode, gold_questions, top_k=10) → ABRunnerOutput`:
+
+- **`naive_vector`** — pure ANN over `chunks.embedding` with the chunkshop §4.2 fact-row exclusion (`WHERE metadata->>'kind' IS DISTINCT FROM 'fact'`). `IS DISTINCT FROM`, not `!=` — null-safe.
+- **`graph_leg`** — `_encode_question_terms` (lede_spacy NER with whitespace+stoplist fallback on raise/empty) → `resolve_entity_lookup` per term (via #47, shipped in v0.5.0a3) → one-hop fact-triple walk (`metadata->>'kind' = 'fact'`, join to parent episode chunk) → one-hop cooccur walk over `metadata['cooccur']` on episode rows. Only episode chunks are cited; fact rows never appear in the citation list (SC-006).
+- **`hybrid`** — deferred per SC-007. Raises `NotImplementedError` naming issue #48. The 50/50 naive + graph blend stays as a known gap; rerun with the two legs individually and blend in downstream tooling if needed.
+
+`src/pg_raggraph/ab_gate/runner.py` — `run_ab_matrix(rag, *, corpora, modes, gold_questions_per_corpus, output_dir, top_k=10) → dict[(corpus_id, mode), Path]`:
+
+- Sequential per cell — no per-(corpus, mode) parallelism (locked in Out of Scope; the existing per-question pool concurrency already handles intra-mode parallelism).
+- One `ABRunnerOutput` JSON per cell at `<output_dir>/<corpus>__<mode>.json` (double-underscore intentional; avoids collisions with corpus names containing a single underscore).
+- Atomic temp-then-replace per file, so a mid-write process death leaves either the previous file or nothing — never a partial write.
+- A `<output_dir>/manifest.json` lists every file plus `run_started_at`, `run_ended_at`, `pg_raggraph_version`.
+- `load_gold_questions(path)` parses chunkshop's `gold-scotus.yaml` shape verbatim. Alternative formats (JSON, CSV, JSONL) are explicitly out of scope.
+
+### Added — `GoldQuestion` dataclass
+
+Frozen dataclass at `pg_raggraph.ab_gate.io.GoldQuestion` with four fields (`id`, `question`, `gold_answer`, `required_facts`). Re-exported from `pg_raggraph.ab_gate`. Matches the chunkshop `gold-scotus.yaml` / `gold-ntsb.yaml` shape verbatim.
+
+### Added — `pgrg ab-gate` CLI group
+
+New top-level group following the existing `pgrg <group> <command>` pattern:
+
+- `pgrg ab-gate run` — the matrix runner with `--corpus` / `--gold` paired-flag pattern, `--mode` repeatable (`click.Choice`-validated), `--top-k`, `--out`. Mismatched `--corpus` / `--gold` counts raise `click.BadParameter` at parse time.
+
+### Docs
+
+- `docs/cookbook/ab-gate.md` — appended "Running the matrix" section: invocation example, mode reference (naive_vector, graph_leg, hybrid-deferred), output layout diagram (`<corpus>__<mode>.json` + `manifest.json`), reproducibility caveat documenting ANN tie noise as expected.
+- Chunkshop emission contract §4.2 + §4.3 status checkboxes flip from `[ ]` to `[x]` in a follow-up chunkshop PR (tracked but not gating).
+
+### Tests
+
+- `tests/unit/test_ab_gold_question_shape.py` (6)
+- `tests/unit/test_ab_question_encoding.py` (5)
+- `tests/unit/test_ab_harness_graph_leg.py` (2)
+- `tests/unit/test_ab_harness_hybrid.py` (1)
+- `tests/unit/test_ab_runner_orchestrates_matrix.py` (2)
+- `tests/unit/test_ab_runner_output_shape.py` (1)
+- `tests/unit/test_ab_runner_manifest.py` (1)
+- `tests/unit/test_ab_gold_yaml_loader.py` (6)
+- `tests/integration/test_ab_harness_naive_vector.py` (2)
+- `tests/integration/test_ab_harness_graph_leg.py` (4)
+- `tests/integration/test_ab_runner_writes_per_corpus_per_mode.py` (1)
+- `tests/integration/test_ab_runner_latency.py` (1)
+- `tests/integration/test_ab_runner_idempotency.py` (1)
+- `tests/integration/test_cli_ab_gate.py` (4)
+
+Total: 37 new tests, all green.
+
+### Known gaps
+
+- `hybrid` mode is `NotImplementedError`. Re-opens with the 50/50 blend as v1 when scope permits. Tracked in #48.
+- ANN tie-ordering noise: repeated runs may reorder items within score ties; CI does not gate on bit-exact reproducibility.
+
+## 0.5.0a3 — 2026-05-28 (A/B gate bookend: resolve-entity lookup + results writer)
+
+Additive arc, backward-compatible. Bookends the chunkshop ↔ pg-raggraph A/B graph-vs-naive gate by landing the chain-start primitive (`resolve_entity_lookup`, #47) and the chain close-out (results writer, #50) in one release.
+
+### Added — `resolve_entity_lookup` (#47)
+
+New pure-read function in `pg_raggraph.resolution`: `resolve_entity_lookup(surface, *, corpus_id, kind=None, db, config) -> ResolvedEntity | None`. Path A — the existing `resolve_entity` (insert-on-miss) is byte-for-byte unchanged. `corpus_id` maps identity-equal to pg-raggraph's `namespace`.
+
+- `ResolvedEntity` frozen dataclass (`id`, `surface`, `canonical_name`, `score`, `match_type`) re-exported from both `pg_raggraph.resolution` and the top-level `pg_raggraph` package.
+- Exact path: `match_type='exact'`, `score=1.0`.
+- Fuzzy path: pg_trgm name similarity + pgvector cosine, weighted by `config.trgm_weight` / `vec_weight`, gated by `min_trgm_score` and `resolution_threshold`. Dominant leg becomes `match_type`.
+- No mutation: the function never INSERTs, UPDATEs, or DELETEs. Caller-side caching is the strategy.
+- Per chunkshop emission contract §4.1.
+
+### Added — A/B-gate results writer (#50)
+
+New `pg_raggraph.ab_gate` package — public API:
+
+- `ABRunnerOutput` / `ABCaseResult` / `ABRetrievedItem` — the locked schema #49 emits and #50 consumes (`io.py`).
+- `compute_verdict(runner_outputs, judge_config=...)` — production entry (#49-dependent). `compute_verdict.from_premeasured(payload)` — fixture entry exercised by the unit tests.
+- `write_verdict_report(verdict, out_dir=..., latency_rows=...)` — emits `verdict.json` (round-trippable), `verdict.md` (Inputs / Per-metric / Per-corpus / Walkthrough / Final verdict — mirrors contract §3.7), `latency.json` (informational only — never read back for the verdict).
+- Threshold constants `RECALL_AT_10_LIFT_PP=5.0`, `MRR_DELTA=0.05`, `JUDGE_WIN_RATE_DELTA=0.10` — frozen by a test against contract §3.2 values.
+- `_chunkshop_judge_config_to_llm_judge_provider(config)` — the single auditable seam translating chunkshop's `JudgingConfig` into `llm_judge.providers.LLMProvider`.
+- §3.3 combiner: graph wins ≥2 of 3 metrics + naive wins 0 → GRAPH_WINS; symmetric for NAIVE_WINS; otherwise INCONCLUSIVE.
+- §3.4 asymmetry guard: GRAPH_WINS downgrades to INCONCLUSIVE if graph loses 3-0 on any single corpus (symmetric for NAIVE).
+
+### Added — `pg-raggraph[ab-gate]` optional extra
+
+`pip install pg-raggraph[ab-gate]` adds `llm-judge` (the LLM-as-judge runtime at `/home/yonk/yonk-tools/llm-judge`). The base install is unchanged — llm-judge and its sub-deps are pulled only when callers reach the #50 writer.
+
+Missing-extra UX: calling `_chunkshop_judge_config_to_llm_judge_provider` (or the writer's judge path) without the extra installed raises `ImportError` with the literal install command in the message.
+
+### Docs
+
+- New `docs/cookbook/ab-gate.md` — operator walkthrough: ingest chunkshop A/B sample (`docs/samples/bakeoff-scotus/bakeoff-scotus-ab.yaml`), run #48+#49 (cited as future tickets until they ship), consume #50's verdict.
+- Chunkshop emission contract §4.1 + §4.4 status checkboxes flip from `[ ]` to `[x]` in a follow-up chunkshop PR (tracked but not gating).
+
+## 0.5.0a2 — 2026-05-28 (MCP agent UX: initialize playbook + staleness banner)
+
+Additive arc, backward-compatible. Tools without pending documents see
+byte-for-byte unchanged response dicts. The two ports share a single
+chokepoint (`mcp_helpers._apply_freshness`) so future MCP tools inherit
+the freshness signal automatically.
+
+### Added — MCP `initialize` playbook (PG-1)
+
+`src/pg_raggraph/server_instructions.py` exports `SERVER_INSTRUCTIONS:
+str`, handed to `FastMCP(instructions=…)` at server construction. MCP
+clients (Claude Desktop, Cursor, Zed, MCP CLI) surface it in the
+agent's system prompt for the session. Sections: Answer directly, Tool
+selection by intent, Common chains, Anti-patterns, Limitations.
+Playbook covers the 8 current MCP tools; deliberately avoids
+`pgrg_code_impact` (not currently an MCP tool — adding it is a
+separate effort).
+
+A drift-guard test (`tests/unit/test_instructions_sync.py`) keeps the
+playbook, `docs/user-guide.md` MCP section, and README MCP callout in
+sync. CLAUDE.md "House Rules" documents the invariant.
+
+### Added — Per-file staleness banner (PG-3)
+
+When MCP tool responses cite documents whose `graph_status` is
+`'pending'` or `'processing'`, the response gains a `banner` key
+naming them (with age + lifecycle label) and an optional `footer`
+listing non-cited pending docs (capped at 5 with `+N more` overflow).
+The agent's anti-pattern playbook in `SERVER_INSTRUCTIONS` instructs
+it to Read those documents directly for live content; everything
+NOT in the banner is fresh.
+
+Implementation:
+  * `src/pg_raggraph/mcp_helpers.py` — `PendingDocument` dataclass,
+    `format_stale_banner`, `format_stale_footer`, `_apply_freshness`
+    chokepoint helper. Age uses `documents.created_at` (no schema
+    change required — PG-3's design assumed `updated_at` which
+    pg-raggraph doesn't have).
+  * `src/pg_raggraph/db.py` — new `Database.list_pending_documents
+    (namespace, limit=50)` returns `PendingDocument` rows, ordered
+    by `created_at DESC`, covering both `'pending'` and `'processing'`
+    statuses.
+  * `src/pg_raggraph/mcp_server.py` — every one of the 8 MCP tools
+    wraps its return through `_freshness_wrap`. Defensive: a failed
+    `list_pending_documents` is logged-and-skipped; the tool's answer
+    always wins over the freshness layer.
+
+Backward compatibility:
+  * No pending docs ⇒ no `banner` / `footer` keys added — response
+    shape is byte-for-byte identical to v0.5.0a1.
+  * No new env vars, no new MCP tools, no schema changes.
+
+### Tests
+
+  * `tests/unit/test_server_instructions.py` (5 tests)
+  * `tests/unit/test_mcp_server_uses_instructions.py` (1 test)
+  * `tests/unit/test_mcp_staleness.py` (11 tests)
+  * `tests/unit/test_instructions_sync.py` (4 tests — the drift guard)
+  * `tests/integration/test_db_pending_documents.py` (6 tests)
+  * `tests/integration/test_mcp_pending.py` (4 tests — including the
+    full pending → drained → no-banner lifecycle)
+
+## 0.5.0a1 — 2026-05-28 (background extraction + multi-worker safety + observability)
+
+Additive arc, backward-compatible. The synchronous-extract default is byte-for-byte unchanged (`ingest_records()` with no kwarg additions writes the same rows in the same order). Migration 013's `relationships(namespace, src_id, dst_id, rel_type)` UNIQUE constraint plus `ON CONFLICT DO UPDATE SET weight = GREATEST(...)` on the INSERT make re-ingest idempotent at the edge level — same total entity/relationship counts on a re-run, with `GREATEST` keeping the strongest evidence.
+
+### Added — background extraction (decouple LLM/lede from `ingest()`)
+
+Pass `defer_extraction=True` to `ingest_records()` and the producer returns in chunk + embed time only — **~18 ms/doc on lede_spacy MHR vs 1063 ms/doc synchronous** (59× speedup to "naive-queryable"). The document is immediately retrievable via vector + BM25; entity/relationship extraction is deferred.
+
+- New module **`pg_raggraph.backfill`** with three primitives: `claim_pending` (SKIP-LOCKED queue claim), `extract_documents` (per-doc atomic extraction), `release_processing` (crash-recovery reaper).
+- New CLI subcommand **`pgrg extract`** drains the queue: `--namespace`, `--batch-size`, `--max-iterations`, `--rate-limit-rps`, `--once`, `--include-failed`. Exits 0 when the queue is empty.
+- **`pgrg extract --daemon`** for long-running services — SIGTERM/SIGINT handlers set an `asyncio.Event`; the current batch finishes atomically, then the process exits 0. `--poll-interval` controls the empty-queue back-off.
+- Mixed pattern supported: per-record `{"defer_extraction": True}` overrides the batch-level kwarg.
+- Migration **`012_documents_graph_status.sql`** — adds `graph_status TEXT NOT NULL DEFAULT 'ready'` plus `graph_extracted_at`/`graph_error`, with a partial index on `(namespace, created_at) WHERE graph_status = 'pending'` for fast queue polling.
+
+Total async path (`B+C`, deferred ingest + drain) is **also faster** than synchronous ingest at 40 docs (15.56 s vs 26.27 s); the synchronous path holds per-doc transactions open across extraction and throttles concurrency more than expected. Benchmark: `benchmarks/defer_extraction_bench.py`.
+
+### Added — multi-worker safety invariants (PR-001 + PR-002 from prod-ready audit)
+
+- **Namespace-scoped startup reaper.** `release_processing` is now keyword-only on `namespace=` / `doc_ids=`. The CLI passes its `--namespace`, so a worker starting in namespace A no longer steals namespace B's in-flight 'processing' claims. Global reap (no kwargs) still possible for repair scripts; logs a warning when used.
+- **Edge-level idempotency.** Migration **`013_relationships_unique.sql`** de-duplicates any existing relationship rows (redirects `relationship_chunks` links via `INSERT…ON CONFLICT DO NOTHING`, deletes dups so CASCADE cleans the rest) and adds `UNIQUE (namespace, src_id, dst_id, rel_type)`. Both INSERT paths (`_ingest_one_content` and `_extract_one`) switched to `ON CONFLICT DO UPDATE SET weight = GREATEST(relationships.weight, EXCLUDED.weight) RETURNING id`.
+- `merge_entities` updated to pre-delete colliding rows before the `src_id`/`dst_id` rewrite, matching the prior post-merge dedup semantics under the new constraint.
+
+Together, these make `pgrg extract` workers safe to run concurrently per namespace by construction — `SKIP LOCKED` (claim) and `UNIQUE (...)` + ON CONFLICT (writes) handle every crash-recovery and re-extraction edge.
+
+### Added — observability (PR-003 from prod-ready audit)
+
+Three new metric events on every `pgrg extract` iteration:
+
+- **`pgrg.backfill.claim`** — `namespace`, `batch_size`, `claimed`, `latency_ms` (emitted even on empty iterations, so a wedged daemon polling an empty queue is visible).
+- **`pgrg.backfill.extract`** — `namespace`, `claimed`, `ready`, `failed`, `entities`, `relationships`, `latency_ms`.
+- **`pgrg.backfill.queue_depth`** — per-status doc counts (`pending`, `processing`, `ready`, `failed`); emitted when scoped to a namespace.
+
+Pipes through the existing `_emit_metric` infrastructure (same channel as `pgrg.ingest` / `pgrg.query`).
+
+### Added — query-time graph-status hint
+
+`QueryResult.metadata` gains `graph_status_summary` (per-status doc counts). `GraphRAG.status(namespace)` includes the same under a top-level `graph_status` key. Retrieval semantics are unchanged — naive/local/global/hybrid still return whatever entities/edges exist; the hint just lets callers see whether the graph is still backfilling without changing the result shape.
+
+### Added — benchmarks
+
+- **`benchmarks/defer_extraction_bench.py`** — A/B/C comparison harness: synchronous ingest vs deferred ingest vs drain. Headline 60× speedup to queryable, exact relationship parity, 0.14% entity-dedup variance. Repro: `uv run python -m benchmarks.defer_extraction_bench --docs 40`.
+- **`benchmarks/ingest_perf.py` extended** with `--provider {local,http}` to probe embedding alternatives. Measured: TEI HTTP CPU beats local fastembed **2.1×** on bge-small (66 vs 140 ms/chunk). Results in `benchmarks/ingest_perf_results-2026-05-27.md`.
+
+### Documentation
+
+- **`docs/cookbook/background-extraction.md`** — full guide with three architectural patterns (synchronous / cron drain / always-on daemon), end-to-end FastAPI walkthrough, operator playbook, mid-batch crash recovery semantics, and the measured-impact table.
+- `README.md`, `docs/README.md`, `docs/user-guide.md`, `docs/operations-guide.md`, `CLAUDE.md` — cross-references and discovery paths added so the new subsystem doesn't hide behind one cookbook page.
+
+### Fixed
+
+- **`tests/integration/test_db.py::test_connect_and_schema`** asserted `schema_version == "1"`, which silently relied on `_record_migration`'s GREATEST-update being a no-op against an already-warm DB. Migration 012 surfaced the latent bug; switched to `int(version) >= SCHEMA_VERSION`.
+- `tests/integration/test_cleanup_sprint.py::test_merge_entities_drops_self_loops_and_duplicates` previously pre-seeded duplicate `(a,c,REL)` to test merge-time dedup — the new UNIQUE constraint blocks the pre-seed. Updated to use `(b,c,REL)` so the duplicate is created at merge time (the real code path).
+
+### Production-readiness audit
+
+`skill-output/prod-ready/` contains the 16-finding audit that drove PR-001+002+003. P0s are landed; P1s (timed background reaper, retry counter + cap, extractor health probe, multi-worker concurrency test, cookbook scope-or-note) are tracked there for the next cycle. Single-worker / single-namespace deployments are production-ready at this version; multi-worker deployments are safe by construction after PR-001+002+003.
+
 ## 0.4.0a1 — 2026-05-26 (chunkshop 0.6.1 integration + online embedding migration + code-graph queries)
 
 Additive arc, backward-compatible. Existing query/ingest behavior is byte-for-byte unchanged (`retrieval.py`, `answer.py`, and the `query()` path are untouched). Validated against a 2.5 GB real corpus (MHR/MuSiQue/2Wiki, 1024-dim bge-large): all six retrieval modes return identical results; no accuracy change.

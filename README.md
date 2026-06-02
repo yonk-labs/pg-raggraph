@@ -2,7 +2,7 @@
 
 > **PostgreSQL-native GraphRAG.** Vector search, full-text search, and knowledge-graph traversal — all in a single SQL query. No Neo4j. No Pinecone. No Apache AGE. Just the Postgres you already run.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Tests](https://img.shields.io/badge/tests-385%20passing-brightgreen)](#tests-and-benchmarks) [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](pyproject.toml) [![Status: alpha](https://img.shields.io/badge/status-alpha%20(0.3.0a3)-orange)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Tests](https://img.shields.io/badge/tests-593%20passing-brightgreen)](#tests-and-benchmarks) [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](pyproject.toml) [![Status: alpha](https://img.shields.io/badge/status-alpha%20(0.5.0a5)-orange)]()
 
 ---
 
@@ -16,6 +16,11 @@ Two retrieval workloads are first-class:
 
 - **Classic GraphRAG** — static corpora, code Q&A, technical docs, multi-hop entity reasoning. Validated at **+18.9% accuracy lift** over plain vector search on a real 909-doc dev codebase.
 - **Evolving knowledge** — corpora where the right answer depends on *time*, *version*, or *retraction status*. Validated on Python 3.10/3.11/3.12 docs (**13/13 perfect version-filter purity**) and PubMed HRT retractions (**15/15 perfect on retraction-aware + time-travel queries**).
+
+Two ingest patterns are also first-class:
+
+- **Synchronous** (the default) — `ingest()` returns when the graph is built. Right for batch loads and small/fast extractors.
+- **Deferred + background drain** — pass `defer_extraction=True` and `ingest_records()` returns in chunk + embed time only (**~18 ms/doc**, 59× faster than synchronous extract on lede_spacy MHR). A `pgrg extract` worker (cron-driven or always-on daemon) backfills entities/relationships out-of-band. Multi-worker safe by construction. See [`docs/cookbook/background-extraction.md`](docs/cookbook/background-extraction.md).
 
 ## Why it exists
 
@@ -107,6 +112,19 @@ That's the whole loop. From `pip install` to a grounded answer in five minutes.
 
 > **One thing to know about `pgrg serve`** — the bundled FastAPI web UI is for **local development and demos only**. It ships without authentication, rate limiting, or upload size caps. **Do not expose it directly to the public internet.** For production, put it behind a reverse proxy that adds auth, TLS, and rate limits — or embed `create_app()` in your own FastAPI application. See [`docs/user-guide.md#production-deployment`](docs/user-guide.md#production-deployment) for the recommended setup.
 
+## MCP server
+
+Connect pg-raggraph to Claude Desktop, Cursor, Zed, or any MCP-compatible
+client via `pgrg mcp-serve`. The server returns a tuned tool-selection
+playbook in its MCP `initialize` response, so agents pick the right tool
+on the first try instead of grepping the filesystem. When you ingest
+with `defer_extraction=True`, a per-file staleness banner warns the
+agent which documents have fresh chunks but still-pending graph
+extraction.
+
+See [`docs/user-guide.md`](docs/user-guide.md#mcp-server) for the full
+tool list and the `PGRG_MCP_INGEST_ROOTS` allow-list.
+
 ## Tests and benchmarks
 
 Real numbers from real corpora. No cherry-picking.
@@ -149,7 +167,7 @@ Real numbers from real corpora. No cherry-picking.
 
 Full bake-off report: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](benchmarks/age-bakeoff/results/REPORT-VERDICT.md).
 
-**Test suite:** 385 passing tests (260 unit + 125 integration) across `tests/unit/` and `tests/integration/`, including a 15-test error-path suite that asserts specific exception types on bad DSNs, naive `as_of`, oversize `/ingest`, path traversal, etc. CI runs the full suite against pgvector containers on Python 3.12 and 3.13.
+**Test suite:** 593 passing tests (350 unit + 243 integration) across `tests/unit/` and `tests/integration/`, including a 27-test error-path suite that asserts specific exception types on bad DSNs, naive `as_of`, oversize `/ingest`, path traversal, etc. CI runs the full suite against pgvector containers on Python 3.12 and 3.13.
 
 ## Where to go next
 
@@ -161,6 +179,7 @@ Full bake-off report: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](bench
        │  Walk a worked example           → blog series   │
        │  Get the full API surface        → user-guide.md │
        │  Tier-1 evolving-knowledge       → cookbook      │
+       │  Decouple ingest from extraction → cookbook      │
        │  Avoid common API gotchas        → API-QUICKREF  │
        │  Read the architecture decisions → research/     │
        │  See the unvarnished critique    → ASSESSMENT.md │
@@ -179,6 +198,7 @@ Full bake-off report: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](bench
 | [`docs/cookbook/retrieval-strategy.md`](docs/cookbook/retrieval-strategy.md) | Three SQL shapes for metadata + vector queries — `weighted` (default), `pre_filter`, `vector_first`. When to pick which; recall-shortfall metric. |
 | [`docs/cookbook/metadata-indexes.md`](docs/cookbook/metadata-indexes.md) | Btree / GIN / generated-column indexes on `chunks.metadata` and `documents.metadata`. Runtime API (`recommend_metadata_indexes()`, `apply_metadata_indexes_concurrently()`). |
 | [`docs/cookbook/changing-embedding-dimensions.md`](docs/cookbook/changing-embedding-dimensions.md) | Move a live database to a new embedding model/dimension online via the `pgrg migrate-embeddings` expand/contract column swap — no parallel DB, brief cutover, startup dim-guard. |
+| [`docs/cookbook/background-extraction.md`](docs/cookbook/background-extraction.md) | Decouple LLM/lede extraction from ingest: `defer_extraction=True` + `pgrg extract` (CLI / `--daemon`). Architectural patterns (sync vs cron vs daemon), end-to-end FastAPI walkthrough, multi-worker safety invariants, 60× time-to-queryable benchmark. |
 | [`docs/user-guide.md`](docs/user-guide.md) | Full user guide. Installation, all 6 modes, configuration, REST API, production deployment, troubleshooting. |
 | [`docs/devmem-guide.md`](docs/devmem-guide.md) | `pgrg devmem` — the developer-knowledge-base flavor with code-aware chunking + dev-tuned extraction. |
 | [`docs/chunkshop-user-guide.md`](docs/chunkshop-user-guide.md) | Chunkshop integration guide: chunker-only strategies, Postgres table bridge, CLI import, code-edge graph import, and the `code-impact` symbol-graph query. |

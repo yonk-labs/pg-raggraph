@@ -375,7 +375,7 @@ wheels = [
 
 [[package]]
 name = "chunkshop"
-version = "0.6.1"
+version = "0.8.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -385,9 +385,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0b/f4/6b5e3be68909e0d1e487ba753c205645f4c50faadb2757e3aa30c79702b4/chunkshop-0.6.1.tar.gz", hash = "sha256:706467e0a8653606875044003e21e99b1ce229c30504e585dc3752123ea0e30a", size = 193618, upload-time = "2026-05-26T13:36:16.188Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5d/d6/554eab29a15b646a60ec1caf1091d7ea2c3ab2e3b4e7e9e7b499d514dff6/chunkshop-0.8.2.tar.gz", hash = "sha256:97a02bd1557edea3e77d0574306fe16e75db113209d20dc4264fdf73df0fdb03", size = 215887, upload-time = "2026-05-31T21:20:27.137Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e6/4b/64a213697bded11c8b23bfa60aec60f08e5b9165b7ec96160ae12b77a052/chunkshop-0.6.1-py3-none-any.whl", hash = "sha256:5ed20875f321214ade2e6e2609d7359fb3118f729fe83f50edca86f9f8562177", size = 250838, upload-time = "2026-05-26T13:36:14.722Z" },
+    { url = "https://files.pythonhosted.org/packages/55/0f/b1c84773c7d0d981a6504b1080844adbe910e4759fb971fd46856ec31007/chunkshop-0.8.2-py3-none-any.whl", hash = "sha256:608449a989405d3c136dec13eda82cb21a5b84018f3e6981be625e9561617cbd", size = 287704, upload-time = "2026-05-31T21:20:25.276Z" },
 ]
 
 [[package]]
@@ -1278,6 +1278,14 @@ wheels = [
 ]
 
 [[package]]
+name = "llm-judge"
+version = "0.1.0"
+source = { git = "https://github.com/yonk-labs/llm-judge.git?rev=main#5e9ee99c20f8f8218fd5f7e7e560ccb66c31467d" }
+dependencies = [
+    { name = "pyyaml" },
+]
+
+[[package]]
 name = "loguru"
 version = "0.7.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1849,7 +1857,7 @@ wheels = [
 
 [[package]]
 name = "pg-raggraph"
-version = "0.4.0a1"
+version = "0.5.0a7"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -1864,6 +1872,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+ab-gate = [
+    { name = "llm-judge" },
+]
 all = [
     { name = "chunkshop" },
     { name = "fastapi" },
@@ -1872,6 +1883,7 @@ all = [
     { name = "lede-spacy", extra = ["synonyms"] },
     { name = "leidenalg" },
     { name = "llama-index-core" },
+    { name = "llm-judge" },
     { name = "mcp" },
     { name = "python-igraph" },
     { name = "python-multipart" },
@@ -1927,7 +1939,7 @@ server = [
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4", marker = "extra == 'dev'", specifier = ">=4.14.3" },
-    { name = "chunkshop", marker = "extra == 'chunkshop'", specifier = ">=0.6.1" },
+    { name = "chunkshop", marker = "extra == 'chunkshop'", specifier = ">=0.8.2" },
     { name = "click", specifier = ">=8.0" },
     { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.110" },
@@ -1941,9 +1953,10 @@ requires-dist = [
     { name = "lede-spacy", extras = ["synonyms"], marker = "extra == 'lede-spacy'", specifier = ">=0.4.5" },
     { name = "leidenalg", marker = "extra == 'community'", specifier = ">=0.10" },
     { name = "llama-index-core", marker = "extra == 'llamaindex'", specifier = ">=0.11" },
+    { name = "llm-judge", marker = "extra == 'ab-gate'", git = "https://github.com/yonk-labs/llm-judge.git?rev=main" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0" },
     { name = "pg-raggraph", extras = ["server"], marker = "extra == 'demo'" },
-    { name = "pg-raggraph", extras = ["server", "community", "langchain", "llamaindex", "mcp", "chunkshop", "lede-spacy"], marker = "extra == 'all'" },
+    { name = "pg-raggraph", extras = ["server", "community", "langchain", "llamaindex", "mcp", "chunkshop", "lede-spacy", "ab-gate"], marker = "extra == 'all'" },
     { name = "pgvector", specifier = ">=0.3" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1" },
     { name = "psycopg-pool", specifier = ">=3.1" },
@@ -1960,7 +1973,7 @@ requires-dist = [
     { name = "tiktoken", specifier = ">=0.7" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'server'", specifier = ">=0.27" },
 ]
-provides-extras = ["server", "demo", "community", "langchain", "llamaindex", "mcp", "chunkshop", "lede-spacy", "dev", "bench", "all"]
+provides-extras = ["server", "demo", "community", "langchain", "llamaindex", "mcp", "chunkshop", "lede-spacy", "dev", "bench", "ab-gate", "all"]
 
 [[package]]
 name = "pgvector"
