@@ -123,3 +123,13 @@ def test_vector_first_rrf_keeps_bare_hnsw_cte_and_postfilter():
 def test_vector_first_linear_unchanged():
     sql, _ = _build_naive_vector_first(PGRGConfig())
     assert "rank()" not in sql
+
+
+import inspect
+from pg_raggraph.retrieval import query as retrieval_query
+
+
+def test_query_exposes_fusion_param():
+    sig = inspect.signature(retrieval_query)
+    assert "fusion" in sig.parameters
+    assert sig.parameters["fusion"].default is None

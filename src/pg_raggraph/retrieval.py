@@ -971,6 +971,7 @@ async def query(
     summary_base_mode: str | None = None,
     metadata_filters: dict | None = None,
     trace_emit: Callable[[dict], None] | None = None,
+    fusion: str | None = None,
 ) -> QueryResult:
     """Execute a retrieval query against the knowledge graph.
 
@@ -981,6 +982,8 @@ async def query(
     valid_modes = ("naive", "local", "global", "hybrid", "naive_boost", "smart", "summary")
     if mode not in valid_modes:
         raise ValueError(f"Invalid mode '{mode}'. Must be one of: {valid_modes}")
+
+    effective_fusion = _effective_fusion(config, fusion)
 
     # Smart, naive_boost, and summary modes are handled in separate functions
     if mode == "summary":
@@ -1061,6 +1064,7 @@ async def query(
         "w_sem": config.w_sem,
         "w_bm25": config.w_bm25,
         "w_graph": config.w_graph,
+        "rrf_k": config.rrf_k,
         **evolution_bind_params(config),
     }
 
@@ -1101,6 +1105,7 @@ async def query(
                 memory_tier,
                 mf_soft_sql,
                 mf_hard_sql,
+                fusion=effective_fusion,
             )
         elif effective_strategy == "vector_first":
             sql, extra = _build_naive_vector_first(
@@ -1113,6 +1118,7 @@ async def query(
                 memory_tier,
                 mf_soft_sql,
                 mf_hard_sql,
+                fusion=effective_fusion,
             )
             # vector_first needs an extra bind param for its oversample CTE.
             params["vector_first_k"] = effective_top_k * config.retrieval_oversample_factor
@@ -1128,6 +1134,7 @@ async def query(
                 memory_tier,
                 mf_soft_sql,
                 mf_hard_sql,
+                fusion=effective_fusion,
             )
         else:
             sql, extra = _build_naive_query(
@@ -1140,6 +1147,7 @@ async def query(
                 memory_tier,
                 mf_soft_sql,
                 mf_hard_sql,
+                fusion=effective_fusion,
             )
         rows = await db.fetch_all(sql, _merge_params(params, extra))
         # Recall guard for vector_first — when post-filter trims below top_k,
