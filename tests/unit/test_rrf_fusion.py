@@ -133,3 +133,24 @@ def test_query_exposes_fusion_param():
     sig = inspect.signature(retrieval_query)
     assert "fusion" in sig.parameters
     assert sig.parameters["fusion"].default is None
+
+
+from pg_raggraph.retrieval import _rrf_merge
+
+
+def test_rrf_merge_reorders_vs_max_score():
+    """SC-007: a chunk strong in BOTH lists outranks a chunk that is #1 in
+    one list only — which max-score dedup would not achieve."""
+    local = [{"id": "B", "score": 0.99}, {"id": "A", "score": 0.80}]
+    global_ = [{"id": "A", "score": 0.70}, {"id": "C", "score": 0.65}]
+    fused = _rrf_merge(local, global_, k=60, top_k=3)
+    ids = [r["id"] for r in fused]
+    assert ids[0] == "A"
+    assert all("score" in r for r in fused)
+    assert fused[0]["score"] > fused[1]["score"]
+
+
+def test_rrf_merge_respects_top_k():
+    local = [{"id": str(i), "score": 1.0 - i / 10} for i in range(5)]
+    fused = _rrf_merge(local, [], k=60, top_k=2)
+    assert len(fused) == 2

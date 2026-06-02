@@ -132,6 +132,30 @@ def _rrf_fused_base_expr() -> str:
     )
 
 
+def _rrf_merge(
+    local_rows: list, global_rows: list, k: int, top_k: int
+) -> list:
+    """Reciprocal Rank Fusion across two already-ranked result lists
+    (issue #57). Each list is assumed ordered best-first, so list position
+    is the rank. A chunk's fused score is Σ 1/(k + rank) over the lists it
+    appears in (equal weights = textbook RRF). Returns dict rows sorted by
+    fused score, trimmed to top_k, with the fused value written to ``score``.
+    """
+    fused: dict = {}
+    for rows in (local_rows, global_rows):
+        for rank, row in enumerate(rows, start=1):
+            cid = row["id"]
+            contrib = 1.0 / (k + rank)
+            if cid in fused:
+                fused[cid]["_rrf"] += contrib
+            else:
+                fused[cid] = {**dict(row), "_rrf": contrib}
+    ordered = sorted(fused.values(), key=lambda r: r["_rrf"], reverse=True)[:top_k]
+    for r in ordered:
+        r["score"] = r.pop("_rrf")
+    return ordered
+
+
 def _merge_params(base: dict, extra: dict) -> dict:
     """Merge two bind-param dicts, raising on key collision.
 
@@ -1203,13 +1227,18 @@ async def query(
         )
         local_rows = await db.fetch_all(local_sql, _merge_params(params, local_extra))
         global_rows = await db.fetch_all(global_sql, _merge_params(params, global_extra))
-        # Deduplicate by chunk ID, prefer higher score
-        seen = {}
-        for row in local_rows + global_rows:
-            cid = row["id"]
-            if cid not in seen or row["score"] > seen[cid]["score"]:
-                seen[cid] = row
-        rows = sorted(seen.values(), key=lambda r: r["score"], reverse=True)[:effective_top_k]
+        if effective_fusion == "rrf":
+            rows = _rrf_merge(local_rows, global_rows, config.rrf_k, effective_top_k)
+        else:
+            # Deduplicate by chunk ID, prefer higher score (linear — unchanged).
+            seen = {}
+            for row in local_rows + global_rows:
+                cid = row["id"]
+                if cid not in seen or row["score"] > seen[cid]["score"]:
+                    seen[cid] = row
+            rows = sorted(seen.values(), key=lambda r: r["score"], reverse=True)[
+                :effective_top_k
+            ]
     else:
         rows = []
 
