@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pg-raggraph"
-version = "0.5.0a6"
+version = "0.5.0a7"
 description = "The fastest, simplest way to add knowledge-graph-powered RAG to any app — backed by PostgreSQL."
 readme = "README.md"
 license = "MIT"
@@ -44,7 +44,7 @@ mcp = ["mcp>=1.0"]
 # Floor is 0.7.0: the code-aware/symbol_aware chunkers, code_edges, and
 # code_summary surfaces, plus the lede_facts / lede_spacy_facts consolidators
 # this project consumes for prose fact extraction, require chunkshop 0.7.x.
-chunkshop = ["chunkshop>=0.7.0"]
+chunkshop = ["chunkshop>=0.8.2"]
 # Deterministic, LLM-free entity + co-occurrence-edge extraction.
 # Requires the spaCy model too: python -m spacy download en_core_web_sm
 # See docs/superpowers/specs/2026-05-18-lede-spacy-extraction-design.md
