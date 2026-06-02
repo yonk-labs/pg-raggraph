@@ -6,13 +6,18 @@ The gate is a deterministic function of three metrics (recall@10 lift, MRR delta
 
 ## Install
 
-The judge runtime is an optional dependency:
+The judge runtime (`llm-judge`) is an optional dependency. It is not on PyPI
+yet, so install it directly from git:
 
 ```bash
-pip install 'pg-raggraph[ab-gate]'
+pip install 'llm-judge @ git+https://github.com/yonk-labs/llm-judge.git@main'
 ```
 
-This pulls `llm-judge` (the LLM-as-judge engine). The base `pip install pg-raggraph` install is unchanged — no llm-judge sub-deps if you don't need the gate.
+The `pg-raggraph[ab-gate]` extra is an empty marker (PyPI forbids git
+dependencies in published metadata), so `pip install pg-raggraph[ab-gate]`
+will **not** pull `llm-judge` — use the git install above. The base
+`pip install pg-raggraph` is unchanged — no llm-judge sub-deps if you don't
+need the gate.
 
 ## Step 1 — Ingest the chunkshop A/B sample
 
@@ -117,7 +122,7 @@ Changing any of them requires a coordinated PR per contract §5. A unit test (`t
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `ImportError: llm-judge is required for pg-raggraph A/B-gate verdict computation.` | The `ab-gate` optional extra isn't installed. | `pip install pg-raggraph[ab-gate]` |
+| `ImportError: llm-judge is required for pg-raggraph A/B-gate verdict computation.` | `llm-judge` isn't installed (the `ab-gate` extra is an empty marker — it's not on PyPI yet). | `pip install 'llm-judge @ git+https://github.com/yonk-labs/llm-judge.git@main'` |
 | `resolve_entity_lookup` returns `None` for an obvious match | `config.resolution_threshold` (default 0.85) is too strict for the surface. | Inspect the trgm score with `psql … "SELECT similarity(name, '<surface>') FROM entities WHERE namespace = '<corpus_id>'"` and lower `resolution_threshold` if needed. |
 | Verdict is always INCONCLUSIVE | Corpus is too small or gold-Q set doesn't exercise the graph leg. | Per §3.8 — fix coverage; don't loosen the thresholds. |
 
