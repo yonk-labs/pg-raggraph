@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0a8 — 2026-06-02 (PyPI-publishable packaging)
+
+### Fixed
+- **`ab-gate` extra no longer carries a git dependency.** PyPI rejects direct
+  git/URL dependencies in published metadata, which blocked the 0.5.0a7 upload
+  (`llm-judge @ git+…`). `ab-gate` is now an empty marker extra; install
+  `llm-judge` directly from git (`pip install 'llm-judge @
+  git+https://github.com/yonk-labs/llm-judge.git@main'`) — the A/B-gate seam's
+  `ImportError` and `docs/cookbook/ab-gate.md` give the exact command. Removed
+  `ab-gate` from the `all` extra and the now-unneeded `allow-direct-references`.
+  No code change to the A/B-gate runtime. (First PyPI publish since 0.5.0a1.)
+
 ## 0.5.0a7 — 2026-06-02 (chunkshop 0.8.2 floor)
 
 ### Changed

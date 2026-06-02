@@ -16,10 +16,9 @@ from typing import Any
 
 _INSTALL_HINT = (
     "llm-judge is required for pg-raggraph A/B-gate verdict computation. "
-    "Install via:\n\n"
-    "    pip install pg-raggraph[ab-gate]\n\n"
-    "If installing from source: pip install 'pg-raggraph[ab-gate] @ "
-    "git+https://github.com/yonk-labs/pg-raggraph.git'"
+    "It is not on PyPI yet, so the pg-raggraph[ab-gate] extra is an empty "
+    "marker — install llm-judge directly from git:\n\n"
+    "    pip install 'llm-judge @ git+https://github.com/yonk-labs/llm-judge.git@main'"
 )
 
 
