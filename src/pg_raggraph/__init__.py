@@ -1709,6 +1709,7 @@ class GraphRAG:
         rerank: bool = False,
         metadata_filters: dict | None = None,
         trace_emit: Callable[[dict], None] | None = None,
+        fusion: str | None = None,
     ) -> QueryResult:
         """Query the knowledge graph.
 
@@ -1766,6 +1767,10 @@ class GraphRAG:
                 Adds ~30-80 ms p50 latency, zero per-query LLM cost.
                 Model and factor configured via PGRGConfig.rerank_model
                 and rerank_factor.
+            fusion: per-call override of ``config.fusion``. ``"linear"``
+                (default) preserves weighted-sum scoring; ``"rrf"`` fuses by
+                per-leg rank (scale-free). ``None`` falls back to config.
+                Applies to ``naive`` and ``hybrid`` modes only.
         """
         from pg_raggraph.context import pack_query_context
         from pg_raggraph.profiles import resolve_profile
@@ -1806,6 +1811,7 @@ class GraphRAG:
                     top_k_override=top_k_override,
                     metadata_filters=metadata_filters,
                     trace_emit=trace_emit,
+                    fusion=fusion,
                 )
             if rerank:
                 from pg_raggraph.reranker import FastEmbedReranker, apply_reranker
@@ -1859,6 +1865,7 @@ class GraphRAG:
         rerank: bool = False,
         metadata_filters: dict | None = None,
         trace_emit: Callable[[dict], None] | None = None,
+        fusion: str | None = None,
     ) -> QueryResult:
         """Query + LLM answer synthesis.
 
@@ -1896,6 +1903,7 @@ class GraphRAG:
             rerank=rerank,
             metadata_filters=metadata_filters,
             trace_emit=trace_emit,
+            fusion=fusion,
         )
         # Reuse the shared LLM client (same pool as ingestion).
         llm = None
