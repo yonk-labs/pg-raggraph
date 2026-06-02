@@ -375,7 +375,7 @@ wheels = [
 
 [[package]]
 name = "chunkshop"
-version = "0.7.0"
+version = "0.8.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -385,9 +385,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b0/e8/a85ddc249aa19929f4eb941cafd5fab87839f3aade0ed999e830f147e3fb/chunkshop-0.7.0.tar.gz", hash = "sha256:1aab20bff7256619337678adaef526108c579415544b503100752c45c7a1c69e", size = 199535, upload-time = "2026-05-27T21:07:01.754Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5d/d6/554eab29a15b646a60ec1caf1091d7ea2c3ab2e3b4e7e9e7b499d514dff6/chunkshop-0.8.2.tar.gz", hash = "sha256:97a02bd1557edea3e77d0574306fe16e75db113209d20dc4264fdf73df0fdb03", size = 215887, upload-time = "2026-05-31T21:20:27.137Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/47/6fa73b5191439f3e06e91cfd12802d5f567f7338799178fcf6828ba6c828/chunkshop-0.7.0-py3-none-any.whl", hash = "sha256:cdb3567dc88cfadf478773837e71ad1e05cf0c429530c9f79ecfa66b3578620a", size = 258829, upload-time = "2026-05-27T21:07:00.095Z" },
+    { url = "https://files.pythonhosted.org/packages/55/0f/b1c84773c7d0d981a6504b1080844adbe910e4759fb971fd46856ec31007/chunkshop-0.8.2-py3-none-any.whl", hash = "sha256:608449a989405d3c136dec13eda82cb21a5b84018f3e6981be625e9561617cbd", size = 287704, upload-time = "2026-05-31T21:20:25.276Z" },
 ]
 
 [[package]]
@@ -1857,7 +1857,7 @@ wheels = [
 
 [[package]]
 name = "pg-raggraph"
-version = "0.5.0a4"
+version = "0.5.0a7"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -1939,7 +1939,7 @@ server = [
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4", marker = "extra == 'dev'", specifier = ">=4.14.3" },
-    { name = "chunkshop", marker = "extra == 'chunkshop'", specifier = ">=0.7.0" },
+    { name = "chunkshop", marker = "extra == 'chunkshop'", specifier = ">=0.8.2" },
     { name = "click", specifier = ">=8.0" },
     { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.110" },

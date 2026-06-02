@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0a7 — 2026-06-02 (chunkshop 0.8.2 floor)
+
+### Changed
+- **Bumped the optional `chunkshop` floor `>=0.7.0` → `>=0.8.2`.** Picks up
+  chunkshop 0.8.x (10-language codeparse, import-aware resolution, opt-in
+  OpenAI-compatible remote embedder, connection-reuse/parallel-search perf).
+  No pg-raggraph API change — the `chunkshop:*` chunker delegation
+  (`symbol_aware`/`code_aware` included) and bridge surfaces validate clean
+  against 0.8.2 (453 unit + 29 chunkshop integration tests green).
+
 ## 0.5.0a6 — 2026-06-01 (optional RRF fusion)
 
 ### Added
