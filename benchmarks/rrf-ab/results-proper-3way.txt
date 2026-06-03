@@ -1,0 +1,28 @@
+Using default DSN with well-known credentials (postgresql://postgres:postgres@localhost:5434/...). Override with PGRG_DSN before any non-local deployment.
+Using local embedding provider. The local embedder is per-process; for multi-worker or multi-tenant deployments, use a shared HTTP embedding endpoint instead. See docs/deployment-embedding-scaling.md F3/F5.
+==============================================================================
+RRF 3-way — linear vs captive-rrf vs PROPER-rrf (full MuSiQue, naive)
+==============================================================================
+corpus docs : 1700   (reusing rrf_ab_scale namespace)
+questions   : 100   leg_n(proper)=100  rrf_k=60
+
+  ...25/100
+  ...50/100
+  ...75/100
+  ...100/100
+
+==============================================================================
+RESULTS  (n=100 questions, 1700 docs)
+==============================================================================
+metric            linear  rrf(captive)   rrf(proper)
+------------------------------------------------------
+nDCG@10           0.5581        0.5308        0.5146
+MRR               0.7809        0.7300        0.7112
+recall@1          0.6600        0.6100        0.5800
+recall@5          0.9400        0.9200        0.9000
+recall@10         0.9600        0.9600        0.9600
+------------------------------------------------------
+latency/q ms: linear 80  captive 77  proper 30
+
+  rrf      nDCG vs linear: -0.0273
+  proper   nDCG vs linear: -0.0435
