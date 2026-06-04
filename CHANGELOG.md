@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.0a9 — 2026-06-04 (idempotent migration 013)
+
+### Fixed
+- **Migration `013_relationships_unique.sql` re-runs cleanly instead of looping
+  forever.** `ALTER TABLE ... ADD CONSTRAINT` has no `IF NOT EXISTS` in
+  Postgres, so re-applying 013 on a database where
+  `relationships_ns_edge_unique` already existed — the constraint applied
+  out-of-band, or its `pgrg_applied_migrations` row lost to a backup/restore
+  taken between the schema change and the bookkeeping commit — raised `42710
+  duplicate_object`. Because the migration runs in one transaction, that rolled
+  it back and never recorded it, so every subsequent startup / `pgrg migrate`
+  retried and failed again (the "partial migration not tracked" loop). The
+  constraint add is now wrapped in a `pg_constraint` existence guard, so the
+  migration converges to the same end state on the first run and any repeat
+  run. Steps 1-2 (the dedup DML) were already idempotent. Adds
+  `test_migration_013_is_rerunnable`.
+
 ## 0.5.0a8 — 2026-06-02 (PyPI-publishable packaging)
 
 ### Fixed
