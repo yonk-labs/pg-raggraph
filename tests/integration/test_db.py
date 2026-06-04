@@ -148,6 +148,35 @@ async def test_relationships_unique_constraint_present(db):
     assert row is not None, "migration 013's unique constraint must exist"
 
 
+async def test_migration_013_is_rerunnable(db):
+    """Re-applying migration 013 must be a no-op, not a 42710 error.
+
+    The UNIQUE constraint add is wrapped in a catalog existence check
+    because Postgres has no ``ALTER TABLE ... ADD CONSTRAINT IF NOT
+    EXISTS``. If that guard is ever removed, re-running the migration on a
+    DB where the constraint already exists raises ``duplicate_object`` and
+    — since the migration runs in one transaction — never records, so the
+    runner loops forever (the bug this guard fixes). Re-running the whole
+    file twice here proves the migration converges to the same end state.
+    """
+    from importlib.resources import files
+
+    sql_text = (
+        files("pg_raggraph.sql.migrations")
+        .joinpath("013_relationships_unique.sql")
+        .read_text()
+    )
+    # Already applied once by the fixture's connect(); applying it twice
+    # more must not raise.
+    await db.execute(sql_text)
+    await db.execute(sql_text)
+    row = await db.fetch_one(
+        "SELECT count(*) AS n FROM pg_constraint "
+        "WHERE conname = 'relationships_ns_edge_unique'"
+    )
+    assert row["n"] == 1, "constraint must remain present exactly once after re-runs"
+
+
 async def test_relationships_insert_is_idempotent_under_unique(db):
     """Re-inserting the same (ns, src, dst, rel_type) must not raise after PR-002."""
     dim = db.config.embedding_dim
