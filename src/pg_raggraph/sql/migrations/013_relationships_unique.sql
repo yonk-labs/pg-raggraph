@@ -52,6 +52,26 @@ WHERE r.id = d.id AND d.id <> d.keep_id;
 
 -- Step 3: prevent future duplicates. ON CONFLICT in application INSERTs
 -- needs this constraint to exist by name or column list.
-ALTER TABLE relationships
-    ADD CONSTRAINT relationships_ns_edge_unique
-    UNIQUE (namespace, src_id, dst_id, rel_type);
+--
+-- Guarded with a catalog existence check because Postgres has no
+-- `ALTER TABLE ... ADD CONSTRAINT IF NOT EXISTS`. Without the guard,
+-- re-running this migration on a database where the constraint already
+-- exists — applied out-of-band, or whose pgrg_applied_migrations row was
+-- lost to a backup/restore taken between the schema change and the
+-- bookkeeping commit — raises 42710 (duplicate_object). Because the whole
+-- migration runs in one transaction, that rolls the migration back and it
+-- is never recorded, so every subsequent startup retries and fails again.
+-- The guard makes the statement idempotent: the end state (constraint
+-- present) is identical on the first run and on any repeat run.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'relationships_ns_edge_unique'
+          AND conrelid = 'relationships'::regclass
+    ) THEN
+        ALTER TABLE relationships
+            ADD CONSTRAINT relationships_ns_edge_unique
+            UNIQUE (namespace, src_id, dst_id, rel_type);
+    END IF;
+END $$;
