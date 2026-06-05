@@ -19,6 +19,7 @@
 - **[cookbook/chunkshop-integration.md](cookbook/chunkshop-integration.md)** — How to use the [chunkshop](https://github.com/yonk-labs/chunkshop) sibling library (optional but recommended) for chunking and metadata extraction. Patterns D (chunker-only via `chunk_strategy="chunkshop:*"`) and C (full chunkshop pipeline + bridge).
 - **[cookbook/changing-embedding-dimensions.md](cookbook/changing-embedding-dimensions.md)** — Move a live database to a new embedding model/dimension online via the `pgrg migrate-embeddings` expand/contract column swap (no parallel DB; brief cutover).
 - **[cookbook/background-extraction.md](cookbook/background-extraction.md)** — Decouple LLM/lede extraction from `ingest()` via `defer_extraction=True` + `pgrg extract` (CLI / `--daemon`). Architectural patterns (sync vs cron vs always-on daemon), end-to-end FastAPI walkthrough, multi-worker safety invariants, 60× time-to-queryable benchmark.
+- **[cookbook/streaming-ingest.md](cookbook/streaming-ingest.md)** — Ingest a large corpus in bounded memory: `ingest_records(..., batch_size=N)` accepts a list, generator, DB cursor, or `async` iterator and processes it in O(batch_size) batches. Service-wrapper sizing, the fixed-model-overhead caveat, and a runnable FastAPI sample ([`samples/streaming_ingest_service.py`](cookbook/samples/streaming_ingest_service.py)).
 
 ## Worked walkthroughs (blog series — `blogs/`)
 
@@ -76,6 +77,7 @@
 | Avoid common Tier 1 API gotchas | [EVOLUTION-API-QUICKREF.md](EVOLUTION-API-QUICKREF.md) |
 | Build a developer knowledge base | [devmem-guide.md](devmem-guide.md) |
 | Make `ingest()` non-blocking + drain in the background | [cookbook/background-extraction.md](cookbook/background-extraction.md) |
+| Ingest a large corpus in bounded memory (streaming/batched) | [cookbook/streaming-ingest.md](cookbook/streaming-ingest.md) |
 | Read the unvarnished assessment | [../ASSESSMENT.md](../ASSESSMENT.md) |
 | Compare vs LightRAG / Neo4j / Zep | [../research/competition-comparison.md](../research/competition-comparison.md) |
 | Understand why we rejected Apache AGE | [../research/apache-age-evaluation.md](../research/apache-age-evaluation.md) |
