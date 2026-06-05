@@ -742,6 +742,27 @@ daemon), worked FastAPI end-to-end example, multi-worker safety
 invariants, operator playbook — is at
 **[cookbook/background-extraction.md](cookbook/background-extraction.md)**.
 
+### Ingesting a large corpus (bounded memory)
+
+`ingest_records()` pulls records in batches of `batch_size` (default 64), so
+peak memory is **O(batch_size)**, not O(corpus). `records` can be a `list`, a
+**generator**, a **DB cursor**, or an **`async` iterator** — a streamed source
+is never fully materialized:
+
+```python
+def gen():
+    for path in huge_file_list:
+        yield {"text": path.read_text(), "source_id": f"file:{path}"}
+
+await rag.ingest_records(gen(), namespace="kb", batch_size=32, defer_extraction=True)
+```
+
+A `list` is still validated eagerly (a bad row raises before any write); a stream
+validates each batch as it is pulled. Note that batching does **not** reduce the
+fixed in-process model overhead (embedder + extractor) — for a service wrapper,
+reuse one long-lived `GraphRAG` so models load once. Full guide + runnable
+FastAPI sample: **[cookbook/streaming-ingest.md](cookbook/streaming-ingest.md)**.
+
 ### Ingesting from a database (CRM / ERP / app schema)
 
 The patterns above cover files on disk. For pulling rows out of a Postgres database (or any SQL source), see the worked end-to-end cookbook:

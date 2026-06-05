@@ -13,6 +13,7 @@ from datetime import time as dt_time
 from hashlib import sha256
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
+from itertools import islice
 from typing import Callable
 
 try:
@@ -223,6 +224,32 @@ def _validate_namespace(ns: str) -> None:
             f"Invalid namespace '{ns}'. Must be 1-64 chars, "
             "alphanumeric/hyphens/underscores/dots only."
         )
+
+
+async def _abatched(records, n: int):
+    """Yield lists of up to ``n`` items from ``records``, pulled lazily.
+
+    Accepts a sync iterable (incl. ``list``), a sync generator, or an async
+    iterable, and normalizes all three to an async stream of bounded batches —
+    without ever materializing the whole input. This is what lets
+    ``ingest_records`` hold O(batch_size) records in memory instead of O(N).
+    See issue #46.
+    """
+    if n < 1:
+        raise ValueError("batch_size must be >= 1")
+    if hasattr(records, "__aiter__"):
+        batch: list = []
+        async for r in records:
+            batch.append(r)
+            if len(batch) >= n:
+                yield batch
+                batch = []
+        if batch:
+            yield batch
+    else:
+        it = iter(records)
+        while batch := list(islice(it, n)):
+            yield batch
 
 
 class GraphRAG:
@@ -628,6 +655,7 @@ class GraphRAG:
         living_cadence: str | None = None,
         living_audit_diffs: bool | None = None,
         defer_extraction: bool = False,
+        batch_size: int = 64,
     ):
         """Ingest documents from in-memory records — no disk roundtrip.
 
@@ -715,6 +743,14 @@ class GraphRAG:
                 extraction; chunks + embeddings still land so ``naive`` works.
                 Drain with ``pgrg extract``. Individual records can override
                 via the ``defer_extraction`` record key.
+            batch_size: Records are pulled and processed in batches of this
+                size, so peak memory is O(batch_size) rather than O(corpus).
+                ``records`` may therefore be a generator, a DB cursor, or an
+                ``async`` iterator — it is never fully materialized for a
+                streamed source. A ``list``/``tuple`` is still validated
+                eagerly up front (a bad row raises before any write); a stream
+                validates each batch as it is pulled. Lower it to cut the
+                memory ceiling of a wrapping service; raise it for throughput.
 
         Returns: same stats shape as ``ingest()``.
 
@@ -743,7 +779,8 @@ class GraphRAG:
         from pg_raggraph.chunking import chunk_document, content_hash
         from pg_raggraph.extraction import extract_from_chunks, get_llm_provider
 
-        records = list(records)
+        if batch_size < 1:
+            raise ValueError("batch_size must be >= 1")
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
         living_enabled = (
@@ -765,8 +802,7 @@ class GraphRAG:
             if on_progress:
                 on_progress(msg)
 
-        # Validate input shape (per-record, fail fast on the first bad row).
-        for i, rec in enumerate(records):
+        def _validate_record(i, rec):
             if not isinstance(rec, dict):
                 raise TypeError(f"records[{i}] must be a dict, got {type(rec).__name__}")
             if not rec.get("text"):
@@ -781,11 +817,24 @@ class GraphRAG:
                         f"{effective_living_key!r} in record or metadata"
                     )
 
-        if not records:
-            _progress("No records to process.")
-            return
-
-        _progress(f"Processing {len(records)} records (in-memory ingest).")
+        # A streamed source (generator / async iterator) is consumed lazily in
+        # bounded batches so peak memory stays O(batch_size), not O(corpus). A
+        # materialized list/tuple is validated eagerly up front to preserve the
+        # historical fail-fast contract: a bad row raises before ANY document is
+        # written. Streams validate per-record as they are pulled (issue #46).
+        is_stream = hasattr(records, "__aiter__") or not hasattr(records, "__len__")
+        total = None
+        if not is_stream:
+            records = list(records)
+            for i, rec in enumerate(records):
+                _validate_record(i, rec)
+            if not records:
+                _progress("No records to process.")
+                return
+            total = len(records)
+            _progress(f"Processing {total} records (in-memory ingest).")
+        else:
+            _progress("Processing records (streaming ingest, bounded batches).")
 
         if self._shutdown_event is None:
             self._shutdown_event = asyncio.Event()
@@ -910,7 +959,8 @@ class GraphRAG:
                                 " (extraction failed, vector-only)" if r.get("degraded") else ""
                             )
                             _progress(
-                                f"[{idx}/{len(records)}] {rec['source_id']}: "
+                                f"[{idx}/{total if total is not None else '?'}] "
+                                f"{rec['source_id']}: "
                                 f"{r['entities']} entities, {r['rels']} rels{deg_note}"
                             )
                         else:
@@ -936,8 +986,22 @@ class GraphRAG:
                         stats["failed"] += 1
                         return
 
+        # Pull at most `batch_size` records at a time, process the batch
+        # concurrently (capped by doc_sem), then free it before pulling the
+        # next. Peak task-graph + per-doc working set is O(batch_size), not
+        # O(corpus) — this is the bounded-memory fix for issue #46. The
+        # per-document transaction boundary inside _ingest_one_content is
+        # unchanged, so a batch is not an all-or-nothing write.
+        processed = 0
         with self.db.tenant(ns):
-            await asyncio.gather(*[_process_record(i + 1, rec) for i, rec in enumerate(records)])
+            async for batch in _abatched(records, batch_size):
+                if is_stream:
+                    for j, rec in enumerate(batch):
+                        _validate_record(processed + j, rec)
+                await asyncio.gather(
+                    *[_process_record(processed + j + 1, rec) for j, rec in enumerate(batch)]
+                )
+                processed += len(batch)
 
         notes_msg = []
         if stats["failed"]:
@@ -954,7 +1018,7 @@ class GraphRAG:
             namespace=ns,
             mode="records",
             latency_ms=(time.perf_counter() - started) * 1000,
-            documents=len(records),
+            documents=processed,
             ingested=stats["ingested"],
             skipped=stats["skipped"],
             failed=stats["failed"],
