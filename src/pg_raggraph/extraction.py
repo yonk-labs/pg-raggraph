@@ -9,9 +9,14 @@ import logging
 from typing import Protocol, runtime_checkable
 
 import httpx
+from pydantic import ValidationError
 
 from pg_raggraph.config import PGRGConfig
-from pg_raggraph.models import ExtractionResult
+from pg_raggraph.models import (
+    ExtractedEntity,
+    ExtractedRelationship,
+    ExtractionResult,
+)
 
 # Common false-positive entity names — words that look like names but aren't.
 # The LLM frequently picks these up from vocabulary files, stop word lists,
@@ -100,6 +105,39 @@ def filter_extraction(result: ExtractionResult) -> ExtractionResult:
         r for r in result.relationships if r.source in valid_names and r.target in valid_names
     ]
     return ExtractionResult(entities=valid_entities, relationships=valid_rels)
+
+
+def _parse_extraction(parsed: object) -> ExtractionResult:
+    """Build a filtered ExtractionResult from parsed LLM JSON, leniently.
+
+    Validates entities and relationships one item at a time, skipping only the
+    malformed ones. A single bad item — e.g. a relationship the LLM emitted
+    without the required ``target`` field — no longer discards the whole
+    chunk's extraction. This extends the leniency already applied to ``weight``
+    in :class:`ExtractedRelationship` to the parse step itself. See issue #69.
+    """
+    if not isinstance(parsed, dict):
+        logger.warning(
+            "Extraction returned non-object JSON (%s); dropping chunk",
+            type(parsed).__name__,
+        )
+        return ExtractionResult()
+
+    def _items(model_cls, raw):
+        out = []
+        for item in raw or []:
+            try:
+                out.append(model_cls.model_validate(item))
+            except ValidationError as e:
+                logger.debug("Skipping malformed %s: %s", model_cls.__name__, e)
+        return out
+
+    return filter_extraction(
+        ExtractionResult(
+            entities=_items(ExtractedEntity, parsed.get("entities")),
+            relationships=_items(ExtractedRelationship, parsed.get("relationships")),
+        )
+    )
 
 
 logger = logging.getLogger("pg_raggraph.extraction")
@@ -298,11 +336,12 @@ async def _extract_single(
         try:
             response_text = await llm.complete(messages)
             parsed = json.loads(response_text)
-            result = ExtractionResult.model_validate(parsed)
-            result = filter_extraction(result)
         except Exception as e:
             logger.warning(f"Extraction failed for chunk: {e}")
             return ExtractionResult()
+        # Parse item-by-item so one malformed entity/relationship does not
+        # discard the whole chunk's extraction (issue #69).
+        result = _parse_extraction(parsed)
 
     # Cache non-empty results (outside semaphore)
     if result.entities or result.relationships:
