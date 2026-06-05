@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.5.0a10 — 2026-06-05 (streaming ingest, lenient extraction, security bumps)
+
+### Added
+- **Bounded-memory / streaming `ingest_records()` (#46).** Records are now pulled
+  and processed in batches of `batch_size` (default 64), so peak memory is
+  O(batch_size) rather than O(corpus). `records` may be a `list`, a sync
+  generator, a DB cursor, or an `async` iterator — a streamed source is never
+  fully materialized. The per-document transaction boundary is unchanged, so a
+  batch is not an all-or-nothing write and cross-batch entity dedup still
+  collapses (resolution is DB-backed). A `list`/`tuple` is still validated
+  eagerly up front (a bad row raises before any write); a stream validates each
+  batch as it is pulled. New `cookbook/streaming-ingest.md` + runnable FastAPI
+  sample `samples/streaming_ingest_service.py`. 6 unit + 7 integration tests.
+
+### Fixed
+- **One malformed extraction item no longer discards the whole chunk (#69).**
+  The per-chunk LLM output was validated with a single strict
+  `ExtractionResult.model_validate` *before* `filter_extraction` ran, so one bad
+  entity/relationship (e.g. a relationship missing `target`) raised, was
+  swallowed, and returned an empty result — silently dropping every valid
+  entity and relationship the chunk produced. Parsing is now item-by-item,
+  skipping only the malformed items; non-object JSON still yields an empty
+  result. Worst with smaller local models that slip the schema more often.
+
+### Security
+- **Cleared 6 Dependabot advisories in `uv.lock` (#37).** Bumped `banks`
+  2.4.1→2.4.2 (CVE-2026-44209, Jinja2 SSTI RCE), `python-multipart`
+  0.0.26→0.0.32 (CVE-2026-42561 DoS + others), `idna` 3.11→3.18
+  (CVE-2026-45409), `langsmith` 0.7.30→0.8.9 (CVE-2026-45134, CVE-2026-41182),
+  and `langchain-core` 1.2.28→1.4.0 (CVE-2026-44843, unsafe deserialization).
+  Raised the two direct-dep floors that sat below the patch
+  (`python-multipart>=0.0.27`, `langchain-core>=1.3.3`) so a fresh resolve can't
+  regress. Verified each pin against the GitHub Advisory Database.
+
 ## 0.5.0a9 — 2026-06-04 (idempotent migration 013)
 
 ### Fixed
