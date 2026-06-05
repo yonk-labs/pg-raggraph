@@ -162,17 +162,14 @@ async def test_migration_013_is_rerunnable(db):
     from importlib.resources import files
 
     sql_text = (
-        files("pg_raggraph.sql.migrations")
-        .joinpath("013_relationships_unique.sql")
-        .read_text()
+        files("pg_raggraph.sql.migrations").joinpath("013_relationships_unique.sql").read_text()
     )
     # Already applied once by the fixture's connect(); applying it twice
     # more must not raise.
     await db.execute(sql_text)
     await db.execute(sql_text)
     row = await db.fetch_one(
-        "SELECT count(*) AS n FROM pg_constraint "
-        "WHERE conname = 'relationships_ns_edge_unique'"
+        "SELECT count(*) AS n FROM pg_constraint WHERE conname = 'relationships_ns_edge_unique'"
     )
     assert row["n"] == 1, "constraint must remain present exactly once after re-runs"
 

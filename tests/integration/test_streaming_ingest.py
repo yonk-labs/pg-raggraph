@@ -39,9 +39,7 @@ def _rec(i: int, *, entity: str | None = None):
 
 
 async def _doc_count(rag, ns):
-    row = await rag.db.fetch_one(
-        "SELECT count(*) AS n FROM documents WHERE namespace = %s", (ns,)
-    )
+    row = await rag.db.fetch_one("SELECT count(*) AS n FROM documents WHERE namespace = %s", (ns,))
     return row["n"]
 
 
@@ -118,6 +116,7 @@ async def test_async_iterator_ingests():
     ns = "stream_async"
     rag = await _make_rag(ns)
     try:
+
         async def asource():
             for i in range(4):
                 yield _rec(i)
@@ -159,6 +158,7 @@ async def test_stream_bad_record_commits_prior_batches():
     ns = "stream_gen_badrow"
     rag = await _make_rag(ns)
     try:
+
         def gen():
             yield _rec(0)
             yield {"text": "no source id"}  # bad: missing source_id
