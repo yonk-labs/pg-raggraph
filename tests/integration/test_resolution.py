@@ -105,6 +105,43 @@ async def test_fuzzy_match_merges_similar(db, config):
     assert "Creator of GPT" in row["description"]
 
 
+async def test_code_symbols_never_fuzzy_merge(db, config):
+    """CODE_SYMBOL entities are identity-keyed by FQN and must not fuzzy-merge,
+    even when a class and its method share an FQN prefix under a low threshold —
+    the exact case that would otherwise collapse a call graph."""
+    dim = config.embedding_dim
+    emb = [0.5] * dim  # identical embeddings → high vector score
+    config.resolution_threshold = 0.5
+    config.min_trgm_score = 0.2
+
+    id1 = await resolve_entity(
+        name="pkg.mod.Foo",
+        entity_type="CODE_SYMBOL",
+        description="Code symbol pkg.mod.Foo",
+        embedding=emb,
+        namespace="test_codesym",
+        db=db,
+        config=config,
+    )
+    id2 = await resolve_entity(
+        name="pkg.mod.Foo.bar",
+        entity_type="CODE_SYMBOL",
+        description="Code symbol pkg.mod.Foo.bar",
+        embedding=emb,
+        namespace="test_codesym",
+        db=db,
+        config=config,
+    )
+
+    assert id1 != id2
+    rows = await db.fetch_all(
+        "SELECT name FROM entities WHERE namespace = %s AND entity_type = 'CODE_SYMBOL' "
+        "ORDER BY name",
+        ("test_codesym",),
+    )
+    assert [r["name"] for r in rows] == ["pkg.mod.Foo", "pkg.mod.Foo.bar"]
+
+
 async def test_namespace_isolation(db, config):
     """Entities in different namespaces don't merge."""
     dim = config.embedding_dim

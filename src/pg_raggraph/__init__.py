@@ -1197,6 +1197,19 @@ class GraphRAG:
             texts = [c["embedded_content"] for c in chunks]
             chunk_embeddings = await self._embed_texts_with_cache(texts, embedder)
 
+        # #75: symbol_aware chunking stashes resolved code edges on chunk[0].
+        # Convert them to CODE_SYMBOL entities + CALLS/INHERITS/IMPLEMENTS edges
+        # via the same bridge mapper Pattern C uses, and merge into the known
+        # graph. Pop unconditionally so the bulky edge list never persists on the
+        # chunk row; only materialize on the synchronous (non-deferred) path.
+        code_edges = chunks[0]["metadata"].pop("__code_edges__", None) if chunks else None
+        if code_edges and not defer_extraction:
+            from pg_raggraph import chunkshop_bridge
+
+            _code_entities, _code_rels = chunkshop_bridge.code_edges_to_known_graph(code_edges)
+            known_entities = (known_entities or []) + _code_entities
+            known_relationships = (known_relationships or []) + _code_rels
+
         # Extract entities/relationships via LLM (cache reads OK outside txn).
         # If llm is None or skip_llm_for_this_doc is set, skip extraction
         # entirely — pure vector RAG mode (with whatever known_entities /

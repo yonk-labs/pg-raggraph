@@ -1,15 +1,22 @@
-"""Bridge chunkshop Postgres sink rows into ``GraphRAG.ingest_records``.
+"""Bridge chunkshop into ``GraphRAG`` ingest.
 
-This is Pattern C from ``docs/cookbook/chunkshop-integration.md``:
-chunkshop owns source/connectors/parsers/chunking/embedding/extractors,
-then pg-raggraph consumes the stored chunks through its existing
-``pre_chunked`` ingest seam.
+Two shapes (see ``docs/cookbook/chunkshop-integration.md``):
+
+- **Pattern C** — chunkshop runs its own pipeline and writes a Postgres sink
+  (chunks + a ``code_edges`` table); pg-raggraph consumes the stored rows through
+  the ``pre_chunked`` ingest seam and ``code_edges_to_known_graph``.
+- **Pattern D** (in-process) — pg-raggraph drives chunkshop's ``symbol_aware``
+  chunker itself; ``extract_symbol_graph`` runs chunkshop's
+  ``CodeRelationshipsExtractor`` over the produced chunks to attach per-chunk
+  ``callees`` and resolve ``CALLS``/``INHERITS``/``IMPLEMENTS`` edges, which then
+  flow through the same ``code_edges_to_known_graph`` seam.
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from dataclasses import dataclass, field
 from typing import Any
 
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -156,6 +163,104 @@ def code_edges_to_known_graph(
     return list(entities_by_name.values()), relationships
 
 
+@dataclass
+class SymbolGraph:
+    """Output of :func:`extract_symbol_graph`.
+
+    ``callees_by_index`` is parallel to the input ``cs_chunks`` — entry ``i`` is
+    the per-chunk callee list (``{name, line, snippet, resolved_intra_file}``) for
+    chunk ``i`` (#74). ``edges`` is the raw ``finalize()`` edge list (#75),
+    key-compatible with :func:`code_edges_to_known_graph`.
+    """
+
+    callees_by_index: list[list[dict[str, Any]]] = field(default_factory=list)
+    edges: list[dict[str, Any]] = field(default_factory=list)
+
+
+def _bucket_callees(
+    callees: list[dict[str, Any]], cs_chunks
+) -> list[list[dict[str, Any]]]:
+    """Assign whole-file callees to chunks by line span (narrowest wins).
+
+    Each callee carries a 1-based ``line``; each chunk carries ``start_line`` /
+    ``end_line``. A callee lands in the narrowest chunk span that contains its
+    line, so a call inside a method lands on the method chunk, not its enclosing
+    class chunk. Callees with no line, or outside every span, are dropped.
+    """
+    spans: list[tuple[int | None, int | None]] = [
+        ((cs.metadata or {}).get("start_line"), (cs.metadata or {}).get("end_line"))
+        for cs in cs_chunks
+    ]
+    buckets: list[list[dict[str, Any]]] = [[] for _ in cs_chunks]
+    for callee in callees:
+        line = callee.get("line")
+        if line is None:
+            continue
+        best_i: int | None = None
+        best_width: int | None = None
+        for i, (start, end) in enumerate(spans):
+            if start is None or end is None or not (start <= line <= end):
+                continue
+            width = end - start
+            if best_width is None or width < best_width:
+                best_i, best_width = i, width
+        if best_i is not None:
+            buckets[best_i].append(callee)
+    return buckets
+
+
+def extract_symbol_graph(
+    content: str,
+    cs_chunks,
+    *,
+    source_path: str | None = None,
+    language: str | None = None,
+    project_id: str = "doc",
+) -> "SymbolGraph | None":
+    """Run chunkshop's CodeRelationshipsExtractor over a code document.
+
+    Parses the *whole document* once (not per chunk): per-chunk parsing
+    misattributes class inheritance to the innermost method and can drop the
+    class symbol entirely, whereas a whole-file parse builds the real scope tree.
+    ``finalize()`` then resolves the accumulated calls/inheritance into edges
+    (#75). Per-chunk callees (#74) are recovered by bucketing the whole-file call
+    sites into chunk line spans via :func:`_bucket_callees`.
+
+    Per-file scope (one call per document). Returns ``None`` when the installed
+    chunkshop lacks the extractor, so older builds degrade gracefully (callees
+    absent, no code graph, no crash).
+
+    Correct results require chunkshop's tree-sitter parse path; the regex
+    fallback collapses symbol spans and starves call extraction.
+    """
+    try:
+        from chunkshop.config import CodeRelationshipsExtractor as _CodeRelCfg
+        from chunkshop.extractors import load_extractor
+
+        extractor = load_extractor(_CodeRelCfg(type="code_relationships"))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return None
+    if not callable(getattr(extractor, "extract", None)) or not callable(
+        getattr(extractor, "finalize", None)
+    ):
+        return None
+
+    if language is None:
+        for cs in cs_chunks:
+            lang = (cs.metadata or {}).get("language")
+            if lang:
+                language = lang
+                break
+
+    result = extractor.extract(content or "", source_path=source_path, language=language)
+    whole_callees = list((result.metadata or {}).get("callees", []))
+    edges = list(extractor.finalize(project_id=project_id or "doc"))
+    return SymbolGraph(
+        callees_by_index=_bucket_callees(whole_callees, cs_chunks),
+        edges=edges,
+    )
+
+
 def attach_code_edges(
     records: list[dict[str, Any]],
     edge_rows: Iterable[dict[str, Any]],
@@ -282,8 +387,10 @@ def fetch_code_edges_from_table(
 
 
 __all__ = [
+    "SymbolGraph",
     "attach_code_edges",
     "code_edges_to_known_graph",
+    "extract_symbol_graph",
     "fetch_code_edges_from_table",
     "fetch_records_from_table",
     "rows_to_records",

@@ -200,3 +200,95 @@ def test_cli_code_impact_json_and_notfound():
             await rag.close()
 
         asyncio.run(_teardown())
+
+
+_INGEST_SRC = '''\
+def helper(x):
+    return x + 1
+
+
+def runner(y):
+    return helper(y) * 2
+
+
+class Base:
+    pass
+
+
+class Child(Base):
+    def go(self):
+        return runner(3)
+'''
+
+
+@pytest.mark.asyncio
+async def test_symbol_aware_ingest_populates_code_graph():
+    pytest.importorskip("chunkshop")
+    pytest.importorskip("tree_sitter_python")
+    rag = GraphRAG(dsn=DSN, namespace=NS, chunk_strategy="chunkshop:symbol_aware")
+    await _fresh(rag)
+    try:
+        await rag.ingest_records(
+            [{"text": _INGEST_SRC, "source_id": "sample.py", "skip_llm": True}],
+            namespace=NS,
+        )
+        # runner CALLS helper → helper has caller runner; runner has callee helper.
+        helper_impact = await cg.code_impact(rag._db, "sample.helper", namespace=NS, depth=1)
+        assert helper_impact.found
+        assert "sample.runner" in [e.fqn for e in helper_impact.callers]
+
+        runner_impact = await cg.code_impact(rag._db, "sample.runner", namespace=NS, depth=1)
+        assert "sample.helper" in [e.fqn for e in runner_impact.callees]
+
+        # Child INHERITS Base → Base has incoming Child.
+        base_impact = await cg.code_impact(rag._db, "sample.Base", namespace=NS, depth=1)
+        assert "sample.Child" in [e.fqn for e in base_impact.callers]
+
+        # The Class and its method are distinct nodes (resolution guard) — the
+        # method's callee resolves, and the class keeps its own INHERITS edge.
+        ents = await rag._db.fetch_all(
+            "SELECT name FROM entities WHERE namespace = %s AND entity_type = 'CODE_SYMBOL'",
+            (NS,),
+        )
+        names = {r["name"] for r in ents}
+        assert {"sample.Child", "sample.Child.go"} <= names
+    finally:
+        await rag.delete(NS)
+        await rag.close()
+
+
+_DISTINCT_SRC = '''\
+def alpha():
+    return omega()
+
+
+def omega():
+    return 1
+'''
+
+
+@pytest.mark.asyncio
+async def test_distinct_code_symbols_stay_separate():
+    """Dissimilar code symbols each get their own CODE_SYMBOL row. (The
+    Class-vs-method prefix-collision case is covered by the resolution guard's
+    unit test and the Child/Child.go assertions in the ingest test above.)"""
+    pytest.importorskip("chunkshop")
+    pytest.importorskip("tree_sitter_python")
+    rag = GraphRAG(dsn=DSN, namespace=NS, chunk_strategy="chunkshop:symbol_aware")
+    await _fresh(rag)
+    try:
+        await rag.ingest_records(
+            [{"text": _DISTINCT_SRC, "source_id": "distinct.py", "skip_llm": True}],
+            namespace=NS,
+        )
+        rows = await rag._db.fetch_all(
+            "SELECT name FROM entities WHERE namespace = %s AND entity_type = 'CODE_SYMBOL' "
+            "ORDER BY name",
+            (NS,),
+        )
+        names = [r["name"] for r in rows]
+        assert "distinct.alpha" in names
+        assert "distinct.omega" in names
+    finally:
+        await rag.delete(NS)
+        await rag.close()

@@ -78,7 +78,39 @@ Supported strategies (set as `chunk_strategy="chunkshop:<name>"`):
 | `chunkshop:fixed_overlap` | Sliding-window word splits. | When you want plain windowing with overlap, not structure-aware. |
 | `chunkshop:neighbor_expand` | Hierarchy chunks expanded with neighbor context. | When chunks need surrounding context for retrieval to make sense. |
 | `chunkshop:code_aware` | Python AST-aware source chunks with import framing. | Pure-Python repositories where functions/classes are the retrieval unit. |
-| `chunkshop:symbol_aware` | Multi-language symbol-bounded chunks with FQN, line range, language, and `node_id` metadata. | Code repositories where pg-raggraph should preserve symbol metadata for downstream graph enrichment. |
+| `chunkshop:symbol_aware` | Multi-language symbol-bounded chunks with FQN, line range, language, and `node_id` metadata. **Also auto-builds the code graph at ingest** — see below. | Code repositories where you want a queryable call/inheritance graph (`code_impact`). |
+
+#### Code intelligence (`symbol_aware`)
+
+`chunk_strategy="chunkshop:symbol_aware"` runs chunkshop's
+`CodeRelationshipsExtractor` automatically during ingest — no extra steps:
+
+- **Per-chunk callees (#74).** Each chunk carries
+  `metadata["callees"]` = `[{name, line, snippet, resolved_intra_file}, ...]` —
+  the tree-sitter call sites for that symbol.
+- **Code graph (#75).** `CODE_SYMBOL` entities (keyed by FQN) and
+  `CALLS` / `INHERITS` / `IMPLEMENTS` relationships are written to the graph, so
+  `rag.code_impact("<fqn>")` returns real callers and callees with no extra work.
+
+```python
+rag = GraphRAG(dsn=DSN, namespace="repo", chunk_strategy="chunkshop:symbol_aware")
+await rag.connect()
+await rag.ingest_records([{"text": source, "source_id": "pkg/mod.py"}], namespace="repo")
+
+impact = await rag.code_impact("pkg.mod.runner")   # callers + callees, with evidence
+```
+
+Notes:
+
+- **Resolution is per-file** — intra-file edges are precise; cross-file calls are
+  best-effort (resolved only among symbols in the same document). Corpus-wide
+  cross-file resolution is a planned follow-up.
+- **Requires the source language's tree-sitter grammar** to be importable
+  (e.g. `pip install tree-sitter tree-sitter-python`). Without it chunkshop
+  silently falls back to a regex parser and the call graph degrades — symbol
+  spans collapse and calls are missed.
+- Deferred ingests (`defer_extraction=True`) still attach `callees` to chunk
+  metadata but skip the graph-row write.
 
 ### Worked example: sales-CRM with chunkshop chunking
 

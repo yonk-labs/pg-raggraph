@@ -122,8 +122,16 @@ async def resolve_entity(
         },
     )
 
-    if match and match["combined"] >= config.resolution_threshold:
-        # Merge: update existing entity with new info
+    if (
+        match
+        and match["combined"] >= config.resolution_threshold
+        and entity_type != "CODE_SYMBOL"
+    ):
+        # Merge: update existing entity with new info.
+        # CODE_SYMBOL entities are identity-keyed by FQN and must never fuzzy-
+        # merge: a class and its methods share an FQN prefix (e.g. ``pkg.Foo`` vs
+        # ``pkg.Foo.bar``) and would otherwise collapse, corrupting the call
+        # graph. They fall through to the exact-name insert below.
         merged_desc = match["description"]
         if description and description not in merged_desc:
             merged_desc = f"{merged_desc} {description}".strip()
