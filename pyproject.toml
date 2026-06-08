@@ -60,6 +60,10 @@ dev = [
     "lede>=0.4.5",
     "lede-spacy[synonyms]>=0.4.5",
     "spacy>=3.7",
+    # Code-graph tests need chunkshop's tree-sitter parse path; regex fallback
+    # collapses symbol spans to one line and starves per-chunk call extraction.
+    "tree-sitter>=0.25",
+    "tree-sitter-python>=0.25",
 ]
 # E2E benchmark harness — datasets pulled as parquet from HuggingFace mirrors.
 bench = ["pyarrow>=17", "httpx>=0.27"]
