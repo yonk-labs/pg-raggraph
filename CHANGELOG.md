@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **`chunk_strategy="chunkshop:symbol_aware"` now builds the code graph at ingest
+  (#74, #75).** Previously symbol-aware ingests produced per-symbol chunks but
+  never ran chunkshop's `CodeRelationshipsExtractor`, so `metadata['callees']`
+  was empty (#74) and the `entities`/`relationships` tables `code_impact()` reads
+  stayed empty (#75). Now, for `symbol_aware` ingests, each chunk carries
+  `metadata['callees']` (`{name, line, snippet, resolved_intra_file}`) and
+  `CODE_SYMBOL` entities + `CALLS`/`INHERITS`/`IMPLEMENTS` relationships are
+  written automatically — `rag.code_impact("<fqn>")` works with no extra steps.
+  The extractor parses the whole document (per-chunk parsing misattributes class
+  inheritance); resolution is per-file (cross-file edges best-effort). Requires
+  the source language's tree-sitter grammar; degrades gracefully if absent.
+  Reuses the existing Pattern C `code_edges_to_known_graph` mapper. See
+  `cookbook/chunkshop-integration.md`.
+
+### Fixed
+- **`CODE_SYMBOL` entities no longer fuzzy-merge by FQN prefix.** A class and its
+  methods share an FQN prefix (`pkg.Foo` vs `pkg.Foo.bar`); `resolve_entity`'s
+  pg_trgm+vector fuzzy leg would collapse them and corrupt the call graph. Code
+  symbols are now identity-keyed by FQN (fuzzy resolution is skipped for
+  `entity_type == 'CODE_SYMBOL'`). No effect on other entity types; also fixes
+  the same latent issue on the Pattern C import path.
+
 ## 0.5.0a10 — 2026-06-05 (streaming ingest, lenient extraction, security bumps)
 
 ### Added
