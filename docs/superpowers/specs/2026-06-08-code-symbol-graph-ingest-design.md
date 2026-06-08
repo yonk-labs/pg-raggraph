@@ -53,11 +53,14 @@ where pg-raggraph drives chunkshop itself and never runs the extractor.
   transaction. Intra-file edges resolve precisely; cross-file calls are
   best-effort (the ticket explicitly accepts this). Corpus-wide resolution is a
   documented fast-follow.
-- **Fixing fuzzy entity-merge for code symbols.** Routing CODE_SYMBOL entities
-  through `resolve_entity` (whose pg_trgm + vector fuzzy leg could merge two
-  distinct FQNs sharing a bare name) is **pre-existing Pattern C behavior**, not
-  introduced here. Flagged as a concern + separate follow-up; not fixed in this
-  slice (fixing it would change Pattern C too and needs its own decision).
+- **Fixing fuzzy entity-merge for code symbols.** ~~Out of scope.~~ **Pulled
+  in-scope during execution (user-approved).** Implementation revealed the
+  fuzzy leg corrupts the *common* `Class` vs `Class.method` case (shared FQN
+  prefix), not just rare bare-name collisions — without a fix, `code_impact`
+  collapses every class with methods. A targeted guard now skips fuzzy
+  resolution for `entity_type == 'CODE_SYMBOL'` (identity-keyed by FQN); no
+  effect on other entity types, and it also fixes the latent Pattern C case.
+  See `resolution.py` + `test_resolution.py::test_code_symbols_never_fuzzy_merge`.
 - The background-extraction (`pgrg extract`) path. `defer_extraction` ingests
   skip synchronous extraction; the code-graph step rides the synchronous path
   only.
