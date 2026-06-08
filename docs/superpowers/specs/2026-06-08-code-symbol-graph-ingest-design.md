@@ -91,6 +91,35 @@ These `finalize()` edge dicts are key-compatible with the rows
 (`src_fqn`/`dst_fqn`/`edge_type`/`confidence`/`src_node_id`/`dst_node_id`/
 `evidence`). That compatibility is the linchpin of this design — **no new mapper.**
 
+### Parser requirement — tree-sitter (verified empirically)
+
+chunkshop's symbol/call parsing uses **tree-sitter** with a silent **regex
+fallback** when the language grammar isn't importable. The difference is
+load-bearing and was confirmed against the installed package:
+
+- **With tree-sitter** (`tree-sitter` + `tree-sitter-python` installed): symbol
+  chunks span full bodies, per-chunk `extract()` returns correct callees
+  (`runner` → `helper`), and `finalize()` returns exactly the real edges
+  (`runner→helper` CALLS, `Child.go→runner` CALLS, `Child→Base` INHERITS).
+- **Regex fallback** (no grammar): symbol spans collapse to the `def`/`class`
+  line, chunk bodies lose their content, per-chunk `extract()` misses real calls
+  and emits self-edge noise. The feature is effectively non-functional.
+
+The downstream consumer already gets correct line ranges (ticket #74), so their
+env has tree-sitter. Implications for this slice:
+
+- **Test dependency:** add `tree-sitter` + `tree-sitter-python` to the dev/test
+  dependency group so tests exercise the real parse path. Integration/unit tests
+  for this feature `pytest.importorskip("tree_sitter_python")`.
+- **Docs:** `symbol_aware` code intelligence requires the relevant tree-sitter
+  grammar for the source language; document this in the chunkshop cookbook. No
+  hard runtime dependency is added to pg-raggraph (grammars are per-language and
+  the consumer chooses them).
+- **`resolved_intra_file`** from per-chunk `extract()` is conservatively `False`
+  (a chunk parsed in isolation can't see siblings). The authoritative cross-symbol
+  resolution is `finalize()`. This is a documented, minor limitation of the
+  per-chunk callee flag, not of the persisted edges.
+
 ### New seam — `chunkshop_bridge.extract_symbol_graph()`
 
 Add to `src/pg_raggraph/chunkshop_bridge.py` (already the home of chunkshop glue;
@@ -197,10 +226,12 @@ code_impact(fqn) ◄────────────────────
 
 ## Testing
 
-Per the project rule (everything gets tests; cumulative E2E):
+Per the project rule (everything gets tests; cumulative E2E). All code-graph
+tests `pytest.importorskip("chunkshop")` **and** `pytest.importorskip(
+"tree_sitter_python")` (regex fallback gives degraded parses — see Parser
+requirement). `tree-sitter` + `tree-sitter-python` are added to the dev/test deps.
 
-**Unit (`tests/unit/`, no DB; `pytest.importorskip("chunkshop")` + feature-guard
-on the extractor):**
+**Unit (`tests/unit/`, no DB):**
 - `test_symbol_aware_attaches_callees` — chunk a small multi-function Python
   source via `chunk_document(strategy="chunkshop:symbol_aware")`; assert each
   function chunk's `metadata["callees"]` contains the expected `{name, line,
@@ -229,9 +260,12 @@ on the extractor):**
   fuzzy-merge concern without reddening the suite; flips to a real pass if/when the
   follow-up fix lands.
 
-**Cumulative E2E (`tests/test_e2e.py`):** extend the existing cumulative flow with
-a `symbol_aware` code-ingest step asserting non-empty `code_impact` for at least
-one symbol.
+**End-to-end coverage:** the
+`test_symbol_aware_ingest_populates_code_graph` integration test above is the
+end-to-end path (ingest a code module → `code_impact` returns real edges); it
+lives alongside the existing read-side tests in
+`tests/integration/test_code_graph.py`. (There is no `tests/test_e2e.py` despite
+the CLAUDE.md reference — code_impact's tests live in `test_code_graph.py`.)
 
 ---
 
@@ -245,8 +279,12 @@ one symbol.
 - `src/pg_raggraph/__init__.py` — in `_ingest_one_content`, pop `__code_edges__`,
   convert via `code_edges_to_known_graph`, merge into known graph args.
 - `tests/unit/…`, `tests/integration/…`, `tests/test_e2e.py` — as above.
+- `pyproject.toml` — add `tree-sitter` + `tree-sitter-python` to the dev/test
+  dependency group (test-only; not a runtime dep).
 - `docs/cookbook/chunkshop-integration.md` — document that Pattern D
-  (`symbol_aware`) now populates `callees` + the code graph automatically.
+  (`symbol_aware`) now populates `callees` + the code graph automatically, and
+  that it requires the source language's tree-sitter grammar (regex fallback
+  degrades results).
 
 ## Risks / concerns
 
