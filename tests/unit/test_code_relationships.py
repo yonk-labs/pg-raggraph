@@ -53,7 +53,9 @@ def _symbol_chunks(src: str, source_path: str = "sample.py"):
 
 def test_extract_symbol_graph_callees_and_edges():
     cs_chunks = _symbol_chunks(_CODE_SRC)
-    sg = extract_symbol_graph(cs_chunks, source_path="sample.py", project_id="sample.py")
+    sg = extract_symbol_graph(
+        _CODE_SRC, cs_chunks, source_path="sample.py", project_id="sample.py"
+    )
     assert sg is not None
     assert len(sg.callees_by_index) == len(cs_chunks)
 
@@ -80,7 +82,10 @@ def test_extract_symbol_graph_none_when_extractor_unavailable(monkeypatch):
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr("builtins.__import__", _block)
-    assert bridge.extract_symbol_graph(_symbol_chunks(_CODE_SRC), source_path="x.py") is None
+    assert (
+        bridge.extract_symbol_graph(_CODE_SRC, _symbol_chunks(_CODE_SRC), source_path="x.py")
+        is None
+    )
 
 
 def test_finalize_edges_feed_code_edges_to_known_graph():

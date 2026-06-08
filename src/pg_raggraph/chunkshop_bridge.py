@@ -177,21 +177,61 @@ class SymbolGraph:
     edges: list[dict[str, Any]] = field(default_factory=list)
 
 
+def _bucket_callees(
+    callees: list[dict[str, Any]], cs_chunks
+) -> list[list[dict[str, Any]]]:
+    """Assign whole-file callees to chunks by line span (narrowest wins).
+
+    Each callee carries a 1-based ``line``; each chunk carries ``start_line`` /
+    ``end_line``. A callee lands in the narrowest chunk span that contains its
+    line, so a call inside a method lands on the method chunk, not its enclosing
+    class chunk. Callees with no line, or outside every span, are dropped.
+    """
+    spans: list[tuple[int | None, int | None]] = [
+        ((cs.metadata or {}).get("start_line"), (cs.metadata or {}).get("end_line"))
+        for cs in cs_chunks
+    ]
+    buckets: list[list[dict[str, Any]]] = [[] for _ in cs_chunks]
+    for callee in callees:
+        line = callee.get("line")
+        if line is None:
+            continue
+        best_i: int | None = None
+        best_width: int | None = None
+        for i, (start, end) in enumerate(spans):
+            if start is None or end is None or not (start <= line <= end):
+                continue
+            width = end - start
+            if best_width is None or width < best_width:
+                best_i, best_width = i, width
+        if best_i is not None:
+            buckets[best_i].append(callee)
+    return buckets
+
+
 def extract_symbol_graph(
+    content: str,
     cs_chunks,
     *,
     source_path: str | None = None,
+    language: str | None = None,
     project_id: str = "doc",
 ) -> "SymbolGraph | None":
-    """Run chunkshop's CodeRelationshipsExtractor over symbol_aware chunks.
+    """Run chunkshop's CodeRelationshipsExtractor over a code document.
 
-    Per-chunk ``extract()`` attaches callees and accumulates symbols + call
-    sites; ``finalize()`` resolves them into edges. Per-file scope (one call per
-    document). Returns ``None`` when the installed chunkshop lacks the extractor,
-    so older builds degrade gracefully (callees absent, no code graph, no crash).
+    Parses the *whole document* once (not per chunk): per-chunk parsing
+    misattributes class inheritance to the innermost method and can drop the
+    class symbol entirely, whereas a whole-file parse builds the real scope tree.
+    ``finalize()`` then resolves the accumulated calls/inheritance into edges
+    (#75). Per-chunk callees (#74) are recovered by bucketing the whole-file call
+    sites into chunk line spans via :func:`_bucket_callees`.
+
+    Per-file scope (one call per document). Returns ``None`` when the installed
+    chunkshop lacks the extractor, so older builds degrade gracefully (callees
+    absent, no code graph, no crash).
 
     Correct results require chunkshop's tree-sitter parse path; the regex
-    fallback collapses symbol spans and starves per-chunk extraction.
+    fallback collapses symbol spans and starves call extraction.
     """
     try:
         from chunkshop.config import CodeRelationshipsExtractor as _CodeRelCfg
@@ -205,17 +245,20 @@ def extract_symbol_graph(
     ):
         return None
 
-    callees_by_index: list[list[dict[str, Any]]] = []
-    for cs in cs_chunks:
-        meta = cs.metadata or {}
-        result = extractor.extract(
-            cs.original_content or "",
-            source_path=meta.get("source_path") or source_path,
-            language=meta.get("language"),
-        )
-        callees_by_index.append(list((result.metadata or {}).get("callees", [])))
+    if language is None:
+        for cs in cs_chunks:
+            lang = (cs.metadata or {}).get("language")
+            if lang:
+                language = lang
+                break
+
+    result = extractor.extract(content or "", source_path=source_path, language=language)
+    whole_callees = list((result.metadata or {}).get("callees", []))
     edges = list(extractor.finalize(project_id=project_id or "doc"))
-    return SymbolGraph(callees_by_index=callees_by_index, edges=edges)
+    return SymbolGraph(
+        callees_by_index=_bucket_callees(whole_callees, cs_chunks),
+        edges=edges,
+    )
 
 
 def attach_code_edges(

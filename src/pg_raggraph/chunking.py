@@ -259,7 +259,7 @@ def _chunk_via_chunkshop(
         from pg_raggraph import chunkshop_bridge
 
         symbol_graph = chunkshop_bridge.extract_symbol_graph(
-            cs_chunks, source_path=source_path, project_id=source_path or "doc"
+            content, cs_chunks, source_path=source_path, project_id=source_path or "doc"
         )
 
     result: list[dict] = []
