@@ -463,3 +463,44 @@ def test_chunkshop_hierarchy_splits_oversized_section():
     )
     max_emb = max(len(c["embedded_content"]) for c in chunks)
     assert max_emb <= max_chars, f"embedded_content exceeds ceiling: max={max_emb} > {max_chars}"
+
+
+_CODE_GRAPH_SRC = '''\
+def helper(x):
+    return x + 1
+
+
+def runner(y):
+    return helper(y) * 2
+
+
+class Base:
+    pass
+
+
+class Child(Base):
+    def go(self):
+        return runner(3)
+'''
+
+
+@pytest.mark.skipif(
+    not hasattr(chunkshop_config, "SymbolAwareChunker"),
+    reason="chunkshop build does not expose SymbolAwareChunker",
+)
+def test_symbol_aware_attaches_callees_and_stashes_edges():
+    pytest.importorskip("tree_sitter_python")  # regex fallback degrades parses
+    cfg = PGRGConfig(chunk_strategy="chunkshop:symbol_aware", chunk_max_tokens=512)
+    chunks = chunk_document(_CODE_GRAPH_SRC, source_path="sample.py", config=cfg)
+    assert chunks
+
+    # #74: the chunk defining `runner` carries a callee for `helper`.
+    runner_chunk = next(c for c in chunks if c["metadata"].get("fqn") == "sample.runner")
+    assert any(d["name"] == "helper" for d in runner_chunk["metadata"].get("callees", []))
+
+    # #75: resolved edges are stashed on the first chunk for the ingest path.
+    edges = chunks[0]["metadata"].get("__code_edges__")
+    assert isinstance(edges, list) and edges
+    edge_set = {(e["edge_type"], e["src_fqn"], e["dst_fqn"]) for e in edges}
+    assert ("CALLS", "sample.runner", "sample.helper") in edge_set
+    assert ("INHERITS", "sample.Child", "sample.Base") in edge_set

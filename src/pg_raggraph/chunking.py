@@ -250,8 +250,20 @@ def _chunk_via_chunkshop(
     chunker = load_chunker(chunker_cfg_map[name])
     cs_chunks = chunker.chunk(doc)
 
+    # #74/#75: for symbol_aware, run chunkshop's CodeRelationshipsExtractor over
+    # the produced chunks. Attaches per-chunk callees and resolves CALLS/
+    # INHERITS/IMPLEMENTS edges. Feature-guarded + lazy inside the bridge; None
+    # on older chunkshop builds (callees/edges simply absent).
+    symbol_graph = None
+    if name == "symbol_aware":
+        from pg_raggraph import chunkshop_bridge
+
+        symbol_graph = chunkshop_bridge.extract_symbol_graph(
+            cs_chunks, source_path=source_path, project_id=source_path or "doc"
+        )
+
     result: list[dict] = []
-    for cs in cs_chunks:
+    for idx, cs in enumerate(cs_chunks):
         body = (cs.original_content or "").strip()
         if not body:
             continue
@@ -262,6 +274,8 @@ def _chunk_via_chunkshop(
         meta.setdefault("chunk_index", len(result))
         meta.setdefault("chunkshop_strategy", name)
         meta.setdefault("chunkshop_seq_num", cs.seq_num)
+        if symbol_graph is not None:
+            meta["callees"] = symbol_graph.callees_by_index[idx]
         result.append(
             {
                 "content": body,
@@ -271,6 +285,12 @@ def _chunk_via_chunkshop(
                 "metadata": meta,
             }
         )
+
+    # Stash resolved code edges on the first chunk so _ingest_one_content can
+    # materialize the code graph. Popped + stripped there before the chunk row
+    # is written, so this private key never persists.
+    if symbol_graph is not None and symbol_graph.edges and result:
+        result[0]["metadata"]["__code_edges__"] = symbol_graph.edges
     return result
 
 
