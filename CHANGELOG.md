@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0a11 — 2026-06-08 (symbol_aware code graph at ingest)
 
 ### Added
 - **`chunk_strategy="chunkshop:symbol_aware"` now builds the code graph at ingest
