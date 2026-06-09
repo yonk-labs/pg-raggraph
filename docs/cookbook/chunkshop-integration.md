@@ -46,10 +46,10 @@ The 1-line integration. Pg-raggraph still owns ingest end-to-end; chunkshop just
 
 ```bash
 pip install 'pg-raggraph[chunkshop]'
-# the [chunkshop] extra pulls chunkshop>=0.6.1 from PyPI
+# the [chunkshop] extra pulls chunkshop>=0.9.1 from PyPI
 ```
 
-The package floor is `chunkshop>=0.6.1` (on PyPI). The prose chunkers, the `chunkshop:code_aware` / `chunkshop:symbol_aware` pass-throughs, and the `code_edges` / `code_summary` surfaces are all guaranteed at this floor — no source-tree build needed.
+The package floor is `chunkshop>=0.9.1` (on PyPI). The prose chunkers, the `chunkshop:code_aware` / `chunkshop:symbol_aware` pass-throughs, and the `code_edges` / `code_summary` surfaces are all guaranteed at this floor — no source-tree build needed. The `0.9.1` floor matters for large/generated code corpora: it bounds `symbol_aware` over-parsing of generated/minified files (content-detection fallback + a `max_symbols_per_file=2000` cap, both on by default), which otherwise explode into thousands of chunks and OOM the embedding step (pg-raggraph#79).
 
 The dep is **optional** — pg-raggraph imports chunkshop lazily, only if you use a `chunkshop:*` strategy. If you don't install the extra and don't pass a chunkshop strategy, nothing changes.
 
