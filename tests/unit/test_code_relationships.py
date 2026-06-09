@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from pg_raggraph.chunkshop_bridge import (
+    CorpusCodeGraph,
     code_edges_to_known_graph,
     extract_symbol_graph,
 )
@@ -69,6 +70,26 @@ def test_extract_symbol_graph_callees_and_edges():
     edge_set = {(e["edge_type"], e["src_fqn"], e["dst_fqn"]) for e in sg.edges}
     assert ("CALLS", "sample.runner", "sample.helper") in edge_set
     assert ("INHERITS", "sample.Child", "sample.Base") in edge_set
+
+
+_FILE_A = "def helper(x):\n    return x + 1\n"
+_FILE_B = "from a import helper\n\n\ndef runner(y):\n    return helper(y) * 2\n"
+
+
+async def test_corpus_code_graph_resolves_cross_file_calls():
+    # b.runner calls a.helper (defined in a different file). Per-file resolution
+    # misses this; one corpus extractor over both files resolves it (#76).
+    corpus = CorpusCodeGraph()
+    assert corpus.available
+    await corpus.accumulate(_FILE_A, source_path="a.py", language="python")
+    await corpus.accumulate(_FILE_B, source_path="b.py", language="python")
+    edges = corpus.finalize(project_id="corpus")
+
+    cross = [e for e in edges if e["edge_type"] == "CALLS" and e["src_fqn"] == "b.runner"]
+    assert cross, f"expected cross-file CALLS from b.runner, got {edges}"
+    assert cross[0]["dst_fqn"] == "a.helper"
+    # cross-file edges are NOT intra_file
+    assert cross[0]["evidence"].get("resolution") != "intra_file"
 
 
 def test_extract_symbol_graph_none_when_extractor_unavailable(monkeypatch):

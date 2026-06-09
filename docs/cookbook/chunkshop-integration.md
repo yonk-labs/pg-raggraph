@@ -102,9 +102,15 @@ impact = await rag.code_impact("pkg.mod.runner")   # callers + callees, with evi
 
 Notes:
 
-- **Resolution is per-file** — intra-file edges are precise; cross-file calls are
-  best-effort (resolved only among symbols in the same document). Corpus-wide
-  cross-file resolution is a planned follow-up.
+- **Resolution is per-file by default** — intra-file edges are precise; a call to
+  a function defined in *another* file is not resolved (its caller won't show up).
+  For a true cross-file call graph, pass **`cross_file_code_graph=True`** to
+  `ingest_records` (or set `PGRG_CROSS_FILE_CODE_GRAPH=1`): one chunkshop resolver
+  accumulates the whole ingest (O(symbols), not content — streaming is preserved)
+  and a final pass materializes cross-file `CALLS`/`INHERITS`/`IMPLEMENTS` edges.
+  Each edge records `resolved_intra_file` in `relationships.properties` so you can
+  tell same-file from cross-file. (On pg-raggraph's own source this turns ~415
+  intra-file CALLS into ~1,030 edges, 636 of them cross-file.)
 - **Requires the source language's tree-sitter grammar** to be importable
   (e.g. `pip install tree-sitter tree-sitter-python`). Without it chunkshop
   silently falls back to a regex parser and the call graph degrades — symbol

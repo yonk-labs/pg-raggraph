@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0a12 — 2026-06-08 (cross-file code graph)
+
+### Added
+- **Cross-file code graph (`cross_file_code_graph=True`, #76).** `symbol_aware`
+  ingests resolved `CALLS`/`INHERITS`/`IMPLEMENTS` edges only *within* each file,
+  so a call to a function defined in another file was never traced (on a 765-file
+  ingest, 58% of symbols had 0 callers). Opt in with
+  `ingest_records(..., cross_file_code_graph=True)` (or
+  `PGRG_CROSS_FILE_CODE_GRAPH=1`): one chunkshop resolver accumulates the whole
+  ingest corpus (O(symbols), not content — bounded-memory streaming preserved),
+  and a final pass materializes cross-file edges. Each edge records
+  `resolved_intra_file` in `relationships.properties`. Default stays per-file
+  (no regression). On pg-raggraph's own `src/`: 415 → 1,030 CALLS edges, 636
+  cross-file, symbols-with-callers 246 → 351. New `CorpusCodeGraph` in
+  `chunkshop_bridge`; see `docs/cookbook/chunkshop-integration.md`.
+
 ## 0.5.0a11 — 2026-06-08 (symbol_aware code graph at ingest)
 
 ### Added

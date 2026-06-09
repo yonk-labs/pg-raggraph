@@ -292,3 +292,60 @@ async def test_distinct_code_symbols_stay_separate():
     finally:
         await rag.delete(NS)
         await rag.close()
+
+
+_PKG_A = "def helper(x):\n    return x + 1\n"
+_PKG_B = "from a import helper\n\n\ndef run(y):\n    return helper(y) * 2\n"
+
+
+@pytest.mark.asyncio
+async def test_cross_file_code_graph_resolves_callers():
+    """#76: with cross_file_code_graph=True, b.run (in b.py) calling a.helper
+    (in a.py) resolves into a cross-file CALLS edge, so a.helper has a caller."""
+    pytest.importorskip("chunkshop")
+    pytest.importorskip("tree_sitter_python")
+    rag = GraphRAG(dsn=DSN, namespace=NS, chunk_strategy="chunkshop:symbol_aware")
+    await _fresh(rag)
+    try:
+        records = [
+            {"text": _PKG_A, "source_id": "a.py", "skip_llm": True},
+            {"text": _PKG_B, "source_id": "b.py", "skip_llm": True},
+        ]
+        await rag.ingest_records(records, namespace=NS, cross_file_code_graph=True)
+
+        impact = await cg.code_impact(rag._db, "a.helper", namespace=NS, depth=1)
+        assert impact.found
+        assert "b.run" in [e.fqn for e in impact.callers]
+
+        # the cross-file edge is flagged not-intra-file in its properties
+        row = await rag._db.fetch_one(
+            "SELECT r.properties->>'resolved_intra_file' AS rif FROM relationships r "
+            "JOIN entities s ON s.id = r.src_id JOIN entities d ON d.id = r.dst_id "
+            "WHERE r.namespace = %s AND s.name = 'b.run' AND d.name = 'a.helper'",
+            (NS,),
+        )
+        assert row is not None and row["rif"] == "false"
+    finally:
+        await rag.delete(NS)
+        await rag.close()
+
+
+@pytest.mark.asyncio
+async def test_per_file_default_misses_cross_file_callers():
+    """Control: without the flag, the cross-file caller is absent — documents the
+    per-file limitation #76 fixes."""
+    pytest.importorskip("chunkshop")
+    pytest.importorskip("tree_sitter_python")
+    rag = GraphRAG(dsn=DSN, namespace=NS, chunk_strategy="chunkshop:symbol_aware")
+    await _fresh(rag)
+    try:
+        records = [
+            {"text": _PKG_A, "source_id": "a.py", "skip_llm": True},
+            {"text": _PKG_B, "source_id": "b.py", "skip_llm": True},
+        ]
+        await rag.ingest_records(records, namespace=NS)  # no flag → per-file
+        impact = await cg.code_impact(rag._db, "a.helper", namespace=NS, depth=1)
+        assert "b.run" not in [e.fqn for e in impact.callers]
+    finally:
+        await rag.delete(NS)
+        await rag.close()

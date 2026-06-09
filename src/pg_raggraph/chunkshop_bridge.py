@@ -177,6 +177,69 @@ class SymbolGraph:
     edges: list[dict[str, Any]] = field(default_factory=list)
 
 
+class CorpusCodeGraph:
+    """Corpus-wide cross-file code-symbol resolver (#76).
+
+    chunkshop resolves a call by matching its bare name against the symbols a
+    *single* extractor instance has accumulated. The per-document extractor in
+    :func:`extract_symbol_graph` therefore only resolves intra-file calls. This
+    holder owns **one** extractor for a whole ``ingest_records`` batch: each doc
+    is fed via :meth:`accumulate` (public ``extract()``), then :meth:`finalize`
+    resolves once across the corpus, materializing cross-file edges too.
+
+    Holds O(symbols) — the extractor's accumulated symbol/call state — never the
+    corpus content, so bounded-memory streaming is preserved. ``accumulate`` is
+    serialized by a lock because ``extract()`` mutates shared state and docs are
+    ingested concurrently; it is ~ms of tree-sitter, so contention is negligible
+    (embedding stays outside the lock).
+    """
+
+    def __init__(self) -> None:
+        import asyncio
+
+        self._lock = asyncio.Lock()
+        self._n = 0
+        try:
+            from chunkshop.config import CodeRelationshipsExtractor as _CodeRelCfg
+            from chunkshop.extractors import load_extractor
+
+            self._ext = load_extractor(_CodeRelCfg(type="code_relationships"))
+        except (ImportError, AttributeError, TypeError, ValueError):
+            self._ext = None
+        if self._ext is not None and not (
+            callable(getattr(self._ext, "extract", None))
+            and callable(getattr(self._ext, "finalize", None))
+        ):
+            self._ext = None
+
+    @property
+    def available(self) -> bool:
+        """False when the installed chunkshop lacks the extractor (degrade)."""
+        return self._ext is not None
+
+    @property
+    def count(self) -> int:
+        """Number of documents accumulated."""
+        return self._n
+
+    async def accumulate(
+        self, content: str, *, source_path: str | None = None, language: str | None = None
+    ) -> None:
+        if self._ext is None:
+            return
+        async with self._lock:
+            self._ext.extract(content or "", source_path=source_path, language=language)
+            self._n += 1
+
+    def finalize(self, *, project_id: str = "corpus") -> list[dict[str, Any]]:
+        """Resolve all accumulated symbols/calls. Returns the corpus edge list
+        (intra **and** cross-file), key-compatible with
+        :func:`code_edges_to_known_graph`. Empty when unavailable."""
+        if self._ext is None:
+            return []
+        return list(self._ext.finalize(project_id=project_id or "corpus"))
+
+
 def _bucket_callees(
     callees: list[dict[str, Any]], cs_chunks
 ) -> list[list[dict[str, Any]]]:
@@ -387,6 +450,7 @@ def fetch_code_edges_from_table(
 
 
 __all__ = [
+    "CorpusCodeGraph",
     "SymbolGraph",
     "attach_code_edges",
     "code_edges_to_known_graph",
