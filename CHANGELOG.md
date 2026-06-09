@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.0a13 — 2026-06-09 (cross-file resolver: spill to DB, fix OOM)
+
+### Fixed
+- **Cross-file code graph no longer OOMs on large repos (#76 follow-up).** The
+  corpus resolver introduced in 0.5.0a12 accumulated one entry per call site
+  (each with a source `snippet`) in memory — O(call-sites), measured ~427 B/call
+  → ~3.6 GB projected at 100k files. `CorpusCodeGraph` now keeps only the small
+  symbol index in memory and **spills call sites to an `UNLOGGED`
+  `code_calls_stage` table** (migration 014) during ingest; phase-2 resolution
+  **drains them in keyset batches** through `resolve_batch()` (verified
+  byte-identical to the one-shot resolver) plus a single `resolve_class_edges()`
+  pass for the much smaller INHERITS/IMPLEMENTS set. Peak resolver memory is now
+  **O(batch + symbol index)** instead of O(corpus call sites); the run's scratch
+  rows are deleted after resolution. No behavior change to the resolved graph.
+
 ## 0.5.0a12 — 2026-06-08 (cross-file code graph)
 
 ### Added

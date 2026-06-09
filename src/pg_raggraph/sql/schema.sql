@@ -280,3 +280,17 @@ CREATE TABLE IF NOT EXISTS fact_edges (
 
 CREATE INDEX IF NOT EXISTS idx_fact_edges_src ON fact_edges(src_fact_id, edge_type);
 CREATE INDEX IF NOT EXISTS idx_fact_edges_dst ON fact_edges(dst_fact_id, edge_type);
+
+-- Spill table for cross-file code-graph resolution (#76 OOM fix). UNLOGGED
+-- transient scratch: call sites are written per-file during ingest and drained
+-- in bounded batches during resolution, so the resolver never holds the whole
+-- corpus's call sites in memory. See migrations/014_code_calls_stage.sql.
+CREATE UNLOGGED TABLE IF NOT EXISTS code_calls_stage (
+    id         BIGSERIAL PRIMARY KEY,
+    namespace  TEXT NOT NULL,
+    run_id     TEXT NOT NULL,
+    payload    JSONB NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_code_calls_stage_run
+    ON code_calls_stage (namespace, run_id, id);
