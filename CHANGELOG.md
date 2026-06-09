@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0a12 — 2026-06-08 (cross-file code graph)
 
 ### Added
 - **Cross-file code graph (`cross_file_code_graph=True`, #76).** `symbol_aware`
