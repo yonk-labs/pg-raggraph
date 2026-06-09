@@ -78,18 +78,58 @@ _FILE_B = "from a import helper\n\n\ndef runner(y):\n    return helper(y) * 2\n"
 
 async def test_corpus_code_graph_resolves_cross_file_calls():
     # b.runner calls a.helper (defined in a different file). Per-file resolution
-    # misses this; one corpus extractor over both files resolves it (#76).
+    # misses this; corpus-wide resolution via accumulate → resolve_batch gets it.
     corpus = CorpusCodeGraph()
-    assert corpus.available
-    await corpus.accumulate(_FILE_A, source_path="a.py", language="python")
-    await corpus.accumulate(_FILE_B, source_path="b.py", language="python")
-    edges = corpus.finalize(project_id="corpus")
+    assert corpus.available and corpus.spillable
+    calls = []
+    calls += await corpus.accumulate(_FILE_A, source_path="a.py", language="python")
+    calls += await corpus.accumulate(_FILE_B, source_path="b.py", language="python")
+    edges = corpus.resolve_batch(calls)
 
     cross = [e for e in edges if e["edge_type"] == "CALLS" and e["src_fqn"] == "b.runner"]
     assert cross, f"expected cross-file CALLS from b.runner, got {edges}"
     assert cross[0]["dst_fqn"] == "a.helper"
-    # cross-file edges are NOT intra_file
     assert cross[0]["evidence"].get("resolution") != "intra_file"
+
+
+async def test_accumulate_spills_and_clears_calls():
+    # The OOM fix (#76 a13): accumulate returns each doc's calls AND clears them
+    # from the in-memory extractor, so call sites never pile up in memory.
+    corpus = CorpusCodeGraph()
+    await corpus.accumulate(_FILE_A, source_path="a.py", language="python")
+    calls_b = await corpus.accumulate(_FILE_B, source_path="b.py", language="python")
+    assert calls_b, "b.py has a call site that should be returned for spilling"
+    # in-memory pending-calls list is drained after each accumulate
+    assert corpus._ext._pending_calls == []
+    # but the symbol index persists (that's what cross-file resolution needs)
+    assert corpus._ext._symbols
+
+
+async def test_batched_resolution_matches_one_shot():
+    # Spilling + batched resolve_batch must produce the same edges as a single
+    # in-memory finalize() — the parity guarantee behind the OOM fix.
+    from chunkshop.config import CodeRelationshipsExtractor as _Cfg
+    from chunkshop.extractors import load_extractor
+
+    files = [("a.py", _FILE_A), ("b.py", _FILE_B), ("sample.py", _CODE_SRC)]
+
+    ref = load_extractor(_Cfg(type="code_relationships"))
+    for sp, src in files:
+        ref.extract(src, source_path=sp, language="python")
+    baseline = sorted({(e["edge_type"], e["src_fqn"], e["dst_fqn"]) for e in ref.finalize()})
+
+    corpus = CorpusCodeGraph()
+    all_calls = []
+    for sp, src in files:
+        all_calls += await corpus.accumulate(src, source_path=sp, language="python")
+    def keys(edges):
+        return {(e["edge_type"], e["src_fqn"], e["dst_fqn"]) for e in edges}
+
+    got = set()
+    for i in range(0, len(all_calls), 2):  # tiny batches to exercise the path
+        got |= keys(corpus.resolve_batch(all_calls[i : i + 2]))
+    got |= keys(corpus.resolve_class_edges())
+    assert sorted(got) == baseline
 
 
 def test_extract_symbol_graph_none_when_extractor_unavailable(monkeypatch):

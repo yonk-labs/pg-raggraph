@@ -183,15 +183,22 @@ class CorpusCodeGraph:
     chunkshop resolves a call by matching its bare name against the symbols a
     *single* extractor instance has accumulated. The per-document extractor in
     :func:`extract_symbol_graph` therefore only resolves intra-file calls. This
-    holder owns **one** extractor for a whole ``ingest_records`` batch: each doc
-    is fed via :meth:`accumulate` (public ``extract()``), then :meth:`finalize`
-    resolves once across the corpus, materializing cross-file edges too.
+    holder owns **one** extractor for a whole ``ingest_records`` batch so calls
+    resolve across files.
 
-    Holds O(symbols) — the extractor's accumulated symbol/call state — never the
-    corpus content, so bounded-memory streaming is preserved. ``accumulate`` is
-    serialized by a lock because ``extract()`` mutates shared state and docs are
-    ingested concurrently; it is ~ms of tree-sitter, so contention is negligible
-    (embedding stays outside the lock).
+    **Memory (the #76 OOM fix, v0.5.0a13).** chunkshop accumulates one entry per
+    call site (each with a source ``snippet``) in ``extractor._pending_calls`` —
+    O(call-sites), ~3.6 GB at 100k files. So :meth:`accumulate` keeps only the
+    small **symbol index** in the extractor and **returns each doc's call sites
+    for the caller to spill to the DB**, clearing them from memory. Resolution
+    then streams those calls back in bounded batches via :meth:`resolve_batch`
+    (verified byte-identical to a single ``finalize()``), plus a one-shot
+    :meth:`resolve_class_edges` for the far-smaller INHERITS/IMPLEMENTS set.
+    Peak memory is O(batch + symbol index), not O(corpus call sites).
+
+    ``accumulate`` is serialized by a lock because ``extract()`` mutates shared
+    state and docs are ingested concurrently; it is ~ms of tree-sitter, so
+    contention is negligible (embedding stays outside the lock).
     """
 
     def __init__(self) -> None:
@@ -211,11 +218,25 @@ class CorpusCodeGraph:
             and callable(getattr(self._ext, "finalize", None))
         ):
             self._ext = None
+        # Spill needs to read/swap the extractor's pending-call/class-edge lists.
+        # Feature-guard the private attrs: if a chunkshop build lacks them we
+        # degrade to in-memory accumulation (correct, just not OOM-bounded).
+        self._spillable = self._ext is not None and all(
+            isinstance(getattr(self._ext, attr, None), list)
+            for attr in ("_pending_calls", "_pending_class_edges")
+        )
 
     @property
     def available(self) -> bool:
         """False when the installed chunkshop lacks the extractor (degrade)."""
         return self._ext is not None
+
+    @property
+    def spillable(self) -> bool:
+        """True when call sites can be spilled to keep memory O(batch). False
+        means the chunkshop build lacks the internal lists — accumulation stays
+        in memory (the pre-a13 behavior)."""
+        return self._spillable
 
     @property
     def count(self) -> int:
@@ -224,17 +245,53 @@ class CorpusCodeGraph:
 
     async def accumulate(
         self, content: str, *, source_path: str | None = None, language: str | None = None
-    ) -> None:
+    ) -> list[dict[str, Any]]:
+        """Parse one doc into the shared symbol index. Returns this doc's call
+        sites (for the caller to spill to the DB) and drops them from the
+        in-memory extractor, so resolver memory stays O(symbol index). Returns
+        ``[]`` when unavailable, or when not spillable (calls then remain in the
+        extractor for a single end-of-ingest resolve)."""
         if self._ext is None:
-            return
+            return []
         async with self._lock:
             self._ext.extract(content or "", source_path=source_path, language=language)
             self._n += 1
+            if not self._spillable:
+                return []
+            calls = list(self._ext._pending_calls)
+            self._ext._pending_calls.clear()
+            return calls
+
+    def resolve_batch(self, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Resolve a batch of spilled call sites against the accumulated symbol
+        index → ``CALLS`` edges (key-compatible with
+        :func:`code_edges_to_known_graph`). Class edges are excluded here and
+        emitted once by :meth:`resolve_class_edges`."""
+        if self._ext is None:
+            return []
+        if not self._spillable:
+            return []
+        self._ext._pending_calls = list(calls)
+        saved = self._ext._pending_class_edges
+        self._ext._pending_class_edges = []
+        try:
+            return list(self._ext.finalize(project_id="corpus"))
+        finally:
+            self._ext._pending_class_edges = saved
+
+    def resolve_class_edges(self) -> list[dict[str, Any]]:
+        """Resolve the accumulated INHERITS/IMPLEMENTS edges once (their count is
+        O(classes), not O(call-sites), so they need no spill). Run after the call
+        batches."""
+        if self._ext is None:
+            return []
+        if self._spillable:
+            self._ext._pending_calls = []
+        return list(self._ext.finalize(project_id="corpus"))
 
     def finalize(self, *, project_id: str = "corpus") -> list[dict[str, Any]]:
-        """Resolve all accumulated symbols/calls. Returns the corpus edge list
-        (intra **and** cross-file), key-compatible with
-        :func:`code_edges_to_known_graph`. Empty when unavailable."""
+        """Non-spill fallback: resolve everything still held in the extractor in
+        one pass. Used only when :attr:`spillable` is False (older chunkshop)."""
         if self._ext is None:
             return []
         return list(self._ext.finalize(project_id=project_id or "corpus"))

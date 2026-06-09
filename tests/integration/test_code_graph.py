@@ -325,6 +325,13 @@ async def test_cross_file_code_graph_resolves_callers():
             (NS,),
         )
         assert row is not None and row["rif"] == "false"
+
+        # OOM fix (#76 a13): call sites are spilled to a staging table and
+        # drained — no scratch rows leak for this namespace after ingest.
+        stage = await rag._db.fetch_one(
+            "SELECT COUNT(*) AS n FROM code_calls_stage WHERE namespace = %s", (NS,)
+        )
+        assert stage["n"] == 0
     finally:
         await rag.delete(NS)
         await rag.close()

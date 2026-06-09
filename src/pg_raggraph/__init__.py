@@ -815,10 +815,14 @@ class GraphRAG:
             else cross_file_code_graph
         )
         corpus_code_graph = None
+        corpus_run_id = None
         if effective_cross_file:
+            import uuid
+
             from pg_raggraph.chunkshop_bridge import CorpusCodeGraph
 
             corpus_code_graph = CorpusCodeGraph()
+            corpus_run_id = uuid.uuid4().hex
 
         def _progress(msg: str):
             logger.info(msg)
@@ -972,6 +976,7 @@ class GraphRAG:
                             living_context=living_context,
                             defer_extraction=rec_defer_extraction,
                             corpus_code_graph=corpus_code_graph,
+                            corpus_run_id=corpus_run_id,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -1031,7 +1036,7 @@ class GraphRAG:
         # been accumulated, resolve once and write the resulting CALLS/INHERITS/
         # IMPLEMENTS edges (intra + cross-file) + their CODE_SYMBOL endpoints.
         if corpus_code_graph is not None and corpus_code_graph.count:
-            n_rels = await self._write_corpus_code_graph(ns, corpus_code_graph)
+            n_rels = await self._write_corpus_code_graph(ns, corpus_code_graph, corpus_run_id)
             if n_rels:
                 stats["rels"] += n_rels
                 _progress(f"Cross-file code graph: wrote {n_rels} resolved edges.")
@@ -1113,6 +1118,7 @@ class GraphRAG:
         living_context: _LivingContext | None = None,
         defer_extraction: bool = False,
         corpus_code_graph=None,
+        corpus_run_id=None,
     ):
         """Ingest a single document from in-memory content with all DB
         writes in a single transaction.
@@ -1245,9 +1251,15 @@ class GraphRAG:
             # dropped — the corpus finalize re-materializes them WITH cross-file
             # edges. Only code docs (symbol_aware chunks carry `language`).
             if _code_lang and not defer_extraction:
-                await corpus_code_graph.accumulate(
+                calls = await corpus_code_graph.accumulate(
                     content, source_path=file_path, language=_code_lang
                 )
+                # Spill this doc's call sites to the staging table so the
+                # resolver never holds the whole corpus's calls in memory
+                # (#76 OOM fix). Empty when chunkshop isn't spillable — then
+                # calls stay in the extractor for a single end-of-ingest pass.
+                if calls and corpus_run_id is not None:
+                    await self._spill_code_calls(ns, corpus_run_id, calls)
         elif code_edges and not defer_extraction:
             from pg_raggraph import chunkshop_bridge
 
@@ -1720,73 +1732,126 @@ class GraphRAG:
             "degraded": extraction_degraded,
         }
 
-    async def _write_corpus_code_graph(self, ns, corpus_code_graph) -> int:
-        """#76 phase 2: resolve the accumulated corpus and persist its edges.
+    async def _spill_code_calls(self, ns, run_id, calls) -> None:
+        """Spill one doc's cross-file call sites to the staging table (#76 OOM
+        fix). One multi-row insert; rows are drained + deleted in phase 2."""
+        if not calls:
+            return
+        await self.db.execute(
+            "INSERT INTO code_calls_stage (namespace, run_id, payload) "
+            "SELECT %s, %s, x FROM unnest(%s::jsonb[]) AS x",
+            (ns, run_id, [json.dumps(c, default=_json_default) for c in calls]),
+        )
 
-        Writes CODE_SYMBOL entities (exact-name upsert, no embedding — code
-        symbols are graph nodes retrieved by exact FQN, not by vector) and
-        CALLS/INHERITS/IMPLEMENTS relationships (idempotent upsert). Each edge
-        records ``resolved_intra_file`` in its properties so consumers can tell
-        same-file from cross-file edges (the #76 acceptance criterion). Returns
-        the number of relationships written.
-        """
-        edges = corpus_code_graph.finalize(project_id=ns)
-        if not edges:
-            return 0
+    async def _persist_code_edges(self, tx, ns, edges) -> int:
+        """Map resolved edges → CODE_SYMBOL entities + relationships and upsert
+        them (idempotent). Records ``resolved_intra_file`` per edge. Shared by
+        the batched call pass and the class-edge pass. Returns rels written."""
         from pg_raggraph import chunkshop_bridge
 
         entities, rels = chunkshop_bridge.code_edges_to_known_graph(edges)
         if not rels:
             return 0
+        name_to_id: dict[str, int] = {}
+        for ent in entities:
+            row = await tx.fetch_one(
+                "INSERT INTO entities "
+                "(namespace, name, entity_type, description, properties) "
+                "VALUES (%s, %s, 'CODE_SYMBOL', %s, %s::jsonb) "
+                "ON CONFLICT (namespace, name) DO UPDATE SET "
+                "  description = COALESCE("
+                "    NULLIF(entities.description, ''), EXCLUDED.description), "
+                "  properties = entities.properties || EXCLUDED.properties "
+                "RETURNING id",
+                (
+                    ns,
+                    ent["name"],
+                    ent.get("description", "") or "",
+                    json.dumps(ent.get("properties") or {}, default=_json_default),
+                ),
+            )
+            name_to_id[ent["name"]] = row["id"]
 
-        async with self.db.transaction() as tx:
-            name_to_id: dict[str, int] = {}
-            for ent in entities:
-                row = await tx.fetch_one(
-                    "INSERT INTO entities "
-                    "(namespace, name, entity_type, description, properties) "
-                    "VALUES (%s, %s, 'CODE_SYMBOL', %s, %s::jsonb) "
-                    "ON CONFLICT (namespace, name) DO UPDATE SET "
-                    "  description = COALESCE("
-                    "    NULLIF(entities.description, ''), EXCLUDED.description), "
-                    "  properties = entities.properties || EXCLUDED.properties "
-                    "RETURNING id",
-                    (
-                        ns,
-                        ent["name"],
-                        ent.get("description", "") or "",
-                        json.dumps(ent.get("properties") or {}, default=_json_default),
-                    ),
-                )
-                name_to_id[ent["name"]] = row["id"]
+        written = 0
+        for rel in rels:
+            src_id = name_to_id.get(rel["src"])
+            dst_id = name_to_id.get(rel["dst"])
+            if not (src_id and dst_id):
+                continue
+            props = dict(rel.get("properties") or {})
+            resolution = (props.get("evidence") or {}).get("resolution")
+            props["resolved_intra_file"] = resolution == "intra_file"
+            await tx.execute(
+                "INSERT INTO relationships "
+                "(namespace, src_id, dst_id, rel_type, weight, description, properties) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb) "
+                "ON CONFLICT (namespace, src_id, dst_id, rel_type) DO UPDATE SET "
+                "  weight = GREATEST(relationships.weight, EXCLUDED.weight), "
+                "  properties = relationships.properties || EXCLUDED.properties",
+                (
+                    ns,
+                    src_id,
+                    dst_id,
+                    rel.get("rel_type", "CALLS"),
+                    float(rel.get("weight", 1.0)),
+                    rel.get("description", "") or "",
+                    json.dumps(props, default=_json_default),
+                ),
+            )
+            written += 1
+        return written
 
-            written = 0
-            for rel in rels:
-                src_id = name_to_id.get(rel["src"])
-                dst_id = name_to_id.get(rel["dst"])
-                if not (src_id and dst_id):
-                    continue
-                props = dict(rel.get("properties") or {})
-                resolution = (props.get("evidence") or {}).get("resolution")
-                props["resolved_intra_file"] = resolution == "intra_file"
-                await tx.execute(
-                    "INSERT INTO relationships "
-                    "(namespace, src_id, dst_id, rel_type, weight, description, properties) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb) "
-                    "ON CONFLICT (namespace, src_id, dst_id, rel_type) DO UPDATE SET "
-                    "  weight = GREATEST(relationships.weight, EXCLUDED.weight), "
-                    "  properties = relationships.properties || EXCLUDED.properties",
-                    (
-                        ns,
-                        src_id,
-                        dst_id,
-                        rel.get("rel_type", "CALLS"),
-                        float(rel.get("weight", 1.0)),
-                        rel.get("description", "") or "",
-                        json.dumps(props, default=_json_default),
-                    ),
+    async def _write_corpus_code_graph(
+        self, ns, corpus_code_graph, run_id, batch_size=5000
+    ) -> int:
+        """#76 phase 2: resolve the accumulated corpus and persist its edges.
+
+        Spillable path (default): drain the staging table in keyset batches,
+        resolve each batch of call sites against the in-memory symbol index, and
+        upsert the resulting edges — so resolver + writer memory stay O(batch),
+        never O(corpus call sites). Then resolve the (small) INHERITS/IMPLEMENTS
+        set once. Always cleans up the run's staging rows. Falls back to a single
+        in-memory finalize when the chunkshop build isn't spillable.
+
+        Each edge records ``resolved_intra_file`` in its properties (the #76
+        acceptance criterion). Returns the number of relationships written.
+        """
+        if not corpus_code_graph.spillable or run_id is None:
+            edges = corpus_code_graph.finalize(project_id=ns)
+            if not edges:
+                return 0
+            async with self.db.transaction() as tx:
+                return await self._persist_code_edges(tx, ns, edges)
+
+        written = 0
+        try:
+            last_id = 0
+            while True:
+                rows = await self.db.fetch_all(
+                    "SELECT id, payload FROM code_calls_stage "
+                    "WHERE namespace = %s AND run_id = %s AND id > %s "
+                    "ORDER BY id LIMIT %s",
+                    (ns, run_id, last_id, batch_size),
                 )
-                written += 1
+                if not rows:
+                    break
+                last_id = rows[-1]["id"]
+                calls = [self._decode_profile_value(r["payload"]) for r in rows]
+                edges = corpus_code_graph.resolve_batch(calls)
+                if edges:
+                    async with self.db.transaction() as tx:
+                        written += await self._persist_code_edges(tx, ns, edges)
+
+            class_edges = corpus_code_graph.resolve_class_edges()
+            if class_edges:
+                async with self.db.transaction() as tx:
+                    written += await self._persist_code_edges(tx, ns, class_edges)
+        finally:
+            # Drop the run's transient scratch rows (success or failure).
+            await self.db.execute(
+                "DELETE FROM code_calls_stage WHERE namespace = %s AND run_id = %s",
+                (ns, run_id),
+            )
         return written
 
     def get_cached_result(self, result_id: str) -> QueryResult | None:
