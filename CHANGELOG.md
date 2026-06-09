@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0a14 — 2026-06-09 (raise chunkshop floor to 0.9.1: bound symbol_aware over-parse)
+
+### Fixed
+- **Large/generated code corpora no longer OOM the embedding step (#79 root
+  cause).** chunkshop 0.9.0's path-less language detection parsed ~2× more files
+  as code, so a single generated/minified file could explode into thousands of
+  `symbol_aware` chunks and exhaust memory downstream when embedding them.
+  chunkshop **0.9.1** (chunkshop#71/#72) adds two guards — a content-detection
+  fallback for generated/minified files and a `max_symbols_per_file=2000` cap,
+  **both on by default** — that bound the chunk count (a 3,000-function generated
+  `.ts` drops from 3,000 chunks to ~74). The `[chunkshop]` extra floor is raised
+  to `chunkshop>=0.9.1` so the fix applies automatically; pg-raggraph's
+  `chunk_strategy="chunkshop:symbol_aware"` path inherits the default cap with no
+  config change. Pairs with the a13 cross-file-resolver spill-to-DB fix — together
+  they close both halves of #79.
+
 ## 0.5.0a13 — 2026-06-09 (cross-file resolver: spill to DB, fix OOM)
 
 ### Fixed
