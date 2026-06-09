@@ -119,6 +119,13 @@ class PGRGConfig(BaseSettings):
     chunk_max_tokens: int = 512
     chunk_overlap_tokens: int = 50
 
+    # Code graph: when True, symbol_aware ingests resolve CALLS/INHERITS edges
+    # across the WHOLE ingest corpus (cross-file), not just within each file
+    # (#76). Off by default — the per-file path stays streaming/bounded-memory.
+    # Enabling accumulates one chunkshop resolver across the ingest_records call
+    # (O(symbols), not content) and writes the resolved edges in a final pass.
+    cross_file_code_graph: bool = False
+
     # Ingestion parallelism — default profile is "balanced". Typed Literal
     # so a typo in PGRG_INGEST_PROFILE raises ValidationError at init
     # instead of silently falling back to "balanced".

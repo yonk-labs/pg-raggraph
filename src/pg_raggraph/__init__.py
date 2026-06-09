@@ -656,6 +656,7 @@ class GraphRAG:
         living_audit_diffs: bool | None = None,
         defer_extraction: bool = False,
         batch_size: int = 64,
+        cross_file_code_graph: bool | None = None,
     ):
         """Ingest documents from in-memory records — no disk roundtrip.
 
@@ -751,6 +752,13 @@ class GraphRAG:
                 eagerly up front (a bad row raises before any write); a stream
                 validates each batch as it is pulled. Lower it to cut the
                 memory ceiling of a wrapping service; raise it for throughput.
+            cross_file_code_graph: For ``chunk_strategy="chunkshop:symbol_aware"``
+                code ingests, resolve CALLS/INHERITS/IMPLEMENTS edges across the
+                WHOLE ingest corpus (cross-file), not just within each file (#76).
+                Defaults to ``config.cross_file_code_graph`` (False). When True,
+                one chunkshop resolver accumulates every doc's symbols/calls
+                (O(symbols), not content) and a final pass writes the resolved
+                edges; each carries ``resolved_intra_file`` in its properties.
 
         Returns: same stats shape as ``ingest()``.
 
@@ -796,6 +804,21 @@ class GraphRAG:
         started = time.perf_counter()
         self.config.apply_nice_level()
         embedder = self._get_embedder()
+
+        # Cross-file code graph (#76): one corpus-wide chunkshop resolver for the
+        # whole ingest. Accumulates each symbol_aware doc's symbols/calls (phase
+        # 1, O(symbols)); after all docs, finalize() resolves cross-file edges
+        # and we write them in one pass. Off by default → per-file/streaming.
+        effective_cross_file = (
+            self.config.cross_file_code_graph
+            if cross_file_code_graph is None
+            else cross_file_code_graph
+        )
+        corpus_code_graph = None
+        if effective_cross_file:
+            from pg_raggraph.chunkshop_bridge import CorpusCodeGraph
+
+            corpus_code_graph = CorpusCodeGraph()
 
         def _progress(msg: str):
             logger.info(msg)
@@ -948,6 +971,7 @@ class GraphRAG:
                             pre_chunked=rec_pre_chunked,
                             living_context=living_context,
                             defer_extraction=rec_defer_extraction,
+                            corpus_code_graph=corpus_code_graph,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -1002,6 +1026,15 @@ class GraphRAG:
                     *[_process_record(processed + j + 1, rec) for j, rec in enumerate(batch)]
                 )
                 processed += len(batch)
+
+        # Phase 2 (#76): corpus-wide cross-file resolution. After every doc has
+        # been accumulated, resolve once and write the resulting CALLS/INHERITS/
+        # IMPLEMENTS edges (intra + cross-file) + their CODE_SYMBOL endpoints.
+        if corpus_code_graph is not None and corpus_code_graph.count:
+            n_rels = await self._write_corpus_code_graph(ns, corpus_code_graph)
+            if n_rels:
+                stats["rels"] += n_rels
+                _progress(f"Cross-file code graph: wrote {n_rels} resolved edges.")
 
         notes_msg = []
         if stats["failed"]:
@@ -1079,6 +1112,7 @@ class GraphRAG:
         pre_chunked: list[dict] | None = None,
         living_context: _LivingContext | None = None,
         defer_extraction: bool = False,
+        corpus_code_graph=None,
     ):
         """Ingest a single document from in-memory content with all DB
         writes in a single transaction.
@@ -1203,7 +1237,18 @@ class GraphRAG:
         # graph. Pop unconditionally so the bulky edge list never persists on the
         # chunk row; only materialize on the synchronous (non-deferred) path.
         code_edges = chunks[0]["metadata"].pop("__code_edges__", None) if chunks else None
-        if code_edges and not defer_extraction:
+        _code_lang = chunks[0]["metadata"].get("language") if chunks else None
+        if corpus_code_graph is not None:
+            # #76 cross-file mode: defer ALL edge resolution to the corpus pass.
+            # Accumulate this code doc's symbols/calls into the shared resolver;
+            # the per-doc (intra-file) edges in `code_edges` are intentionally
+            # dropped — the corpus finalize re-materializes them WITH cross-file
+            # edges. Only code docs (symbol_aware chunks carry `language`).
+            if _code_lang and not defer_extraction:
+                await corpus_code_graph.accumulate(
+                    content, source_path=file_path, language=_code_lang
+                )
+        elif code_edges and not defer_extraction:
             from pg_raggraph import chunkshop_bridge
 
             _code_entities, _code_rels = chunkshop_bridge.code_edges_to_known_graph(code_edges)
@@ -1674,6 +1719,75 @@ class GraphRAG:
             "rels": rel_count,
             "degraded": extraction_degraded,
         }
+
+    async def _write_corpus_code_graph(self, ns, corpus_code_graph) -> int:
+        """#76 phase 2: resolve the accumulated corpus and persist its edges.
+
+        Writes CODE_SYMBOL entities (exact-name upsert, no embedding — code
+        symbols are graph nodes retrieved by exact FQN, not by vector) and
+        CALLS/INHERITS/IMPLEMENTS relationships (idempotent upsert). Each edge
+        records ``resolved_intra_file`` in its properties so consumers can tell
+        same-file from cross-file edges (the #76 acceptance criterion). Returns
+        the number of relationships written.
+        """
+        edges = corpus_code_graph.finalize(project_id=ns)
+        if not edges:
+            return 0
+        from pg_raggraph import chunkshop_bridge
+
+        entities, rels = chunkshop_bridge.code_edges_to_known_graph(edges)
+        if not rels:
+            return 0
+
+        async with self.db.transaction() as tx:
+            name_to_id: dict[str, int] = {}
+            for ent in entities:
+                row = await tx.fetch_one(
+                    "INSERT INTO entities "
+                    "(namespace, name, entity_type, description, properties) "
+                    "VALUES (%s, %s, 'CODE_SYMBOL', %s, %s::jsonb) "
+                    "ON CONFLICT (namespace, name) DO UPDATE SET "
+                    "  description = COALESCE("
+                    "    NULLIF(entities.description, ''), EXCLUDED.description), "
+                    "  properties = entities.properties || EXCLUDED.properties "
+                    "RETURNING id",
+                    (
+                        ns,
+                        ent["name"],
+                        ent.get("description", "") or "",
+                        json.dumps(ent.get("properties") or {}, default=_json_default),
+                    ),
+                )
+                name_to_id[ent["name"]] = row["id"]
+
+            written = 0
+            for rel in rels:
+                src_id = name_to_id.get(rel["src"])
+                dst_id = name_to_id.get(rel["dst"])
+                if not (src_id and dst_id):
+                    continue
+                props = dict(rel.get("properties") or {})
+                resolution = (props.get("evidence") or {}).get("resolution")
+                props["resolved_intra_file"] = resolution == "intra_file"
+                await tx.execute(
+                    "INSERT INTO relationships "
+                    "(namespace, src_id, dst_id, rel_type, weight, description, properties) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb) "
+                    "ON CONFLICT (namespace, src_id, dst_id, rel_type) DO UPDATE SET "
+                    "  weight = GREATEST(relationships.weight, EXCLUDED.weight), "
+                    "  properties = relationships.properties || EXCLUDED.properties",
+                    (
+                        ns,
+                        src_id,
+                        dst_id,
+                        rel.get("rel_type", "CALLS"),
+                        float(rel.get("weight", 1.0)),
+                        rel.get("description", "") or "",
+                        json.dumps(props, default=_json_default),
+                    ),
+                )
+                written += 1
+        return written
 
     def get_cached_result(self, result_id: str) -> QueryResult | None:
         """Return a previously-retained QueryResult (full chunks) by id, or None
