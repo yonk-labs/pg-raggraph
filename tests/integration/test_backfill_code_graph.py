@@ -54,3 +54,74 @@ async def test_code_backfill_stage_table_exists():
         assert {"document_id", "namespace", "content", "language", "source_path"} <= names
     finally:
         await rag.close()
+
+
+@pytest.mark.asyncio
+async def test_deferred_code_doc_persists_raw_content():
+    pytest.importorskip("chunkshop")
+    pytest.importorskip("tree_sitter_python")
+    rag = GraphRAG(dsn=DSN, namespace=NS, chunk_strategy="chunkshop:symbol_aware")
+    await _fresh(rag)
+    try:
+        await rag.ingest_records(
+            [{"text": _PKG_A, "source_id": "a.py", "skip_llm": True}],
+            namespace=NS,
+            defer_extraction=True,
+        )
+        rows = await rag._db.fetch_all(
+            "SELECT content, language FROM code_backfill_stage WHERE namespace = %s",
+            (NS,),
+        )
+        assert len(rows) == 1
+        assert rows[0]["content"] == _PKG_A  # byte-faithful raw file content
+        assert rows[0]["language"] == "python"  # chunkshop tagged the .py doc
+        # deferred → no code edges written inline
+        n = await rag._db.fetch_one(
+            "SELECT COUNT(*) AS n FROM relationships "
+            "WHERE namespace = %s AND rel_type = 'CALLS'",
+            (NS,),
+        )
+        assert n["n"] == 0
+    finally:
+        await rag.delete(NS)
+        await rag.close()
+
+
+@pytest.mark.asyncio
+async def test_deferred_prose_doc_does_not_persist():
+    rag = GraphRAG(dsn=DSN, namespace=NS)  # default chunker, not symbol_aware
+    await _fresh(rag)
+    try:
+        await rag.ingest_records(
+            [{"text": "The quick brown fox. Plain prose, no code here.",
+              "source_id": "doc.txt", "skip_llm": True}],
+            namespace=NS,
+            defer_extraction=True,
+        )
+        n = await rag._db.fetch_one(
+            "SELECT COUNT(*) AS n FROM code_backfill_stage WHERE namespace = %s", (NS,)
+        )
+        assert n["n"] == 0  # no `language` metadata → not a code doc → not staged
+    finally:
+        await rag.delete(NS)
+        await rag.close()
+
+
+@pytest.mark.asyncio
+async def test_non_deferred_code_doc_does_not_stage():
+    pytest.importorskip("chunkshop")
+    pytest.importorskip("tree_sitter_python")
+    rag = GraphRAG(dsn=DSN, namespace=NS, chunk_strategy="chunkshop:symbol_aware")
+    await _fresh(rag)
+    try:
+        await rag.ingest_records(
+            [{"text": _PKG_A, "source_id": "a.py", "skip_llm": True}],
+            namespace=NS,  # NOT deferred → edges materialize inline, nothing staged
+        )
+        n = await rag._db.fetch_one(
+            "SELECT COUNT(*) AS n FROM code_backfill_stage WHERE namespace = %s", (NS,)
+        )
+        assert n["n"] == 0
+    finally:
+        await rag.delete(NS)
+        await rag.close()
