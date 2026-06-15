@@ -19,7 +19,7 @@ pytestmark = pytest.mark.skipif(
     reason="chunkshop build does not expose SymbolAwareChunker",
 )
 
-_CODE_SRC = '''\
+_CODE_SRC = """\
 def helper(x):
     return x + 1
 
@@ -35,7 +35,7 @@ class Base:
 class Child(Base):
     def go(self):
         return runner(3)
-'''
+"""
 
 
 def _symbol_chunks(src: str, source_path: str = "sample.py"):
@@ -122,6 +122,7 @@ async def test_batched_resolution_matches_one_shot():
     all_calls = []
     for sp, src in files:
         all_calls += await corpus.accumulate(src, source_path=sp, language="python")
+
     def keys(edges):
         return {(e["edge_type"], e["src_fqn"], e["dst_fqn"]) for e in edges}
 

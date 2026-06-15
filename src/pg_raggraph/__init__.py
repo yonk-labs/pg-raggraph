@@ -20,7 +20,7 @@ try:
     __version__ = _pkg_version("pg-raggraph")
 except PackageNotFoundError:
     # Editable install without installed metadata (rare). Mirror pyproject.
-    __version__ = "0.5.0a14"
+    __version__ = "0.5.0a15"
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.models import QueryResult
@@ -1497,6 +1497,25 @@ class GraphRAG:
                     retracted_explicit,
                 ),
             )
+
+            # #81: persist raw file content for deferred CODE docs so the code
+            # graph (CALLS/INHERITS/IMPLEMENTS) can be rebuilt out-of-band by
+            # `pgrg backfill-code-graph`. Gate: deferred + a symbol_aware code
+            # doc (those chunks carry `language`) + not pre_chunked (Pattern C's
+            # `content` is joined-chunk text, not a faithful file — out of scope).
+            # Atomic with the doc — staged content lands iff the doc does. The
+            # table is LOGGED so it survives until a later backfill run.
+            if defer_extraction and _code_lang and pre_chunked is None:
+                await tx.execute(
+                    "INSERT INTO code_backfill_stage "
+                    "(document_id, namespace, content, language, source_path) "
+                    "VALUES (%s, %s, %s, %s, %s) "
+                    "ON CONFLICT (document_id) DO UPDATE SET "
+                    "  content = EXCLUDED.content, "
+                    "  language = EXCLUDED.language, "
+                    "  source_path = EXCLUDED.source_path",
+                    (doc_id, ns, content, _code_lang, file_path),
+                )
 
             # If caller supplied version info or a supersession edge, create a
             # document_versions row for authoritative multi-version tracking.

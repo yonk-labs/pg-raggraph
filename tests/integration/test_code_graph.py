@@ -202,7 +202,7 @@ def test_cli_code_impact_json_and_notfound():
         asyncio.run(_teardown())
 
 
-_INGEST_SRC = '''\
+_INGEST_SRC = """\
 def helper(x):
     return x + 1
 
@@ -218,7 +218,7 @@ class Base:
 class Child(Base):
     def go(self):
         return runner(3)
-'''
+"""
 
 
 @pytest.mark.asyncio
@@ -257,14 +257,14 @@ async def test_symbol_aware_ingest_populates_code_graph():
         await rag.close()
 
 
-_DISTINCT_SRC = '''\
+_DISTINCT_SRC = """\
 def alpha():
     return omega()
 
 
 def omega():
     return 1
-'''
+"""
 
 
 @pytest.mark.asyncio

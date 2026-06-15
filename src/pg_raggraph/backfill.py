@@ -25,6 +25,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("pg_raggraph.backfill")
 
+# How many staged docs' content to read per query in backfill_code_graph.
+# One query per doc is an N+1 round-trip pattern (~10% of backfill wall-time at
+# scale); batching cuts that ~64x while keeping peak memory O(batch docs'
+# content), not O(corpus). The chunkshop symbol index (held by CorpusCodeGraph)
+# stays the dominant, unavoidable resident — this only bounds the content we
+# hold in flight, preserving the #76 memory ethos.
+_CONTENT_READ_BATCH = 64
+
 
 @dataclass
 class ExtractStats:
@@ -36,6 +44,21 @@ class ExtractStats:
     entities: int = 0
     relationships: int = 0
     errors: list[tuple[int, str]] = field(default_factory=list)
+
+
+@dataclass
+class CodeGraphStats:
+    """Per-call code-graph backfill outcome.
+
+    ``docs`` is staged docs resolved, ``edges`` the relationships written,
+    ``namespaces`` how many namespaces had staged work, ``skipped`` docs left
+    in place because chunkshop's extractor was unavailable.
+    """
+
+    namespaces: int = 0
+    docs: int = 0
+    edges: int = 0
+    skipped: int = 0
 
 
 async def claim_pending(db, namespace: str | None, batch_size: int) -> list[int]:
@@ -197,6 +220,122 @@ async def extract_documents(
             relationships=stats.relationships,
             latency_ms=(time.perf_counter() - t0) * 1000,
         )
+    return stats
+
+
+async def backfill_code_graph(
+    rag: GraphRAG,
+    namespace: str | None,
+    *,
+    batch_size: int = 5000,
+) -> CodeGraphStats:
+    """Rebuild the chunkshop code graph for docs staged by deferred ingest (#81).
+
+    A per-namespace corpus pass: re-parse each staged code doc into a shared
+    ``CorpusCodeGraph`` (spilling call sites the #76 way), then call the existing
+    ``rag._write_corpus_code_graph`` resolver to write the CALLS/INHERITS/
+    IMPLEMENTS edges, then delete the staged rows.
+
+    Cross-file resolution is namespace-scoped (symbols never cross namespaces),
+    so ``namespace=None`` runs one independent pass per namespace found in
+    ``code_backfill_stage``.
+
+    Resumable: staged rows are deleted only after the resolve succeeds, so a
+    crash mid-pass leaves them for a re-run (edge upserts are idempotent). This
+    is a single-worker corpus *finalize* — concurrent runs over one namespace are
+    correct but duplicate work. It never touches ``documents.graph_status``;
+    generic entity backfill (``extract_documents``) owns that independently.
+    """
+    import uuid
+
+    from pg_raggraph.chunkshop_bridge import CorpusCodeGraph
+
+    stats = CodeGraphStats()
+
+    if namespace is None:
+        ns_rows = await rag.db.fetch_all(
+            "SELECT DISTINCT namespace FROM code_backfill_stage ORDER BY namespace"
+        )
+        target_namespaces = [r["namespace"] for r in ns_rows]
+    else:
+        target_namespaces = [namespace]
+
+    # chunkshop availability is namespace-invariant — probe it once. A FRESH
+    # CorpusCodeGraph is still built per namespace below: each namespace is an
+    # independent corpus, so sharing one extractor would cross-pollinate symbol
+    # indexes across tenants. When unavailable, staged rows are left in place
+    # (counted as skipped) for a later run and a single summary warning is
+    # emitted after the loop rather than one per namespace.
+    chunkshop_ok = CorpusCodeGraph().available
+
+    for ns in target_namespaces:
+        id_rows = await rag.db.fetch_all(
+            "SELECT document_id FROM code_backfill_stage WHERE namespace = %s "
+            "ORDER BY document_id",
+            (ns,),
+        )
+        doc_ids = [r["document_id"] for r in id_rows]
+        if not doc_ids:
+            continue
+        stats.namespaces += 1
+
+        if not chunkshop_ok:
+            stats.skipped += len(doc_ids)
+            continue
+
+        ccg = CorpusCodeGraph()
+        run_id = uuid.uuid4().hex
+        t0 = time.perf_counter()
+        # Read staged content in bounded batches (not one row per doc — that's an
+        # N+1 round-trip pattern). Peak content held is O(_CONTENT_READ_BATCH
+        # docs), never O(corpus text) — the #76 memory ethos. Concurrently
+        # deleted rows simply don't come back in the batch (no per-row guard
+        # needed). Accumulation order doesn't affect the resolved edge set (the
+        # symbol index is a union), so within-batch ORDER BY is just determinism.
+        for start in range(0, len(doc_ids), _CONTENT_READ_BATCH):
+            id_batch = doc_ids[start : start + _CONTENT_READ_BATCH]
+            rows = await rag.db.fetch_all(
+                "SELECT content, language, source_path FROM code_backfill_stage "
+                "WHERE document_id = ANY(%s) ORDER BY document_id",
+                (id_batch,),
+            )
+            for row in rows:
+                calls = await ccg.accumulate(
+                    row["content"], source_path=row["source_path"], language=row["language"]
+                )
+                if calls:
+                    await rag._spill_code_calls(ns, run_id, calls)
+
+        n_rels = 0
+        if ccg.count:
+            n_rels = await rag._write_corpus_code_graph(ns, ccg, run_id, batch_size=batch_size)
+
+        await rag.db.execute(
+            "DELETE FROM code_backfill_stage WHERE document_id = ANY(%s)",
+            (doc_ids,),
+        )
+        stats.docs += len(doc_ids)
+        stats.edges += n_rels
+
+        emit = getattr(rag, "_emit_metric", None)
+        if emit is not None:
+            emit(
+                "pgrg.backfill.code_graph",
+                namespace=ns,
+                docs=len(doc_ids),
+                edges=n_rels,
+                latency_ms=(time.perf_counter() - t0) * 1000,
+            )
+
+    if stats.skipped:
+        logger.warning(
+            "chunkshop code extractor unavailable; left %d staged code doc(s) "
+            "across %d namespace(s) for a later run — re-run "
+            "`pgrg backfill-code-graph` once chunkshop is installed",
+            stats.skipped,
+            stats.namespaces,
+        )
+
     return stats
 
 

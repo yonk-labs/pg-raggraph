@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.5.0a15 — 2026-06-15 (out-of-band code-graph backfill for defer_extraction, #81)
+
+### Added
+- **`pgrg backfill-code-graph` + `backfill.backfill_code_graph()` — rebuild the
+  chunkshop code graph out-of-band after `defer_extraction=True` (#81).**
+  Previously, deferring extraction on a code KB
+  (`chunk_strategy="chunkshop:symbol_aware"`) was an either/or: fast ingest **or**
+  the `CALLS`/`INHERITS`/`IMPLEMENTS` graph, never both — the corpus resolver ran
+  only inline during the ingest transaction, so a deferred code graph could never
+  be reconstructed. `pgrg extract` only backfills the *entity* graph and has no
+  code-graph path. Now deferred ingest of a code doc persists its raw file content
+  to a new **durable (LOGGED)** `code_backfill_stage` table (migration 015),
+  atomic with the document insert, and `backfill_code_graph(rag, namespace)` (CLI:
+  `pgrg backfill-code-graph --namespace NS`) re-parses it per namespace, rebuilds
+  the cross-file symbol index, and writes the resolved edges — reusing the #76
+  spill resolver (`_write_corpus_code_graph`). It is **crash-resumable** (staged
+  rows deleted only after the resolve succeeds), **orthogonal to `pgrg extract`**
+  (keys off the staging table, never touches `documents.graph_status`), and
+  **single-worker-per-namespace** (a corpus finalize, not a SKIP-LOCKED queue).
+  Verified to produce a **byte-identical edge set** to the synchronous path on
+  real source (123/123 edges), with **linear time + O(symbol-index) memory** to
+  4k chunks (55 MB peak), preserving the #76 OOM bound. Staged content is read in
+  **bounded batches** (64 docs/query) to avoid an N+1 round-trip. Out of scope
+  (v1): Pattern C (`pre_chunked`) deferred code docs, daemon mode for the code
+  pass, multi-worker cross-file claim coordination. See the *Code KBs* section of
+  [`docs/cookbook/background-extraction.md`](docs/cookbook/background-extraction.md).
+
 ## 0.5.0a14 — 2026-06-09 (raise chunkshop floor to 0.9.1: bound symbol_aware over-parse)
 
 ### Fixed

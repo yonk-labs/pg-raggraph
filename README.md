@@ -20,7 +20,7 @@ Two retrieval workloads are first-class:
 Two ingest patterns are also first-class:
 
 - **Synchronous** (the default) — `ingest()` returns when the graph is built. Right for batch loads and small/fast extractors.
-- **Deferred + background drain** — pass `defer_extraction=True` and `ingest_records()` returns in chunk + embed time only (**~18 ms/doc**, 59× faster than synchronous extract on lede_spacy MHR). A `pgrg extract` worker (cron-driven or always-on daemon) backfills entities/relationships out-of-band. Multi-worker safe by construction. See [`docs/cookbook/background-extraction.md`](docs/cookbook/background-extraction.md).
+- **Deferred + background drain** — pass `defer_extraction=True` and `ingest_records()` returns in chunk + embed time only (**~18 ms/doc**, 59× faster than synchronous extract on lede_spacy MHR). A `pgrg extract` worker (cron-driven or always-on daemon) backfills entities/relationships out-of-band. Multi-worker safe by construction. For code KBs (`chunk_strategy="chunkshop:symbol_aware"`), `pgrg backfill-code-graph` rebuilds the `CALLS`/`INHERITS`/`IMPLEMENTS` call graph out-of-band too — so fast code-KB ingest no longer trades away the graph (#81). See [`docs/cookbook/background-extraction.md`](docs/cookbook/background-extraction.md).
 
 ## Why it exists
 

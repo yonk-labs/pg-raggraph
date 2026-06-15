@@ -742,6 +742,14 @@ daemon), worked FastAPI end-to-end example, multi-worker safety
 invariants, operator playbook — is at
 **[cookbook/background-extraction.md](cookbook/background-extraction.md)**.
 
+**Code KBs.** `pgrg extract` backfills the *entity* graph but not the chunkshop
+*code* graph (`CALLS`/`INHERITS`/`IMPLEMENTS`), which is a corpus-level resolve.
+For docs ingested with `chunk_strategy="chunkshop:symbol_aware"` +
+`defer_extraction=True`, run the orthogonal `pgrg backfill-code-graph --namespace NS`
+(or `backfill_code_graph(rag, ns)`) to rebuild the call graph out-of-band — one
+worker per namespace, crash-resumable, never touches `graph_status`. So fast
+code-KB ingest keeps the call graph (#81); see the cookbook's *Code KBs* section.
+
 ### Ingesting a large corpus (bounded memory)
 
 `ingest_records()` pulls records in batches of `batch_size` (default 64), so
