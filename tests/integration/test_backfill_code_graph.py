@@ -13,7 +13,7 @@ NS = "test_backfill_code_graph"
 
 _PKG_A = "def helper(x):\n    return x + 1\n"
 _PKG_B = "from a import helper\n\n\ndef run(y):\n    return helper(y) * 2\n"
-_INGEST_SRC = '''\
+_INGEST_SRC = """\
 def helper(x):
     return x + 1
 
@@ -29,7 +29,7 @@ class Base:
 class Child(Base):
     def go(self):
         return runner(3)
-'''
+"""
 
 
 async def _fresh(rag):
@@ -75,8 +75,7 @@ async def test_deferred_code_doc_persists_raw_content():
         assert rows[0]["language"] == "python"  # chunkshop tagged the .py doc
         # deferred → no code edges written inline
         n = await rag._db.fetch_one(
-            "SELECT COUNT(*) AS n FROM relationships "
-            "WHERE namespace = %s AND rel_type = 'CALLS'",
+            "SELECT COUNT(*) AS n FROM relationships WHERE namespace = %s AND rel_type = 'CALLS'",
             (NS,),
         )
         assert n["n"] == 0
@@ -91,8 +90,13 @@ async def test_deferred_prose_doc_does_not_persist():
     await _fresh(rag)
     try:
         await rag.ingest_records(
-            [{"text": "The quick brown fox. Plain prose, no code here.",
-              "source_id": "doc.txt", "skip_llm": True}],
+            [
+                {
+                    "text": "The quick brown fox. Plain prose, no code here.",
+                    "source_id": "doc.txt",
+                    "skip_llm": True,
+                }
+            ],
             namespace=NS,
             defer_extraction=True,
         )
@@ -216,7 +220,9 @@ async def test_backfill_rerun_is_noop():
                 {"text": _PKG_A, "source_id": "a.py", "skip_llm": True},
                 {"text": _PKG_B, "source_id": "b.py", "skip_llm": True},
             ],
-            namespace=NS, cross_file_code_graph=True, defer_extraction=True,
+            namespace=NS,
+            cross_file_code_graph=True,
+            defer_extraction=True,
         )
         await backfill_code_graph(rag, NS)
         first = await rag._db.fetch_one(
@@ -253,7 +259,9 @@ def test_cli_backfill_code_graph():
                 {"text": _PKG_A, "source_id": "a.py", "skip_llm": True},
                 {"text": _PKG_B, "source_id": "b.py", "skip_llm": True},
             ],
-            namespace=NS, cross_file_code_graph=True, defer_extraction=True,
+            namespace=NS,
+            cross_file_code_graph=True,
+            defer_extraction=True,
         )
         await rag.close()
 

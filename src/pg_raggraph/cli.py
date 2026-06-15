@@ -458,11 +458,16 @@ def extract(
 
 @main.command("backfill-code-graph")
 @click.option(
-    "-n", "--namespace", default=None,
+    "-n",
+    "--namespace",
+    default=None,
     help="Namespace to resolve (default: every namespace with staged code docs)",
 )
 @click.option(
-    "--batch-size", default=5000, type=int, show_default=True,
+    "--batch-size",
+    default=5000,
+    type=int,
+    show_default=True,
     help="Call sites drained per resolve batch (#76 spill drain)",
 )
 @click.pass_context

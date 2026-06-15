@@ -296,9 +296,7 @@ async def backfill_code_graph(
 
         n_rels = 0
         if ccg.count:
-            n_rels = await rag._write_corpus_code_graph(
-                ns, ccg, run_id, batch_size=batch_size
-            )
+            n_rels = await rag._write_corpus_code_graph(ns, ccg, run_id, batch_size=batch_size)
 
         await rag.db.execute(
             "DELETE FROM code_backfill_stage WHERE document_id = ANY(%s)",
