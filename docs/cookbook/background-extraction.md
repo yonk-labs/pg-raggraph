@@ -439,3 +439,44 @@ restart is unaffected: PR-001 made the startup reaper namespace-scoped.
 
 All four share the same `extract_documents` primitive — single
 implementation, multiple surfaces.
+
+## Code KBs — backfilling the call graph
+
+`pgrg extract` backfills **generic entities** (the GraphRAG prose graph) and owns
+`documents.graph_status`. It does **not** rebuild the chunkshop **code graph**
+(`CALLS`/`INHERITS`/`IMPLEMENTS`) — that is a corpus-level resolve, not a per-doc
+one. For a code KB ingested with `chunk_strategy="chunkshop:symbol_aware"` and
+`defer_extraction=True`, run a second, orthogonal pass:
+
+```bash
+# 1. fast deferred ingest: chunks + embeddings land, graph deferred.
+#    Code docs also stage their raw file content in `code_backfill_stage`,
+#    and the docs are graph_status='pending'.
+# 2. generic entity backfill (owns graph_status: pending -> ready)
+pgrg extract --namespace myrepo
+# 3. code-graph backfill (rebuilds CALLS/INHERITS/IMPLEMENTS from staged content)
+pgrg backfill-code-graph --namespace myrepo
+```
+
+`backfill-code-graph` is a **corpus finalize**: per namespace it re-parses the
+staged file content, rebuilds the cross-file symbol index, and writes the
+resolved edges, then deletes the staged rows. It is **crash-resumable** (rows are
+deleted only after the resolve succeeds, so a re-run finishes an interrupted
+pass) and idempotent. Because it keys off the `code_backfill_stage` queue and
+never touches `graph_status`, it composes freely with `pgrg extract` in either
+order.
+
+Run **one worker per namespace** — cross-file resolution needs the whole
+namespace's symbols in one pass, so it is a single-worker finalize rather than a
+SKIP-LOCKED queue like `pgrg extract`. The staged content lives in a durable
+(LOGGED) table — unlike the transient `code_calls_stage` spill table — so it
+survives between the deferred ingest and the backfill run, then is cleaned up.
+
+Programmatic equivalent:
+
+```python
+from pg_raggraph.backfill import backfill_code_graph
+
+stats = await backfill_code_graph(rag, "myrepo")
+print(stats.edges, "edges across", stats.docs, "docs")
+```
