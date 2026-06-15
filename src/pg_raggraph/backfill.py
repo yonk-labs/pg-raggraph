@@ -25,6 +25,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("pg_raggraph.backfill")
 
+# How many staged docs' content to read per query in backfill_code_graph.
+# One query per doc is an N+1 round-trip pattern (~10% of backfill wall-time at
+# scale); batching cuts that ~64x while keeping peak memory O(batch docs'
+# content), not O(corpus). The chunkshop symbol index (held by CorpusCodeGraph)
+# stays the dominant, unavoidable resident — this only bounds the content we
+# hold in flight, preserving the #76 memory ethos.
+_CONTENT_READ_BATCH = 64
+
 
 @dataclass
 class ExtractStats:
@@ -278,21 +286,25 @@ async def backfill_code_graph(
         ccg = CorpusCodeGraph()
         run_id = uuid.uuid4().hex
         t0 = time.perf_counter()
-        # Stream content one doc at a time so peak memory is O(one doc + symbol
-        # index + spill batch), never O(corpus text) — the #76 memory ethos.
-        for doc_id in doc_ids:
-            row = await rag.db.fetch_one(
+        # Read staged content in bounded batches (not one row per doc — that's an
+        # N+1 round-trip pattern). Peak content held is O(_CONTENT_READ_BATCH
+        # docs), never O(corpus text) — the #76 memory ethos. Concurrently
+        # deleted rows simply don't come back in the batch (no per-row guard
+        # needed). Accumulation order doesn't affect the resolved edge set (the
+        # symbol index is a union), so within-batch ORDER BY is just determinism.
+        for start in range(0, len(doc_ids), _CONTENT_READ_BATCH):
+            id_batch = doc_ids[start : start + _CONTENT_READ_BATCH]
+            rows = await rag.db.fetch_all(
                 "SELECT content, language, source_path FROM code_backfill_stage "
-                "WHERE document_id = %s",
-                (doc_id,),
+                "WHERE document_id = ANY(%s) ORDER BY document_id",
+                (id_batch,),
             )
-            if row is None:  # raced with a concurrent delete — skip
-                continue
-            calls = await ccg.accumulate(
-                row["content"], source_path=row["source_path"], language=row["language"]
-            )
-            if calls:
-                await rag._spill_code_calls(ns, run_id, calls)
+            for row in rows:
+                calls = await ccg.accumulate(
+                    row["content"], source_path=row["source_path"], language=row["language"]
+                )
+                if calls:
+                    await rag._spill_code_calls(ns, run_id, calls)
 
         n_rels = 0
         if ccg.count:

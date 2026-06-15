@@ -426,3 +426,41 @@ async def test_backfill_edge_set_is_identical_to_synchronous_path():
         await rag.delete(ns_sync)
         await rag.delete(ns_defer)
         await rag.close()
+
+
+@pytest.mark.asyncio
+async def test_backfill_resolves_cross_file_across_read_batches(monkeypatch):
+    """The bounded-batch content read must not break corpus accumulation: a
+    cross-file edge whose caller and callee land in *different* read batches
+    still resolves (the symbol index persists across batches)."""
+    pytest.importorskip("chunkshop")
+    pytest.importorskip("tree_sitter_python")
+    import pg_raggraph.backfill as backfill_mod
+
+    # 1 doc per read batch → a.py and b.py are read in separate batches.
+    monkeypatch.setattr(backfill_mod, "_CONTENT_READ_BATCH", 1)
+
+    rag = GraphRAG(dsn=DSN, namespace=NS, chunk_strategy="chunkshop:symbol_aware")
+    await _fresh(rag)
+    try:
+        await rag.ingest_records(
+            [
+                {"text": _PKG_A, "source_id": "a.py", "skip_llm": True},
+                {"text": _PKG_B, "source_id": "b.py", "skip_llm": True},
+            ],
+            namespace=NS,
+            cross_file_code_graph=True,
+            defer_extraction=True,
+        )
+        stats = await backfill_code_graph(rag, NS)
+        assert stats.docs == 2
+        # b.run (batch 2) -> a.helper (batch 1) resolves across the batch boundary
+        impact = await cg.code_impact(rag._db, "a.helper", namespace=NS, depth=1)
+        assert "b.run" in [e.fqn for e in impact.callers]
+        staged = await rag._db.fetch_one(
+            "SELECT COUNT(*) AS n FROM code_backfill_stage WHERE namespace = %s", (NS,)
+        )
+        assert staged["n"] == 0
+    finally:
+        await rag.delete(NS)
+        await rag.close()
