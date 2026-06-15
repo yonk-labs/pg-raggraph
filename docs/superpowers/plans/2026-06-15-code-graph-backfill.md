@@ -305,9 +305,10 @@ git commit -m "feat(#81): stage raw content for deferred code docs at ingest"
 
 - [ ] **Step 1: Write the failing tests**
 
-First, add the primitive import near the top of `tests/integration/test_backfill_code_graph.py` (replace the Task-1 NOTE comment about it):
+First, add the imports near the top of `tests/integration/test_backfill_code_graph.py` (replace the Task-1 NOTE comment about deferred imports):
 
 ```python
+from pg_raggraph import code_graph as cg
 from pg_raggraph.backfill import backfill_code_graph
 ```
 
