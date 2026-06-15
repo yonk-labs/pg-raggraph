@@ -232,3 +232,43 @@ async def test_backfill_rerun_is_noop():
     finally:
         await rag.delete(NS)
         await rag.close()
+
+
+def test_cli_backfill_code_graph():
+    import asyncio
+
+    from click.testing import CliRunner
+
+    from pg_raggraph.cli import main
+
+    pytest.importorskip("chunkshop")
+    pytest.importorskip("tree_sitter_python")
+
+    async def _setup():
+        rag = GraphRAG(dsn=DSN, namespace=NS, chunk_strategy="chunkshop:symbol_aware")
+        await rag.connect()
+        await rag.delete(NS)
+        await rag.ingest_records(
+            [
+                {"text": _PKG_A, "source_id": "a.py", "skip_llm": True},
+                {"text": _PKG_B, "source_id": "b.py", "skip_llm": True},
+            ],
+            namespace=NS, cross_file_code_graph=True, defer_extraction=True,
+        )
+        await rag.close()
+
+    asyncio.run(_setup())
+    runner = CliRunner()
+    try:
+        res = runner.invoke(main, ["--db", DSN, "backfill-code-graph", "-n", NS])
+        assert res.exit_code == 0, res.output
+        assert "edges" in res.output.lower()
+    finally:
+
+        async def _teardown():
+            rag = GraphRAG(dsn=DSN, namespace=NS)
+            await rag.connect()
+            await rag.delete(NS)
+            await rag.close()
+
+        asyncio.run(_teardown())

@@ -456,6 +456,53 @@ def extract(
         _handle_error(e)
 
 
+@main.command("backfill-code-graph")
+@click.option(
+    "-n", "--namespace", default=None,
+    help="Namespace to resolve (default: every namespace with staged code docs)",
+)
+@click.option(
+    "--batch-size", default=5000, type=int, show_default=True,
+    help="Call sites drained per resolve batch (#76 spill drain)",
+)
+@click.pass_context
+def backfill_code_graph_cmd(ctx, namespace, batch_size):
+    """Rebuild the chunkshop code graph for docs ingested with defer_extraction.
+
+    Corpus-level finalize: claims staged code docs per namespace, rebuilds the
+    cross-file symbol index, and writes CALLS/INHERITS/IMPLEMENTS edges. Run one
+    worker per namespace; re-run to resume after a crash. Orthogonal to
+    `pgrg extract` (which backfills generic entities and owns graph_status).
+    """
+    if batch_size < 1:
+        raise click.BadParameter("--batch-size must be >= 1")
+
+    from pg_raggraph.backfill import backfill_code_graph
+
+    async def _run():
+        kwargs = dict(ctx.obj["kwargs"])
+        if namespace:
+            kwargs["namespace"] = namespace
+        rag = GraphRAG(**kwargs)
+        await rag.connect()
+        try:
+            stats = await backfill_code_graph(rag, namespace, batch_size=batch_size)
+            msg = (
+                f"Code graph: {stats.edges} edges across {stats.docs} doc(s) "
+                f"in {stats.namespaces} namespace(s)"
+            )
+            if stats.skipped:
+                msg += f", {stats.skipped} skipped (chunkshop extractor unavailable)"
+            click.echo(msg)
+        finally:
+            await rag.close()
+
+    try:
+        run_async(_run())
+    except Exception as e:
+        _handle_error(e)
+
+
 @main.command()
 @click.argument("question")
 @click.option(
