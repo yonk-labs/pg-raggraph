@@ -297,9 +297,7 @@ class CorpusCodeGraph:
         return list(self._ext.finalize(project_id=project_id or "corpus"))
 
 
-def _bucket_callees(
-    callees: list[dict[str, Any]], cs_chunks
-) -> list[list[dict[str, Any]]]:
+def _bucket_callees(callees: list[dict[str, Any]], cs_chunks) -> list[list[dict[str, Any]]]:
     """Assign whole-file callees to chunks by line span (narrowest wins).
 
     Each callee carries a 1-based ``line``; each chunk carries ``start_line`` /

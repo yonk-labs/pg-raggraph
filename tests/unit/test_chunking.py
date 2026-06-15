@@ -465,7 +465,7 @@ def test_chunkshop_hierarchy_splits_oversized_section():
     assert max_emb <= max_chars, f"embedded_content exceeds ceiling: max={max_emb} > {max_chars}"
 
 
-_CODE_GRAPH_SRC = '''\
+_CODE_GRAPH_SRC = """\
 def helper(x):
     return x + 1
 
@@ -481,7 +481,7 @@ class Base:
 class Child(Base):
     def go(self):
         return runner(3)
-'''
+"""
 
 
 @pytest.mark.skipif(

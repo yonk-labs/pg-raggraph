@@ -58,7 +58,9 @@ def _extractor_overhead(records: list[dict]) -> dict:
         cs_chunks = chunker.chunk(doc)
         bare_s += time.perf_counter() - t0
         t1 = time.perf_counter()
-        sg = chunkshop_bridge.extract_symbol_graph(content, cs_chunks, source_path=sp, project_id=sp)
+        sg = chunkshop_bridge.extract_symbol_graph(
+            content, cs_chunks, source_path=sp, project_id=sp
+        )
         extract_s += time.perf_counter() - t1
         n_chunks += len(cs_chunks)
         if sg:
@@ -105,8 +107,10 @@ async def main():
             "GROUP BY rel_type ORDER BY rel_type",
             (NS,),
         )
-        print(f"end-to-end ingest (chunk + embed + graph): {ingest_s * 1000:8.1f} ms "
-              f"({ingest_s / max(len(records), 1) * 1000:.1f} ms/file)")
+        print(
+            f"end-to-end ingest (chunk + embed + graph): {ingest_s * 1000:8.1f} ms "
+            f"({ingest_s / max(len(records), 1) * 1000:.1f} ms/file)"
+        )
         print(f"  CODE_SYMBOL nodes: {ents['n']}")
         print("  edges: " + ", ".join(f"{r['rel_type']}={r['n']}" for r in rels))
 
@@ -119,8 +123,10 @@ async def main():
         )
         if top:
             impact = await cg.code_impact(rag._db, top["name"], namespace=NS, depth=1)
-            print(f"\n  code_impact('{top['name']}'): "
-                  f"{len(impact.callers)} callers, {len(impact.callees)} callees")
+            print(
+                f"\n  code_impact('{top['name']}'): "
+                f"{len(impact.callers)} callers, {len(impact.callees)} callees"
+            )
     finally:
         await rag.delete(NS)
         await rag.close()
