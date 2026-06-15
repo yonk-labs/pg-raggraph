@@ -447,7 +447,6 @@ class CodeGraphStats:
     docs: int = 0
     edges: int = 0
     skipped: int = 0
-    errors: list[tuple[str, str]] = field(default_factory=list)
 ```
 
 - [ ] **Step 4: Add the `backfill_code_graph` primitive**
@@ -492,6 +491,14 @@ async def backfill_code_graph(
     else:
         target_namespaces = [namespace]
 
+    # chunkshop availability is namespace-invariant — probe it once. A FRESH
+    # CorpusCodeGraph is still built per namespace below: each namespace is an
+    # independent corpus, so sharing one extractor would cross-pollinate symbol
+    # indexes across tenants. When unavailable, staged rows are left in place
+    # (counted as skipped) for a later run and a single summary warning is
+    # emitted after the loop rather than one per namespace.
+    chunkshop_ok = CorpusCodeGraph().available
+
     for ns in target_namespaces:
         id_rows = await rag.db.fetch_all(
             "SELECT document_id FROM code_backfill_stage WHERE namespace = %s "
@@ -503,17 +510,11 @@ async def backfill_code_graph(
             continue
         stats.namespaces += 1
 
-        ccg = CorpusCodeGraph()
-        if not ccg.available:
-            logger.warning(
-                "chunkshop code extractor unavailable; leaving %d staged code "
-                "doc(s) in namespace %r for a later run",
-                len(doc_ids),
-                ns,
-            )
+        if not chunkshop_ok:
             stats.skipped += len(doc_ids)
             continue
 
+        ccg = CorpusCodeGraph()
         run_id = uuid.uuid4().hex
         t0 = time.perf_counter()
         # Stream content one doc at a time so peak memory is O(one doc + symbol
@@ -554,6 +555,15 @@ async def backfill_code_graph(
                 edges=n_rels,
                 latency_ms=(time.perf_counter() - t0) * 1000,
             )
+
+    if stats.skipped:
+        logger.warning(
+            "chunkshop code extractor unavailable; left %d staged code doc(s) "
+            "across %d namespace(s) for a later run — re-run "
+            "`pgrg backfill-code-graph` once chunkshop is installed",
+            stats.skipped,
+            stats.namespaces,
+        )
 
     return stats
 ```
