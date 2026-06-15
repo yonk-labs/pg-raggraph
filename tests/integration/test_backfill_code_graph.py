@@ -280,3 +280,93 @@ def test_cli_backfill_code_graph():
             await rag.close()
 
         asyncio.run(_teardown())
+
+
+@pytest.mark.asyncio
+async def test_backfill_skips_when_chunkshop_unavailable(monkeypatch):
+    """Data-safety branch: if chunkshop's code extractor is unavailable at
+    backfill time, staged rows are LEFT IN PLACE (counted as skipped) for a
+    later run — never deleted, never silently lost."""
+    pytest.importorskip("chunkshop")
+    pytest.importorskip("tree_sitter_python")
+    rag = GraphRAG(dsn=DSN, namespace=NS, chunk_strategy="chunkshop:symbol_aware")
+    await _fresh(rag)
+    try:
+        await rag.ingest_records(
+            [{"text": _PKG_A, "source_id": "a.py", "skip_llm": True}],
+            namespace=NS,
+            defer_extraction=True,
+        )
+        # Ingest used the real chunkshop; now simulate it being unavailable when
+        # the out-of-band backfill runs (e.g. a worker without chunkshop installed).
+        import pg_raggraph.chunkshop_bridge as bridge
+
+        monkeypatch.setattr(bridge.CorpusCodeGraph, "available", property(lambda self: False))
+
+        stats = await backfill_code_graph(rag, NS)
+        assert stats.skipped == 1
+        assert stats.edges == 0
+        # staged row survives for a later run — no data loss
+        staged = await rag._db.fetch_one(
+            "SELECT COUNT(*) AS n FROM code_backfill_stage WHERE namespace = %s", (NS,)
+        )
+        assert staged["n"] == 1
+        # and no code edges were written
+        n = await rag._db.fetch_one(
+            "SELECT COUNT(*) AS n FROM relationships WHERE namespace = %s AND rel_type = 'CALLS'",
+            (NS,),
+        )
+        assert n["n"] == 0
+    finally:
+        await rag.delete(NS)
+        await rag.close()
+
+
+@pytest.mark.asyncio
+async def test_backfill_drains_all_namespaces_when_none():
+    """`namespace=None` resolves every namespace with staged code docs as an
+    independent corpus — symbols do not bleed across tenants."""
+    pytest.importorskip("chunkshop")
+    pytest.importorskip("tree_sitter_python")
+    ns_a = NS + "_a"
+    ns_b = NS + "_b"
+    rag = GraphRAG(dsn=DSN, namespace=NS, chunk_strategy="chunkshop:symbol_aware")
+    await rag.connect()
+    await rag.delete(ns_a)
+    await rag.delete(ns_b)
+    try:
+        # ns_a: a multi-symbol file with an intra-file call (runner -> helper).
+        await rag.ingest_records(
+            [{"text": _INGEST_SRC, "source_id": "sample.py", "skip_llm": True}],
+            namespace=ns_a,
+            defer_extraction=True,
+        )
+        # ns_b: a different file entirely (no `sample.runner`).
+        await rag.ingest_records(
+            [{"text": _PKG_A, "source_id": "a.py", "skip_llm": True}],
+            namespace=ns_b,
+            defer_extraction=True,
+        )
+
+        stats = await backfill_code_graph(rag, None)  # drain ALL namespaces
+        # at least these two namespaces resolved (>= guards against other
+        # tests' leftover staged rows if teardown order ever varies)
+        assert stats.namespaces >= 2
+        assert stats.docs >= 2
+
+        # ns_a's intra-file edge resolved
+        ra = await cg.code_impact(rag._db, "sample.runner", namespace=ns_a, depth=1)
+        assert "sample.helper" in [e.fqn for e in ra.callees]
+        # symbols do not bleed: ns_b has no `sample.runner`
+        rb = await cg.code_impact(rag._db, "sample.runner", namespace=ns_b, depth=1)
+        assert rb.found is False
+        # staging cleared for both
+        cleared = await rag._db.fetch_one(
+            "SELECT COUNT(*) AS n FROM code_backfill_stage WHERE namespace = ANY(%s)",
+            ([ns_a, ns_b],),
+        )
+        assert cleared["n"] == 0
+    finally:
+        await rag.delete(ns_a)
+        await rag.delete(ns_b)
+        await rag.close()

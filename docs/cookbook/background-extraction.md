@@ -468,9 +468,13 @@ order.
 
 Run **one worker per namespace** — cross-file resolution needs the whole
 namespace's symbols in one pass, so it is a single-worker finalize rather than a
-SKIP-LOCKED queue like `pgrg extract`. The staged content lives in a durable
-(LOGGED) table — unlike the transient `code_calls_stage` spill table — so it
-survives between the deferred ingest and the backfill run, then is cleaned up.
+SKIP-LOCKED queue like `pgrg extract`. Let an in-flight `backfill-code-graph`
+finish before re-ingesting that namespace's code docs: a doc re-ingested with
+*changed* content lands as a new row that the next run picks up, but starting
+overlapping backfills or re-ingests over the same namespace mid-run only
+duplicates work. The staged content lives in a durable (LOGGED) table — unlike
+the transient `code_calls_stage` spill table — so it survives between the
+deferred ingest and the backfill run, then is cleaned up.
 
 Programmatic equivalent:
 
