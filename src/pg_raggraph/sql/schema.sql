@@ -294,3 +294,20 @@ CREATE UNLOGGED TABLE IF NOT EXISTS code_calls_stage (
 
 CREATE INDEX IF NOT EXISTS idx_code_calls_stage_run
     ON code_calls_stage (namespace, run_id, id);
+
+-- Durable staging for out-of-band code-graph backfill (#81). Holds the raw file
+-- content of code docs ingested with defer_extraction=True so a later
+-- `pgrg backfill-code-graph` run can re-parse it and rebuild the code graph.
+-- LOGGED (not UNLOGGED like code_calls_stage): the content must survive between
+-- the deferred ingest and the backfill run. See migrations/015_code_backfill_stage.sql.
+CREATE TABLE IF NOT EXISTS code_backfill_stage (
+    document_id BIGINT PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+    namespace   TEXT NOT NULL,
+    content     TEXT NOT NULL,
+    language    TEXT,
+    source_path TEXT,
+    created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_code_backfill_stage_ns
+    ON code_backfill_stage (namespace);
