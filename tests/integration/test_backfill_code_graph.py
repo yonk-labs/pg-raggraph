@@ -370,3 +370,59 @@ async def test_backfill_drains_all_namespaces_when_none():
         await rag.delete(ns_a)
         await rag.delete(ns_b)
         await rag.close()
+
+
+async def _code_edges(rag, ns):
+    """Full set of CODE_SYMBOL->CODE_SYMBOL edges in a namespace, as
+    (src_fqn, dst_fqn, rel_type, resolved_intra_file) tuples — fqns are
+    namespace-independent, so two namespaces are directly comparable."""
+    rows = await rag._db.fetch_all(
+        "SELECT s.name AS src, d.name AS dst, r.rel_type, "
+        "  r.properties->>'resolved_intra_file' AS rif "
+        "FROM relationships r "
+        "JOIN entities s ON s.id = r.src_id "
+        "JOIN entities d ON d.id = r.dst_id "
+        "WHERE r.namespace = %s AND s.entity_type = 'CODE_SYMBOL' "
+        "  AND d.entity_type = 'CODE_SYMBOL'",
+        (ns,),
+    )
+    return {(r["src"], r["dst"], r["rel_type"], r["rif"]) for r in rows}
+
+
+@pytest.mark.asyncio
+async def test_backfill_edge_set_is_identical_to_synchronous_path():
+    """Exact parity: deferred+backfill produces the IDENTICAL code-edge set as
+    the synchronous inline path for the same multi-file corpus — not just a
+    representative edge, the whole set. This is the #81 correctness contract."""
+    pytest.importorskip("chunkshop")
+    pytest.importorskip("tree_sitter_python")
+    ns_sync = NS + "_psync"
+    ns_defer = NS + "_pdefer"
+    rag = GraphRAG(dsn=DSN, namespace=NS, chunk_strategy="chunkshop:symbol_aware")
+    await rag.connect()
+    await rag.delete(ns_sync)
+    await rag.delete(ns_defer)
+    try:
+        recs = [
+            {"text": _PKG_A, "source_id": "a.py", "skip_llm": True},
+            {"text": _PKG_B, "source_id": "b.py", "skip_llm": True},
+            {"text": _INGEST_SRC, "source_id": "sample.py", "skip_llm": True},
+        ]
+        # Path A — synchronous, graph built inline.
+        await rag.ingest_records(recs, namespace=ns_sync, cross_file_code_graph=True)
+        # Path B — deferred ingest, then out-of-band backfill.
+        await rag.ingest_records(
+            recs, namespace=ns_defer, cross_file_code_graph=True, defer_extraction=True
+        )
+        await backfill_code_graph(rag, ns_defer)
+
+        sync_edges = await _code_edges(rag, ns_sync)
+        defer_edges = await _code_edges(rag, ns_defer)
+        assert sync_edges, "synchronous path built a non-trivial code graph"
+        # includes at least one resolved cross-file edge (b.run -> a.helper)
+        assert any(rif == "false" for (_, _, _, rif) in sync_edges)
+        assert defer_edges == sync_edges
+    finally:
+        await rag.delete(ns_sync)
+        await rag.delete(ns_defer)
+        await rag.close()
