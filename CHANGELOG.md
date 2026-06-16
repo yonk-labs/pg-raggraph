@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.0a16 — 2026-06-16 (caller top_k across SDK / HTTP / MCP, #84)
+
+### Fixed
+- **Caller-supplied `top_k` now bounds retrieval breadth across every surface
+  (#84).** Breadth was sourced solely from `profile_spec.top_k` (hardcoded to 25
+  on every profile rung), so `config.top_k` was vestigial and there was no
+  caller-facing lever to bound how many chunks came back — every query returned
+  ~25 regardless of intent. Now:
+  - `GraphRAG.query()` / `ask()` accept an explicit keyword-only
+    `top_k: int | None` that overrides the profile's breadth when provided (the
+    profile still owns `context_strategy`); `None` (default) keeps the profile
+    default, so existing behavior is unchanged. Values `< 1` raise `ValueError`.
+    With `rerank=True`, `top_k` is the post-rerank target (candidates are still
+    fetched at `top_k * rerank_factor`).
+  - HTTP `POST /query` and `POST /ask` (`server.py`) accept an optional `top_k`
+    form field, threaded through to retrieval.
+  - MCP `pgrg_query` and `pgrg_ask` (`mcp_server.py`) accept an optional `top_k`
+    argument, making the existing "query at a wider top_k" playbook hint in
+    `SERVER_INSTRUCTIONS` actually actionable.
+
 ## 0.5.0a15 — 2026-06-15 (out-of-band code-graph backfill for defer_extraction, #81)
 
 ### Added

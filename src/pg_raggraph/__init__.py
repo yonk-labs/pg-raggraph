@@ -20,7 +20,7 @@ try:
     __version__ = _pkg_version("pg-raggraph")
 except PackageNotFoundError:
     # Editable install without installed metadata (rare). Mirror pyproject.
-    __version__ = "0.5.0a15"
+    __version__ = "0.5.0a16"
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.models import QueryResult
@@ -1981,6 +1981,7 @@ class GraphRAG:
         retrieval_strategy: str | None = None,
         summary_base_mode: str | None = None,
         profile: str | int | float | None = None,
+        top_k: int | None = None,
         rerank: bool = False,
         metadata_filters: dict | None = None,
         trace_emit: Callable[[dict], None] | None = None,
@@ -2037,6 +2038,13 @@ class GraphRAG:
                 (``"cheap"``, ``"balanced"``, ``"accurate"``), integer rung
                 indexes, a 0..1 slider float, or ``"raw"`` for legacy classic
                 chunk context. ``None`` uses ``config.retrieval_profile``.
+            top_k: caller override for retrieval breadth (how many chunks are
+                fetched and returned). ``None`` (default) uses the resolved
+                profile's ``top_k`` — preserving prior behavior. When set, it
+                overrides the profile breadth; the profile still owns
+                ``context_strategy``. Must be >= 1. With ``rerank=True`` this is
+                the post-rerank target (``top_k * rerank_factor`` candidates are
+                fetched first, then trimmed to ``top_k``).
             rerank: when True, fetch top_k * rerank_factor candidates and
                 re-rank with a cross-encoder before trimming to top_k.
                 Adds ~30-80 ms p50 latency, zero per-query LLM cost.
@@ -2053,6 +2061,8 @@ class GraphRAG:
 
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        if top_k is not None and top_k < 1:
+            raise ValueError(f"top_k must be >= 1 when provided, got {top_k}")
         namespace_profile = None
         if profile is None:
             namespace_profile = await self._namespace_profile_value(ns)
@@ -2063,7 +2073,10 @@ class GraphRAG:
         started = time.perf_counter()
         with self.db.tenant(ns):
             embedder = self._get_embedder()
-            retrieval_top_k = profile_spec.top_k
+            # Caller-supplied top_k (issue #84) overrides the profile's breadth;
+            # the profile still owns context_strategy. None preserves the
+            # profile default, keeping prior behavior unchanged.
+            retrieval_top_k = top_k if top_k is not None else profile_spec.top_k
             top_k_override = (
                 retrieval_top_k * self.config.rerank_factor if rerank else retrieval_top_k
             )
@@ -2136,6 +2149,7 @@ class GraphRAG:
         retrieval_strategy: str | None = None,
         summary_base_mode: str | None = None,
         profile: str | int | float | None = None,
+        top_k: int | None = None,
         short_answer: bool = False,
         rerank: bool = False,
         metadata_filters: dict | None = None,
@@ -2158,7 +2172,9 @@ class GraphRAG:
 
         ``retracted_behavior``, ``supersession_behavior``, and ``memory_tier``
         override the matching ``config.*`` fields for this call only — see
-        ``GraphRAG.query()`` for details.
+        ``GraphRAG.query()`` for details. ``top_k`` overrides the resolved
+        profile's retrieval breadth for this call; ``None`` keeps the profile
+        default.
         """
         from pg_raggraph.answer import generate_answer
 
@@ -2175,6 +2191,7 @@ class GraphRAG:
             retrieval_strategy=retrieval_strategy,
             summary_base_mode=summary_base_mode,
             profile=profile,
+            top_k=top_k,
             rerank=rerank,
             metadata_filters=metadata_filters,
             trace_emit=trace_emit,
