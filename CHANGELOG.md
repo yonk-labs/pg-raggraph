@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0a16 — 2026-06-16 (caller top_k across SDK / HTTP / MCP, #84)
 
 ### Fixed
 - **Caller-supplied `top_k` now bounds retrieval breadth across every surface
