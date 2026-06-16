@@ -233,8 +233,11 @@ def create_app(**kwargs) -> FastAPI:
         mode: str = Form("smart"),
         namespace: str = Form(None),
         profile: str = Form(None),
+        top_k: int | None = Form(None),
     ):
-        result = await rag.query(question, mode=mode, namespace=namespace, profile=profile)
+        result = await rag.query(
+            question, mode=mode, namespace=namespace, profile=profile, top_k=top_k
+        )
         return result.model_dump()
 
     @app.post("/ask")
@@ -243,6 +246,7 @@ def create_app(**kwargs) -> FastAPI:
         mode: str = Form("smart"),
         namespace: str = Form(None),
         profile: str = Form(None),
+        top_k: int | None = Form(None),
     ):
         """Query + grounded LLM answer. Falls back to top-chunk summary without LLM.
 
@@ -252,7 +256,9 @@ def create_app(**kwargs) -> FastAPI:
         `0` to disable truncation, or any positive integer to widen the window.
         """
         preview_chars = int(os.environ.get("PGRG_SERVER_ASK_CHUNK_PREVIEW_CHARS", "500"))
-        result = await rag.ask(question, mode=mode, namespace=namespace, profile=profile)
+        result = await rag.ask(
+            question, mode=mode, namespace=namespace, profile=profile, top_k=top_k
+        )
         return {
             "answer": result.answer,
             "confidence": result.confidence,
