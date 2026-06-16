@@ -336,6 +336,20 @@ We evaluated AGE (PostgreSQL's graph extension) before writing a line of code. W
 
 Full analysis: [`research/apache-age-evaluation.md`](research/apache-age-evaluation.md). Bake-off verdict: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](benchmarks/age-bakeoff/results/REPORT-VERDICT.md).
 
+## What about PostgreSQL 19's native graph queries (SQL/PGQ)?
+
+PostgreSQL 19 (Beta 1 shipped June 2026, GA expected ~Sept/Oct 2026) adds **SQL/PGQ**: native property-graph pattern matching (`CREATE PROPERTY GRAPH` + `GRAPH_TABLE`), the ISO SQL:2023 standard. (It's *not* GraphQL; that's an unrelated API layer from extensions like `pg_graphql`.)
+
+This is good news, and it's our thesis. SQL/PGQ rewrites graph patterns into **ordinary relational joins over your existing tables**, with no new engine, and crucially it's **in core** (no `shared_preload_libraries`), so it'll run on RDS / Supabase / Neon. It's the cloud-friendly, in-core answer Apache AGE never managed to be.
+
+It does **not** replace pg-raggraph:
+
+1. **Fixed-depth only.** The initial release has no variable-length path traversal, which is exactly what our recursive-CTE `local` mode does (vector-seeded, 1..N hops, in one query). That's deferred to a future Postgres release.
+2. **It's a query syntax, not a GraphRAG pipeline.** SQL/PGQ assumes you *already have* the graph. pg-raggraph is what builds it: entity/relationship extraction, entity resolution, hybrid retrieval, confidence routing, provenance, incremental updates.
+3. **Version floor.** SQL/PGQ needs PG19; pg-raggraph runs on **PG16+** today, on every managed provider.
+
+They stack rather than compete. Our `entities`/`relationships` schema maps 1:1 onto `CREATE PROPERTY GRAPH`, so an optional property-graph view (and SQL/PGQ-backed fixed-depth paths gated behind a PG19 capability check) is on the roadmap. Full take: [the blog](docs/blogs/05-postgres-19-graph-queries-and-pg-raggraph.md).
+
 ## Comparison
 
 | | pg-raggraph | LightRAG | Neo4j GraphRAG | Zep |
