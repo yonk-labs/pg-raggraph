@@ -205,10 +205,44 @@ Rules:
 - Keep descriptions concise (1 sentence)"""
 
 
+CODE_EXTRACTION_PROMPT = """\
+You are an expert at extracting a CONCEPTUAL knowledge graph from source code.
+A separate deterministic pass already captures call/inherit/implement structure,
+so DO NOT restate call edges. Extract the intent and architecture the code implies.
+
+Return JSON with this structure:
+{"entities": [...], "relationships": [...]}
+
+Entity fields: name, entity_type, description
+Relationship fields: source, target, rel_type, description, weight
+
+Preferred entity types:
+- module      (a file or package and its responsibility)
+- component   (a cohesive unit: a service, client, store, parser)
+- concept     (a domain idea the code implements: authentication, caching, retry)
+- library     (external dependency imported/used)
+- config      (settings, env vars, feature flags)
+
+Preferred relationship types:
+- IMPLEMENTS   (module/component -> concept)
+- DEPENDS_ON   (module/component -> library/component)
+- CONFIGURES   (module -> config)
+- PART_OF      (module -> component; component -> system)
+- RELATED_TO   (fallback for weaker links)
+
+Rules:
+- Extract meaning, not mechanics — concepts/responsibilities, not who-calls-whom.
+- Entity names stable across files (normalize "auth" vs "Auth").
+- Only what the code makes explicit (names, docstrings, imports, comments).
+- Keep descriptions to one sentence."""
+
+
 def get_prompt(name: str) -> str:
     """Get an extraction prompt by name."""
     if name == "dev":
         return DEV_EXTRACTION_PROMPT
+    if name == "code":
+        return CODE_EXTRACTION_PROMPT
     return EXTRACTION_SYSTEM_PROMPT
 
 
