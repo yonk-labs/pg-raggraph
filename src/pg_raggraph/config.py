@@ -97,10 +97,12 @@ class PGRGConfig(BaseSettings):
     llm_model: str = "llama3.2"
     llm_api_key: str = ""  # set for OpenAI, leave empty for Ollama
     # `default` is the generic prompt; `dev` is the developer-KB-tuned prompt
-    # (entity types: person/service/library/file/commit/incident/ADR/etc.).
+    # (entity types: person/service/library/file/commit/incident/ADR/etc.);
+    # `code` is the source-code concept prompt (module/component/concept/dep) that
+    # layers a conceptual graph over the deterministic call/inherit/implement graph.
     # Typed Literal so a typo in PGRG_EXTRACTION_PROMPT raises ValidationError
     # at config init instead of silently falling back to "default".
-    extraction_prompt: Literal["default", "dev"] = "default"
+    extraction_prompt: Literal["default", "dev", "code"] = "default"
     # Skip entity/relationship extraction during ingestion.
     # Set true for pure vector RAG mode — no LLM needed for ingest.
     skip_extraction: bool = False
