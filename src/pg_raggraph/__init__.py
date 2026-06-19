@@ -916,6 +916,7 @@ class GraphRAG:
                         rec_skip_llm = bool(rec.get("skip_llm", False))
                         rec_defer_extraction = bool(rec.get("defer_extraction", defer_extraction))
                         rec_pre_chunked = rec.get("pre_chunked")
+                        rec_code_source_content = rec.get("code_source_content")
                         living_context = None
                         source_id = rec["source_id"]
                         if living_enabled:
@@ -975,6 +976,7 @@ class GraphRAG:
                             pre_chunked=rec_pre_chunked,
                             living_context=living_context,
                             defer_extraction=rec_defer_extraction,
+                            code_source_content=rec_code_source_content,
                             corpus_code_graph=corpus_code_graph,
                             corpus_run_id=corpus_run_id,
                         )
@@ -1117,6 +1119,7 @@ class GraphRAG:
         pre_chunked: list[dict] | None = None,
         living_context: _LivingContext | None = None,
         defer_extraction: bool = False,
+        code_source_content: str | None = None,
         corpus_code_graph=None,
         corpus_run_id=None,
     ):
@@ -1501,11 +1504,24 @@ class GraphRAG:
             # #81: persist raw file content for deferred CODE docs so the code
             # graph (CALLS/INHERITS/IMPLEMENTS) can be rebuilt out-of-band by
             # `pgrg backfill-code-graph`. Gate: deferred + a symbol_aware code
-            # doc (those chunks carry `language`) + not pre_chunked (Pattern C's
-            # `content` is joined-chunk text, not a faithful file — out of scope).
-            # Atomic with the doc — staged content lands iff the doc does. The
-            # table is LOGGED so it survives until a later backfill run.
-            if defer_extraction and _code_lang and pre_chunked is None:
+            # doc (those chunks carry `language`). Atomic with the doc — staged
+            # content lands iff the doc does. The table is LOGGED so it survives
+            # until a later backfill run.
+            #
+            # The backfill re-parses this content with tree-sitter, so it must be
+            # the FAITHFUL original file. On the self-chunked path `content` is
+            # exactly that. On the `pre_chunked` reuse path `content` is joined-
+            # chunk text (not faithful), so the caller must supply the real source
+            # via `code_source_content`; refuse loudly rather than stage garbage
+            # the backfill would mis-parse (silent code-graph loss).
+            if defer_extraction and _code_lang:
+                stage_content = content if pre_chunked is None else code_source_content
+                if pre_chunked is not None and not stage_content:
+                    raise ValueError(
+                        "code doc ingested with pre_chunked must also pass "
+                        "code_source_content (the faithful original file) so the "
+                        "deferred code graph can be rebuilt"
+                    )
                 await tx.execute(
                     "INSERT INTO code_backfill_stage "
                     "(document_id, namespace, content, language, source_path) "
@@ -1514,7 +1530,7 @@ class GraphRAG:
                     "  content = EXCLUDED.content, "
                     "  language = EXCLUDED.language, "
                     "  source_path = EXCLUDED.source_path",
-                    (doc_id, ns, content, _code_lang, file_path),
+                    (doc_id, ns, stage_content, _code_lang, file_path),
                 )
 
             # If caller supplied version info or a supersession edge, create a
