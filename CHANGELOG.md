@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.0a18 — 2026-06-29 (append-only re-ingest preserves time-travel, #90)
+
+### Fixed
+- **Changed-content re-ingest no longer destroys version history when
+  evolution is on (#90).** Previously, re-ingesting a `source_path` with
+  changed content always `DELETE`d the prior document+chunks and inserted the
+  new one, so the evolution `as_of` time-travel filter could never return a
+  prior version — `document_versions` stayed empty and the old chunk was
+  physically gone. Now, when `evolution_tier != "off"`, re-ingest is
+  **append-only**: the prior current version is closed (`effective_to` set to
+  the supersede instant), the new version's `effective_from` is stamped at the
+  same instant, and a `document_versions` row records the `new → old`
+  supersession edge. An `as_of` *before* the update returns the prior version;
+  default retrieval still serves the current one (ranked above the superseded
+  one via the existing supersession penalty). The default `evolution_tier="off"`
+  keeps the destructive-replace behavior, so users who don't opt into
+  time-travel see no storage growth. Living-knowledge ingests keep their own
+  append-only path unchanged.
+
 ## 0.5.0a16 — 2026-06-16 (caller top_k across SDK / HTTP / MCP, #84)
 
 ### Fixed

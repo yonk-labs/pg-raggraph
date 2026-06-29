@@ -214,6 +214,91 @@ async def test_ingest_without_metadata_defaults():
         await rag.close()
 
 
+async def test_reingest_changed_content_keeps_history_when_evolution_on():
+    """#90: changed-content re-ingest is append-only when evolution is on.
+
+    Old behavior physically DELETEd the prior version, so time-travel was
+    impossible (document_versions stayed empty, the old chunk was gone). With
+    evolution_tier != "off" the prior version is closed (effective_to set) and
+    linked via document_versions instead, so an as_of before the update can
+    still return it.
+    """
+    import os
+    import tempfile
+
+    ns = "test_evo_reingest_history"
+    rag = await _fresh(ns)
+    rag.config.evolution_tier = "structural"
+    try:
+        fd, path = tempfile.mkstemp(suffix=".md")
+        os.close(fd)
+        try:
+            Path(path).write_text("# Refund policy\n\nRefund window is 30 days.\n")
+            await rag.ingest([path], namespace=ns)
+            # Same source_path, changed content.
+            Path(path).write_text("# Refund policy\n\nRefund window is 90 days.\n")
+            await rag.ingest([path], namespace=ns)
+
+            docs = await rag.db.fetch_all(
+                "SELECT id, effective_to FROM documents WHERE namespace = %s "
+                "ORDER BY id",
+                (ns,),
+            )
+            assert len(docs) == 2, "prior version must be retained, not deleted"
+            old_id, new_id = docs[0]["id"], docs[1]["id"]
+            assert docs[0]["effective_to"] is not None, "old version must be closed"
+            assert docs[1]["effective_to"] is None, "new version must stay current"
+
+            # Old chunk text survives (the issue's smoking gun: it was deleted).
+            chunks = await rag.db.fetch_all(
+                "SELECT c.content FROM chunks c JOIN documents d ON d.id = c.document_id "
+                "WHERE d.namespace = %s",
+                (ns,),
+            )
+            joined = " ".join(c["content"] for c in chunks)
+            assert "30 days" in joined and "90 days" in joined
+
+            # Supersession edge recorded: new -> old.
+            dv = await rag.db.fetch_one(
+                "SELECT document_id, supersedes_document_id FROM document_versions "
+                "WHERE namespace = %s AND supersedes_document_id = %s",
+                (ns, old_id),
+            )
+            assert dv is not None, "document_versions must record the supersession"
+            assert dv["document_id"] == new_id
+        finally:
+            os.unlink(path)
+    finally:
+        await rag.close()
+
+
+async def test_reingest_changed_content_deletes_when_evolution_off():
+    """Default (evolution_tier='off') keeps the destructive-replace behavior:
+    no unbounded history growth for users who don't opt into time-travel."""
+    import os
+    import tempfile
+
+    ns = "test_evo_reingest_delete"
+    rag = await _fresh(ns)  # evolution_tier defaults to "off"
+    try:
+        fd, path = tempfile.mkstemp(suffix=".md")
+        os.close(fd)
+        try:
+            Path(path).write_text("# Refund policy\n\nRefund window is 30 days.\n")
+            await rag.ingest([path], namespace=ns)
+            Path(path).write_text("# Refund policy\n\nRefund window is 90 days.\n")
+            await rag.ingest([path], namespace=ns)
+
+            docs = await rag.db.fetch_all(
+                "SELECT id FROM documents WHERE namespace = %s", (ns,)
+            )
+            assert len(docs) == 1, "stale version must be deleted when evolution off"
+        finally:
+            os.unlink(path)
+    finally:
+        await rag.close()
+
+
 async def test_reingest_without_metadata_preserves_retracted():
     """Re-ingesting without metadata doesn't clobber prior retracted=True.
 
