@@ -20,7 +20,7 @@ try:
     __version__ = _pkg_version("pg-raggraph")
 except PackageNotFoundError:
     # Editable install without installed metadata (rare). Mirror pyproject.
-    __version__ = "0.5.0a17"
+    __version__ = "0.5.0a18"
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.models import QueryResult
@@ -1419,20 +1419,42 @@ class GraphRAG:
 
         async with self.db.transaction() as tx:
             # Incremental update: if source_path exists with a DIFFERENT hash,
-            # the file has changed. Delete the stale document inside the same
-            # transaction as the new insert so any failure mid-ingest rolls
-            # back both the delete and the insert — the old version stays
-            # visible until the new one commits. FK cascades take care of
-            # chunks and the entity/relationship provenance joins. Call
-            # prune_orphans() afterwards to clean up unreferenced entities.
+            # the file has changed. Pick the prior *current* version (the one
+            # still open: effective_to IS NULL) and supersede it inside the same
+            # transaction as the new insert, so any failure mid-ingest rolls back
+            # both halves and the old version stays visible until the new one
+            # commits. Two modes:
+            #   * evolution_tier == "off" (default) — DELETE the stale doc
+            #     (destructive replace, no history, zero storage growth). FK
+            #     cascades take care of chunks + provenance joins; call
+            #     prune_orphans() afterwards to clean unreferenced entities.
+            #   * evolution_tier != "off" — APPEND-ONLY supersede so time-travel
+            #     works (#90): close the prior version (set effective_to) and
+            #     point the new version at it via document_versions below,
+            #     instead of physically deleting it. The retrieval as_of window +
+            #     supersession penalty then serve the right version per query.
+            # Living-knowledge ingests run their own append-only path further
+            # down, so this only switches modes for plain re-ingests.
+            keep_history = self.config.evolution_tier != "off" and living_context is None
+            supersede_ts = datetime.now(timezone.utc)
             stale = await tx.fetch_one(
                 "SELECT id, content_hash, metadata FROM documents "
-                "WHERE namespace = %s AND source_path = %s AND content_hash != %s",
+                "WHERE namespace = %s AND source_path = %s AND content_hash != %s "
+                "  AND effective_to IS NULL "
+                "ORDER BY effective_from DESC NULLS LAST, id DESC LIMIT 1",
                 (ns, file_path, c_hash),
             )
             if stale:
-                await tx.execute("DELETE FROM documents WHERE id = %s", (stale["id"],))
-                logger.info(f"Replaced stale version of {file_path}")
+                if keep_history:
+                    await tx.execute(
+                        "UPDATE documents SET effective_to = COALESCE(effective_to, %s) "
+                        "WHERE id = %s",
+                        (supersede_ts, stale["id"]),
+                    )
+                    logger.info(f"Superseded prior version of {file_path} (history retained)")
+                else:
+                    await tx.execute("DELETE FROM documents WHERE id = %s", (stale["id"],))
+                    logger.info(f"Replaced stale version of {file_path}")
 
             # Insert document with any caller-supplied evolution metadata.
             # ON CONFLICT uses COALESCE so a re-ingest without metadata doesn't
@@ -1452,6 +1474,17 @@ class GraphRAG:
             retracted_value = bool(meta["retracted"]) if retracted_explicit else False
             version_label = meta.get("version_label")
             supersedes_doc = meta.get("supersedes_document_id")
+
+            # Append-only supersede (#90): when we kept the prior version above,
+            # stamp the new version's effective_from at the supersede boundary
+            # (so an as_of *before* the update excludes it) and point it at the
+            # closed prior version. Both only default — a caller who supplied
+            # effective_from / supersedes_document_id explicitly wins.
+            if stale and keep_history:
+                if eff_from is None:
+                    eff_from = supersede_ts
+                if supersedes_doc is None:
+                    supersedes_doc = stale["id"]
 
             # Persist arbitrary caller metadata to documents.metadata JSONB.
             # The dedicated evolution columns (effective_from etc.) ALSO get
