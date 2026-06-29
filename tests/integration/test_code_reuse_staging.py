@@ -50,8 +50,7 @@ async def test_reused_code_doc_stages_faithful_source():
             defer_extraction=True,
         )
         rows = await rag._db.fetch_all(
-            "SELECT content, language, source_path FROM code_backfill_stage "
-            "WHERE namespace = %s",
+            "SELECT content, language, source_path FROM code_backfill_stage WHERE namespace = %s",
             (NS,),
         )
         assert len(rows) == 1

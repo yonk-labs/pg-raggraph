@@ -240,8 +240,7 @@ async def test_reingest_changed_content_keeps_history_when_evolution_on():
             await rag.ingest([path], namespace=ns)
 
             docs = await rag.db.fetch_all(
-                "SELECT id, effective_to FROM documents WHERE namespace = %s "
-                "ORDER BY id",
+                "SELECT id, effective_to FROM documents WHERE namespace = %s ORDER BY id",
                 (ns,),
             )
             assert len(docs) == 2, "prior version must be retained, not deleted"
@@ -289,9 +288,7 @@ async def test_reingest_changed_content_deletes_when_evolution_off():
             Path(path).write_text("# Refund policy\n\nRefund window is 90 days.\n")
             await rag.ingest([path], namespace=ns)
 
-            docs = await rag.db.fetch_all(
-                "SELECT id FROM documents WHERE namespace = %s", (ns,)
-            )
+            docs = await rag.db.fetch_all("SELECT id FROM documents WHERE namespace = %s", (ns,))
             assert len(docs) == 1, "stale version must be deleted when evolution off"
         finally:
             os.unlink(path)
