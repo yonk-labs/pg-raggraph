@@ -113,14 +113,20 @@ def main() -> None:
         c["cites_in_corpus"] = in_corpus
         n_edges += len(in_corpus)
 
-    # entity naming: duplicates get an " (id)" suffix (h2h convention;
-    # METHODOLOGY §5 — the numeric version guard then refuses cross-case merges)
+    # entity naming (METHODOLOGY §5 fallback rule, triggered): the h2h
+    # convention (suffix only duplicate captions) produced 137 fuzzy-merged
+    # entities (1.19% > the preregistered 1% threshold) on the first ingest —
+    # e.g. "X v. Smith" absorbing "X v. Smith (id)" variants. ALL entity
+    # names now carry the " (id)" suffix, so any same-caption pair differs
+    # only by the numeric token and the version guard refuses the merge.
+    # Cross-caption near-name merges (e.g. Halder/Haller) remain possible —
+    # shipped behavior, counted and reported in RESULTS for both runs.
     dupes = {
         n for n, k in Counter(c["name_abbreviation"] for c in cases.values()).items() if k > 1
     }
     for c in cases.values():
         base = c["name_abbreviation"] or f"case-{c['id']}"
-        c["entity_name"] = f"{base} ({c['id']})" if base in dupes else base
+        c["entity_name"] = f"{base} ({c['id']})"
 
     with open(DATA / "corpus.jsonl", "w") as f:
         for cid in sorted(cases, key=int):

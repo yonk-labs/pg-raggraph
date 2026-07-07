@@ -146,6 +146,9 @@ async def run(db_url: str) -> None:
             await rag.db.execute(f"ALTER TABLE chunks ENABLE TRIGGER {trg}")
         print(f"  lexstats recompute: {time.time() - t_idx:.0f}s", flush=True)
 
+        # Docker default /dev/shm is 64MB; a parallel HNSW build requests a
+        # larger shared-memory segment and dies with DiskFull. Serial build.
+        await rag.db.execute("SET max_parallel_maintenance_workers = 0")
         await rag.db.execute("SET maintenance_work_mem = '512MB'")
         await rag.db.execute(
             "CREATE INDEX IF NOT EXISTS idx_chunk_embed ON chunks "
