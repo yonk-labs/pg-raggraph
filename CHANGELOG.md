@@ -119,6 +119,21 @@
   (optional, defaulting to empty), and `.env.example` + DEPLOY.md
   document all three `PGRG_SERVER_*` keys with placeholders.
 
+### Performance
+
+- **pgvector type registration is cached per pooled connection** instead of
+  re-running on every `fetch_all`/`execute` checkout. `register_vector_async`
+  issues 4 TypeInfo catalog queries; on the query path (~7 `fetch_all` calls
+  per `rag.query()`) that was ~20-25 ms of pure round-trip overhead per query
+  at localhost — h2h-shape wall p50 dropped 155.7 → 135.9 ms with rankings
+  byte-identical. The per-checkout `set_config` calls (statement_timeout,
+  hnsw.ef_search, RLS tenant) are unchanged — they're transactional, so a
+  pool rollback can undo them. Profiled and fixed via the new
+  `benchmarks/regressions/query_latency_profile.py`; the remaining
+  wall-vs-internal gap on the h2h benchmark (~105 ms) is context packing for
+  the default `"balanced"` retrieval profile (lede doc summarization) — a
+  design cost, removable per-call with `profile="raw"`.
+
 ### Docs — claims corrections (AAT audit)
 
 - Public benchmark claims re-captioned to what their in-repo sources

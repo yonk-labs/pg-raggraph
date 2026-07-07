@@ -115,9 +115,18 @@ no gold labels exist for them). p50/p95 reported.
 4. **Retrieval granularity differs by design.** AGE arm: one embedding per
    case (their shape). pg-raggraph: ~4 chunks per case (its shape). Same raw
    text; each system runs its intended design.
-5. **Latency measurement**: AGE arm times raw SQL client-side; pg-raggraph
-   times `GraphRAG.query()` wall time (includes Python overhead). Slightly
-   favors the AGE arm.
+5. **Latency measurement**: AGE arm times raw SQL client-side, with the
+   question embeddings precomputed *outside* the timed loop; pg-raggraph
+   times `GraphRAG.query()` wall time, which includes computing the query
+   embedding per call (~2 ms warm — inside its internal timer too) and,
+   dominantly, packing answer context for the default `"balanced"` retrieval
+   profile: LLM-free lede summarization of the top-10 retrieved documents,
+   profiled at ~105 ms of the ~120 ms wall-vs-internal gap on this corpus
+   (`benchmarks/regressions/query_latency_profile.py`). Use
+   `QueryResult.latency_ms` ("int" in RESULTS) as the number comparable to
+   the AGE arm's SQL wall; a `profile="raw"` query (classic chunk context,
+   no packing) walls at ~24 ms on this corpus. As reported, this favors the
+   AGE arm.
 6. **410 cases is tiny.** Latency differences at this scale say nothing
    about 500K-case behavior — no HNSW pressure, no planner stress, whole
    dataset fits in cache.

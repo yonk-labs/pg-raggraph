@@ -91,11 +91,19 @@ naive_boost's 1-hop boost adds a little (R@5 0.15, R+@30 0.46).
   refutes) our repo's 2-40x traversal claims — different scale, different
   shape. The earlier single-machine "42-111x" numbers should not be cited
   alongside these.
-- **pg-raggraph API overhead follow-up:** wall time is ~120 ms above the
-  internal retrieval timer (trace shows retrieval done at ~17-30 ms). That
-  gap is pg-raggraph Python-side post-processing, unprofiled in this run.
-  Worth an engineering look; not fixed here (out of scope for a benchmark
-  branch).
+- **pg-raggraph API overhead follow-up (profiled 2026-07-07, branch
+  perf/query-api-overhead):** the ~120 ms wall-vs-internal gap is context
+  packing for the default `"balanced"` retrieval profile — LLM-free lede
+  summarization of the top-10 retrieved documents (~105 ms Python on this
+  corpus) — plus ~28 ms of per-`fetch_all` connection setup (pgvector type
+  re-registration + set_config round trips) and two per-query status/profile
+  lookups (~10 ms). It is NOT query embedding (~2 ms warm, and already
+  inside the internal timer). Reproduction + phase breakdown:
+  `benchmarks/regressions/query_latency_profile.py`. Fixed since this run:
+  pgvector type registration is now cached per pooled connection — wall p50
+  re-measured 155.7 → 135.9 ms on this exact shape. `profile="raw"`
+  (classic chunk context, no packing) walls at ~24 ms. Table above is the
+  original run, left unchanged.
 
 ## Caveats (complete list)
 
@@ -112,9 +120,11 @@ naive_boost's 1-hop boost adds a little (R@5 0.15, R+@30 0.46).
    1536-dim); symmetric across arms.
 5. Retrieval granularity differs by design (1 vector/case vs ~4 chunks/case
    — each system's native shape over identical raw text).
-6. Latency measurement asymmetry: AGE arm = raw SQL wall; pgrg wall includes
-   Python API overhead; pgrg "int" is its internal retrieval timer. All
-   three reported.
+6. Latency measurement asymmetry: AGE arm = raw SQL wall with question
+   embeddings precomputed outside the timed loop; pgrg wall includes Python
+   API overhead — dominated by default-profile context packing, see the
+   follow-up bullet above; pgrg "int" is its internal retrieval timer (which
+   does include the ~2 ms query embed). All three reported.
 7. 410 cases fits entirely in cache — latency says nothing about 500K-scale
    behavior in either direction.
 8. pg-raggraph's fuzzy entity resolution merged 3 of 410 case entities
