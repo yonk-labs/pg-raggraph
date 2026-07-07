@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Typed graph traversal / dependent conjunctive joins (#95)** — new
+  `pg_raggraph.graph_join` module with thin `GraphRAG` wrappers:
+  - `rag.find_entities(name, fuzzy=…, entity_type=…)` — anchor binding via
+    exact + `pg_trgm` fuzzy match (seed on a *named* entity instead of the
+    whole-question embedding).
+  - `rag.traverse(entity_ids, rel_types=…, direction="out"|"in"|"any",
+    max_hops=…)` — typed, directed edge walk (recursive CTE, one round-trip)
+    returning each reached entity with the traversed edge and its provenance
+    chunk ids.
+  - `rag.graph_join(anchor, bind=[("LIVES_IN", "city"), …],
+    intersect=[("LOCATED_IN", "$city"), …])` — the dependent conjunctive join
+    ("restaurant in Maria's city that serves what she craves") executed as
+    indexed SQL joins in a single statement. Results carry the bound
+    intermediates, every supporting edge, and provenance chunk ids.
+    Rel-type matching is case-insensitive and accepts synonym lists
+    (`["LIKES", "CRAVES"]`); retracted edges never match. No schema changes —
+    uses the existing `idx_rel_src_type` / `idx_rel_dst_type` indexes
+    (EXPLAIN-verified no seq-scan at 2×10⁴ edges).
+    See `docs/cookbook/typed-graph-join.md`. Existing retrieval modes are
+    unchanged (additive).
+
 ## 0.5.0a19 — 2026-07-06 (prose extraction: prompt, lede_prose, llm+lede union)
 
 ### Added
