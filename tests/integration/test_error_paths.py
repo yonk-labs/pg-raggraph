@@ -49,7 +49,10 @@ async def test_pgrg_env_production_with_default_dsn_raises_runtime_error(monkeyp
     production, that's a deploy-time bug — refuse to start."""
     monkeypatch.setenv("PGRG_ENV", "production")
     # PGRGConfig must be invoked WITHOUT inheriting the test DSN — so we
-    # explicitly omit dsn to land on the default.
+    # explicitly omit dsn to land on the default. That requires clearing
+    # PGRG_DSN too: pydantic-settings reads it from the environment, so an
+    # exported test DSN would silently defuse the guard under test.
+    monkeypatch.delenv("PGRG_DSN", raising=False)
     with pytest.raises(RuntimeError) as exc_info:
         PGRGConfig()
     msg = str(exc_info.value)

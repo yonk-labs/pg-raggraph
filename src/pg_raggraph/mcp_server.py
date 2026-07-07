@@ -50,6 +50,11 @@ def _check_path_allowed(path: str, allowed_roots: list[str]) -> str:
     """
     canonical = os.path.realpath(path)
     for root in allowed_roots:
+        # Canonicalize the root too — _resolve_allowed_roots already does,
+        # but this function must be total for any caller: on macOS /tmp is a
+        # symlink to /private/tmp, so an un-canonicalized root would reject
+        # every legitimate path under it.
+        root = os.path.realpath(root)
         # Require a proper path-component match so '/foo/bar' does not match
         # allowed root '/foo/ba'. Adding os.sep guards that.
         if canonical == root or canonical.startswith(root + os.sep):
