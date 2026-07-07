@@ -3144,3 +3144,116 @@ class GraphRAG:
         from pg_raggraph.evolution import tune_scoring_weights as _tune
 
         return await _tune(self, **kwargs)
+
+    # --- Typed graph traversal / dependent joins (issue #95) ---------------
+    # Thin wrappers over pg_raggraph.graph_join — see that module and
+    # docs/cookbook/typed-graph-join.md for the full API and examples.
+
+    async def find_entities(
+        self,
+        name: str,
+        *,
+        fuzzy: bool = True,
+        entity_type: str | None = None,
+        namespace: str | None = None,
+        limit: int = 5,
+        min_score: float | None = None,
+    ):
+        """Bind a name to graph entities (exact + pg_trgm fuzzy match).
+
+        Returns a list of ``pg_raggraph.graph_join.EntityMatch`` ordered by
+        score (exact matches score 1.0). Use this to anchor ``traverse()``
+        or ``graph_join()`` on a named entity instead of an embedding.
+        """
+        from pg_raggraph import graph_join as _gj
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        with self.db.tenant(ns), self.db.readonly():
+            return await _gj.find_entities(
+                self.db,
+                self.config,
+                name,
+                fuzzy=fuzzy,
+                entity_type=entity_type,
+                namespace=ns,
+                limit=limit,
+                min_score=min_score,
+            )
+
+    async def traverse(
+        self,
+        entity_ids: list[int],
+        *,
+        rel_types: str | list[str] | None = None,
+        direction: str = "out",
+        max_hops: int = 1,
+        namespace: str | None = None,
+        limit: int = 200,
+    ):
+        """Typed, directed edge walk from ``entity_ids`` (one SQL round-trip).
+
+        ``rel_types`` accepts a single type or a synonym list (matched
+        case-insensitively); ``None`` walks all edge types. ``direction``
+        is ``"out"`` / ``"in"`` / ``"any"`` relative to the walked-from
+        entity. Returns ``pg_raggraph.graph_join.TraversalHop`` rows, each
+        carrying the reached entity, the traversed edge, and the edge's
+        provenance chunk ids.
+        """
+        from pg_raggraph import graph_join as _gj
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        with self.db.tenant(ns), self.db.readonly():
+            return await _gj.traverse(
+                self.db,
+                entity_ids,
+                rel_types=rel_types,
+                direction=direction,
+                max_hops=max_hops,
+                namespace=ns,
+                limit=limit,
+            )
+
+    async def graph_join(
+        self,
+        anchor: str | int,
+        bind: list[tuple],
+        intersect: list[tuple],
+        *,
+        namespace: str | None = None,
+        anchor_type: str | None = None,
+        fuzzy: bool = True,
+        match_limit: int = 50,
+    ):
+        """Dependent conjunctive join over the graph (one SQL round-trip).
+
+        Binds variables from an anchor entity via typed edges, then
+        intersects typed neighbor sets of those variables::
+
+            result = await rag.graph_join(
+                "Maria Ashby",
+                bind=[("LIVES_IN", "city"), (["CRAVES", "LIKES"], "food")],
+                intersect=[("LOCATED_IN", "$city"), ("SERVES", "$food")],
+            )
+
+        Returns ``pg_raggraph.graph_join.GraphJoinResult`` carrying the
+        bound anchor, the intermediate bindings, and every match with its
+        supporting edges and provenance chunk ids.
+        """
+        from pg_raggraph import graph_join as _gj
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        with self.db.tenant(ns), self.db.readonly():
+            return await _gj.graph_join(
+                self.db,
+                self.config,
+                anchor,
+                bind,
+                intersect,
+                namespace=ns,
+                anchor_type=anchor_type,
+                fuzzy=fuzzy,
+                match_limit=match_limit,
+            )
