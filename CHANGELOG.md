@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### Performance
+
+- **Fuzzy name binds now use the trgm GIN index** (cap-gold-v1 engine-isolated
+  addendum: 31.8ms p50 fuzzy anchor bind on an 11.5K-entity namespace). The
+  `WHERE similarity(name, x) > threshold` gates in `find_entities`
+  (graph_join), `resolve_entity`, and `resolve_entity_lookup` (resolution)
+  forced sequential scans — that SQL form cannot use `idx_entity_name_trgm`.
+  They now gate on the index-eligible pg_trgm `%` operator, with
+  `pg_trgm.similarity_threshold` pinned to the configured min score via a
+  transaction-local `set_config` on the query's own connection (new optional
+  `set_local` kwarg on `Database`/`Transaction` `fetch_all`/`fetch_one`). The
+  strict `similarity() > threshold` gate is kept alongside, so result sets
+  and scores are byte-equivalent (`%` matches at `>=` threshold; the original
+  gate was strictly `>`). Measured at 11.5K entities (steady state, local
+  Docker PG): 13-15ms p50 -> ~1.7ms p50 (7.8-8.7x) for distinct-name probes;
+  EXPLAIN now shows a Bitmap Index Scan on `idx_entity_name_trgm`
+  (guarded by `tests/integration/test_trgm_index_binds.py`). Ingest-time
+  entity resolution gets the same fix — it ran one such scan per extracted
+  entity per document.
+
 ### Test-suite trust (AAT-012: vacuous asserts, tie-passing graph suite, extraction-yield gate, migration parity)
 
 - **Vacuous assertions removed** (I-17). Four sites asserted things that

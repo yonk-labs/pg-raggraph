@@ -144,7 +144,16 @@ async def resolve_entity(
             )
         return existing["id"]
 
-    # Check for fuzzy match using pg_trgm + vector similarity
+    # Check for fuzzy match using pg_trgm + vector similarity.
+    # name %% x (literal %) is the index-eligible gate — it can drive the trgm
+    # GIN index (idx_entity_name_trgm), which a bare similarity() WHERE gate
+    # cannot (seq scan per entity per doc at ingest). %% compares against
+    # pg_trgm.similarity_threshold, which set_local pins to min_trgm on the
+    # query's own connection: resolve_entity usually runs inside a caller
+    # Transaction (ingest), where the GUC reverts at commit; with a plain
+    # Database it applies inside fetch_one's implicit transaction. The
+    # explicit similarity() > min_trgm gate stays because %% is >= threshold
+    # while the original semantics were strictly >.
     match = await db.fetch_one(
         """SELECT id, name, description,
                   similarity(name, %(name)s) AS trgm_score,
@@ -154,6 +163,7 @@ async def resolve_entity(
            FROM entities
            WHERE namespace = %(namespace)s
              AND name != %(name)s
+             AND name %% %(name)s
              AND similarity(name, %(name)s) > %(min_trgm)s
            ORDER BY combined DESC
            LIMIT 1""",
@@ -165,6 +175,7 @@ async def resolve_entity(
             "vec_w": config.vec_weight,
             "min_trgm": config.min_trgm_score,
         },
+        set_local={"pg_trgm.similarity_threshold": str(config.min_trgm_score)},
     )
 
     if (
@@ -285,6 +296,9 @@ async def resolve_entity_lookup(
     embedded = await embedder.embed([surface])
     surface_embedding = embedded[0]
 
+    # Same index-eligible %% gate + strict similarity() gate as resolve_entity
+    # (see comment there). Pure read outside any caller transaction — the
+    # threshold GUC rides transaction-locally on fetch_one's own connection.
     match = await db.fetch_one(
         """SELECT id, name,
                   similarity(name, %(surface)s) AS trgm_score,
@@ -293,6 +307,7 @@ async def resolve_entity_lookup(
                    %(vec_w)s * (1 - (embedding <=> %(embedding)s::vector))) AS combined
            FROM entities
            WHERE namespace = %(namespace)s
+             AND name %% %(surface)s
              AND similarity(name, %(surface)s) > %(min_trgm)s
            ORDER BY combined DESC
            LIMIT 1""",
@@ -304,6 +319,7 @@ async def resolve_entity_lookup(
             "vec_w": config.vec_weight,
             "min_trgm": config.min_trgm_score,
         },
+        set_local={"pg_trgm.similarity_threshold": str(config.min_trgm_score)},
     )
 
     if match is None or match["combined"] < config.resolution_threshold:
