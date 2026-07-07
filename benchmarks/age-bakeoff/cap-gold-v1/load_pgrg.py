@@ -85,6 +85,16 @@ async def run(db_url: str) -> None:
     await rag.connect()
     t0 = time.time()
     try:
+        # Bulk-load pattern (METHODOLOGY Deviations D1): drop the two HNSW
+        # indexes during load, rebuild after. Concurrent HNSW inserts inside
+        # long per-doc transactions serialize on transactionid waits (observed:
+        # 7/8 writers blocked, 2-6 s per chunk INSERT). Ingest-time entity
+        # resolution never uses ANN (its fuzzy query computes exact distances
+        # on trgm-filtered rows), so correctness is unaffected. Rebuild time
+        # is included in the reported ingest wall.
+        await rag.db.execute("DROP INDEX IF EXISTS idx_chunk_embed")
+        await rag.db.execute("DROP INDEX IF EXISTS idx_entity_embed")
+
         done = 0
         for i in range(0, len(records), BATCH):
             batch = records[i : i + BATCH]
@@ -94,6 +104,19 @@ async def run(db_url: str) -> None:
             await rag.ingest_records(batch, max_concurrent_docs=8)
             done += len(batch)
             print(f"  ingested {done}/{len(records)} ({time.time() - t0:.0f}s)", flush=True)
+
+        t_idx = time.time()
+        await rag.db.execute("SET maintenance_work_mem = '512MB'")
+        await rag.db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_chunk_embed ON chunks "
+            "USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64)"
+        )
+        await rag.db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_entity_embed ON entities "
+            "USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64)"
+        )
+        await rag.db.execute("ANALYZE")
+        print(f"  HNSW rebuild + analyze: {time.time() - t_idx:.0f}s", flush=True)
         wall = time.time() - t0
 
         counts = {}

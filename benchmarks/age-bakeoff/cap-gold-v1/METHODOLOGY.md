@@ -307,4 +307,16 @@ criteria are the ones written here, not post-hoc ones.
 
 ## Deviations
 
-(none yet — appended here if and when evidence forces a change)
+- **D1 (ingest procedure, before any retrieval was run).** §5 didn't pin the
+  pg-raggraph ingest concurrency or index handling. The default `balanced`
+  profile (doc_concurrency 2) paced this 11.5K-doc corpus at ~0.35 docs/s
+  (~9 h projected); raising to the shipped `max` value (8) exposed pgvector
+  HNSW concurrent-insert serialization — 7 of 8 writers blocked on
+  `transactionid` waits, 2-6 s per chunk INSERT (pg_stat_activity evidence
+  in the loader comment). Fix: standard bulk-load practice — drop
+  `idx_chunk_embed` / `idx_entity_embed` during load, rebuild after
+  (`m=16, ef_construction=64`, same as schema), rebuild time included in
+  the reported ingest wall. Ingest-time entity resolution is unaffected
+  (its fuzzy query computes exact distances over trgm-filtered rows, no
+  ANN). No recall/latency measurement had been taken before this change;
+  retrieval-time behavior is identical (same indexes exist at query time).
