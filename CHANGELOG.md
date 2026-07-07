@@ -4,6 +4,19 @@
 
 ### ⚠️ Changed — default behavior
 
+- **BREAKING: `pgrg serve` and `pgrg demo` now bind `127.0.0.1` by
+  default, not `0.0.0.0`** (PR-217, GAP-012). The server is no longer
+  reachable from other machines unless you opt in with `--host`. And a
+  non-loopback bind (e.g. `--host 0.0.0.0`) is **refused at startup**
+  unless `PGRG_SERVER_API_KEY` is set — the API allows unauthenticated
+  ingest, query, and delete, and exposing that to a network was a
+  footgun. To restore the old behavior knowingly, pass
+  `--host 0.0.0.0 --insecure-no-auth`. Containers are unaffected in
+  practice: the `Dockerfile` CMD now passes `--host 0.0.0.0` explicitly
+  and `docker-compose.prod.yml` requires `PGRG_SERVER_API_KEY` in
+  `.env`. If you scripted `pgrg serve` for LAN access, this WILL break
+  you — that's the point; set the key.
+
 - **`fusion` default flipped `"linear"` → `"rrf"`** (issue #96, rung 1).
   Rankings from `naive`/`local`/`global`/`hybrid` queries WILL change: legs
   are now combined by Reciprocal Rank Fusion (scale-free) instead of a raw
@@ -22,6 +35,15 @@
   vector/lexical legs over the graph-selected chunk set; the constant
   graph-presence leg drops out under rank fusion (it carries no ordering
   information within the candidate set).
+
+### Security
+- **DSN passwords are redacted in `ConnectionError` messages** (PR-218,
+  GAP-013). `GraphRAG.connect()` failures used to embed the full DSN —
+  password included — in the exception the CLI prints and servers log.
+  The DSN now renders as `postgresql://user:***@host:port/db` via a new
+  `redact_dsn()` helper (`pg_raggraph.config`), keeping host/port/dbname
+  actionable. Handles URL and keyword-conninfo forms; never raises on
+  malformed input.
 
 ### Fixed
 - **Silent extraction failure: per-chunk LLM errors no longer masquerade as

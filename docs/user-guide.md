@@ -924,11 +924,15 @@ result.latency_ms      # float: how long the query took
 
 ## REST API
 
-> **The bundled server is for local development and demos.** It ships without authentication, rate limiting, upload size limits, or CORS configuration. Do not expose `pgrg serve` directly to the public internet. For production, run it behind a reverse proxy (nginx, Caddy, Cloudflare, Traefik) that adds auth, TLS, and rate limits — or embed `create_app()` in your own FastAPI application that supplies those middlewares. See [Production deployment](#production-deployment) below.
+> **The bundled server is for local development and demos.** It binds `127.0.0.1` by default — reachable only from the local machine. A non-loopback bind (`--host 0.0.0.0`) is refused at startup unless `PGRG_SERVER_API_KEY` is set (Bearer-token auth); `--insecure-no-auth` overrides at your own risk. It still ships without rate limiting or TLS. Do not expose `pgrg serve` directly to the public internet. For production, run it behind a reverse proxy (nginx, Caddy, Cloudflare, Traefik) that adds TLS and rate limits — or embed `create_app()` in your own FastAPI application that supplies those middlewares. See [Production deployment](#production-deployment) below.
 
 ### Launch Server
 ```bash
-pgrg serve --port 8080
+pgrg serve --port 8080                       # binds 127.0.0.1 (local only)
+
+# Expose to the network — requires auth (refused otherwise):
+PGRG_SERVER_API_KEY=your-key pgrg serve --host 0.0.0.0 --port 8080
+
 # Or from code:
 # from pg_raggraph.server import create_app
 # app = create_app(dsn=...)

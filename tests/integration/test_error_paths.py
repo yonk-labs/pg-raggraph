@@ -29,15 +29,19 @@ pytestmark = pytest.mark.asyncio
 async def test_bad_dsn_raises_connection_error_with_helpful_message():
     """rag.connect() against an unreachable DB wraps in ConnectionError
     naming the DSN — the user shouldn't have to read a stack trace to
-    find the URL they got wrong."""
-    rag = GraphRAG(dsn="postgresql://postgres:postgres@127.0.0.1:1/nope")
+    find the URL they got wrong. PR-218: the password is REDACTED; the
+    CLI prints this message verbatim and servers ship it to logs."""
+    rag = GraphRAG(dsn="postgresql://pgrguser:sup3rsecret@127.0.0.1:1/nope")
     with pytest.raises(ConnectionError) as exc_info:
         await rag.connect()
     msg = str(exc_info.value)
     assert "Cannot connect to PostgreSQL" in msg
-    # The DSN we supplied should appear in the message so users see what
-    # got tried (not the env default).
+    # Host:port still appear so users see what got tried (not the env
+    # default) — the error stays actionable.
     assert "127.0.0.1:1" in msg
+    # PR-218: the password must never reach the message; user survives.
+    assert "sup3rsecret" not in msg
+    assert "pgrguser:***@" in msg
 
 
 async def test_pgrg_env_production_with_default_dsn_raises_runtime_error(monkeypatch):

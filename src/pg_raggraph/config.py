@@ -4,13 +4,42 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import Any, Literal
+from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
 _logger = logging.getLogger("pg_raggraph.config")
 _DEFAULT_DSN = "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
+
+
+def redact_dsn(dsn: str) -> str:
+    """Return *dsn* with any password replaced by ``***`` (PR-218).
+
+    Keeps user/host/port/dbname so error messages stay actionable.
+    Handles URL DSNs, keyword conninfo strings (``host=x password=y``),
+    and malformed input — never raises. Use this anywhere a DSN could
+    reach an exception message or a log line.
+    """
+    if not isinstance(dsn, str):
+        return "<invalid dsn>"
+    # Keyword conninfo form: password=secret / password='se cret'
+    redacted = re.sub(r"(password\s*=\s*)('[^']*'|\S+)", r"\1***", dsn, flags=re.IGNORECASE)
+    try:
+        parts = urlsplit(redacted)
+        if parts.password:
+            # Mirror urllib's own netloc split (userinfo = up to last '@',
+            # password = after first ':') so reconstruction is faithful.
+            userinfo, _, hostport = parts.netloc.rpartition("@")
+            user = userinfo.partition(":")[0]
+            return urlunsplit(parts._replace(netloc=f"{user}:***@{hostport}"))
+    except ValueError:
+        pass  # unparseable as a URL — keyword-form redaction above still applied
+    return redacted
+
+
 _default_dsn_warned = False
 _pool_max_warned = False
 _pool_fleet_warned = False
