@@ -137,7 +137,7 @@ Env var: `PGRG_LLM_MODEL`
 
 What: model identifier passed to the LLM endpoint.
 Pros: bigger models extract higher-quality entities and relationships at ingest.
-Cons: bigger model = more cost (per-call for paid APIs) or slower (for local).
+Cons: bigger model = more cost (per-call for paid APIs) or slower (for local). GOTCHA: the extraction cache (`pgrg_llm_cache`) keys on prompt name + chunk content, **not** the model — changing `llm_model` alone and re-extracting replays the old model's cached output. Wipe the cache (`DELETE FROM pgrg_llm_cache`) to actually exercise a new model; see [cookbook/background-extraction.md](cookbook/background-extraction.md#re-extracting-a-corpus-with-different-settings).
 When to use: `gpt-4o-mini` or `gpt-5-mini` for top extraction quality. `Qwen3-Coder-Next-int4` for cheap local.
 When NOT to use: changing without re-ingesting if you care about a consistent graph quality across the corpus.
 

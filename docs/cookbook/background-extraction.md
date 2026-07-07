@@ -440,6 +440,48 @@ restart is unaffected: PR-001 made the startup reaper namespace-scoped.
 All four share the same `extract_documents` primitive — single
 implementation, multiple surfaces.
 
+## Re-extracting a corpus with different settings
+
+You changed `extraction_prompt`, `fact_extractor`, or `llm_model` and want
+the graph rebuilt over already-ingested documents. Two traps to know about
+before you flip anything back to `'pending'`:
+
+**1. Old edges are never deleted.** Entity and relationship writes are
+idempotent *upserts* — re-extraction merges into the existing graph, it does
+not replace it. Edges produced by the old settings stay. For a clean
+comparison (e.g. auditing what a new prompt extracts), either re-ingest into
+a **fresh namespace**, or clear the old graph in place first:
+
+```sql
+-- In-place reset for one namespace (documents + chunks stay).
+DELETE FROM relationships WHERE namespace = 'my_ns';
+DELETE FROM entities      WHERE namespace = 'my_ns';  -- optional, see below
+UPDATE documents SET graph_status = 'pending' WHERE namespace = 'my_ns';
+```
+
+Then run any drain surface from the table above. Keeping `entities` retains
+their embeddings (cheaper), but old entity descriptions merged from the
+previous run persist — delete them too when you want a truly fresh graph.
+
+**2. The extraction cache keys on prompt + content, NOT on the model.**
+`pgrg_llm_cache` is keyed `sha256(prompt_name + chunk_content)`. The
+consequences are asymmetric:
+
+- Changing `extraction_prompt` → every chunk misses the cache → real
+  re-extraction. Nothing to do.
+- Changing `llm_model` (or the LLM server) **alone** → every chunk *hits*
+  the cache → the "re-extraction" silently replays the old model's cached
+  output and the graph comes back identical. To actually exercise the new
+  model, wipe the cache first:
+
+```sql
+DELETE FROM pgrg_llm_cache;  -- safe: it's a cache, repopulates on the next drain
+```
+
+The deterministic extractors (`lede_spacy`, `lede_prose`) don't use the
+cache; switching `fact_extractor` between them re-extracts unconditionally.
+The LLM leg of `llm+lede` caches like any other LLM extraction.
+
 ## Code KBs — backfilling the call graph
 
 `pgrg extract` backfills **generic entities** (the GraphRAG prose graph) and owns
