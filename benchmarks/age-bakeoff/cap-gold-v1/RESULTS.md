@@ -287,6 +287,10 @@ Deviations D1/D2; none fixed in this branch):
 
 ## Engine-isolated latency addendum (Task B, 2026-07-07)
 
+*Addendum 2 — pipeline latency (traversal depth sweep 1–3 hops, realistic
+RAG pipeline, composed analytical slice) lives in `PIPELINES.md` — same
+corpus, instrumentation only, no new accuracy claims.*
+
 The Task B latency table above carries two disclosed asymmetries: the pgrg
 arm went through the full Python API, and its anchor bind was a pg_trgm
 fuzzy match while the AGE arm bound by exact key. This addendum removes
