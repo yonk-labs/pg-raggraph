@@ -285,6 +285,58 @@ Deviations D1/D2; none fixed in this branch):
 10. Ingest wall times are single-run, on a machine also running Docker
     containers; recorded for context, not claims.
 
+## Engine-isolated latency addendum (Task B, 2026-07-07)
+
+The Task B latency table above carries two disclosed asymmetries: the pgrg
+arm went through the full Python API, and its anchor bind was a pg_trgm
+fuzzy match while the AGE arm bound by exact key. This addendum removes
+both — it is instrumentation of the existing preregistered task, not a new
+metric (nothing new preregistered; labeled addendum). Every arm below is
+**bare SQL via psycopg** with the anchor's **exact id resolved outside the
+timed loop**; the pgrg CTE arms execute the *verbatim* SQL
+`GraphRAG.traverse()` generates (`pg_raggraph.graph_join.build_traverse_sql`),
+and a "floor" variant strips that SQL's provenance-array subquery, entity
+join, and ORDER BY for output parity with the AGE arm (identifiers only).
+149 anchors (150 minus 1 merged-away entity, excluded from ALL arms),
+1 warmup pass + 3 timed repeats each = 447 samples/arm. Script:
+`run_latency_isolated.py`; raw: `results/results_latency_isolated.json`.
+
+| arm | p50 ms | p95 ms | mean rows |
+|---|---|---|---|
+| pgrg_cte_1hop (shipped traverse SQL) | 0.33 | 0.37 | 8.2 |
+| pgrg_cte_min_1hop (engine floor) | 0.29 | 0.33 | 8.2 |
+| age_cypher_1hop | 2.72 | 2.85 | 8.2 |
+| pgrg_cte_2hop (shipped traverse SQL) | 0.47 | 0.83 | 59.7 |
+| pgrg_cte_min_2hop (engine floor) | 0.36 | 0.45 | 59.7 |
+| age_cypher_2hop (`[:REF*1..2]`) | 60.40 | 119.20 | 59.6 |
+| pgrg_trgm_bind (fuzzy caption→entity, alone) | 31.76 | 45.60 | 3.8 |
+
+Correctness cross-check (untimed): 25/25 sampled anchors returned exactly
+the corpus citation set in both engines at 1 hop. Row counts match per arm
+(2-hop differs by 0.1 mean row: our path-array cycle guard vs Cypher's
+trail semantics).
+
+**Reading it honestly.** Naked engine vs naked engine, the adjacency-table
+recursive CTE is **~8× faster than AGE Cypher at 1 hop (0.33 vs 2.72 ms)
+and ~128× faster at 2 hops (0.47 vs 60.4 ms p50; p95 119 ms)** — the
+variable-length Cypher path is where AGE's overhead concentrates, and this
+is the first measurement in this benchmark family that actually supports
+the repo's "recursive CTEs are 2–40× faster for 1–3 hop traversals" claim
+shape (here it exceeds it at 2 hops — one machine, one graph, one workload;
+still not a blanket claim). The Task B table above showed the opposite
+(AGE 3.5 ms vs pgrg 33.9 ms) because ~94% of the pgrg number was not
+traversal: the trgm anchor bind alone costs 31.8 ms p50 — a sequential
+`similarity()` scan over 11.5K entity names (the `similarity(name, x) > t`
+predicate can't use the GIN trgm index; the `%` operator form could —
+library upgrade path, not changed here) — plus Python API overhead. The
+corrected framing for any "faster/slower than AGE" statement: **the engine
+(traversal) is decisively faster than AGE Cypher on this graph; what was
+slower in Task B is our anchor *binding* (fuzzy-by-necessity under the
+id-suffix naming scheme this benchmark adopted) and API plumbing —
+addressable costs, not engine costs.** Symmetric note: callers whose
+anchors arrive as exact ids skip the bind entirely (`traverse()` accepts
+entity ids directly) and get the 0.33 ms path.
+
 ## Independent audit (smell-test, 2026-07-07)
 
 An adversarial audit agent re-derived the headline numbers from the live
