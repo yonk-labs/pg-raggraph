@@ -529,8 +529,17 @@ class GraphRAG:
 
             ensure_lede_available()
             extract_from_chunks = lede_fn
-            _progress("Extraction via lede_spacy (deterministic, no LLM).")
-        elif not self.config.skip_extraction and self.config.llm_base_url:
+            _progress(
+                f"Extraction via {self.config.fact_extractor}"
+                + (
+                    " (deterministic, no LLM)."
+                    if not _needs_llm
+                    else " (LLM + deterministic union)."
+                )
+            )
+        # llm+lede sets both lede_fn AND _needs_llm — it still wants the
+        # provider; without one it degrades to its deterministic leg.
+        if _needs_llm and not self.config.skip_extraction and self.config.llm_base_url:
             if self._llm is None:
                 try:
                     self._llm = get_llm_provider(self.config)
@@ -881,8 +890,17 @@ class GraphRAG:
 
             ensure_lede_available()
             extract_from_chunks = lede_fn
-            _progress("Extraction via lede_spacy (deterministic, no LLM).")
-        elif not self.config.skip_extraction and self.config.llm_base_url:
+            _progress(
+                f"Extraction via {self.config.fact_extractor}"
+                + (
+                    " (deterministic, no LLM)."
+                    if not _needs_llm
+                    else " (LLM + deterministic union)."
+                )
+            )
+        # llm+lede sets both lede_fn AND _needs_llm — it still wants the
+        # provider; without one it degrades to its deterministic leg.
+        if _needs_llm and not self.config.skip_extraction and self.config.llm_base_url:
             if self._llm is None:
                 try:
                     self._llm = get_llm_provider(self.config)
@@ -1278,7 +1296,9 @@ class GraphRAG:
         # embeddings still land (so naive retrieval works), but extraction is
         # deferred to a `pgrg extract` worker that drains graph_status='pending'.
         extraction_degraded = False
-        _lede_path = getattr(self.config, "fact_extractor", "none") == "lede_spacy"
+        from pg_raggraph.lede_extraction import LEDE_CAPABLE_EXTRACTORS
+
+        _lede_path = getattr(self.config, "fact_extractor", "none") in LEDE_CAPABLE_EXTRACTORS
         if defer_extraction or (llm is None and not _lede_path) or skip_llm_for_this_doc:
             from pg_raggraph.models import ExtractionResult
 

@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.5.0a19 — 2026-07-06 (prose extraction: prompt, lede_prose, llm+lede union)
+
+### Added
+- **`extraction_prompt="prose"`** — extraction prompt for everyday text
+  (chats, reviews, bios, journals). Allows common-noun entities (foods,
+  activities), names dishes by base form ("wood-fired margherita pizza" →
+  `pizza`, `VARIANT_OF` for meaningful variants), resolves first-person
+  chat speakers, and constrains rel_types to a closed set
+  (`LIVES_IN`/`LIKES`/`SERVES`/`LOCATED_IN`/…; preference-verb synonyms —
+  crave, love, hate, favor — map onto `LIKES`/`DISLIKES`/`PREFERS` rather
+  than minting bespoke edge types). Motivated by a join-world
+  bake where the `default` prompt's proper-noun bias dropped person—craving
+  edges 19/24 times; an A/B over the same corpus/model showed the prose
+  variant recovering most join-critical links.
+- **`fact_extractor="lede_prose"`** — deterministic prose extraction: full
+  spaCy NER (now keeping `FAC`/`ORG` — venues, businesses) plus noun-chunk
+  head lemmas as entities ("the seafood gumbo" → `gumbo`, variant phrase
+  kept in the description), with the existing sentence co-occurrence edges.
+  Head-lemma canonicalization lands dish/thing variants on one node without
+  any resolution-threshold tuning. Presence is span-accurate from the parse
+  (no regex re-matching).
+- **`fact_extractor="llm+lede"`** — per-chunk union of LLM extraction and
+  `lede_prose`: typed, intent-carrying LLM edges plus a deterministic
+  co-occurrence net that guarantees in-sentence links survive when the LLM
+  drops them. Entities dedupe casefold (LLM's form wins; deterministic
+  relationship endpoints are remapped to the surviving name). Degrades to
+  the deterministic leg with a single warning when no LLM is configured.
+- **`llm_max_tokens` (PGRG_LLM_MAX_TOKENS, default 0 = omit)** — optional
+  `max_tokens` on JSON-mode extraction calls. Local OpenAI-compatible
+  servers with small completion defaults (mlx-lm's 512) silently truncate
+  extraction JSON, which parses as empty and yields no graph; set 4096 to
+  fix. Default omits the field — byte-identical requests for existing
+  deployments.
+
 ## 0.5.0a18 — 2026-06-29 (append-only re-ingest preserves time-travel, #90)
 
 ### Fixed

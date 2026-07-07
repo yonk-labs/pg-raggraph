@@ -237,12 +237,66 @@ Rules:
 - Keep descriptions to one sentence."""
 
 
+PROSE_EXTRACTION_PROMPT = """\
+You are an expert at extracting knowledge graphs from everyday prose:
+chat logs, reviews, bios, journals, emails, and social posts.
+
+Return JSON with this structure:
+{"entities": [...], "relationships": [...]}
+
+Entity fields: name, entity_type, description
+Relationship fields: source, target, rel_type, description, weight
+
+Preferred entity types:
+- person      (named people; use the fullest name seen)
+- place       (cities, neighborhoods, venues)
+- business    (restaurants, shops, brands)
+- food        (dishes, cuisines, drinks)
+- product     (things bought, used, recommended)
+- activity    (hobbies, sports, events)
+
+Preferred relationship types:
+- LIVES_IN               (person -> place)
+- LOCATED_IN             (business/venue -> place)
+- LIKES / DISLIKES / PREFERS  (person -> food/product/activity/place)
+- SERVES                 (business -> food/cuisine)
+- VISITED                (person -> place/business)
+- WORKS_AT               (person -> business)
+- MARRIED_TO / FRIEND_OF / KNOWS  (person -> person)
+- RECOMMENDS             (person -> business/product)
+- RELATED_TO             (fallback for weaker links)
+
+Rules:
+- Common-noun objects are valid entities: "gumbo", "hot yoga", "oat-milk
+  lattes". Do NOT require proper nouns.
+- Name foods and dishes by their BASE form: "wood-fired margherita pizza"
+  -> entity "pizza"; put the variant/preparation in the description. If a
+  specific dish and its base differ meaningfully, emit both plus
+  (dish) VARIANT_OF (base).
+- Name places by their common full name ("New York City", not "NYC").
+- Stated preferences and desires are facts. Map preference verbs onto the
+  closed set: crave, love, enjoy, want, fancy -> LIKES; hate, can't stand,
+  avoid -> DISLIKES; favor, would rather -> PREFERS. So "I've been craving
+  pizza" -> (speaker) LIKES (pizza).
+- In chat logs, resolve "I"/"me" to the named speaker; if the speaker
+  cannot be identified, skip that relationship rather than guessing.
+- In reviews, link the reviewed business to its location and to what it
+  serves whenever the text states them.
+- Use ONLY the relationship types listed above. If none fits exactly, use
+  the closest listed type — never invent a new one.
+- Only extract facts the text states or clearly implies.
+- Normalize entity names (consistent casing); keep descriptions to one
+  sentence."""
+
+
 def get_prompt(name: str) -> str:
     """Get an extraction prompt by name."""
     if name == "dev":
         return DEV_EXTRACTION_PROMPT
     if name == "code":
         return CODE_EXTRACTION_PROMPT
+    if name == "prose":
+        return PROSE_EXTRACTION_PROMPT
     return EXTRACTION_SYSTEM_PROMPT
 
 
@@ -263,9 +317,15 @@ class HttpxLLMProvider:
     done (GraphRAG.close() handles this automatically).
     """
 
-    def __init__(self, base_url: str, model: str, api_key: str = ""):
+    def __init__(self, base_url: str, model: str, api_key: str = "", max_tokens: int = 0):
         self._base_url = base_url.rstrip("/")
         self._model = model
+        # max_tokens is sent on JSON-mode extraction calls when > 0. Local
+        # OpenAI-compatible servers (e.g. mlx-lm) default to tiny completion
+        # budgets (512) that silently truncate extraction JSON — the parse
+        # then fails and the chunk yields an empty graph. See config
+        # `llm_max_tokens`.
+        self._max_tokens = max_tokens
         self._headers: dict[str, str] = {"Content-Type": "application/json"}
         if api_key:
             self._headers["Authorization"] = f"Bearer {api_key}"
@@ -281,15 +341,18 @@ class HttpxLLMProvider:
         await self._client.aclose()
 
     async def complete(self, messages: list[dict]) -> str:
+        payload: dict = {
+            "model": self._model,
+            "messages": messages,
+            "response_format": {"type": "json_object"},
+            "temperature": 0.0,
+        }
+        if self._max_tokens > 0:
+            payload["max_tokens"] = self._max_tokens
         resp = await self._client.post(
             f"{self._base_url}/chat/completions",
             headers=self._headers,
-            json={
-                "model": self._model,
-                "messages": messages,
-                "response_format": {"type": "json_object"},
-                "temperature": 0.0,
-            },
+            json=payload,
         )
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"]
@@ -315,6 +378,7 @@ def get_llm_provider(config: PGRGConfig) -> LLMProvider:
         base_url=config.llm_base_url,
         model=config.llm_model,
         api_key=config.llm_api_key,
+        max_tokens=getattr(config, "llm_max_tokens", 0),
     )
 
 

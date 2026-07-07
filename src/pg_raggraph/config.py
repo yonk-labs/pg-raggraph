@@ -96,13 +96,25 @@ class PGRGConfig(BaseSettings):
     llm_base_url: str = "http://localhost:11434/v1"  # Ollama default
     llm_model: str = "llama3.2"
     llm_api_key: str = ""  # set for OpenAI, leave empty for Ollama
+    # max_tokens sent on JSON-mode extraction calls. 0 = omit the field
+    # (server default; byte-identical to prior behavior). Set this when the
+    # LLM server has a small completion default — mlx-lm's 512 silently
+    # truncates extraction JSON, which parses as empty and yields no graph.
+    # 4096 is a safe value for extraction outputs.
+    llm_max_tokens: int = 0
     # `default` is the generic prompt; `dev` is the developer-KB-tuned prompt
     # (entity types: person/service/library/file/commit/incident/ADR/etc.);
     # `code` is the source-code concept prompt (module/component/concept/dep) that
-    # layers a conceptual graph over the deterministic call/inherit/implement graph.
+    # layers a conceptual graph over the deterministic call/inherit/implement graph;
+    # `prose` targets everyday text (chats, reviews, bios) — common-noun
+    # entities allowed (foods, activities), base-form dish naming, and a
+    # closed relationship set (LIVES_IN/LIKES/SERVES/LOCATED_IN/...;
+    # preference-verb synonyms map onto LIKES/DISLIKES/PREFERS). Use it
+    # when the generic prompt's proper-noun bias drops preference/location
+    # relations from conversational corpora.
     # Typed Literal so a typo in PGRG_EXTRACTION_PROMPT raises ValidationError
     # at config init instead of silently falling back to "default".
-    extraction_prompt: Literal["default", "dev", "code"] = "default"
+    extraction_prompt: Literal["default", "dev", "code", "prose"] = "default"
     # Skip entity/relationship extraction during ingestion.
     # Set true for pure vector RAG mode — no LLM needed for ingest.
     skip_extraction: bool = False
@@ -527,9 +539,18 @@ class PGRGConfig(BaseSettings):
     # sentence-level co-occurrence (RELATED_TO). No LLM, no network.
     # Requires the [lede_spacy] extra + `python -m spacy download
     # en_core_web_sm`. Selecting it builds a graph WITHOUT llm_base_url.
-    # NOTE: it does NOT emit SPO triples and does NOT populate the Tier 2
-    # `facts` table — that is a tracked follow-up. `llm` = full LLM
-    # extraction; `none` = disabled.
-    fact_extractor: Literal["llm", "lede_spacy", "none"] = "none"
+    # `lede_prose` widens that deterministic net for everyday prose: full
+    # spaCy NER (keeps FAC/ORG — venues, businesses) PLUS noun-chunk head
+    # lemmas as entities ("the seafood gumbo" -> "gumbo", variant phrase in
+    # the description), same sentence co-occurrence edges. Head-lemma
+    # canonicalization makes dish variants land on one node deterministically.
+    # `llm+lede` runs the LLM extractor AND lede_prose per chunk and unions
+    # the results — typed LLM edges plus a deterministic co-occurrence net
+    # that guarantees in-sentence links exist even when the LLM drops them.
+    # Degrades to the deterministic leg (with a warning) if no LLM configured.
+    # NOTE: none of these emit SPO triples or populate the Tier 2 `facts`
+    # table — that is a tracked follow-up. `llm` = full LLM extraction;
+    # `none` = disabled.
+    fact_extractor: Literal["llm", "lede_spacy", "lede_prose", "llm+lede", "none"] = "none"
     fact_similarity_threshold: float = 0.92
     fact_edge_candidate_k: int = 8

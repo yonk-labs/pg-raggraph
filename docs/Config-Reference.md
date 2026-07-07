@@ -150,14 +150,23 @@ Cons: passing via constructor literal leaks into stack traces. Prefer env var.
 When to use: any non-local LLM endpoint.
 When NOT to use: never hardcode in source. Use env vars or a secret manager.
 
-### `extraction_prompt` (`"default" | "dev"`, default: `default`)
+### `llm_max_tokens` (int, default: `0`)
+Env var: `PGRG_LLM_MAX_TOKENS`
+
+What: `max_tokens` sent on JSON-mode extraction calls. `0` omits the field (server default; identical to prior behavior).
+Pros: fixes silent extraction loss on local servers with small completion defaults — mlx-lm's 512 truncates extraction JSON mid-object, which parses as empty and yields no graph, with no error anywhere.
+Cons: none for extraction-sized outputs; a too-small value reintroduces the truncation it exists to fix.
+When to use: `4096` for any local OpenAI-compatible server (mlx-lm, llama.cpp server) whose completion default is small.
+When NOT to use: hosted APIs with generous defaults — leave at `0`.
+
+### `extraction_prompt` (`"default" | "dev" | "code" | "prose"`, default: `default`)
 Env var: `PGRG_EXTRACTION_PROMPT`
 
-What: which entity-extraction prompt to use at ingest. `default` is general-purpose; `dev` is tuned for developer corpora (people, services, libraries, files, commits, incidents, ADRs).
-Pros: `dev` produces meaningfully better entities + relationships on dev knowledge bases.
-Cons: `dev` over-extracts on non-dev corpora (medical, legal).
-When to use: `dev` for codebases, runbooks, on-call docs, ADR collections.
-When NOT to use: `dev` for general-knowledge corpora — use `default`.
+What: which entity-extraction prompt to use at ingest. `default` is general-purpose; `dev` is tuned for developer corpora (people, services, libraries, files, commits, incidents, ADRs); `code` extracts a conceptual graph from source code (modules, components, concepts) on top of the deterministic call graph; `prose` targets everyday text — chats, reviews, bios, journals — allowing common-noun entities (foods, activities), base-form dish naming ("wood-fired margherita pizza" → `pizza`), first-person speaker resolution in chat logs, and a closed relationship set (`LIVES_IN`/`LIKES`/`SERVES`/`LOCATED_IN`/… — preference-verb synonyms like crave/love/hate map onto `LIKES`/`DISLIKES`/`PREFERS` instead of minting bespoke edge types).
+Pros: matching the prompt to the corpus genre is the single biggest extraction-quality lever. `default`'s proper-noun bias drops preference/location relations from conversational text that `prose` keeps.
+Cons: `dev`/`prose` over-extract on the wrong genre. The LLM cache keys on prompt name, so switching prompts re-extracts (by design — no stale collisions).
+When to use: `dev` for codebases, runbooks, on-call docs, ADR collections. `prose` for chat logs, reviews, social/lifestyle corpora.
+When NOT to use: `dev` or `prose` for general-knowledge corpora — use `default`.
 
 ### `skip_extraction` (bool, default: `False`)
 Env var: `PGRG_SKIP_EXTRACTION`
@@ -580,15 +589,15 @@ Cons: adds ingest cost; false-positive rate depends on the extractor model.
 When to use: any evolving knowledge corpus.
 When NOT to use: static benchmarks (waste of cycles); when the extractor is unreliable.
 
-### `fact_extractor` (`"llm" | "lede_spacy" | "none"`, default: `none`)
+### `fact_extractor` (`"llm" | "lede_spacy" | "lede_prose" | "llm+lede" | "none"`, default: `none`)
 Env var: `PGRG_FACT_EXTRACTOR`
 
-What: extractor backend for the graph. `llm` = full-quality LLM entity+relationship extraction, expensive. `lede_spacy` = deterministic, LLM-free: lede + lede-spacy NER produce (untyped) entities and edges are sentence-level co-occurrence (`RELATED_TO`); no LLM, no network. `none` = disabled.
-Requires (for `lede_spacy`): `pip install 'pg-raggraph[lede_spacy]'` **and** `python -m spacy download en_core_web_sm`. Selecting `lede_spacy` builds a graph **without** `llm_base_url` set; missing deps fail loud with the exact install commands.
-Pros: `lede_spacy` is ~sub-5ms/doc and fully offline; `llm` gives higher relational quality.
-Cons: `llm` adds an extraction LLM call per chunk. `lede_spacy` edges are co-occurrence, not semantic relations; entities are untyped (`entity_type="entity"`) in this version.
-When to use: `lede_spacy` when you need a graph with no LLM/offline; `llm` for higher-quality typed relations.
-When NOT to use: `none` is correct unless you want a graph. NOTE: `lede_spacy` does **not** emit SPO triples and does **not** populate the Tier 2 `facts` table — that is a tracked follow-up.
+What: extractor backend for the graph. `llm` = full-quality LLM entity+relationship extraction, expensive. `lede_spacy` = deterministic, LLM-free: lede + lede-spacy NER produce (untyped) entities and edges are sentence-level co-occurrence (`RELATED_TO`); no LLM, no network. `lede_prose` = the deterministic net widened for everyday prose: full spaCy NER (keeps `FAC`/`ORG` — venues, businesses) **plus** noun-chunk head lemmas as entities ("the seafood gumbo" → `gumbo`, variant phrase kept in the description), same co-occurrence edges — head-lemma canonicalization makes dish/thing variants land on one node deterministically. `llm+lede` = runs the LLM extractor **and** `lede_prose` per chunk and unions the results: typed LLM edges plus a deterministic co-occurrence net that guarantees in-sentence links survive even when the LLM drops them (degrades to the deterministic leg, with one warning, if no LLM is configured). `none` = disabled.
+Requires (for `lede_spacy`/`lede_prose`/`llm+lede`): `pip install 'pg-raggraph[lede_spacy]'` **and** `python -m spacy download en_core_web_sm`. The deterministic paths build a graph **without** `llm_base_url` set; missing deps fail loud with the exact install commands.
+Pros: deterministic paths are ~sub-5ms/doc and fully offline; `llm` gives higher relational quality; `llm+lede` gets both — typed intent edges where the LLM succeeds, guaranteed co-occurrence links where it doesn't.
+Cons: `llm` adds an extraction LLM call per chunk. Co-occurrence edges are proximity, not semantic relations. `lede_prose` noun-chunk heads are noisier than NER — more (small) entities per doc; a built-in stoplist trims the worst abstract heads.
+When to use: `lede_prose` for offline graphs over conversational/review corpora; `llm+lede` when extraction recall is the binding constraint (a missed edge is unrecoverable at query time; a noisy one just ranks lower). Pair `llm+lede` with `extraction_prompt="prose"` on lifestyle/chat corpora.
+When NOT to use: `none` is correct unless you want a graph. NOTE: none of these emit SPO triples or populate the Tier 2 `facts` table — that is a tracked follow-up.
 
 ### `fact_dedup_threshold` (float, default: `0.8`)
 Env var: `PGRG_FACT_DEDUP_THRESHOLD`

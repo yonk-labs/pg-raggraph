@@ -380,16 +380,19 @@ async def _extract_one(rag: GraphRAG, doc_id: int) -> dict:
         return {"entities": 0, "rels": 0}
 
     lede_fn, _needs_llm = select_extractor(rag.config)
+    llm = None
     if lede_fn is not None:
         ensure_lede_available()
         extract_fn = lede_fn
-        llm = None
-    elif not rag.config.skip_extraction and rag.config.llm_base_url:
+    else:
+        extract_fn = extract_from_chunks
+    # llm+lede sets both lede_fn AND _needs_llm — it still wants the
+    # provider; without one it degrades to its deterministic leg.
+    if _needs_llm and not rag.config.skip_extraction and rag.config.llm_base_url:
         if rag._llm is None:
             rag._llm = get_llm_provider(rag.config)
         llm = rag._llm
-        extract_fn = extract_from_chunks
-    else:
+    if lede_fn is None and llm is None:
         # No extractor configured — pure-vector mode. Flip to ready since
         # there's nothing meaningful to backfill.
         await _mark_ready(rag, doc_id)
