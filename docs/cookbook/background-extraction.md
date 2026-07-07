@@ -266,13 +266,23 @@ rising `degraded` count is the yield-loss signal that issue #93's
 incident (111 entities where 1,004 belonged, all statuses green) had no
 way to show.
 
-Callers that need a fully-populated graph can poll: if `gs['pending'] > 0`,
-the daemon hasn't drained yet. Retrieval still succeeds — naive returns
-whatever chunks exist; local/global/hybrid return whatever entities are
-already written.
+Callers that need a fully-populated graph don't have to hand-roll a poll
+loop — the completion signal is first-class (issue #92):
+
+```python
+ok = await rag.graph_ready(namespace="crm")          # cheap bool probe
+summary = await rag.wait_for_graph_ready(            # blocking; TimeoutError
+    namespace="crm", timeout=600.0, poll_interval=2.0
+)
+```
+
+Retrieval still succeeds mid-backfill — naive returns whatever chunks
+exist; local/global/hybrid return whatever entities are already written.
 
 `GraphRAG.status(namespace)` returns the same shape under a top-level
-`graph_status` key.
+`graph_status` key, plus a derived `graph_ready` boolean
+(`pending + processing == 0`; `'failed'` is terminal and doesn't block —
+and `degraded` docs are already `'ready'`, so they don't block either).
 
 ## Quick sanity check
 

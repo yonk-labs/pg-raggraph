@@ -273,6 +273,10 @@ def create_app(**kwargs) -> FastAPI:
                 for c in result.chunks[:5]
             ],
             "entities": [e.name for e in result.entities[:10]],
+            # Issue #92: background-extraction readiness hint. pending or
+            # processing > 0 means the answer was computed over a partial
+            # graph. /query carries the same dict under metadata.
+            "graph_status_summary": result.metadata.get("graph_status_summary"),
         }
 
     @app.get("/profiles")

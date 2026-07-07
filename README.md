@@ -120,7 +120,8 @@ playbook in its MCP `initialize` response, so agents pick the right tool
 on the first try instead of grepping the filesystem. When you ingest
 with `defer_extraction=True`, a per-file staleness banner warns the
 agent which documents have fresh chunks but still-pending graph
-extraction.
+extraction, and `pgrg_status` reports a `graph_ready` boolean so agents
+can tell when background extraction has drained.
 
 See [`docs/user-guide.md`](docs/user-guide.md#mcp-server) for the full
 tool list and the `PGRG_MCP_INGEST_ROOTS` allow-list.
