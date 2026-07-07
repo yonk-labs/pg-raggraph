@@ -99,6 +99,20 @@ finish the current batch atomically then exit 0. Best for:
   `(namespace, src_id, dst_id, rel_type)` unique constraint
   (relationships) make this safe by construction.
 
+### Scaling the drain
+
+Two independent knobs; combine them:
+
+- **In-process parallelism** — within one worker, each claimed batch
+  fans out across docs bounded by `doc_concurrency`
+  (`PGRG_DOC_CONCURRENCY`, or via `PGRG_INGEST_PROFILE`; same knob the
+  synchronous ingest path honors). A `--batch-size 8` claim with
+  `doc_concurrency=4` extracts 4 docs at a time. `--rate-limit-rps`
+  still caps total docs/sec — the floor applies to the whole batch,
+  not per doc.
+- **Multi-process** — run N `pgrg extract` daemons; SKIP LOCKED
+  partitions the queue between them with no coordinator.
+
 ### Mixed pattern — per-record opt-in
 
 ```python

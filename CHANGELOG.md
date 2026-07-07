@@ -58,6 +58,33 @@
   real extractor, so a lockfile bump of chunkshop fails the suite
   instead of production.
 
+### Fixed
+
+- **Background extraction now honors `doc_concurrency`** (PR-221,
+  GAP-007). `extract_documents` drained its claimed batch strictly
+  sequentially — a deferred-ingest backlog moved at single-doc speed no
+  matter what profile the operator set (a real bake ran ~5 docs/min for
+  2+ hours). Docs now fan out via a semaphore-gated `asyncio.gather`
+  bounded by `rag.config.doc_concurrency`, with per-doc failure
+  isolation (one doc's error never cancels siblings) and deterministic
+  stats aggregation. Entity resolution locks rows in sorted-name order
+  so concurrent docs sharing entities can't ABBA-deadlock.
+  `--rate-limit-rps` still caps total docs/sec (the floor covers the
+  whole batch). The cookbook documents both scaling knobs:
+  in-process `doc_concurrency` and N daemons via SKIP LOCKED.
+- **`PGRG_SERVER_MAX_UPLOAD_MB=""` no longer breaks `/ingest`**
+  (PR-220). An empty value — exactly what `docker-compose.prod.yml`
+  passes when the var is unset in `.env` — hit `int("")` and 500'd
+  every upload; empty now means "use the default (100 MB)".
+
+### Added
+
+- **Prod compose plumbs the remaining server hardening env vars**
+  (PR-220, GAP-015): `docker-compose.prod.yml` passes through
+  `PGRG_SERVER_ALLOWED_ORIGINS` and `PGRG_SERVER_MAX_UPLOAD_MB`
+  (optional, defaulting to empty), and `.env.example` + DEPLOY.md
+  document all three `PGRG_SERVER_*` keys with placeholders.
+
 ### Docs — claims corrections (AAT audit)
 
 - Public benchmark claims re-captioned to what their in-repo sources

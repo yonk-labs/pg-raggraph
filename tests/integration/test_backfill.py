@@ -439,6 +439,161 @@ async def test_extract_documents_emits_metric(caplog):
         await rag.close()
 
 
+class _ProbeLLM:
+    """Valid extraction per call, with latency + max-in-flight probe (GAP-007).
+
+    Single event loop → plain int counters are race-free.
+    """
+
+    def __init__(self, latency: float = 0.15):
+        self.latency = latency
+        self.in_flight = 0
+        self.max_in_flight = 0
+
+    async def complete(self, messages):
+        self.in_flight += 1
+        self.max_in_flight = max(self.max_in_flight, self.in_flight)
+        try:
+            await asyncio.sleep(self.latency)
+            return (
+                '{"entities": [{"name": "PostgreSQL", "entity_type": "technology",'
+                ' "description": "the database"}], "relationships": []}'
+            )
+        finally:
+            self.in_flight -= 1
+
+    async def complete_text(self, messages, temperature=0.2):  # pragma: no cover
+        return ""
+
+
+class _PoisonLLM(_ProbeLLM):
+    """Raises for chunks containing the marker; valid extraction otherwise."""
+
+    def __init__(self, marker: str, latency: float = 0.05):
+        super().__init__(latency)
+        self.marker = marker
+
+    async def complete(self, messages):
+        if any(self.marker in m.get("content", "") for m in messages):
+            raise TimeoutError("simulated provider timeout")
+        return await super().complete(messages)
+
+
+async def test_extract_documents_honors_doc_concurrency():
+    """GAP-007 / PR-221: the drain fans out across docs, bounded by
+    doc_concurrency — not the old strictly-sequential loop."""
+    import uuid
+
+    ns = "test_bf_parallel"
+    rag = GraphRAG(
+        dsn=DSN,
+        namespace=ns,
+        doc_concurrency=4,
+        # Truthy base_url keeps the LLM leg enabled; dead port so any
+        # accidental real HTTP call fails instead of hitting a live Ollama.
+        llm_base_url="http://127.0.0.1:9/v1",
+    )
+    await rag.connect()
+    try:
+        # Unique text per doc/run so the shared pgrg_llm_cache can't short-
+        # circuit the probe. Short docs → one chunk each, so LLM in-flight
+        # count == docs in flight.
+        records = [
+            {
+                "text": f"Doc {i} corpus {uuid.uuid4().hex} about the backfill drain.",
+                "source_id": f"bf:par:{i}",
+            }
+            for i in range(6)
+        ]
+        await rag.ingest_records(records, namespace=ns, defer_extraction=True)
+
+        ids = await claim_pending(rag.db, ns, 8)
+        assert len(ids) == 6
+
+        probe = _ProbeLLM()
+        rag._llm = probe
+        stats = await extract_documents(rag, ids, namespace=ns)
+
+        assert stats.ready == 6
+        assert stats.failed == 0
+        assert probe.max_in_flight > 1, (
+            f"expected parallel docs in flight, saw max {probe.max_in_flight} (serial drain?)"
+        )
+        assert probe.max_in_flight <= 4, (
+            f"doc_concurrency=4 exceeded: {probe.max_in_flight} in flight"
+        )
+
+        rows = await rag.db.fetch_all(
+            "SELECT graph_status FROM documents WHERE namespace = %s", (ns,)
+        )
+        assert all(r["graph_status"] == "ready" for r in rows)
+        # All 6 docs extracted the same "PostgreSQL" entity concurrently —
+        # shared-entity resolution under parallel doc transactions must not
+        # deadlock and must converge on one entity row.
+        ents = await rag.db.fetch_one(
+            "SELECT count(*) AS n FROM entities WHERE namespace = %s AND name = %s",
+            (ns, "PostgreSQL"),
+        )
+        assert ents["n"] == 1
+    finally:
+        await rag.delete(ns)
+        await rag.close()
+
+
+async def test_extract_documents_parallel_failure_isolation():
+    """One doc failing every chunk lands 'failed'; parallel siblings still
+    flip 'ready' — a task exception must not cancel the rest of the batch."""
+    import uuid
+
+    ns = "test_bf_par_isolate"
+    rag = GraphRAG(
+        dsn=DSN,
+        namespace=ns,
+        doc_concurrency=4,
+        llm_base_url="http://127.0.0.1:9/v1",
+    )
+    await rag.connect()
+    try:
+        marker = f"POISON-{uuid.uuid4().hex}"
+        records = [
+            {
+                "text": f"Doc {i} corpus {uuid.uuid4().hex} about failure isolation.",
+                "source_id": f"bf:iso:{i}",
+            }
+            for i in range(4)
+        ]
+        records.append(
+            {"text": f"Bad doc {marker} that always errors.", "source_id": "bf:iso:bad"}
+        )
+        await rag.ingest_records(records, namespace=ns, defer_extraction=True)
+
+        ids = await claim_pending(rag.db, ns, 8)
+        assert len(ids) == 5
+
+        rag._llm = _PoisonLLM(marker)
+        stats = await extract_documents(rag, ids, namespace=ns)
+
+        assert stats.claimed == 5
+        assert stats.ready == 4
+        assert stats.failed == 1
+        assert len(stats.errors) == 1
+
+        rows = await rag.db.fetch_all(
+            "SELECT source_path, graph_status, graph_error FROM documents WHERE namespace = %s",
+            (ns,),
+        )
+        by_src = {r["source_path"]: r for r in rows}
+        assert by_src["bf:iso:bad"]["graph_status"] == "failed"
+        assert "extraction failed on" in by_src["bf:iso:bad"]["graph_error"]
+        for i in range(4):
+            assert by_src[f"bf:iso:{i}"]["graph_status"] == "ready", (
+                f"sibling doc bf:iso:{i} was not extracted: {by_src[f'bf:iso:{i}']}"
+            )
+    finally:
+        await rag.delete(ns)
+        await rag.close()
+
+
 async def test_extract_documents_marks_failed_on_exception():
     """When _extract_one raises, the row flips to 'failed' with graph_error set."""
     rag = await _make_rag("test_bf_fail")
