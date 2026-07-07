@@ -731,6 +731,30 @@ pgrg --db $PGRG_DSN extract --namespace crm --once
 pgrg --db $PGRG_DSN extract --namespace crm --daemon --poll-interval 1.0
 ```
 
+**Waiting for the graph.** The completion signal is first-class — no SQL
+polling of `documents.graph_status` required:
+
+```python
+# Cheap non-blocking probe: True when no doc is pending/processing.
+if not await rag.graph_ready(namespace="crm"):
+    ...
+
+# Blocking: polls until the queue drains, returns the final summary.
+# Raises TimeoutError (message includes the last-seen summary) on timeout.
+summary = await rag.wait_for_graph_ready(
+    namespace="crm", timeout=600.0, poll_interval=2.0
+)
+# {'pending': 0, 'processing': 0, 'ready': 488, 'failed': 0}
+if summary["failed"]:
+    ...  # terminal failures don't block readiness; retry with
+         # `pgrg extract --include-failed`
+```
+
+`rag.status()` carries the same signal as a derived `graph_ready` boolean
+alongside the existing counts. Caveat: readiness only covers documents
+already written — during a batched ingest, compare `status()['documents']`
+against your expected corpus size before trusting `graph_ready`.
+
 Headline numbers (MHR, lede_spacy, 40 docs): **59.8× faster
 time-to-queryable** (0.44s vs 26.27s); the deferred path's total
 wall-time (B+C = 15.56s) is *also* faster than synchronous (26.27s)
@@ -866,6 +890,11 @@ curl -X POST http://localhost:8080/query \
   -F "namespace=default"
 ```
 
+Both read endpoints surface `graph_status_summary` (per-status doc counts
+for the namespace) — under `metadata` on `/query`, top-level on `/ask` —
+so callers can detect answers computed over a still-backfilling graph
+(`pending` or `processing` > 0).
+
 **POST /ingest** — Upload files
 ```bash
 curl -X POST http://localhost:8080/ingest \
@@ -874,7 +903,9 @@ curl -X POST http://localhost:8080/ingest \
   -F "namespace=default"
 ```
 
-**GET /status** — Graph stats
+**GET /status** — Graph stats. Includes `graph_ready` (false while
+background extraction is draining) and per-status doc counts under
+`graph_status`.
 ```bash
 curl http://localhost:8080/status
 ```
@@ -960,7 +991,7 @@ playbook teaches tool selection and warns about common anti-patterns.
 | `pgrg_query` | "Get me the raw retrieved chunks" — same retrieval, no LLM grounding. |
 | `pgrg_ingest` | "Add documents to the graph." Paths must be in an allow-listed root via `PGRG_MCP_INGEST_ROOTS`. |
 | `pgrg_delete_document` | "Remove a document." Requires `confirm=True`. |
-| `pgrg_status` | "Is the graph ready / how big is it?" — counts + `graph_status_summary`. |
+| `pgrg_status` | "Is the graph ready / how big is it?" — counts + `graph_ready` boolean + `graph_status_summary`. `graph_ready: false` means background extraction is still draining. |
 | `pgrg_profiles` | "What retrieval profiles are available?" — calibration ladder. |
 | `pgrg_get_namespace_profile` / `pgrg_set_namespace_profile` | Per-namespace default retrieval profile. |
 

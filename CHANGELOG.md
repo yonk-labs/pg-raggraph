@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **First-class ingest-completion signal** (#92). New public API:
+  `await rag.graph_ready(namespace)` (cheap bool — no doc is
+  `pending`/`processing`) and
+  `await rag.wait_for_graph_ready(namespace, timeout=600.0, poll_interval=2.0)`
+  (blocks until background extraction drains; returns the final per-status
+  summary; raises `TimeoutError` with the last-seen summary on timeout).
+  `'failed'` docs are terminal and don't block readiness. Replaces raw-SQL
+  polling of `documents.graph_status`.
+- `rag.status()` (and therefore `GET /status` and the MCP `pgrg_status`
+  tool) gains a derived `graph_ready: bool` alongside the existing counts.
+- FastAPI `/ask` response now includes `graph_status_summary` (top-level),
+  matching what `/query` already carried under `metadata` — partial-graph
+  answers are no longer indistinguishable from fully-baked ones.
+
 ## 0.5.0a19 — 2026-07-06 (prose extraction: prompt, lede_prose, llm+lede union)
 
 ### Added

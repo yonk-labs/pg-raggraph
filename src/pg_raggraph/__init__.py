@@ -226,6 +226,15 @@ def _validate_namespace(ns: str) -> None:
         )
 
 
+def _is_graph_ready(summary: dict[str, int]) -> bool:
+    """Readiness derivation shared by status()/graph_ready()/wait_for_graph_ready().
+
+    Ready = nothing mid-extraction. 'failed' is a terminal state and does
+    not block readiness (issue #92).
+    """
+    return summary.get("pending", 0) + summary.get("processing", 0) == 0
+
+
 async def _abatched(records, n: int):
     """Yield lists of up to ``n`` items from ``records``, pulled lazily.
 
@@ -2463,6 +2472,7 @@ class GraphRAG:
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
         with self.db.tenant(ns):
+            graph_status = await self._graph_status_summary(ns)
             return {
                 "schema_version": int(await self.db.get_meta("schema_version") or 0),
                 "embedding_dim": int(await self.db.get_meta("embedding_dim") or 0),
@@ -2479,8 +2489,73 @@ class GraphRAG:
                 )["cnt"],
                 "entities": await self.db.count("entities", ns),
                 "relationships": await self.db.count("relationships", ns),
-                "graph_status": await self._graph_status_summary(ns),
+                "graph_status": graph_status,
+                # Derived readiness flag (issue #92): True when no doc is
+                # mid-extraction. 'failed' docs are terminal and don't block.
+                "graph_ready": _is_graph_ready(graph_status),
             }
+
+    async def graph_ready(self, namespace: str | None = None) -> bool:
+        """Cheap probe: is background extraction done for this namespace?
+
+        Returns True when no document is ``'pending'`` or ``'processing'``
+        (issue #92). ``'failed'`` docs are terminal and do NOT block
+        readiness — inspect ``status()['graph_status']['failed']`` and retry
+        via ``pgrg extract --include-failed`` if you care about them.
+
+        Caveat: an empty namespace is trivially ready. During a batched
+        ingest, docs not yet written are invisible — check
+        ``status()['documents']`` against your expected corpus size if you
+        need "did everything land?" rather than "has the queue drained?".
+        """
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        with self.db.tenant(ns):
+            return _is_graph_ready(await self._graph_status_summary(ns))
+
+    async def wait_for_graph_ready(
+        self,
+        namespace: str | None = None,
+        *,
+        timeout: float = 600.0,
+        poll_interval: float = 2.0,
+    ) -> dict[str, int]:
+        """Block until background extraction has drained for the namespace.
+
+        Polls the per-status doc counts every ``poll_interval`` seconds until
+        no document is ``'pending'`` or ``'processing'``, then returns the
+        final summary, e.g. ``{'pending': 0, 'processing': 0, 'ready': 660,
+        'failed': 0}``. Raises ``TimeoutError`` (message includes the
+        last-seen summary) if the queue hasn't drained within ``timeout``
+        seconds.
+
+        This is the first-class "is ingest done?" primitive (issue #92) —
+        replaces hand-rolled SQL polling of ``documents.graph_status``::
+
+            await rag.ingest_records(records, namespace="crm", defer_extraction=True)
+            summary = await rag.wait_for_graph_ready(namespace="crm")
+            if summary["failed"]:
+                ...  # pgrg extract --include-failed
+
+        Same caveats as :meth:`graph_ready`: 'failed' is terminal (doesn't
+        block), and an empty namespace returns immediately.
+        """
+        import asyncio
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        deadline = time.monotonic() + timeout
+        while True:
+            with self.db.tenant(ns):
+                summary = await self._graph_status_summary(ns)
+            if _is_graph_ready(summary):
+                return summary
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(
+                    f"graph not ready in namespace {ns!r} after {timeout}s: {summary}"
+                )
+            await asyncio.sleep(min(poll_interval, remaining))
 
     async def _graph_status_summary(self, namespace: str) -> dict[str, int]:
         """Per-status doc count for the namespace.
