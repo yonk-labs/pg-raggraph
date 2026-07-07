@@ -1,5 +1,52 @@
 # Changelog
 
+## Unreleased
+
+### Test-suite trust (AAT-012: vacuous asserts, tie-passing graph suite, extraction-yield gate, migration parity)
+
+- **Vacuous assertions removed** (I-17). Four sites asserted things that
+  could not fail:
+  - `test_evolution_tier1.py` — `... or len(result.chunks) >= 0` padding
+    dropped; the retraction-hide test now genuinely asserts the
+    non-retracted doc's content is still retrieved.
+  - `test_retrieval.py` — `len(result.relationships) >= 0` is now `> 0`:
+    a local query on the seeded fixture must surface relationships.
+  - `test_metric_events.py` — `latency_ms >= 0` is now `> 0` (measured
+    wall time of real DB work).
+  - `test_ab_gate_compute_verdict_production.py` — the mock-judge test
+    asserted `judge_win_rate.graph >= 0.0` (win rates are non-negative by
+    construction); it now counts `llm_score` invocations and asserts the
+    judge scored every case on both legs.
+- **`test_graph_wins.py` is now honest about what it guards** (I-9). New
+  module docstring states the guard semantics (hybrid never regresses
+  below a working naive; graph superiority is certified by
+  `benchmarks/ab-gate/RESULTS.md`, not this suite). The nine weak
+  `hybrid_score >= naive_score` inequalities — which passed on 0 == 0
+  mutual failure — now also require `hybrid_score >= 1`, so a broken
+  graph leg fails instead of tying. Added
+  `test_00_multi_hop_edge_is_load_bearing`: a deterministic, always-on
+  (no LLM) test that hand-seeds a graph where one chunk is reachable
+  only via a relationship edge, asserts naive cannot retrieve it while
+  local/global/hybrid can, then deletes the edge and asserts the hit
+  disappears — proving the traversal, not entity seeding, produced it.
+- **Extraction-yield gate** (I-18, the issue #93 incident class: 111
+  entities where ~1,004 belonged). New
+  `tests/integration/test_extraction_yield.py` runs the deterministic
+  `lede_prose` extractor over the committed graph_wins fixture corpus in
+  default CI and asserts entity/relationship yield lands in a 0.6x-1.6x
+  band around a measured baseline (172 entities / 437 relationships),
+  plus five anchor entities that must always be lifted. Fails on
+  order-of-magnitude yield collapse; tolerates spaCy/chunker evolution.
+- **Migration-parity test** (F-23). New
+  `tests/integration/test_migration_parity.py` bootstraps one database
+  from the frozen pre-001 base schema
+  (`tests/fixtures/schema_base_v1.sql`) and upgrades it through the
+  production migration runner (001→head), bootstraps a second from
+  current `schema.sql`, and asserts table/column/index parity via
+  information_schema — catching the schema.sql-vs-migrations drift class
+  before it ships as a broken user upgrade. Currently green: the two
+  paths produce identical schemas.
+
 ## 0.8.0 — 2026-07-07 (hardening: security P0s, claims corrections, merge audit, parallel drain)
 
 ### Data integrity — entity resolution/merge hardening

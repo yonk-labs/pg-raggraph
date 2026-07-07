@@ -79,15 +79,34 @@ def test_tie_retrieval_no_judge_is_inconclusive():
     assert verdict.label == "INCONCLUSIVE"
 
 
-def test_production_path_runs_with_mock_judge():
-    """judge_config with mock provider runs the judge step without error."""
+def test_production_path_runs_with_mock_judge(monkeypatch):
+    """judge_config with mock provider runs the judge step on every case.
+
+    MetricVerdict does not expose judge_total, so "the judge actually ran"
+    is asserted by counting llm_score invocations: 2 questions x 2 legs = 4.
+    (The previous `judge_win_rate.graph >= 0.0` was unfalsifiable — win
+    rates are non-negative by construction.)
+    """
     pytest.importorskip("llm_judge")
+    import llm_judge.scorers as scorers
+
+    scored = []
+    real_llm_score = scorers.llm_score
+
+    def counting_llm_score(case, provider):
+        decision = real_llm_score(case, provider)
+        scored.append(case.case_id)
+        return decision
+
+    monkeypatch.setattr(scorers, "llm_score", counting_llm_score)
+
     graph = _output("graph_leg", {"q1": 1, "q2": 1})
     naive = _output("naive_vector", {"q1": None, "q2": None})
     judge_config = {"provider": {"kind": "mock", "model": "mock"}}
     verdict = compute_verdict([naive, graph], judge_config=judge_config)
-    # Judge ran → judge_total > 0 on both legs.
-    assert verdict.combined.judge_win_rate.graph >= 0.0
+    assert sorted(scored) == ["q1", "q1", "q2", "q2"], (
+        f"judge must score every case on both legs, scored: {scored}"
+    )
     assert verdict.label in {"GRAPH_WINS", "NAIVE_WINS", "INCONCLUSIVE"}
 
 
