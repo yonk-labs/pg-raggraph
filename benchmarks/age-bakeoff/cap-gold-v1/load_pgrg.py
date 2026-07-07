@@ -88,7 +88,10 @@ async def run(db_url: str) -> None:
         done = 0
         for i in range(0, len(records), BATCH):
             batch = records[i : i + BATCH]
-            await rag.ingest_records(batch)
+            # doc_concurrency 8 = the shipped "max" ingest profile; the default
+            # "balanced" (2) paced this corpus at ~0.35 docs/s (~9 h) on this
+            # machine. Shipped knob, recorded in RESULTS.
+            await rag.ingest_records(batch, max_concurrent_docs=8)
             done += len(batch)
             print(f"  ingested {done}/{len(records)} ({time.time() - t0:.0f}s)", flush=True)
         wall = time.time() - t0
