@@ -64,8 +64,9 @@ async def test_query_endpoint(client):
     assert "query_mode" in data
     assert data["query_mode"] == "naive"
     # Issue #92: /query carries the readiness hint under metadata.
+    # Issue #93 added the `degraded` overlay count to the summary.
     summary = data["metadata"]["graph_status_summary"]
-    assert set(summary) == {"pending", "processing", "ready", "failed"}
+    assert set(summary) == {"pending", "processing", "ready", "failed", "degraded"}
 
 
 async def test_ask_endpoint(client):
@@ -82,5 +83,6 @@ async def test_ask_endpoint(client):
     assert isinstance(data["chunks"], list)
     assert isinstance(data["entities"], list)
     # Issue #92: /ask carries the readiness hint top-level.
+    # Issue #93 added the `degraded` overlay count to the summary.
     summary = data["graph_status_summary"]
-    assert set(summary) == {"pending", "processing", "ready", "failed"}
+    assert set(summary) == {"pending", "processing", "ready", "failed", "degraded"}
