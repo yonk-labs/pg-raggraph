@@ -107,7 +107,7 @@ src/pg_raggraph/
     schema.sql         # DDL for all tables + indexes
     migrations/        # NNN_*.sql migration files
   static/
-    index.html         # Single-file web UI (htmx + vis-network)
+    index.html         # Single-file web UI (fetch + vis-network)
 tests/
   unit/                # No database required
   integration/         # Requires running PostgreSQL (port 5434)

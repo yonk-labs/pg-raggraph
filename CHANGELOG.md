@@ -31,11 +31,32 @@
   (GHSA-4xgf-cpjx-pc3j) in `uv.lock`; a blocking `pip-audit` job now runs
   in CI on every push plus a weekly cron, so lockfile CVEs fail loudly.
 - **Web UI no longer loads JavaScript from unpkg** (PR-219, GAP-014):
-  htmx and vis-network are vendored into `pg_raggraph/static/vendor/`
+  vis-network is vendored into `pg_raggraph/static/vendor/`
   (shipped in the wheel), inline scripts moved to `static/app.js`, and the
   Content-Security-Policy tightened from
   `script-src 'self' https://unpkg.com 'unsafe-inline'` to
-  `script-src 'self'`.
+  `script-src 'self'`. htmx was vendored in the first pass of this change
+  and then dropped entirely — the UI has zero `hx-` attributes; it is
+  plain `fetch` + vis-network.
+
+### Hardening (AAT audit)
+
+- **Sibling deps version-capped** (AAT-005): `chunkshop>=0.9.1,<0.10` and
+  `lede`/`lede-spacy` `>=0.4.5,<0.5` in `pyproject.toml`. The floors-only
+  pins let PyPI users resolve sibling versions CI never tested, and a
+  chunkshop release already broke production once (#79 OOM). Raising a
+  cap is now a deliberate per-release act. `chunkshop` was also added to
+  the `dev` extra so `pip install -e .[dev]` exercises the bridge tests
+  instead of skipping them.
+- **chunkshop private-seam coupling fails loud, with a CI canary**
+  (AAT-005): `CorpusCodeGraph` reads chunkshop's private
+  `_pending_calls`/`_pending_class_edges` lists for the #79 OOM spill
+  guard, and used to degrade *silently* to unbounded in-memory
+  accumulation when a chunkshop build lacked them. Init now probes the
+  seams and logs a warning naming the installed chunkshop version. New
+  `tests/unit/test_chunkshop_canary.py` asserts the seams exist on the
+  real extractor, so a lockfile bump of chunkshop fails the suite
+  instead of production.
 
 ### Docs — claims corrections (AAT audit)
 

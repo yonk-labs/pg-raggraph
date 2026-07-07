@@ -503,8 +503,9 @@ async def test_vendored_assets_served_and_no_cdn_in_ui(db):
         assert not _re.search(r"<script(?![^>]*\bsrc=)", index.text)
         assert "onclick=" not in index.text
 
+        # htmx was dropped as unused (zero hx- attributes; UI is plain fetch).
+        assert "htmx" not in index.text
         for path in (
-            "/static/vendor/htmx.min.js",
             "/static/vendor/vis-network.min.js",
             "/static/app.js",
         ):
