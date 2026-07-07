@@ -16,6 +16,7 @@ from pg_raggraph.config import PGRGConfig
 try:
     from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
     from fastapi.responses import HTMLResponse, JSONResponse
+    from fastapi.staticfiles import StaticFiles
 except ImportError as e:
     raise ImportError("Install server extras: pip install pg-raggraph[server]") from e
 
@@ -139,16 +140,18 @@ def create_app(**kwargs) -> FastAPI:
 
     # PR-303: defense-in-depth security headers on every response, including
     # auth-middleware short-circuits. Added after the auth middleware so it's
-    # the outermost wrapper (Starlette middleware is LIFO). The CSP allows
-    # https://unpkg.com because the bundled HTMX UI loads vis-network from
-    # there; tighten to 'self' once the JS is bundled locally.
+    # the outermost wrapper (Starlette middleware is LIFO).
+    # PR-219: script-src is 'self' only — htmx/vis-network are vendored under
+    # static/vendor/ and the UI logic lives in static/app.js, so no CDN host
+    # and no 'unsafe-inline' is needed for scripts. style-src keeps
+    # 'unsafe-inline' for the <style> block and style= attributes in the UI.
     @app.middleware("http")
     async def _security_headers(request: Request, call_next):
         response = await call_next(request)
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; "
-            "script-src 'self' https://unpkg.com 'unsafe-inline'; "
+            "script-src 'self'; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; "
             "connect-src 'self'",
@@ -157,6 +160,10 @@ def create_app(**kwargs) -> FastAPI:
         response.headers.setdefault("Referrer-Policy", "no-referrer")
         response.headers.setdefault("X-Frame-Options", "DENY")
         return response
+
+    # PR-219: serve vendored JS (static/vendor/*) and app.js. Sits behind the
+    # same auth + security-header middleware as every other route.
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     @app.get("/", response_class=HTMLResponse)
     async def index():

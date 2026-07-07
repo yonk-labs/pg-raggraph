@@ -438,7 +438,14 @@ def _assert_security_headers(resp):
     missing = [h for h in _REQUIRED_SECURITY_HEADERS if h not in lowered]
     assert not missing, f"missing security headers: {missing}"
     # Check the actual values mean what we want.
-    assert "default-src 'self'" in resp.headers["content-security-policy"]
+    csp = resp.headers["content-security-policy"]
+    assert "default-src 'self'" in csp
+    # PR-219: JS is vendored locally — script-src must be exactly 'self',
+    # with no CDN hosts and no 'unsafe-inline'.
+    assert "script-src 'self';" in csp
+    assert "unpkg.com" not in csp
+    script_src = csp.split("script-src", 1)[1].split(";", 1)[0]
+    assert "unsafe-inline" not in script_src
     assert resp.headers["x-content-type-options"].lower() == "nosniff"
     assert resp.headers["x-frame-options"].upper() == "DENY"
 
@@ -470,6 +477,37 @@ async def test_security_headers_on_index_html(db):
         resp = client.get("/")
     assert resp.status_code == 200
     _assert_security_headers(resp)
+
+
+async def test_vendored_assets_served_and_no_cdn_in_ui(db):
+    """PR-219: the UI must work with script-src 'self' — vendored JS is
+    served from /static/vendor/ and index.html references no CDN and no
+    inline scripts."""
+    from fastapi.testclient import TestClient
+
+    from pg_raggraph.server import create_app
+
+    app = create_app(dsn=db.config.dsn, namespace="error_path_test")
+    with TestClient(app) as client:
+        index = client.get("/")
+        assert index.status_code == 200
+        assert "unpkg.com" not in index.text
+        # No inline <script> bodies and no inline event handlers — both
+        # would be blocked by script-src 'self'.
+        import re as _re
+
+        assert not _re.search(r"<script(?![^>]*\bsrc=)", index.text)
+        assert "onclick=" not in index.text
+
+        for path in (
+            "/static/vendor/htmx.min.js",
+            "/static/vendor/vis-network.min.js",
+            "/static/app.js",
+        ):
+            resp = client.get(path)
+            assert resp.status_code == 200, f"{path} not served"
+            assert "javascript" in resp.headers["content-type"]
+            _assert_security_headers(resp)
 
 
 async def test_security_headers_on_auth_failure(db, monkeypatch):
