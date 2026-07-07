@@ -37,9 +37,10 @@ rag = GraphRAG(dsn=DSN, namespace="dev_kb")
 result = await rag.query("Who owns the auth service?", mode="naive_boost")
 ```
 
-On a real 909-doc dev codebase (`pg-agents`), `naive_boost` lifts top
-score by **+18.9%** versus plain `naive` at essentially the same latency
-(107 ms vs 109 ms p50). That's the standard pgrg pitch:
+On a real 486-doc dev codebase (`pg-agents`), `naive_boost` lifts the top
+retrieved-chunk score by **+19.3%** versus plain `naive` at essentially
+the same latency (82 ms vs 85 ms avg) — a retrieval-quality proxy, not
+graded answer accuracy. That's the standard pgrg pitch:
 [`benchmarks/pg-agents-results.md`](../../benchmarks/pg-agents-results.md).
 
 **Evolving.** Add `evolution_tier="structural"` and ingest with metadata,

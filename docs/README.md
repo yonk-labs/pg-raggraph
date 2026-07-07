@@ -38,7 +38,7 @@
 - **[../benchmarks/age-bakeoff/README.md](../benchmarks/age-bakeoff/README.md)** — How to reproduce the bake-off.
 - **[../benchmarks/python-versioned-docs/results.md](../benchmarks/python-versioned-docs/results.md)** — Path A real-corpus result: 13/13 (100%) `version_filter` purity.
 - **[../benchmarks/medical-hrt/results.md](../benchmarks/medical-hrt/results.md)** — Path B real-corpus result: 5/5 retraction-aware + 5/5 time-travel.
-- **[../benchmarks/pg-agents-results.md](../benchmarks/pg-agents-results.md)** — 909-doc real-world dev codebase: +18.9% accuracy from graph boost.
+- **[../benchmarks/pg-agents-results.md](../benchmarks/pg-agents-results.md)** — real-world dev codebase (486 docs): +19.3% retrieval top-score lift from graph boost (retrieval proxy, not graded accuracy).
 - **[../benchmarks/FINAL_RESULTS.md](../benchmarks/FINAL_RESULTS.md)** — Cross-corpus results (NTSB, SEC, PG docs, SCOTUS).
 - **[../benchmarks/DATASETS.md](../benchmarks/DATASETS.md)** — What corpora we test against and why.
 

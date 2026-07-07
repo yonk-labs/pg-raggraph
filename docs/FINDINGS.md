@@ -172,10 +172,10 @@ AGE requires `shared_preload_libraries` (needs PostgreSQL restart). Only Azure D
 
 For a library targeting developers on "the PostgreSQL you already run," this is a dealbreaker.
 
-### 2. Can't combine with pgvector in a single query
-AGE Cypher and pgvector live in different worlds. The GraphRAG killer operation — "seed entities from vector similarity, then expand via graph, then rank chunks" — requires **two round-trips** with AGE.
+### 2. pgvector composition is awkward and Azure-shaped
+AGE's `cypher()` calls *can* be composed with pgvector in a single SQL statement ([Microsoft's HorizonDB GraphRAG doc](https://learn.microsoft.com/en-us/azure/horizondb/ai/graph-rag) shows the CTE pattern), but it's undocumented outside Azure's fork, requires agtype casting at every boundary, and AGE implements only a subset of openCypher (no `MERGE ... ON CREATE SET`, `EXISTS`, or `datetime()`, per the same doc). In practice most AGE GraphRAG implementations run the operation as **two round-trips**.
 
-With recursive CTEs, it's **one query**:
+With recursive CTEs, it's plain-SQL **one query**:
 ```sql
 WITH RECURSIVE seeds AS (
     SELECT id FROM entities

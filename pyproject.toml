@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "pg-raggraph"
 version = "0.7.0"
-description = "The fastest, simplest way to add knowledge-graph-powered RAG to any app — backed by PostgreSQL."
+description = "PostgreSQL-native GraphRAG: vector search, BM25, and knowledge-graph traversal in a single Postgres database."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"

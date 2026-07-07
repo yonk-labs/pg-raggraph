@@ -30,8 +30,8 @@ Vector-only RAG fails on multi-hop questions ("Who owns this service?" "What's t
 
 Evaluated extensively (`research/apache-age-evaluation.md`). Rejected because:
 1. **Cloud killed.** Only Azure supports it. No RDS, Supabase, Neon, GCP.
-2. **Can't combine with pgvector.** Cypher and vector similarity can't share a single query. CTEs can.
-3. **Slower for GraphRAG patterns.** 2-40x slower than CTEs for 1-3 hop traversals.
+2. **Awkward pgvector composition.** Cypher-in-SQL composition with pgvector exists (see the 2026-07 correction in `apache-age-evaluation.md`) but is agtype-cast-heavy and documented only for Azure's build. CTEs compose natively.
+3. **Slower for GraphRAG patterns.** 2-40x slower than CTEs for 1-3 hop traversals (pre-build traversal microbenchmark; see `apache-age-evaluation.md`).
 4. **Documented disasters.** LightRAG #2255: 49B estimated rows, 17hr migration for 407K edges.
 
 ---

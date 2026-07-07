@@ -31,7 +31,7 @@ See [`benchmarks/age-bakeoff/src/age_bakeoff/engines/age.py`](../benchmarks/age-
 
 What *is* dispositive is the architecture, not the tuning:
 
-1. **AGE Cypher and pgvector cannot combine in a single query.** The killer GraphRAG operation — *vector seed → graph expand → re-rank by combined score* — needs at least two round-trips with AGE; one query with recursive CTEs in pg-raggraph. No amount of AGE indexing changes that.
+1. **AGE ↔ pgvector composition is awkward and effectively Azure-shaped.** *Correction (2026-07-07): an earlier revision of this doc claimed the two "cannot combine in a single query." That was wrong.* Microsoft's [HorizonDB GraphRAG doc](https://learn.microsoft.com/en-us/azure/horizondb/ai/graph-rag) shows `ag_catalog.cypher()` CTEs composed with pgvector in one SQL statement, and the pattern executes on stock AGE 1.5.0. What survives: the composition is agtype-cast-heavy at every boundary, undocumented outside Azure's fork, and AGE's Cypher is an openCypher subset (no `MERGE ... ON CREATE SET`, `EXISTS`, `datetime()` — same doc); most AGE GraphRAG implementations run *vector seed → graph expand → re-rank* as two round-trips in practice. Recursive CTEs in pg-raggraph do it in plain SQL with no casts and no fork.
 2. **`shared_preload_libraries = 'age'` requires a Postgres restart.** Among managed providers, only Azure Database for PostgreSQL allows this. AWS RDS, Supabase, Neon, GCP Cloud SQL all reject it. Tuning doesn't change the cloud-compatibility story.
 3. **AGE has documented catastrophic plan estimates in real-world workloads.** [LightRAG Issue #2255](https://github.com/HKUDS/LightRAG/issues/2255) — 17-hour migration caused by an AGE query plan estimating 49 **billion** intermediate rows for a 681,000-row join. Closed `NOT_PLANNED`.
 
@@ -434,7 +434,7 @@ PostgreSQL built-in extension for hierarchical tree data. Uses path-like labels 
 | Recursive CTE + pgvector | Medium | Can be combined in a single query (CTE feeds INTO pgvector WHERE clause). One round-trip. |
 | Adjacency JOINs + pgvector | Low | Simple JOIN chain ending in vector similarity ORDER BY. One round-trip. |
 
-**This is the critical finding:** AGE and pgvector do not natively integrate. There is an open proposal (GitHub issue #1121) for vector handling in AGE, but it's not implemented. You cannot do `MATCH ... ORDER BY vector_similarity(...)` in Cypher. You must break the query into two parts: Cypher for graph traversal, SQL for vector search. This eliminates one of AGE's main selling points for GraphRAG specifically.
+**This is the critical finding:** AGE and pgvector do not natively integrate *inside Cypher*. There is an open proposal (GitHub issue #1121) for vector handling in AGE, but it's not implemented — you cannot do `MATCH ... ORDER BY vector_similarity(...)` in Cypher. At the SQL level, `cypher()` output *can* be wrapped in CTEs and joined with pgvector results in one statement (the pattern Microsoft documents for HorizonDB, verified on stock AGE 1.5.0), but it requires agtype casting at each boundary and is undocumented outside Azure's ecosystem. Either way, this erodes one of AGE's main selling points for GraphRAG specifically.
 
 Recursive CTEs and adjacency JOINs work seamlessly with pgvector in a single query because they're all standard SQL.
 
@@ -502,7 +502,7 @@ This validates that the adjacency table + recursive CTE approach is architectura
 - **Most GraphRAG use cases.** The typical query pattern is: seed entity -> expand 1-3 hops -> collect chunks -> vector similarity rank. This is 3-4 JOINs or a simple recursive CTE.
 - You need to support multiple cloud providers or managed PostgreSQL services
 - Your graph is under 1M nodes (most knowledge graphs from document corpora are well under this)
-- You are combining graph traversal with vector similarity (AGE cannot do this in a single query)
+- You are combining graph traversal with vector similarity (possible in one SQL statement with AGE, but agtype-cast-heavy and Azure-documented only; plain SQL with CTEs)
 - You want to minimize extension dependencies for easier adoption
 - Your team is stronger in SQL than Cypher
 
