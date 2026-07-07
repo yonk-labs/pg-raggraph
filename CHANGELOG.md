@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+### Data integrity — entity resolution/merge hardening
+
+- **Entity descriptions are capped on every merge path** (PR-222,
+  GAP-022). Hot entities used to accumulate unbounded description blobs
+  (exact-match append, fuzzy merge, per-doc dedupe, backfill dedupe) that
+  degraded retrieval and were re-embedded on every merge. All write paths
+  now enforce keep-first append-until-cap via
+  `entity_description_max_chars` (default 2000, `0` disables); the DB
+  never stores past the cap. For corpora ingested before the cap, run
+  `rag.trim_entity_descriptions()` once per namespace (see
+  `docs/cookbook/entity-merge-audit.md`).
+- **Fuzzy entity merges are now audited and repairable** (AAT-004).
+  Every fuzzy auto-merge (`resolve_entity`, combined score ≥
+  `resolution_threshold`) and every manual `merge_entities()` call
+  writes a row to the new `entity_merge_log` table (migration 017):
+  namespace, surviving id, absorbed name/type/description/properties,
+  trgm/vec/combined scores, document provenance, timestamp. Read with
+  `rag.entity_merges(namespace, since=None, min_score=None)` or
+  `pgrg merges`; undo a false merge with `rag.split_entity(log_id)`
+  (recreates the absorbed entity; repoints nothing — manual repair aid).
+- **Version-suffixed names never fuzzy-merge** (AAT-004 I-1).
+  "PostgreSQL 14" vs "PostgreSQL 15" or "Python 3.11" vs "3.12" were
+  live merge candidates at default thresholds — exactly the versioned-docs
+  workload where a false merge silently corrupts the graph. Names that
+  differ only by a version-like token now refuse to merge, regardless of
+  score (generalizes the CODE_SYMBOL exemption). Configurable via
+  `entity_version_guard_pattern` (empty string disables).
+- **`merge_entities()` no longer drops data** (AAT-004 I-14). The manual
+  merge API used to repoint edges and DELETE the source entities without
+  copying description/properties — silently losing what the automatic
+  path preserved. It now unions descriptions (same keep-first-with-cap
+  dedup as auto-merge) and merges properties (keep entity wins on key
+  conflicts) before the delete, and writes `source='manual'` audit rows.
+
 ### ⚠️ Changed — default behavior
 
 - **BREAKING: `pgrg serve` and `pgrg demo` now bind `127.0.0.1` by

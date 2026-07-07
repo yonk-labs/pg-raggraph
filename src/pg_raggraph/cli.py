@@ -138,6 +138,55 @@ def status(ctx):
 
 
 @main.command()
+@click.option("-n", "--namespace", default=None, help="Namespace (default: configured)")
+@click.option("--since", default=None, help="Only merges at/after this ISO timestamp")
+@click.option(
+    "--min-score",
+    type=float,
+    default=None,
+    help="Only auto-merges with combined score >= this (excludes manual merges)",
+)
+@click.option("--limit", type=int, default=50, show_default=True, help="Max rows")
+@click.pass_context
+def merges(ctx, namespace, since, min_score, limit):
+    """Audit entity merges (AAT-004).
+
+    Lists entity_merge_log rows: every fuzzy auto-merge (with the trgm /
+    vector / combined scores that triggered it) and every manual
+    merge_entities() call. A suspicious row can be undone with
+    rag.split_entity(log_id).
+    """
+
+    async def _merges():
+        rag = GraphRAG(**ctx.obj["kwargs"])
+        await rag.connect()
+        rows = await rag.entity_merges(
+            namespace=namespace, since=since, min_score=min_score, limit=limit
+        )
+        await rag.close()
+        if not rows:
+            click.echo("No merges recorded.")
+            return
+        for r in rows:
+            score = (
+                f"score={r['combined_score']:.3f} "
+                f"(trgm={r['trgm_score']:.2f} vec={r['vec_score']:.2f})"
+                if r["combined_score"] is not None
+                else "manual"
+            )
+            doc = f" doc={r['document_id']}" if r["document_id"] else ""
+            click.echo(
+                f"[{r['id']}] {r['merged_at']:%Y-%m-%d %H:%M} "
+                f"{r['merged_name']!r} -> entity {r['kept_id']} {score}{doc}"
+            )
+
+    try:
+        run_async(_merges())
+    except (ConnectionError, Exception) as e:
+        _handle_error(e)
+
+
+@main.command()
 @click.argument("paths", nargs=-1, required=True)
 @click.option("-n", "--namespace", default=None, help="Namespace")
 @click.option(
