@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.0 — 2026-07-07 (out of alpha: ready signal, failure accounting, per-KB prompts, typed graph joins, BM25 + RRF default)
+## Unreleased
 
 ### ⚠️ Changed — default behavior
 
@@ -16,6 +16,48 @@
   and `docker-compose.prod.yml` requires `PGRG_SERVER_API_KEY` in
   `.env`. If you scripted `pgrg serve` for LAN access, this WILL break
   you — that's the point; set the key.
+
+### Security
+
+- **DSN passwords are redacted in `ConnectionError` messages** (PR-218,
+  GAP-013). `GraphRAG.connect()` failures used to embed the full DSN —
+  password included — in the exception the CLI prints and servers log.
+  The DSN now renders as `postgresql://user:***@host:port/db` via a new
+  `redact_dsn()` helper (`pg_raggraph.config`), keeping host/port/dbname
+  actionable. Handles URL and keyword-conninfo forms; never raises on
+  malformed input.
+- **Dependency CVEs cleared** (PR-216, GAP-011): urllib3 2.6.3 → 2.7.0
+  (PYSEC-2026-141/142) and pydantic-settings 2.13.1 → 2.14.2
+  (GHSA-4xgf-cpjx-pc3j) in `uv.lock`; a blocking `pip-audit` job now runs
+  in CI on every push plus a weekly cron, so lockfile CVEs fail loudly.
+- **Web UI no longer loads JavaScript from unpkg** (PR-219, GAP-014):
+  htmx and vis-network are vendored into `pg_raggraph/static/vendor/`
+  (shipped in the wheel), inline scripts moved to `static/app.js`, and the
+  Content-Security-Policy tightened from
+  `script-src 'self' https://unpkg.com 'unsafe-inline'` to
+  `script-src 'self'`.
+
+### Docs — claims corrections (AAT audit)
+
+- Public benchmark claims re-captioned to what their in-repo sources
+  support: the "+18.9% accuracy lift" headline is now "+19.3% top-score
+  improvement (retrieval-quality proxy, not graded answer accuracy)" with
+  the gold-QA non-transfer caveat linked; "15/15 perfect" split into
+  10/10 graded + 5 smoke checks; omitted negative results (SEC, NTSB,
+  MuSiQue) now listed; stale badges replaced with live ones.
+- The "AGE Cypher and pgvector cannot combine in a single query" claim is
+  retracted everywhere (README, CLAUDE.md, research docs) — the composed
+  CTE pattern runs on stock Apache AGE 1.5.0 (verified). Positioning now
+  rests on what survives per Microsoft's own docs: `shared_preload_libraries`
+  lockout on non-Azure managed Postgres, openCypher subset, manual graph
+  maintenance, and exponential path expansion beyond 3-4 hops. The
+  42-111× figure is re-scoped to 42-101× graph-assisted modes,
+  harness-scoped. ASSESSMENT.md refreshed with a dated claims-audit
+  section.
+
+## 0.7.0 — 2026-07-07 (out of alpha: ready signal, failure accounting, per-KB prompts, typed graph joins, BM25 + RRF default)
+
+### ⚠️ Changed — default behavior
 
 - **`fusion` default flipped `"linear"` → `"rrf"`** (issue #96, rung 1).
   Rankings from `naive`/`local`/`global`/`hybrid` queries WILL change: legs
@@ -35,15 +77,6 @@
   vector/lexical legs over the graph-selected chunk set; the constant
   graph-presence leg drops out under rank fusion (it carries no ordering
   information within the candidate set).
-
-### Security
-- **DSN passwords are redacted in `ConnectionError` messages** (PR-218,
-  GAP-013). `GraphRAG.connect()` failures used to embed the full DSN —
-  password included — in the exception the CLI prints and servers log.
-  The DSN now renders as `postgresql://user:***@host:port/db` via a new
-  `redact_dsn()` helper (`pg_raggraph.config`), keeping host/port/dbname
-  actionable. Handles URL and keyword-conninfo forms; never raises on
-  malformed input.
 
 ### Fixed
 - **Silent extraction failure: per-chunk LLM errors no longer masquerade as
