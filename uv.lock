@@ -1863,7 +1863,7 @@ wheels = [
 
 [[package]]
 name = "pg-raggraph"
-version = "0.5.0a19"
+version = "0.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
