@@ -526,6 +526,16 @@ class PGRGConfig(BaseSettings):
     trgm_weight: float = 0.4
     vec_weight: float = 0.6
     min_trgm_score: float = 0.3
+    # PR-222: hard cap on entities.description length. Every merge path
+    # (exact-match append, fuzzy merge, per-doc dedupe) enforces keep-first
+    # append-until-cap, so hot entities can't grow multi-KB blobs that get
+    # re-embedded on every merge. 0 or negative disables the cap.
+    entity_description_max_chars: int = 2000
+    # AAT-004: refuse fuzzy merges when two names differ only by a
+    # version-like token ("PostgreSQL 14" vs "PostgreSQL 15"). Generalizes
+    # the CODE_SYMBOL exemption to versioned-docs corpora. Empty string
+    # disables the guard.
+    entity_version_guard_pattern: str = r"\d+(?:\.\d+)*"
 
     # --- Evolving-knowledge RAG (Tier 1+) ---
     # Zero cost when 'off'; ramp up per use case.

@@ -422,6 +422,24 @@ Cons: too high silently rejects valid synonym candidates that don't share charac
 When to use: 0.4 for clean datasets where typos are rare.
 When NOT to use: 0.0 — every entity becomes a candidate and resolution becomes O(N²).
 
+### `entity_description_max_chars` (int, default: `2000`)
+Env var: `PGRG_ENTITY_DESCRIPTION_MAX_CHARS`
+
+What: hard cap on `entities.description` length, enforced keep-first (oldest text survives) at every merge/append site. `0` disables.
+Pros: hub entities in churny corpora stop growing multi-KB blobs that degrade entity embeddings and get re-embedded on every merge.
+Cons: novel facts arriving after the cap is full are dropped from the description (they remain in chunks/provenance).
+When to use: lower (500-1000) for corpora with verbose LLM extraction descriptions; run `rag.trim_entity_descriptions()` once for pre-cap corpora.
+When NOT to use: 0 (disabled) on long-lived living-knowledge namespaces — that's exactly where unbounded growth hurts.
+
+### `entity_version_guard_pattern` (str, default: `\d+(?:\.\d+)*`)
+Env var: `PGRG_ENTITY_VERSION_GUARD_PATTERN`
+
+What: regex for version-like tokens; two names that differ only by such a token ("PostgreSQL 14" vs "PostgreSQL 15") refuse to fuzzy-merge regardless of score. Empty string disables.
+Pros: protects versioned-docs corpora from false merges that silently collapse distinct versions into one entity — irreparable short of re-ingest.
+Cons: keeps genuinely-identical entities with inconsistent numbering ("Ch 1" vs "Ch 01") separate; merge those manually via `rag.merge_entities()`.
+When to use: default is right for almost everyone; widen the pattern (e.g. add date tokens) for release-notes corpora.
+When NOT to use: disabling on the versioned-docs workload the guard exists for.
+
 ---
 
 ## Hybrid scoring weights

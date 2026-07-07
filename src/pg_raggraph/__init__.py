@@ -1403,9 +1403,12 @@ class GraphRAG:
                     )
 
         # Dedupe entities by name, build per-chunk entity/rel lists
+        from pg_raggraph.resolution import merge_description
+
         unique_entities = {}
         chunk_to_entities = []
         chunk_to_rels = []
+        desc_cap = self.config.entity_description_max_chars
 
         for i, extraction in enumerate(extraction_results):
             entity_names = []
@@ -1419,9 +1422,11 @@ class GraphRAG:
                     }
                 else:
                     unique_entities[ent.name]["chunks"].append(i)
-                    existing_desc = unique_entities[ent.name]["description"]
-                    if ent.description and ent.description not in existing_desc:
-                        unique_entities[ent.name]["description"] += " " + ent.description
+                    # PR-222: keep-first append with cap — a hot entity in
+                    # hundreds of chunks must not build an unbounded blob.
+                    unique_entities[ent.name]["description"] = merge_description(
+                        unique_entities[ent.name]["description"], ent.description, desc_cap
+                    )
                 entity_names.append(ent.name)
             chunk_to_entities.append(entity_names)
             # 9-tuple shape: (src, dst, rel_type, description, weight,
@@ -1851,6 +1856,7 @@ class GraphRAG:
                     db=tx,
                     config=self.config,
                     properties=info.get("properties") or {},
+                    source_document_id=doc_id,
                 )
                 entity_name_to_id[name] = eid
 
@@ -3009,9 +3015,12 @@ class GraphRAG:
     async def merge_entities(self, keep_id: int, merge_ids: list[int]) -> dict:
         """Merge one or more entities into a canonical one.
 
-        Rewrites relationships and entity_chunks to point at `keep_id`,
-        deduplicates any resulting duplicate edges, drops self-loops that
-        the merge creates, then deletes the merged entities. All atomic.
+        Unions descriptions and properties into `keep_id` (AAT-004 I-14 —
+        this method used to silently drop them), rewrites relationships and
+        entity_chunks to point at `keep_id`, deduplicates any resulting
+        duplicate edges, drops self-loops that the merge creates, records
+        each absorbed entity in ``entity_merge_log`` (source='manual'), then
+        deletes the merged entities. All atomic.
 
         Raises ValueError if keep_id appears in merge_ids (would delete the
         canonical entity) or if merge_ids is empty.
@@ -3024,12 +3033,15 @@ class GraphRAG:
                 "that would delete the canonical entity"
             )
 
+        from pg_raggraph.resolution import merge_description
+
         with self.db.tenant(self.config.namespace):
             async with self.db.transaction() as tx:
                 # Verify all entities exist and share a namespace. Cross-namespace
                 # merges are almost always a bug.
                 rows = await tx.fetch_all(
-                    "SELECT id, namespace FROM entities WHERE id = ANY(%s)",
+                    "SELECT id, namespace, name, entity_type, description, properties "
+                    "FROM entities WHERE id = ANY(%s)",
                     ([keep_id, *merge_ids],),
                 )
                 found_ids = {r["id"] for r in rows}
@@ -3039,6 +3051,48 @@ class GraphRAG:
                 namespaces = {r["namespace"] for r in rows}
                 if len(namespaces) > 1:
                     raise ValueError(f"cross-namespace merge refused: {sorted(namespaces)}")
+
+                # Union descriptions/properties into the keep row BEFORE the
+                # deletes (I-14: the old code silently lost them). Same
+                # keep-first dedup + cap as the fuzzy auto-merge path; on
+                # property key conflicts the canonical (keep) entity wins.
+                by_id = {r["id"]: r for r in rows}
+                keep_row = by_id[keep_id]
+                merged_desc = keep_row["description"] or ""
+                merged_props: dict = {}
+                for mid in merge_ids:
+                    merged_desc = merge_description(
+                        merged_desc,
+                        by_id[mid]["description"] or "",
+                        self.config.entity_description_max_chars,
+                    )
+                    merged_props.update(by_id[mid]["properties"] or {})
+                merged_props.update(keep_row["properties"] or {})
+                await tx.execute(
+                    "UPDATE entities SET description = %s, properties = %s::jsonb WHERE id = %s",
+                    (merged_desc, json.dumps(merged_props, default=_json_default), keep_id),
+                )
+
+                # Audit trail (AAT-004): one log row per absorbed entity, same
+                # shape as the fuzzy auto-merge path but with the absorbed
+                # row's real id and no scores (source='manual').
+                for mid in merge_ids:
+                    m = by_id[mid]
+                    await tx.execute(
+                        "INSERT INTO entity_merge_log "
+                        "(namespace, kept_id, merged_entity_id, merged_name, merged_type, "
+                        " merged_description, merged_properties, source) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, 'manual')",
+                        (
+                            m["namespace"],
+                            keep_id,
+                            mid,
+                            m["name"],
+                            m["entity_type"],
+                            m["description"],
+                            json.dumps(m["properties"] or {}, default=_json_default),
+                        ),
+                    )
 
                 # Repoint relationships. Migration 013 made
                 # (namespace, src_id, dst_id, rel_type) uniquely indexed, so a
@@ -3107,6 +3161,94 @@ class GraphRAG:
                 await tx.execute("DELETE FROM entities WHERE id = ANY(%s)", (merge_ids,))
 
         return {"kept": keep_id, "merged_count": len(merge_ids)}
+
+    async def entity_merges(
+        self,
+        namespace: str | None = None,
+        since=None,
+        min_score: float | None = None,
+        limit: int = 100,
+    ) -> list[dict]:
+        """Read the entity-merge audit log (AAT-004), newest first.
+
+        Args:
+            namespace: defaults to the configured namespace.
+            since: only merges at/after this timestamp (datetime or ISO string).
+            min_score: only auto-merges with combined_score >= this value.
+                Manual merges carry no scores and are excluded by this filter.
+            limit: max rows returned.
+        """
+        ns = namespace or self.config.namespace
+        sql = "SELECT * FROM entity_merge_log WHERE namespace = %s"
+        params: list = [ns]
+        if since is not None:
+            sql += " AND merged_at >= %s"
+            params.append(since)
+        if min_score is not None:
+            sql += " AND combined_score >= %s"
+            params.append(min_score)
+        sql += " ORDER BY merged_at DESC, id DESC LIMIT %s"
+        params.append(limit)
+        return await self.db.fetch_all(sql, tuple(params))
+
+    async def split_entity(self, log_id: int) -> int:
+        """Recreate an entity absorbed by a fuzzy or manual merge (AAT-004).
+
+        Manual repair aid for false merges: re-inserts the absorbed entity
+        from its ``entity_merge_log`` row (name, type, description,
+        properties, fresh embedding) and returns the new entity id. It does
+        NOT repoint relationships or entity_chunks — those were rewritten at
+        merge time and unpicking them automatically would guess; re-link (or
+        re-ingest the affected documents) by hand.
+
+        Raises ValueError if the log row doesn't exist or an entity with the
+        absorbed name already exists in the namespace.
+        """
+        row = await self.db.fetch_one("SELECT * FROM entity_merge_log WHERE id = %s", (log_id,))
+        if not row:
+            raise ValueError(f"entity_merge_log row {log_id} not found")
+
+        text = f"{row['merged_name']} {row['merged_description'] or ''}".strip()
+        emb = (await self._embed_texts_with_cache([text], self._get_embedder()))[0]
+        new_id = await self.db.fetch_one(
+            "INSERT INTO entities (namespace, name, entity_type, description, "
+            "embedding, properties) VALUES (%s, %s, %s, %s, %s, %s::jsonb) "
+            "ON CONFLICT (namespace, name) DO NOTHING RETURNING id",
+            (
+                row["namespace"],
+                row["merged_name"],
+                row["merged_type"] or "unknown",
+                row["merged_description"] or "",
+                emb,
+                json.dumps(row["merged_properties"] or {}, default=_json_default),
+            ),
+        )
+        if not new_id:
+            raise ValueError(
+                f"entity named {row['merged_name']!r} already exists in "
+                f"namespace {row['namespace']!r} — nothing to split"
+            )
+        return new_id["id"]
+
+    async def trim_entity_descriptions(self, namespace: str | None = None) -> int:
+        """One-time trim of pre-existing over-cap descriptions (PR-222).
+
+        The cap applies on every new merge; corpora ingested before the cap
+        existed may already carry multi-KB blobs. Truncates them to
+        ``config.entity_description_max_chars`` and returns the number of
+        rows trimmed. Does not re-embed — the next merge of each entity
+        refreshes its embedding anyway.
+        """
+        cap = self.config.entity_description_max_chars
+        if cap <= 0:
+            return 0
+        ns = namespace or self.config.namespace
+        rows = await self.db.fetch_all(
+            "UPDATE entities SET description = left(description, %s) "
+            "WHERE namespace = %s AND length(description) > %s RETURNING id",
+            (cap, ns, cap),
+        )
+        return len(rows)
 
     async def prune_orphans(self, namespace: str | None = None) -> dict:
         """Delete entities and relationships with no chunk links."""

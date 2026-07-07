@@ -406,7 +406,7 @@ async def _extract_one(rag: GraphRAG, doc_id: int) -> dict:
         resolve_extraction_prompt,
     )
     from pg_raggraph.lede_extraction import ensure_lede_available, select_extractor
-    from pg_raggraph.resolution import resolve_entity
+    from pg_raggraph.resolution import merge_description, resolve_entity
 
     doc = await rag.db.fetch_one(
         "SELECT namespace, metadata FROM documents WHERE id = %s", (doc_id,)
@@ -495,9 +495,12 @@ async def _extract_one(rag: GraphRAG, doc_id: int) -> dict:
                     "properties": {},
                 }
             else:
-                existing_desc = unique_entities[ent.name]["description"]
-                if ent.description and ent.description not in existing_desc:
-                    unique_entities[ent.name]["description"] += " " + ent.description
+                # PR-222: keep-first append with cap — no unbounded blobs.
+                unique_entities[ent.name]["description"] = merge_description(
+                    unique_entities[ent.name]["description"],
+                    ent.description,
+                    rag.config.entity_description_max_chars,
+                )
             names.append(ent.name)
         chunk_to_entities.append(names)
         chunk_to_rels.append(
@@ -548,6 +551,7 @@ async def _extract_one(rag: GraphRAG, doc_id: int) -> dict:
                 db=tx,
                 config=rag.config,
                 properties=info.get("properties") or {},
+                source_document_id=doc_id,
             )
             entity_name_to_id[name] = eid
 

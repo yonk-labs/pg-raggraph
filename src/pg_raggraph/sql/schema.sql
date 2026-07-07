@@ -125,6 +125,30 @@ CREATE TABLE IF NOT EXISTS relationship_chunks (
     PRIMARY KEY (relationship_id, chunk_id)
 );
 
+-- Entity-merge audit log (mirrors migration 017, AAT-004). Records every
+-- fuzzy auto-merge and manual merge_entities() call — what was absorbed,
+-- into what, and the scores that triggered it — so false merges are
+-- auditable (rag.entity_merges / `pgrg merges`) and repairable
+-- (rag.split_entity). No FKs: the log must outlive the rows it describes.
+CREATE TABLE IF NOT EXISTS entity_merge_log (
+    id BIGSERIAL PRIMARY KEY,
+    namespace TEXT NOT NULL,
+    kept_id BIGINT NOT NULL,
+    merged_entity_id BIGINT,
+    merged_name TEXT NOT NULL,
+    merged_type TEXT,
+    merged_description TEXT,
+    merged_properties JSONB NOT NULL DEFAULT '{}'::jsonb,
+    trgm_score REAL,
+    vec_score REAL,
+    combined_score REAL,
+    source TEXT NOT NULL DEFAULT 'auto',
+    document_id BIGINT,
+    merged_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_entity_merge_log_ns_at
+    ON entity_merge_log (namespace, merged_at DESC);
+
 -- LLM response cache
 CREATE TABLE IF NOT EXISTS pgrg_llm_cache (
     key TEXT PRIMARY KEY,
