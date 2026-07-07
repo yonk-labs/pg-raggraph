@@ -404,7 +404,9 @@ def create_app(**kwargs) -> FastAPI:
         """
         import tempfile
 
-        max_upload_mb = int(os.environ.get("PGRG_SERVER_MAX_UPLOAD_MB", _DEFAULT_MAX_UPLOAD_MB))
+        # `or` (not a default arg): compose passes "" when the var is unset
+        # in .env — empty means "use the default", never int("").
+        max_upload_mb = int(os.environ.get("PGRG_SERVER_MAX_UPLOAD_MB") or _DEFAULT_MAX_UPLOAD_MB)
         max_bytes = max_upload_mb * 1024 * 1024
         ns = namespace or config.namespace
 

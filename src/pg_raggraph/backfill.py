@@ -14,6 +14,7 @@ Both share ``claim_pending`` + ``extract_documents`` as the only primitives.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -189,6 +190,10 @@ async def extract_documents(
     separate small UPDATE marks the doc as 'failed' with the error captured
     in ``graph_error``.
 
+    Docs run in parallel, bounded by ``rag.config.doc_concurrency`` (same
+    knob the synchronous ingest fan-out honors). One doc failing never
+    affects its siblings.
+
     Idempotent on relationships after PR-002 (migration 013 + ON CONFLICT).
     Re-running on a 'ready' doc is also safe — the relationships INSERT
     falls through to the existing row's id via ON CONFLICT DO UPDATE.
@@ -206,17 +211,33 @@ async def extract_documents(
         return stats
 
     t0 = time.perf_counter()
-    for doc_id in doc_ids:
+
+    # Docs fan out in parallel, bounded by doc_concurrency (GAP-007) — each
+    # doc is already an independent transaction and claims came through SKIP
+    # LOCKED, so parallel docs are safe by construction. return_exceptions
+    # isolates failures: one doc's exception never cancels its siblings.
+    sem = asyncio.Semaphore(max(1, rag.config.doc_concurrency))
+
+    async def _one(doc_id: int):
+        async with sem:
+            return await _extract_one(rag, doc_id)
+
+    results = await asyncio.gather(*(_one(d) for d in doc_ids), return_exceptions=True)
+
+    # Aggregate post-gather in doc_ids order — counters and stats.errors stay
+    # deterministic regardless of task completion order.
+    for doc_id, res in zip(doc_ids, results):
         stats.claimed += 1
-        try:
-            per_doc = await _extract_one(rag, doc_id)
+        if not isinstance(res, BaseException):
+            per_doc = res
             stats.ready += 1
             stats.entities += per_doc["entities"]
             stats.relationships += per_doc["rels"]
             stats.chunks_failed += per_doc.get("chunks_failed", 0)
             if per_doc.get("chunks_failed"):
                 stats.degraded += 1
-        except Exception as e:
+        else:
+            e = res
             stats.failed += 1
             stats.chunks_failed += getattr(e, "chunks_failed", 0)
             # ExtractionFailedError already reads "extraction failed on
@@ -506,7 +527,10 @@ async def _extract_one(rag: GraphRAG, doc_id: int) -> dict:
         return {"entities": 0, "rels": 0, "chunks_failed": 0}
 
     embedder = rag._get_embedder()
-    names_list = list(unique_entities.keys())
+    # Sorted, not insertion order: concurrent doc transactions (GAP-007
+    # parallel fan-out) resolving shared entities take row locks in
+    # resolve_entity — a deterministic order prevents ABBA deadlocks.
+    names_list = sorted(unique_entities.keys())
     entity_texts = [f"{name} {unique_entities[name]['description']}" for name in names_list]
     entity_embeddings = await rag._embed_texts_with_cache(entity_texts, embedder)
 

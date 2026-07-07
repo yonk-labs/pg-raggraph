@@ -244,6 +244,25 @@ async def test_ingest_endpoint_rejects_oversize_upload(db, monkeypatch):
     assert "1 MB" in resp.json()["detail"]
 
 
+async def test_ingest_endpoint_empty_upload_cap_env_uses_default(db, monkeypatch):
+    """PR-220: docker-compose.prod.yml passes PGRG_SERVER_MAX_UPLOAD_MB=""
+    when unset in .env — empty must mean 'use the default', not int("")
+    (which 500'd every upload)."""
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setenv("PGRG_SERVER_MAX_UPLOAD_MB", "")
+    from pg_raggraph.server import create_app
+
+    app = create_app(dsn=db.config.dsn, namespace="error_path_test")
+    with TestClient(app) as client:
+        resp = client.post(
+            "/ingest",
+            files={"files": ("small.md", BytesIO(b"# tiny doc\n"), "text/markdown")},
+            data={"namespace": "error_path_test"},
+        )
+    assert resp.status_code == 200, resp.text
+
+
 async def test_graph_endpoint_rejects_invalid_limit(db):
     """PR-103: ?limit=N is bounded; out-of-range values return 400 with
     a clear message — not 500 from a downstream parse error."""
