@@ -20,10 +20,11 @@ services:
     #   - "5432:5432"
 
   pgrg:
-    # NOTE: the bundled FastAPI server has no auth, rate limit, or upload
-    # caps. For any public-facing deployment, put a reverse proxy (nginx,
-    # Caddy, Traefik, Cloudflare) in front of this service that adds auth,
-    # TLS termination, and rate limiting. See docs/user-guide.md §
+    # NOTE: the bundled FastAPI server has Bearer-token auth (via
+    # PGRG_SERVER_API_KEY, required below) but no rate limiting or TLS.
+    # For any public-facing deployment, put a reverse proxy (nginx,
+    # Caddy, Traefik, Cloudflare) in front of this service that adds
+    # TLS termination and rate limiting. See docs/user-guide.md §
     # Production deployment for the recommended pattern.
     build:
       context: .
@@ -33,6 +34,9 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      # PR-217: the container binds 0.0.0.0 and pgrg refuses that bind
+      # without auth — so the key is mandatory here by design.
+      PGRG_SERVER_API_KEY: ${PGRG_SERVER_API_KEY:?set PGRG_SERVER_API_KEY in .env}
       PGRG_DSN: postgresql://${PGRG_USER:-postgres}:${PGRG_PASSWORD}@postgres:5432/${PGRG_DB:-pg_raggraph}
       PGRG_LLM_BASE_URL: ${PGRG_LLM_BASE_URL:-}
       PGRG_LLM_API_KEY: ${PGRG_LLM_API_KEY:-}

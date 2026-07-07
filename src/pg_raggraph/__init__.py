@@ -333,8 +333,12 @@ class GraphRAG:
             # generic connectivity error.
             raise
         except Exception as e:
+            from pg_raggraph.config import redact_dsn
+
+            # PR-218: never let the DSN password reach an error message —
+            # the CLI prints this verbatim and servers ship it to logs.
             raise ConnectionError(
-                f"Cannot connect to PostgreSQL at {self.config.dsn}. "
+                f"Cannot connect to PostgreSQL at {redact_dsn(self.config.dsn)}. "
                 f"Is the database running? Error: {e}"
             ) from e
 

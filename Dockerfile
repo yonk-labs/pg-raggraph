@@ -15,4 +15,7 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8080
 
-CMD ["pgrg", "serve", "-p", "8080"]
+# In-container 0.0.0.0 is correct (the container boundary is the network
+# boundary); pgrg refuses this bind unless PGRG_SERVER_API_KEY is set —
+# docker-compose.prod.yml supplies it (PR-217).
+CMD ["pgrg", "serve", "--host", "0.0.0.0", "-p", "8080"]

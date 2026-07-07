@@ -110,7 +110,7 @@ Sources:
 
 That's the whole loop. From `pip install` to a grounded answer in five minutes.
 
-> **One thing to know about `pgrg serve`** — the bundled FastAPI web UI is for **local development and demos only**. It ships without authentication, rate limiting, or upload size caps. **Do not expose it directly to the public internet.** For production, put it behind a reverse proxy that adds auth, TLS, and rate limits — or embed `create_app()` in your own FastAPI application. See [`docs/user-guide.md#production-deployment`](docs/user-guide.md#production-deployment) for the recommended setup.
+> **One thing to know about `pgrg serve`** — the bundled FastAPI web UI is for **local development and demos only**. It binds `127.0.0.1` by default, so it's only reachable from your machine. Exposing it (`--host 0.0.0.0`) requires `PGRG_SERVER_API_KEY` to be set — the server refuses a non-loopback bind without auth, because the API allows ingest, query, and delete. **Do not expose it directly to the public internet.** For production, put it behind a reverse proxy that adds TLS and rate limits — or embed `create_app()` in your own FastAPI application. See [`docs/user-guide.md#production-deployment`](docs/user-guide.md#production-deployment) for the recommended setup.
 
 ## MCP server
 
@@ -301,7 +301,7 @@ pgrg status [-n NS]                      # Graph statistics
 pgrg delete -n NS                        # Delete a namespace's data
 
 # Servers
-pgrg serve --port 8080                   # FastAPI + web UI (local/demo only)
+pgrg serve --port 8080                   # FastAPI + web UI (binds 127.0.0.1; --host needs PGRG_SERVER_API_KEY)
 pgrg demo                                # Auto-ingest sample data + launch UI
 pgrg mcp-serve                           # MCP stdio server for Claude Desktop / Cursor / Zed
 
