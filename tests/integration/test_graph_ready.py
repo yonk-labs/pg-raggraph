@@ -26,9 +26,11 @@ async def _make_rag(namespace: str) -> GraphRAG:
     rag = GraphRAG(
         dsn=DSN,
         namespace=namespace,
-        # No reachable LLM — extract_documents marks deferred docs 'ready'
-        # with an empty graph, which is all readiness signaling needs.
-        llm_base_url="http://localhost:99999/v1",
+        # No extractor at all — extract_documents marks deferred docs 'ready'
+        # with an empty graph, which is all readiness signaling needs. Must
+        # be truly empty: an unreachable URL counts as per-chunk extraction
+        # FAILURE (issue #93) and would mark docs 'failed' instead.
+        llm_base_url="",
     )
     await rag.connect()
     return rag
@@ -119,6 +121,13 @@ async def test_empty_namespace_is_trivially_ready():
     try:
         assert await rag.graph_ready(ns) is True
         summary = await rag.wait_for_graph_ready(ns, timeout=1.0)
-        assert summary == {"pending": 0, "processing": 0, "ready": 0, "failed": 0}
+        # 'degraded' key added by issue #93 (overlay on 'ready').
+        assert summary == {
+            "pending": 0,
+            "processing": 0,
+            "ready": 0,
+            "failed": 0,
+            "degraded": 0,
+        }
     finally:
         await rag.close()
