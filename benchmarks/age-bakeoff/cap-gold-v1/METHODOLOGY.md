@@ -310,13 +310,30 @@ criteria are the ones written here, not post-hoc ones.
 - **D1 (ingest procedure, before any retrieval was run).** §5 didn't pin the
   pg-raggraph ingest concurrency or index handling. The default `balanced`
   profile (doc_concurrency 2) paced this 11.5K-doc corpus at ~0.35 docs/s
-  (~9 h projected); raising to the shipped `max` value (8) exposed pgvector
-  HNSW concurrent-insert serialization — 7 of 8 writers blocked on
-  `transactionid` waits, 2-6 s per chunk INSERT (pg_stat_activity evidence
-  in the loader comment). Fix: standard bulk-load practice — drop
-  `idx_chunk_embed` / `idx_entity_embed` during load, rebuild after
-  (`m=16, ef_construction=64`, same as schema), rebuild time included in
-  the reported ingest wall. Ingest-time entity resolution is unaffected
-  (its fuzzy query computes exact distances over trgm-filtered rows, no
-  ANN). No recall/latency measurement had been taken before this change;
-  retrieval-time behavior is identical (same indexes exist at query time).
+  (~9 h projected); the loader now uses the shipped `max` value (8) and
+  drops `idx_chunk_embed` / `idx_entity_embed` during load, rebuilding after
+  (`m=16, ef_construction=64`, same as schema) — standard bulk-load
+  practice, rebuild time included in the reported ingest wall. Ingest-time
+  entity resolution is unaffected (its fuzzy query computes exact distances
+  over trgm-filtered rows, no ANN). Retrieval-time behavior is identical
+  (same indexes exist at query time). *Honesty note:* the `transactionid`
+  waits first attributed to HNSW concurrent inserts turned out to be D2 —
+  they persisted with the indexes dropped; D1 is retained as bulk-load
+  practice, not as the fix.
+
+- **D2 (ingest procedure, before any retrieval was run).** With indexes
+  dropped and doc_concurrency 8, ALL writers still serialized:
+  `pg_blocking_pids` showed every backend in `transactionid` waits on the
+  others' chunk INSERTs. Cause: the BM25 lexical-stats statement triggers
+  (migration 016) upsert `lexeme_stats` (hot common lexemes) and
+  `lexical_corpus_stats` (a SINGLE row per namespace) on every chunk-insert
+  statement — any two concurrent same-namespace document transactions
+  conflict on that row and hold it to commit. This makes `doc_concurrency`
+  structurally ineffective for same-namespace ingest — recorded as a
+  library finding in RESULTS (not fixed in this branch). Benchmark-side
+  fix: the loader disables the three chunk lexstats triggers for the bulk
+  load and recomputes both stats tables afterwards with the exact
+  aggregation the triggers apply incrementally (`unnest(search_vector)`
+  df counts; chunk_count/total_len sums). Query-time BM25 reads identical
+  values, so no retrieval behavior changes. No recall/latency measurement
+  had been taken before this change.

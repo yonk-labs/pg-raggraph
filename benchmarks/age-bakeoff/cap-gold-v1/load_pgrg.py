@@ -86,14 +86,29 @@ async def run(db_url: str) -> None:
     t0 = time.time()
     try:
         # Bulk-load pattern (METHODOLOGY Deviations D1): drop the two HNSW
-        # indexes during load, rebuild after. Concurrent HNSW inserts inside
-        # long per-doc transactions serialize on transactionid waits (observed:
-        # 7/8 writers blocked, 2-6 s per chunk INSERT). Ingest-time entity
-        # resolution never uses ANN (its fuzzy query computes exact distances
-        # on trgm-filtered rows), so correctness is unaffected. Rebuild time
-        # is included in the reported ingest wall.
+        # indexes during load, rebuild after. Ingest-time entity resolution
+        # never uses ANN (its fuzzy query computes exact distances on
+        # trgm-filtered rows), so correctness is unaffected. Rebuild time is
+        # included in the reported ingest wall.
         await rag.db.execute("DROP INDEX IF EXISTS idx_chunk_embed")
         await rag.db.execute("DROP INDEX IF EXISTS idx_entity_embed")
+
+        # Deviations D2 — the actual concurrency serializer: the BM25
+        # lexstats statement triggers upsert lexeme_stats (hot common
+        # lexemes) and lexical_corpus_stats (ONE row per namespace) on every
+        # chunk-insert statement, so any two concurrent same-namespace doc
+        # transactions serialize on that row until commit (pg_blocking_pids
+        # showed all 8 writers in transactionid waits on each other).
+        # Benchmark-side fix: disable the chunk lexstats triggers for the
+        # bulk load and recompute both tables afterwards with the exact same
+        # aggregation the trigger applies incrementally. Query-time BM25
+        # reads identical values either way.
+        for trg in (
+            "trg_chunks_lexstats_ins",
+            "trg_chunks_lexstats_del",
+            "trg_chunks_lexstats_upd",
+        ):
+            await rag.db.execute(f"ALTER TABLE chunks DISABLE TRIGGER {trg}")
 
         done = 0
         for i in range(0, len(records), BATCH):
@@ -106,6 +121,31 @@ async def run(db_url: str) -> None:
             print(f"  ingested {done}/{len(records)} ({time.time() - t0:.0f}s)", flush=True)
 
         t_idx = time.time()
+        # D2: recompute lexical stats from scratch (same math as the
+        # incremental triggers), then re-enable the triggers.
+        await rag.db.execute("TRUNCATE lexeme_stats, lexical_corpus_stats")
+        await rag.db.execute(
+            "INSERT INTO lexeme_stats (namespace, lexeme, df) "
+            "SELECT d.namespace, t.lexeme, count(*) "
+            "FROM chunks c JOIN documents d ON d.id = c.document_id "
+            "CROSS JOIN LATERAL unnest(c.search_vector) t "
+            "GROUP BY d.namespace, t.lexeme"
+        )
+        await rag.db.execute(
+            "INSERT INTO lexical_corpus_stats (namespace, chunk_count, total_len) "
+            "SELECT d.namespace, count(*), "
+            "       COALESCE(sum(pgrg_lexeme_len(c.search_vector)), 0) "
+            "FROM chunks c JOIN documents d ON d.id = c.document_id "
+            "GROUP BY d.namespace"
+        )
+        for trg in (
+            "trg_chunks_lexstats_ins",
+            "trg_chunks_lexstats_del",
+            "trg_chunks_lexstats_upd",
+        ):
+            await rag.db.execute(f"ALTER TABLE chunks ENABLE TRIGGER {trg}")
+        print(f"  lexstats recompute: {time.time() - t_idx:.0f}s", flush=True)
+
         await rag.db.execute("SET maintenance_work_mem = '512MB'")
         await rag.db.execute(
             "CREATE INDEX IF NOT EXISTS idx_chunk_embed ON chunks "
