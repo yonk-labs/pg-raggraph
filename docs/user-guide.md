@@ -1045,7 +1045,7 @@ playbook teaches tool selection and warns about common anti-patterns.
 | `pgrg_query` | "Get me the raw retrieved chunks" — same retrieval, no LLM grounding. |
 | `pgrg_ingest` | "Add documents to the graph." Paths must be in an allow-listed root via `PGRG_MCP_INGEST_ROOTS`. |
 | `pgrg_delete_document` | "Remove a document." Requires `confirm=True`. |
-| `pgrg_status` | "Is the graph ready / how big is it?" — counts + `graph_ready` boolean + `graph_status_summary`. `graph_ready: false` means background extraction is still draining. |
+| `pgrg_status` | "Is the graph ready / how big is it?" — counts + `graph_ready` boolean + `graph_status_summary`. `graph_ready: false` means background extraction is still draining. The summary's `degraded` count is ready docs with per-chunk extraction failures (partial graph; doesn't block readiness — retry via `pgrg extract --include-failed`). |
 | `pgrg_profiles` | "What retrieval profiles are available?" — calibration ladder. |
 | `pgrg_get_namespace_profile` / `pgrg_set_namespace_profile` | Per-namespace default retrieval profile. |
 

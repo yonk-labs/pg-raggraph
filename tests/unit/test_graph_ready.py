@@ -39,6 +39,9 @@ def test_is_graph_ready_derivation():
     assert _is_graph_ready({"pending": 0, "processing": 0, "ready": 5, "failed": 0})
     # 'failed' is terminal — it must not block readiness.
     assert _is_graph_ready({"pending": 0, "processing": 0, "ready": 3, "failed": 2})
+    # 'degraded' (issue #93) is an overlay on 'ready' — degraded docs ARE
+    # ready and must not block readiness either.
+    assert _is_graph_ready({"pending": 0, "processing": 0, "ready": 3, "failed": 0, "degraded": 3})
     # Empty namespace is trivially ready.
     assert _is_graph_ready({"pending": 0, "processing": 0, "ready": 0, "failed": 0})
     assert not _is_graph_ready({"pending": 1, "processing": 0, "ready": 0, "failed": 0})

@@ -121,7 +121,9 @@ on the first try instead of grepping the filesystem. When you ingest
 with `defer_extraction=True`, a per-file staleness banner warns the
 agent which documents have fresh chunks but still-pending graph
 extraction, and `pgrg_status` reports a `graph_ready` boolean so agents
-can tell when background extraction has drained.
+can tell when background extraction has drained. Its status summary also
+carries a `degraded` count — docs that are ready but had per-chunk
+extraction failures (partial graph; doesn't block readiness).
 
 See [`docs/user-guide.md`](docs/user-guide.md#mcp-server) for the full
 tool list and the `PGRG_MCP_INGEST_ROOTS` allow-list.

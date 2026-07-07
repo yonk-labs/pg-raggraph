@@ -46,7 +46,9 @@ the graph already did. A direct pg-raggraph answer is typically
   (requires `confirm=True`)
 - **"Is the graph ready / how big is it?"** → `pgrg_status` — returns
   counts plus a `graph_ready` boolean (false while background extraction
-  is still draining)
+  is still draining). Also a `degraded` count: docs that are ready but
+  had per-chunk extraction failures (partial graph; doesn't block
+  readiness — retry via `pgrg extract --include-failed`).
 - **"What retrieval profiles are available / which is configured?"** →
   `pgrg_profiles` / `pgrg_get_namespace_profile`
 - **"Set this namespace's default retrieval profile"** →

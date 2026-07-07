@@ -175,6 +175,16 @@ def test_config_with_prompt_copies_without_mutating():
     assert cfg.extraction_prompt == "default"
 
 
+def test_config_with_prompt_carries_lexical_fields():
+    # Composition pin (#94 × #96): model_copy must carry the BM25/lexical
+    # fields so a per-doc prompt copy doesn't reset retrieval config.
+    cfg = _cfg(extraction_prompt="default", lexical_backend="bm25", bm25_k1=1.6, fusion="linear")
+    copied = config_with_prompt(cfg, "prose")
+    assert copied.lexical_backend == "bm25"
+    assert copied.bm25_k1 == 1.6
+    assert copied.fusion == "linear"
+
+
 def test_cache_key_is_prompt_aware():
     # Regression pin from issue #94: switching prompts must never serve a
     # stale cross-prompt cache hit.
