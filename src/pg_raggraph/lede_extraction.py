@@ -309,7 +309,8 @@ async def _run_deterministic(chunks: list[dict], one_fn) -> list[ExtractionResul
             return one_fn(text)
         except Exception as e:  # never fail the whole ingest on one chunk
             logger.warning("deterministic extraction failed for a chunk: %s", e)
-            return ExtractionResult()
+            # Failure marker (issue #93) — see ExtractionResult.failed.
+            return ExtractionResult(failed=True, error=f"{type(e).__name__}: {e}")
 
     texts = [c.get("embedded_content") or c.get("content") or "" for c in chunks]
     return await asyncio.gather(*(asyncio.to_thread(_work, t) for t in texts))
@@ -369,7 +370,15 @@ def _merge_results(primary: ExtractionResult, secondary: ExtractionResult) -> Ex
                 weight=r.weight,
             )
         )
-    return ExtractionResult(entities=entities, relationships=rels)
+    # Either leg failing marks the union failed (issue #93): the surviving
+    # leg's yield still lands, but the caller must know this chunk's
+    # extraction is incomplete rather than clean.
+    return ExtractionResult(
+        entities=entities,
+        relationships=rels,
+        failed=primary.failed or secondary.failed,
+        error=primary.error or secondary.error,
+    )
 
 
 _warned_union_no_llm = False

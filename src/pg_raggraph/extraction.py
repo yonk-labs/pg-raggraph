@@ -436,7 +436,10 @@ async def _extract_single(
             parsed = json.loads(response_text)
         except Exception as e:
             logger.warning(f"Extraction failed for chunk: {e}")
-            return ExtractionResult()
+            # Failure marker (issue #93): an errored chunk must be
+            # distinguishable from a chunk that genuinely has no entities,
+            # or the document silently flips to 'ready' with a hollow graph.
+            return ExtractionResult(failed=True, error=f"{type(e).__name__}: {e}")
         # Parse item-by-item so one malformed entity/relationship does not
         # discard the whole chunk's extraction (issue #69).
         result = _parse_extraction(parsed)

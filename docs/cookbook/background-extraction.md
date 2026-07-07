@@ -124,11 +124,29 @@ some records are "must-have-graph-now" and others are "eventually."
 pending     chunks + embeddings written; graph not yet extracted
 processing  claimed by a worker (held under SELECT … FOR UPDATE SKIP LOCKED)
 ready       entities + relationships written
-failed      extraction raised; graph_error holds the reason
+failed      extraction raised, OR every chunk's extraction errored with
+            zero yield; graph_error holds the reason
 ```
 
 Existing rows backfill as `'ready'` (the column DEFAULT) — pre-feature
 synchronous ingest is exactly what "ready" means.
+
+Per-chunk extraction failures are counted, not swallowed (issue #93):
+
+- **All chunks errored, zero entities** → the doc lands in `'failed'`
+  with `graph_error = "extraction failed on N/M chunks: <first error>"`.
+  It is retryable via `--include-failed`.
+- **Some chunks errored, partial yield** → the doc is `'ready'` (the
+  graph that did extract is usable) but **degraded**: `graph_error`
+  keeps the failure summary instead of being nulled, and the doc counts
+  under `degraded` in `graph_status_summary`.
+- **No chunk errored, zero entities** → plain `'ready'`, `graph_error`
+  NULL. Zero yield alone is not an error.
+
+Every extraction outcome also persists per-doc yield to
+`documents.metadata['extraction']`:
+`{"chunks": M, "chunks_failed": N, "entities": E, "relationships": R}` —
+so a corpus-wide yield audit is one JSONB query away.
 
 ## Surface 1 — opt-in deferred ingest
 
@@ -173,7 +191,7 @@ Useful flags:
 | `--max-iterations M` | 0 (unlimited) | Stop after M iterations (ignored with `--once`) |
 | `--rate-limit-rps R` | 0 (unlimited) | Per-iter wall-time floor: `N / R` seconds |
 | `--once` | off | Single iteration then exit |
-| `--include-failed` | off | Flip `'failed'` rows back to `'pending'` at startup |
+| `--include-failed` | off | Flip `'failed'` rows — and degraded `'ready'` rows (`graph_error` set) — back to `'pending'` at startup |
 
 Multiple `pgrg extract` workers can run in parallel against the same
 database. Two invariants make this safe:
@@ -224,8 +242,11 @@ to be a true non-event: producers append documents, the daemon drains.
   strongest weight) instead of duplicating. Workers can step on each
   other under crash/retry conditions without corrupting the graph.
 - **Retry failed.** Pass `--include-failed` to flip `'failed'` rows back
-  to `'pending'` so they're re-attempted. Re-running on a `'ready'` doc
-  is a no-op because the claim filter is `'pending'`-only.
+  to `'pending'` so they're re-attempted. It also re-queues degraded
+  `'ready'` rows (per-chunk failures left `graph_error` set) — safe
+  because re-extraction is idempotent, so the retry only fills in the
+  missing yield. Clean `'ready'` docs are never re-queued; the claim
+  filter is `'pending'`-only.
 
 ## Query-time hint
 
@@ -235,8 +256,15 @@ count for the queried namespace, e.g.:
 ```python
 result = await rag.query("…", mode="local", namespace="crm")
 gs = result.metadata["graph_status_summary"]
-# {'pending': 12, 'processing': 0, 'ready': 488, 'failed': 0}
+# {'pending': 12, 'processing': 0, 'ready': 488, 'failed': 0, 'degraded': 3}
 ```
+
+`degraded` is an overlay on `ready`, not a fifth lifecycle state: those
+docs are counted in `ready` and have a usable partial graph, but some
+chunks errored during extraction (`graph_error` holds the summary). A
+rising `degraded` count is the yield-loss signal that issue #93's
+incident (111 entities where 1,004 belonged, all statuses green) had no
+way to show.
 
 Callers that need a fully-populated graph can poll: if `gs['pending'] > 0`,
 the daemon hasn't drained yet. Retrieval still succeeds — naive returns
@@ -350,8 +378,8 @@ Wire your metrics shipper (Vector, Promtail, Datadog Agent) to forward
 | Event | What it means | Alert on |
 |---|---|---|
 | `pgrg.backfill.claim` | Every iteration; `claimed=0` when queue is empty | `claimed=0` for > N min while producers are writing → daemon is wedged or wrong namespace |
-| `pgrg.backfill.extract` | One per non-empty iteration | `failed / claimed > 0.1` → extractor is degraded |
-| `pgrg.backfill.queue_depth` | Per-status counts: `pending`, `processing`, `ready`, `failed` | `pending > N` for > M min → worker isn't keeping up; scale out |
+| `pgrg.backfill.extract` | One per non-empty iteration; carries `degraded` (docs with partial yield) and `chunks_failed` (errored chunks) | `failed / claimed > 0.1`, or `chunks_failed > 0` sustained → extractor is degraded |
+| `pgrg.backfill.queue_depth` | Per-status counts: `pending`, `processing`, `ready`, `failed`, plus `degraded` (ready docs with `graph_error` set) | `pending > N` for > M min → worker isn't keeping up; scale out. `degraded` rising → extraction yield loss |
 
 ### 2. Producer (webhook handler)
 
@@ -404,6 +432,7 @@ async def search(q: str):
 |---|---|---|
 | `pending > 0` for > 5 min | `queue_depth` metric, daemon logs | Scale: start a 2nd daemon — multi-worker is safe |
 | `failed > 0` rising | Inspect `documents.graph_error` | Fix the upstream, then `pgrg extract --include-failed --once` |
+| `degraded > 0` rising | `SELECT id, graph_error, metadata->'extraction' FROM documents WHERE graph_status='ready' AND graph_error IS NOT NULL` | Fix the upstream (timeouts, truncation, 5xx), then `pgrg extract --include-failed` — degraded docs are re-queued too |
 | `claimed=0` despite writes | Confirm `--namespace` matches producer's `namespace=` | Restart with the right `--namespace` |
 | Daemon won't shut down cleanly | systemd `kill -TERM`; should exit ≤ batch latency | If hung > 30 s on SIGTERM, `kill -KILL`; next startup reaper recovers |
 

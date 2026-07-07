@@ -590,7 +590,9 @@ class GraphRAG:
                             if r.get("degraded"):
                                 stats["degraded"] += 1
                             deg_note = (
-                                " (extraction failed, vector-only)" if r.get("degraded") else ""
+                                f" (extraction failed on {r.get('chunks_failed', 0)} chunk(s))"
+                                if r.get("degraded")
+                                else ""
                             )
                             _progress(
                                 f"[{idx}/{len(file_paths)}] "
@@ -634,7 +636,9 @@ class GraphRAG:
         if stats["failed"]:
             notes.append(f"{stats['failed']} failed")
         if stats["degraded"]:
-            notes.append(f"{stats['degraded']} degraded (vector-only, extraction error)")
+            notes.append(
+                f"{stats['degraded']} degraded (extraction errors; see documents.graph_error)"
+            )
         suffix = f", {', '.join(notes)}" if notes else ""
         _progress(
             f"Done: {stats['ingested']} ingested, {stats['skipped']} skipped"
@@ -1005,7 +1009,9 @@ class GraphRAG:
                             if r.get("degraded"):
                                 stats["degraded"] += 1
                             deg_note = (
-                                " (extraction failed, vector-only)" if r.get("degraded") else ""
+                                f" (extraction failed on {r.get('chunks_failed', 0)} chunk(s))"
+                                if r.get("degraded")
+                                else ""
                             )
                             _progress(
                                 f"[{idx}/{total if total is not None else '?'}] "
@@ -1296,6 +1302,8 @@ class GraphRAG:
         # embeddings still land (so naive retrieval works), but extraction is
         # deferred to a `pgrg extract` worker that drains graph_status='pending'.
         extraction_degraded = False
+        chunks_failed = 0
+        extraction_error = None
         from pg_raggraph.lede_extraction import LEDE_CAPABLE_EXTRACTORS
 
         _lede_path = getattr(self.config, "fact_extractor", "none") in LEDE_CAPABLE_EXTRACTORS
@@ -1314,6 +1322,26 @@ class GraphRAG:
 
                 extraction_results = [ExtractionResult() for _ in chunks]
                 extraction_degraded = True
+                chunks_failed = len(chunks)
+                extraction_error = (
+                    f"extraction failed on {len(chunks)}/{len(chunks)} chunks: "
+                    f"{type(e).__name__}: {e}"
+                )
+            else:
+                # Per-chunk failure accounting (issue #93): errored chunks
+                # come back failure-marked, not just empty. Any failure makes
+                # this doc degraded and the summary lands in graph_error so
+                # it stays queryable after the ingest call returns.
+                chunks_failed = sum(1 for r in extraction_results if getattr(r, "failed", False))
+                if chunks_failed:
+                    extraction_degraded = True
+                    first_error = next(
+                        (r.error for r in extraction_results if r.failed and r.error),
+                        "unknown error",
+                    )
+                    extraction_error = (
+                        f"extraction failed on {chunks_failed}/{len(chunks)} chunks: {first_error}"
+                    )
 
         # Dedupe entities by name, build per-chunk entity/rel lists
         unique_entities = {}
@@ -1515,19 +1543,29 @@ class GraphRAG:
             # Use _json_default so datetime values in metadata (e.g.
             # effective_from / effective_to from evolution-tracking ingests)
             # serialize to ISO strings instead of crashing the ingest.
+            # Per-chunk failure accounting lands in metadata too (issue #93)
+            # so the yield loss stays queryable via JSONB, not just in-band.
+            if chunks_failed:
+                meta = {
+                    **meta,
+                    "extraction": {"chunks": len(chunks), "chunks_failed": chunks_failed},
+                }
             doc_metadata_json = json.dumps(meta, default=_json_default) if meta else "{}"
 
             # graph_status: 'pending' when extraction is deferred to a
             # background worker, else 'ready' (matches the migration default
-            # and the pre-feature synchronous behavior).
+            # and the pre-feature synchronous behavior). graph_error carries
+            # the per-chunk failure summary for degraded sync ingests (#93);
+            # NULL when extraction was clean. A re-ingest re-extracts, so
+            # the new outcome wins on conflict.
             graph_status_value = "pending" if defer_extraction else "ready"
 
             doc_id = await tx.insert_returning_id(
                 "INSERT INTO documents "
                 "(namespace, content_hash, source_path, metadata, "
                 " effective_from, effective_to, retracted, version_label, "
-                " graph_status) "
-                "VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s) "
+                " graph_status, graph_error) "
+                "VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s) "
                 "ON CONFLICT (namespace, content_hash) DO UPDATE "
                 "SET source_path = EXCLUDED.source_path, "
                 "    metadata = documents.metadata || EXCLUDED.metadata, "
@@ -1538,7 +1576,8 @@ class GraphRAG:
                 "    retracted = CASE WHEN %s "
                 "THEN EXCLUDED.retracted ELSE documents.retracted END, "
                 "    version_label = COALESCE("
-                "EXCLUDED.version_label, documents.version_label) "
+                "EXCLUDED.version_label, documents.version_label), "
+                "    graph_error = EXCLUDED.graph_error "
                 "RETURNING id",
                 (
                     ns,
@@ -1550,6 +1589,7 @@ class GraphRAG:
                     retracted_value,
                     version_label,
                     graph_status_value,
+                    extraction_error[:2000] if extraction_error else None,
                     retracted_explicit,
                 ),
             )
@@ -1818,6 +1858,7 @@ class GraphRAG:
             "entities": len(unique_entities),
             "rels": rel_count,
             "degraded": extraction_degraded,
+            "chunks_failed": chunks_failed,
         }
 
     async def _spill_code_calls(self, ns, run_id, calls) -> None:
@@ -2485,22 +2526,29 @@ class GraphRAG:
     async def _graph_status_summary(self, namespace: str) -> dict[str, int]:
         """Per-status doc count for the namespace.
 
-        Returns all four lifecycle keys (pending/processing/ready/failed) so
-        callers can rely on the shape without defaulting. The partial index
-        on (namespace, created_at) WHERE graph_status='pending' keeps the
-        common 'pending > 0' check cheap; the full GROUP BY scans the
-        documents table but is sub-ms at typical sizes.
+        Returns all four lifecycle keys (pending/processing/ready/failed)
+        plus ``degraded`` — docs counted in ``ready`` whose extraction had
+        per-chunk failures (``graph_error`` is set; issue #93). Degraded is
+        an overlay on ready, not a fifth lifecycle state: those docs have a
+        usable partial graph. Callers can rely on the shape without
+        defaulting. The partial index on (namespace, created_at) WHERE
+        graph_status='pending' keeps the common 'pending > 0' check cheap;
+        the full GROUP BY scans the documents table but is sub-ms at
+        typical sizes.
         """
         rows = await self.db.fetch_all(
-            "SELECT graph_status, COUNT(*) AS n FROM documents "
-            "WHERE namespace = %s GROUP BY graph_status",
+            "SELECT graph_status, COUNT(*) AS n, "
+            "COUNT(*) FILTER (WHERE graph_error IS NOT NULL) AS n_err "
+            "FROM documents WHERE namespace = %s GROUP BY graph_status",
             (namespace,),
         )
-        summary = {"pending": 0, "processing": 0, "ready": 0, "failed": 0}
+        summary = {"pending": 0, "processing": 0, "ready": 0, "failed": 0, "degraded": 0}
         for row in rows:
             key = row["graph_status"]
             if key in summary:
                 summary[key] = int(row["n"])
+            if key == "ready":
+                summary["degraded"] = int(row["n_err"])
         return summary
 
     async def code_impact(

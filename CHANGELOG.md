@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **Silent extraction failure: per-chunk LLM errors no longer masquerade as
+  "no entities in this chunk" (#93).** `ExtractionResult` gained a
+  `failed`/`error` marker set by every extraction leg (LLM, deterministic
+  lede, and the `llm+lede` union). The backfill path (`pgrg extract`) now
+  applies yield accounting per doc: all chunks errored + zero yield →
+  `graph_status='failed'` with `graph_error = "extraction failed on N/M
+  chunks: <first error>"` (retryable); partial yield → `'ready'` but
+  degraded — `graph_error` keeps the failure summary instead of being
+  nulled. Genuinely-empty docs (no chunk errors) stay plain `'ready'`.
+  The synchronous ingest path counts a doc `degraded` on any chunk
+  failure (previously only when the whole extraction call raised) and
+  persists the same `graph_error` summary. The 2026-07-06 incident class
+  (mlx-lm truncation: 111 entities where 1,004 belonged, every status
+  green) is now visible from the status surface alone.
+
+### Added
+- **Per-doc extraction yield in `documents.metadata['extraction']`** —
+  `{"chunks", "chunks_failed", "entities", "relationships"}` persisted by
+  the backfill path (and `chunks/chunks_failed` by degraded sync ingests),
+  so corpus-wide yield audits are one JSONB query.
+- **`degraded` count in `graph_status_summary`** (thus `rag.status()`,
+  `/status`, `pgrg_status`, and `QueryResult.metadata`): ready docs whose
+  extraction had per-chunk failures (`graph_error` set). An overlay on
+  `ready`, not a fifth lifecycle state. Also on `ExtractStats`
+  (`degraded`, `chunks_failed`) and the `pgrg.backfill.extract` /
+  `pgrg.backfill.queue_depth` metrics.
+- **`pgrg extract --include-failed` re-queues degraded docs** too —
+  re-extraction is idempotent, so retrying a partial-yield doc only fills
+  in the missing graph.
+
 ## 0.5.0a19 — 2026-07-06 (prose extraction: prompt, lede_prose, llm+lede union)
 
 ### Added
