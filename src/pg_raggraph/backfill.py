@@ -378,14 +378,32 @@ async def _extract_one(rag: GraphRAG, doc_id: int) -> dict:
     path is post-hoc and operates on persisted chunks.
     """
     from pg_raggraph import _json_default
-    from pg_raggraph.extraction import extract_from_chunks, get_llm_provider
+    from pg_raggraph.extraction import (
+        config_with_prompt,
+        extract_from_chunks,
+        get_llm_provider,
+        resolve_extraction_prompt,
+    )
     from pg_raggraph.lede_extraction import ensure_lede_available, select_extractor
     from pg_raggraph.resolution import resolve_entity
 
-    doc = await rag.db.fetch_one("SELECT namespace FROM documents WHERE id = %s", (doc_id,))
+    doc = await rag.db.fetch_one(
+        "SELECT namespace, metadata FROM documents WHERE id = %s", (doc_id,)
+    )
     if not doc:
         raise ValueError(f"document {doc_id} not found")
     ns = doc["namespace"]
+    # #94: extract with the prompt this doc was ingested under (stamped into
+    # documents.metadata at ingest), falling back to the namespace map, then
+    # the worker's global config — the drain must not need the caller to
+    # re-specify. An unknown stamped name raises → doc lands in 'failed'
+    # with the error recorded, not silently extracted with the wrong prompt.
+    prompt_name = resolve_extraction_prompt(
+        rag.config,
+        namespace=ns,
+        stamped=(doc["metadata"] or {}).get("extraction_prompt"),
+    )
+    extract_config = config_with_prompt(rag.config, prompt_name)
 
     chunk_rows = await rag.db.fetch_all(
         "SELECT id, content, embedded_content, token_count, metadata "
@@ -427,7 +445,7 @@ async def _extract_one(rag: GraphRAG, doc_id: int) -> dict:
         await _mark_ready(rag, doc_id)
         return {"entities": 0, "rels": 0}
 
-    extraction_results = await extract_fn(chunks, llm, rag.db, rag.config)
+    extraction_results = await extract_fn(chunks, llm, rag.db, extract_config)
 
     # Yield accounting (issue #93): errored chunks return failure-marked
     # results indistinguishable from empty ones by shape alone. Count them

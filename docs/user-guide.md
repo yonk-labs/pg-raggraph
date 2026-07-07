@@ -784,6 +784,32 @@ For docs ingested with `chunk_strategy="chunkshop:symbol_aware"` +
 worker per namespace, crash-resumable, never touches `graph_status`. So fast
 code-KB ingest keeps the call graph (#81); see the cookbook's *Code KBs* section.
 
+### Per-KB extraction prompts
+
+Extraction prompts (`default` / `dev` / `code` / `prose`) can be chosen
+per call and per namespace, not just process-wide (#94) — one deployment
+can serve a code KB and a chat KB with correct extraction simultaneously:
+
+```python
+# Per-call override (wins over everything else for this call):
+await rag.ingest_records(chat_records, namespace="kb-chats",
+                         extraction_prompt="prose")
+
+# Or per-namespace, via config / env:
+rag = GraphRAG(extraction_prompt_by_namespace={"kb-chats": "prose",
+                                               "kb-src": "code"})
+# PGRG_EXTRACTION_PROMPT_BY_NAMESPACE='{"kb-chats": "prose", "kb-src": "code"}'
+```
+
+Precedence: **per-call kwarg > per-doc stamp > namespace map > global
+`extraction_prompt`**. On deferred ingests the resolved prompt is stamped
+into `documents.metadata['extraction_prompt']`, so those docs are drained
+by `pgrg extract` with the prompt they were ingested under — the drain
+worker needs no extra flags, even when it serves many KBs. Unknown
+prompt names raise `ValueError` at call time instead of silently
+extracting with the wrong prompt. Full knob details:
+[Config-Reference.md](Config-Reference.md#extraction_prompt_by_namespace-dictstr-str-default-).
+
 ### Ingesting a large corpus (bounded memory)
 
 `ingest_records()` pulls records in batches of `batch_size` (default 64), so
