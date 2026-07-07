@@ -439,10 +439,20 @@ WITH exact AS (
     {exact}
 ),
 fuzzy AS (
+    -- The trgm match operator (%%, psycopg-escaped) is the index-eligible
+    -- gate: it drives a Bitmap Index Scan on idx_entity_name_trgm using
+    -- pg_trgm.similarity_threshold, which the executor pins to min_score via
+    -- set_local (find_entities). similarity() > min_score stays as the exact
+    -- gate: the operator matches at >= threshold while the original semantics
+    -- were strictly >. A bare similarity() WHERE gate cannot use the GIN
+    -- index and seq-scanned 11.5K entities at 31.8ms p50
+    -- (benchmarks/age-bakeoff/cap-gold-v1/RESULTS.md). NOTE: psycopg parses
+    -- placeholders even in SQL comments, so no bare percent signs here.
     SELECT id, name, entity_type, description,
            similarity(name, %(name)s)::double precision AS score, 'trgm' AS match_type
     FROM entities
     WHERE namespace = %(namespace)s AND name <> %(name)s
+      AND name %% %(name)s
       AND similarity(name, %(name)s) > %(min_score)s {type_filter}
     ORDER BY score DESC
     LIMIT %(limit)s
@@ -490,7 +500,11 @@ async def find_entities(
     }
     if entity_type is not None:
         params["entity_type"] = entity_type
-    rows = await db.fetch_all(sql, params)
+    # find_entities runs outside any caller transaction (pooled per-call
+    # connection), so the trgm threshold rides along as a transaction-local
+    # set_config on the same connection/transaction as the query itself.
+    set_local = {"pg_trgm.similarity_threshold": str(params["min_score"])} if fuzzy else None
+    rows = await db.fetch_all(sql, params, set_local=set_local)
     return [
         EntityMatch(
             id=r["id"],

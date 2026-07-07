@@ -1009,9 +1009,26 @@ class Database:
             await conn.commit()
             return result
 
-    async def fetch_all(self, query_str: str, params: tuple | dict | None = None) -> list[dict]:
+    async def fetch_all(
+        self,
+        query_str: str,
+        params: tuple | dict | None = None,
+        *,
+        set_local: dict[str, str] | None = None,
+    ) -> list[dict]:
+        """Run a query; ``set_local`` GUCs apply transaction-locally first.
+
+        ``set_local`` entries run as ``set_config(name, value, true)`` on the
+        SAME connection right before the query (the pool connection is not
+        autocommit, so both share one implicit transaction). The pool's
+        rollback-on-return reverts them — nothing leaks to the next checkout.
+        Used to set ``pg_trgm.similarity_threshold`` so the ``%`` operator
+        can drive the trgm GIN index with the caller's threshold.
+        """
         async with self._pool_for_read().connection() as conn:
             await self._prepare_connection(conn)
+            for guc, value in (set_local or {}).items():
+                await conn.execute("SELECT set_config(%s, %s, true)", (guc, value))
             cur = await conn.execute(query_str, params, prepare=False)
             if cur.description is None:
                 return []
@@ -1019,8 +1036,14 @@ class Database:
             rows = await cur.fetchall()
             return [dict(zip(columns, row)) for row in rows]
 
-    async def fetch_one(self, query_str: str, params: tuple | dict | None = None) -> dict | None:
-        rows = await self.fetch_all(query_str, params)
+    async def fetch_one(
+        self,
+        query_str: str,
+        params: tuple | dict | None = None,
+        *,
+        set_local: dict[str, str] | None = None,
+    ) -> dict | None:
+        rows = await self.fetch_all(query_str, params, set_local=set_local)
         return rows[0] if rows else None
 
     async def insert_returning_id(self, query_str: str, params: tuple | dict | None = None) -> int:
@@ -1146,17 +1169,28 @@ class Transaction:
     async def execute(self, query_str: str, params: tuple | dict | None = None) -> Any:
         return await self._conn.execute(query_str, params)
 
-    async def fetch_one(self, query_str: str, params: tuple | dict | None = None) -> dict | None:
-        cur = await self._conn.execute(query_str, params, prepare=False)
-        if cur.description is None:
-            return None
-        row = await cur.fetchone()
-        if row is None:
-            return None
-        columns = [desc.name for desc in cur.description]
-        return dict(zip(columns, row))
+    async def fetch_one(
+        self,
+        query_str: str,
+        params: tuple | dict | None = None,
+        *,
+        set_local: dict[str, str] | None = None,
+    ) -> dict | None:
+        rows = await self.fetch_all(query_str, params, set_local=set_local)
+        return rows[0] if rows else None
 
-    async def fetch_all(self, query_str: str, params: tuple | dict | None = None) -> list[dict]:
+    async def fetch_all(
+        self,
+        query_str: str,
+        params: tuple | dict | None = None,
+        *,
+        set_local: dict[str, str] | None = None,
+    ) -> list[dict]:
+        """Same ``set_local`` semantics as ``Database.fetch_all``, but on the
+        transaction's single connection — GUCs revert at commit/rollback, so
+        they never outlive the caller's transaction scope."""
+        for guc, value in (set_local or {}).items():
+            await self._conn.execute("SELECT set_config(%s, %s, true)", (guc, value))
         cur = await self._conn.execute(query_str, params, prepare=False)
         if cur.description is None:
             return []

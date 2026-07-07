@@ -232,6 +232,16 @@ def test_find_entities_sql_fuzzy_and_typed():
     assert "UNION ALL" in sql
 
 
+def test_find_entities_sql_fuzzy_gate_is_index_eligible():
+    """The fuzzy WHERE gate must use the %% operator (trgm-GIN-indexable),
+    not a bare similarity() comparison (forces a seq scan — the 31.8ms p50
+    fuzzy-bind defect from the cap-gold-v1 bake-off addendum)."""
+    sql = build_find_entities_sql(fuzzy=True, typed=False)
+    assert "name %% %(name)s" in sql
+    # The strict > gate stays for byte-equivalent boundary semantics.
+    assert "similarity(name, %(name)s) > %(min_score)s" in sql
+
+
 # --- GraphJoinResult.chunk_ids ----------------------------------------------
 
 
