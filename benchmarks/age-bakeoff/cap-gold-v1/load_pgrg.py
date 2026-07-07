@@ -147,18 +147,21 @@ async def run(db_url: str) -> None:
         print(f"  lexstats recompute: {time.time() - t_idx:.0f}s", flush=True)
 
         # Docker default /dev/shm is 64MB; a parallel HNSW build requests a
-        # larger shared-memory segment and dies with DiskFull. Serial build.
-        await rag.db.execute("SET max_parallel_maintenance_workers = 0")
-        await rag.db.execute("SET maintenance_work_mem = '512MB'")
-        await rag.db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_chunk_embed ON chunks "
-            "USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64)"
-        )
-        await rag.db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_entity_embed ON entities "
-            "USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64)"
-        )
-        await rag.db.execute("ANALYZE")
+        # larger shared-memory segment and dies with DiskFull. The SET must
+        # share a connection with the CREATE INDEX (rag.db.execute uses a
+        # pool), so the rebuild runs on one dedicated psycopg connection.
+        with psycopg.connect(db_url, autocommit=True) as mconn:
+            mconn.execute("SET max_parallel_maintenance_workers = 0")
+            mconn.execute("SET maintenance_work_mem = '256MB'")
+            mconn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_chunk_embed ON chunks "
+                "USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64)"
+            )
+            mconn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_entity_embed ON entities "
+                "USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64)"
+            )
+            mconn.execute("ANALYZE")
         print(f"  HNSW rebuild + analyze: {time.time() - t_idx:.0f}s", flush=True)
         wall = time.time() - t0
 

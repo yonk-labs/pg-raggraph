@@ -229,6 +229,12 @@ def main() -> None:
         "timed_repeats": TIMED_REPEATS,
         "engine": "Apache AGE 1.5.0 + pgvector, PG16 (docker, port 5440)",
         "embedder": "fastembed BAAI/bge-small-en-v1.5 (384-dim), inside timed loop",
+        "hnsw_ef_search": (
+            "stock default 40 (not raised): the LIMIT-60 vector stage returns 40 "
+            "rows through the HNSW plan. Symmetric with pg-raggraph, whose config "
+            "default is also ef_search=40. Recall is only reported to @20, within "
+            "candidate depth for every arm."
+        ),
         "wall_s_total": round(time.time() - t_start, 1),
     }
     RESULTS.mkdir(exist_ok=True)
