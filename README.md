@@ -120,7 +120,10 @@ playbook in its MCP `initialize` response, so agents pick the right tool
 on the first try instead of grepping the filesystem. When you ingest
 with `defer_extraction=True`, a per-file staleness banner warns the
 agent which documents have fresh chunks but still-pending graph
-extraction.
+extraction, and `pgrg_status` reports a `graph_ready` boolean so agents
+can tell when background extraction has drained. Its status summary also
+carries a `degraded` count — docs that are ready but had per-chunk
+extraction failures (partial graph; doesn't block readiness).
 
 See [`docs/user-guide.md`](docs/user-guide.md#mcp-server) for the full
 tool list and the `PGRG_MCP_INGEST_ROOTS` allow-list.
@@ -199,6 +202,7 @@ Full bake-off report: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](bench
 | [`docs/cookbook/metadata-indexes.md`](docs/cookbook/metadata-indexes.md) | Btree / GIN / generated-column indexes on `chunks.metadata` and `documents.metadata`. Runtime API (`recommend_metadata_indexes()`, `apply_metadata_indexes_concurrently()`). |
 | [`docs/cookbook/changing-embedding-dimensions.md`](docs/cookbook/changing-embedding-dimensions.md) | Move a live database to a new embedding model/dimension online via the `pgrg migrate-embeddings` expand/contract column swap — no parallel DB, brief cutover, startup dim-guard. |
 | [`docs/cookbook/background-extraction.md`](docs/cookbook/background-extraction.md) | Decouple LLM/lede extraction from ingest: `defer_extraction=True` + `pgrg extract` (CLI / `--daemon`). Architectural patterns (sync vs cron vs daemon), end-to-end FastAPI walkthrough, multi-worker safety invariants, 60× time-to-queryable benchmark. |
+| [`docs/cookbook/typed-graph-join.md`](docs/cookbook/typed-graph-join.md) | Typed traversal + dependent conjunctive joins: `find_entities()` (fuzzy anchor binding), `traverse()` (typed/directed walks), `graph_join()` (bind-then-intersect join questions) — one SQL round-trip, full provenance. |
 | [`docs/user-guide.md`](docs/user-guide.md) | Full user guide. Installation, all 6 modes, configuration, REST API, production deployment, troubleshooting. |
 | [`docs/devmem-guide.md`](docs/devmem-guide.md) | `pgrg devmem` — the developer-knowledge-base flavor with code-aware chunking + dev-tuned extraction. |
 | [`docs/chunkshop-user-guide.md`](docs/chunkshop-user-guide.md) | Chunkshop integration guide: chunker-only strategies, Postgres table bridge, CLI import, code-edge graph import, and the `code-impact` symbol-graph query. |
@@ -263,6 +267,8 @@ graph TB
 | `local` | Seed → recursive CTE traversal → rank | ~220 ms |
 | `global` | Relationship-centric retrieval | ~150 ms |
 | `hybrid` | local + global merged | ~450 ms |
+
+Need a *join*, not a search? `rag.graph_join(...)` executes typed, anchor-seeded dependent joins over the entity graph ("restaurant in Maria's city that serves what she craves") in one SQL statement, with full edge/chunk provenance — see [`docs/cookbook/typed-graph-join.md`](docs/cookbook/typed-graph-join.md).
 
 Full deep-dive with selection guidance and per-mode SQL: [`docs/modes.md`](docs/modes.md). Schema diagram + ER relationships: [`docs/user-guide.md#schema-overview`](docs/user-guide.md#schema-overview).
 

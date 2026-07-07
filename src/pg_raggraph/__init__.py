@@ -226,6 +226,16 @@ def _validate_namespace(ns: str) -> None:
         )
 
 
+def _is_graph_ready(summary: dict[str, int]) -> bool:
+    """Readiness derivation shared by status()/graph_ready()/wait_for_graph_ready().
+
+    Ready = nothing mid-extraction. 'failed' is a terminal state and does
+    not block readiness (issue #92). 'degraded' (issue #93) is an overlay
+    on 'ready' — degraded docs are counted in 'ready' and never block.
+    """
+    return summary.get("pending", 0) + summary.get("processing", 0) == 0
+
+
 async def _abatched(records, n: int):
     """Yield lists of up to ``n`` items from ``records``, pulled lazily.
 
@@ -423,6 +433,7 @@ class GraphRAG:
         on_progress=None,
         *,
         metadata: dict | None = None,
+        extraction_prompt: str | None = None,
     ):
         """Ingest documents from file paths with parallel processing.
 
@@ -443,14 +454,25 @@ class GraphRAG:
                 ``version_label``, ``supersedes_document_id``, or
                 ``retraction_reason`` is present, a ``document_versions`` row
                 is also created mirroring the document's evolution metadata.
+            extraction_prompt: Per-call extraction prompt override (#94) —
+                wins over ``config.extraction_prompt_by_namespace`` and
+                ``config.extraction_prompt`` for every file in this call.
+                One of ``"default"``/``"dev"``/``"code"``/``"prose"``;
+                unknown names raise ValueError before any write.
         """
         import asyncio
 
         from pg_raggraph.chunking import chunk_document, content_hash
-        from pg_raggraph.extraction import extract_from_chunks, get_llm_provider
+        from pg_raggraph.extraction import (
+            extract_from_chunks,
+            get_llm_provider,
+            resolve_extraction_prompt,
+        )
 
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        # Fail loud on a bad prompt name BEFORE any document is written (#94).
+        resolve_extraction_prompt(self.config, namespace=ns, override=extraction_prompt)
         started = time.perf_counter()
         # PR-215: apply nice_level here (was previously in config init,
         # which surprised callers by mutating process priority on import).
@@ -582,6 +604,7 @@ class GraphRAG:
                             chunk_document,
                             extract_from_chunks,
                             metadata=metadata,
+                            extraction_prompt=extraction_prompt,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -590,7 +613,9 @@ class GraphRAG:
                             if r.get("degraded"):
                                 stats["degraded"] += 1
                             deg_note = (
-                                " (extraction failed, vector-only)" if r.get("degraded") else ""
+                                f" (extraction failed on {r.get('chunks_failed', 0)} chunk(s))"
+                                if r.get("degraded")
+                                else ""
                             )
                             _progress(
                                 f"[{idx}/{len(file_paths)}] "
@@ -634,7 +659,9 @@ class GraphRAG:
         if stats["failed"]:
             notes.append(f"{stats['failed']} failed")
         if stats["degraded"]:
-            notes.append(f"{stats['degraded']} degraded (vector-only, extraction error)")
+            notes.append(
+                f"{stats['degraded']} degraded (extraction errors; see documents.graph_error)"
+            )
         suffix = f", {', '.join(notes)}" if notes else ""
         _progress(
             f"Done: {stats['ingested']} ingested, {stats['skipped']} skipped"
@@ -666,6 +693,7 @@ class GraphRAG:
         defer_extraction: bool = False,
         batch_size: int = 64,
         cross_file_code_graph: bool | None = None,
+        extraction_prompt: str | None = None,
     ):
         """Ingest documents from in-memory records — no disk roundtrip.
 
@@ -768,6 +796,16 @@ class GraphRAG:
                 one chunkshop resolver accumulates every doc's symbols/calls
                 (O(symbols), not content) and a final pass writes the resolved
                 edges; each carries ``resolved_intra_file`` in its properties.
+            extraction_prompt: Per-call extraction prompt override (#94).
+                One of ``"default"``/``"dev"``/``"code"``/``"prose"``; unknown
+                names raise ValueError before any write. On deferred ingests
+                the resolved prompt is stamped into
+                ``documents.metadata['extraction_prompt']`` so the drain
+                (``pgrg extract``) extracts with the prompt the doc was
+                ingested under. Precedence: this kwarg > a record's
+                ``metadata['extraction_prompt']`` >
+                ``config.extraction_prompt_by_namespace[namespace]`` >
+                ``config.extraction_prompt``.
 
         Returns: same stats shape as ``ingest()``.
 
@@ -794,12 +832,18 @@ class GraphRAG:
         import asyncio
 
         from pg_raggraph.chunking import chunk_document, content_hash
-        from pg_raggraph.extraction import extract_from_chunks, get_llm_provider
+        from pg_raggraph.extraction import (
+            extract_from_chunks,
+            get_llm_provider,
+            resolve_extraction_prompt,
+        )
 
         if batch_size < 1:
             raise ValueError("batch_size must be >= 1")
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        # Fail loud on a bad prompt name BEFORE any document is written (#94).
+        resolve_extraction_prompt(self.config, namespace=ns, override=extraction_prompt)
         living_enabled = (
             self.config.living_knowledge if living_knowledge is None else living_knowledge
         )
@@ -997,6 +1041,7 @@ class GraphRAG:
                             code_source_content=rec_code_source_content,
                             corpus_code_graph=corpus_code_graph,
                             corpus_run_id=corpus_run_id,
+                            extraction_prompt=extraction_prompt,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -1005,7 +1050,9 @@ class GraphRAG:
                             if r.get("degraded"):
                                 stats["degraded"] += 1
                             deg_note = (
-                                " (extraction failed, vector-only)" if r.get("degraded") else ""
+                                f" (extraction failed on {r.get('chunks_failed', 0)} chunk(s))"
+                                if r.get("degraded")
+                                else ""
                             )
                             _progress(
                                 f"[{idx}/{total if total is not None else '?'}] "
@@ -1093,6 +1140,7 @@ class GraphRAG:
         extract_from_chunks_fn,
         *,
         metadata: dict | None = None,
+        extraction_prompt: str | None = None,
     ):
         """Read a file from disk and ingest it.
 
@@ -1117,6 +1165,7 @@ class GraphRAG:
             chunk_document_fn=chunk_document_fn,
             extract_from_chunks_fn=extract_from_chunks_fn,
             metadata=metadata,
+            extraction_prompt=extraction_prompt,
         )
 
     async def _ingest_one_content(
@@ -1140,6 +1189,7 @@ class GraphRAG:
         code_source_content: str | None = None,
         corpus_code_graph=None,
         corpus_run_id=None,
+        extraction_prompt: str | None = None,
     ):
         """Ingest a single document from in-memory content with all DB
         writes in a single transaction.
@@ -1296,8 +1346,21 @@ class GraphRAG:
         # embeddings still land (so naive retrieval works), but extraction is
         # deferred to a `pgrg extract` worker that drains graph_status='pending'.
         extraction_degraded = False
+        chunks_failed = 0
+        extraction_error = None
+        from pg_raggraph.extraction import config_with_prompt, resolve_extraction_prompt
         from pg_raggraph.lede_extraction import LEDE_CAPABLE_EXTRACTORS
 
+        # #94: resolve the effective prompt for THIS document. Precedence:
+        # per-call kwarg > caller metadata stamp > namespace map > global
+        # config. The resolved name is also stamped into documents.metadata
+        # below so deferred docs drain with the same prompt.
+        prompt_name = resolve_extraction_prompt(
+            self.config,
+            namespace=ns,
+            override=extraction_prompt,
+            stamped=(metadata or {}).get("extraction_prompt"),
+        )
         _lede_path = getattr(self.config, "fact_extractor", "none") in LEDE_CAPABLE_EXTRACTORS
         if defer_extraction or (llm is None and not _lede_path) or skip_llm_for_this_doc:
             from pg_raggraph.models import ExtractionResult
@@ -1306,7 +1369,7 @@ class GraphRAG:
         else:
             try:
                 extraction_results = await extract_from_chunks_fn(
-                    chunks, llm, self.db, self.config
+                    chunks, llm, self.db, config_with_prompt(self.config, prompt_name)
                 )
             except Exception as e:
                 logger.warning(f"Extraction failed for {file_path}, ingesting as pure vector: {e}")
@@ -1314,6 +1377,26 @@ class GraphRAG:
 
                 extraction_results = [ExtractionResult() for _ in chunks]
                 extraction_degraded = True
+                chunks_failed = len(chunks)
+                extraction_error = (
+                    f"extraction failed on {len(chunks)}/{len(chunks)} chunks: "
+                    f"{type(e).__name__}: {e}"
+                )
+            else:
+                # Per-chunk failure accounting (issue #93): errored chunks
+                # come back failure-marked, not just empty. Any failure makes
+                # this doc degraded and the summary lands in graph_error so
+                # it stays queryable after the ingest call returns.
+                chunks_failed = sum(1 for r in extraction_results if getattr(r, "failed", False))
+                if chunks_failed:
+                    extraction_degraded = True
+                    first_error = next(
+                        (r.error for r in extraction_results if r.failed and r.error),
+                        "unknown error",
+                    )
+                    extraction_error = (
+                        f"extraction failed on {chunks_failed}/{len(chunks)} chunks: {first_error}"
+                    )
 
         # Dedupe entities by name, build per-chunk entity/rel lists
         unique_entities = {}
@@ -1484,7 +1567,17 @@ class GraphRAG:
             # un-retracting). COALESCE can't express this for booleans, so we
             # pass a separate `retracted_explicit` flag and gate the SET on it
             # via CASE WHEN.
-            meta = metadata or {}
+            meta = dict(metadata or {})
+            # #94: stamp the resolved extraction prompt on DEFERRED docs so
+            # the drain (`pgrg extract`) extracts them with the prompt they
+            # were ingested under, whatever the drain worker's config. Sync
+            # docs are not stamped — extraction already ran with the resolved
+            # prompt, and documents.metadata surfaces on query results, so an
+            # unconditional stamp would pollute the caller-metadata
+            # round-trip (PRG-1). A sync doc manually re-queued to 'pending'
+            # therefore resolves via namespace map > global at drain time.
+            if defer_extraction:
+                meta["extraction_prompt"] = prompt_name
             eff_from = meta.get("effective_from")
             eff_to = meta.get("effective_to")
             retracted_explicit = "retracted" in meta and meta["retracted"] is not None
@@ -1515,19 +1608,29 @@ class GraphRAG:
             # Use _json_default so datetime values in metadata (e.g.
             # effective_from / effective_to from evolution-tracking ingests)
             # serialize to ISO strings instead of crashing the ingest.
+            # Per-chunk failure accounting lands in metadata too (issue #93)
+            # so the yield loss stays queryable via JSONB, not just in-band.
+            if chunks_failed:
+                meta = {
+                    **meta,
+                    "extraction": {"chunks": len(chunks), "chunks_failed": chunks_failed},
+                }
             doc_metadata_json = json.dumps(meta, default=_json_default) if meta else "{}"
 
             # graph_status: 'pending' when extraction is deferred to a
             # background worker, else 'ready' (matches the migration default
-            # and the pre-feature synchronous behavior).
+            # and the pre-feature synchronous behavior). graph_error carries
+            # the per-chunk failure summary for degraded sync ingests (#93);
+            # NULL when extraction was clean. A re-ingest re-extracts, so
+            # the new outcome wins on conflict.
             graph_status_value = "pending" if defer_extraction else "ready"
 
             doc_id = await tx.insert_returning_id(
                 "INSERT INTO documents "
                 "(namespace, content_hash, source_path, metadata, "
                 " effective_from, effective_to, retracted, version_label, "
-                " graph_status) "
-                "VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s) "
+                " graph_status, graph_error) "
+                "VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s) "
                 "ON CONFLICT (namespace, content_hash) DO UPDATE "
                 "SET source_path = EXCLUDED.source_path, "
                 "    metadata = documents.metadata || EXCLUDED.metadata, "
@@ -1538,7 +1641,8 @@ class GraphRAG:
                 "    retracted = CASE WHEN %s "
                 "THEN EXCLUDED.retracted ELSE documents.retracted END, "
                 "    version_label = COALESCE("
-                "EXCLUDED.version_label, documents.version_label) "
+                "EXCLUDED.version_label, documents.version_label), "
+                "    graph_error = EXCLUDED.graph_error "
                 "RETURNING id",
                 (
                     ns,
@@ -1550,6 +1654,7 @@ class GraphRAG:
                     retracted_value,
                     version_label,
                     graph_status_value,
+                    extraction_error[:2000] if extraction_error else None,
                     retracted_explicit,
                 ),
             )
@@ -1818,6 +1923,7 @@ class GraphRAG:
             "entities": len(unique_entities),
             "rels": rel_count,
             "degraded": extraction_degraded,
+            "chunks_failed": chunks_failed,
         }
 
     async def _spill_code_calls(self, ns, run_id, calls) -> None:
@@ -2463,6 +2569,7 @@ class GraphRAG:
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
         with self.db.tenant(ns):
+            graph_status = await self._graph_status_summary(ns)
             return {
                 "schema_version": int(await self.db.get_meta("schema_version") or 0),
                 "embedding_dim": int(await self.db.get_meta("embedding_dim") or 0),
@@ -2479,28 +2586,100 @@ class GraphRAG:
                 )["cnt"],
                 "entities": await self.db.count("entities", ns),
                 "relationships": await self.db.count("relationships", ns),
-                "graph_status": await self._graph_status_summary(ns),
+                "graph_status": graph_status,
+                # Derived readiness flag (issue #92): True when no doc is
+                # mid-extraction. 'failed' docs are terminal and don't block.
+                "graph_ready": _is_graph_ready(graph_status),
             }
+
+    async def graph_ready(self, namespace: str | None = None) -> bool:
+        """Cheap probe: is background extraction done for this namespace?
+
+        Returns True when no document is ``'pending'`` or ``'processing'``
+        (issue #92). ``'failed'`` docs are terminal and do NOT block
+        readiness — inspect ``status()['graph_status']['failed']`` and retry
+        via ``pgrg extract --include-failed`` if you care about them.
+
+        Caveat: an empty namespace is trivially ready. During a batched
+        ingest, docs not yet written are invisible — check
+        ``status()['documents']`` against your expected corpus size if you
+        need "did everything land?" rather than "has the queue drained?".
+        """
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        with self.db.tenant(ns):
+            return _is_graph_ready(await self._graph_status_summary(ns))
+
+    async def wait_for_graph_ready(
+        self,
+        namespace: str | None = None,
+        *,
+        timeout: float = 600.0,
+        poll_interval: float = 2.0,
+    ) -> dict[str, int]:
+        """Block until background extraction has drained for the namespace.
+
+        Polls the per-status doc counts every ``poll_interval`` seconds until
+        no document is ``'pending'`` or ``'processing'``, then returns the
+        final summary, e.g. ``{'pending': 0, 'processing': 0, 'ready': 660,
+        'failed': 0}``. Raises ``TimeoutError`` (message includes the
+        last-seen summary) if the queue hasn't drained within ``timeout``
+        seconds.
+
+        This is the first-class "is ingest done?" primitive (issue #92) —
+        replaces hand-rolled SQL polling of ``documents.graph_status``::
+
+            await rag.ingest_records(records, namespace="crm", defer_extraction=True)
+            summary = await rag.wait_for_graph_ready(namespace="crm")
+            if summary["failed"]:
+                ...  # pgrg extract --include-failed
+
+        Same caveats as :meth:`graph_ready`: 'failed' is terminal (doesn't
+        block), and an empty namespace returns immediately.
+        """
+        import asyncio
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        deadline = time.monotonic() + timeout
+        while True:
+            with self.db.tenant(ns):
+                summary = await self._graph_status_summary(ns)
+            if _is_graph_ready(summary):
+                return summary
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(
+                    f"graph not ready in namespace {ns!r} after {timeout}s: {summary}"
+                )
+            await asyncio.sleep(min(poll_interval, remaining))
 
     async def _graph_status_summary(self, namespace: str) -> dict[str, int]:
         """Per-status doc count for the namespace.
 
-        Returns all four lifecycle keys (pending/processing/ready/failed) so
-        callers can rely on the shape without defaulting. The partial index
-        on (namespace, created_at) WHERE graph_status='pending' keeps the
-        common 'pending > 0' check cheap; the full GROUP BY scans the
-        documents table but is sub-ms at typical sizes.
+        Returns all four lifecycle keys (pending/processing/ready/failed)
+        plus ``degraded`` — docs counted in ``ready`` whose extraction had
+        per-chunk failures (``graph_error`` is set; issue #93). Degraded is
+        an overlay on ready, not a fifth lifecycle state: those docs have a
+        usable partial graph. Callers can rely on the shape without
+        defaulting. The partial index on (namespace, created_at) WHERE
+        graph_status='pending' keeps the common 'pending > 0' check cheap;
+        the full GROUP BY scans the documents table but is sub-ms at
+        typical sizes.
         """
         rows = await self.db.fetch_all(
-            "SELECT graph_status, COUNT(*) AS n FROM documents "
-            "WHERE namespace = %s GROUP BY graph_status",
+            "SELECT graph_status, COUNT(*) AS n, "
+            "COUNT(*) FILTER (WHERE graph_error IS NOT NULL) AS n_err "
+            "FROM documents WHERE namespace = %s GROUP BY graph_status",
             (namespace,),
         )
-        summary = {"pending": 0, "processing": 0, "ready": 0, "failed": 0}
+        summary = {"pending": 0, "processing": 0, "ready": 0, "failed": 0, "degraded": 0}
         for row in rows:
             key = row["graph_status"]
             if key in summary:
                 summary[key] = int(row["n"])
+            if key == "ready":
+                summary["degraded"] = int(row["n_err"])
         return summary
 
     async def code_impact(
@@ -2604,6 +2783,25 @@ class GraphRAG:
                 (ns, source_path),
             )
         return 1 if result else 0
+
+    async def rebuild_lexical_stats(self, namespace: str | None = None) -> dict:
+        """Recompute the BM25 lexical statistics for a namespace (issue #96).
+
+        The migration-016 triggers maintain ``lexeme_stats`` /
+        ``lexical_corpus_stats`` incrementally for every write made after the
+        migration; chunks ingested BEFORE it are not counted. Run this once
+        per pre-existing namespace before enabling
+        ``lexical_backend="bm25"``. CLI equivalent:
+        ``pgrg rebuild-lexical-stats``.
+
+        Returns ``{"namespace", "lexemes", "chunks", "total_len"}``.
+        """
+        from pg_raggraph.lexical import rebuild_lexical_stats
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        with self.db.tenant(ns):
+            return await rebuild_lexical_stats(self.db, ns)
 
     async def retract(
         self,
@@ -2946,3 +3144,116 @@ class GraphRAG:
         from pg_raggraph.evolution import tune_scoring_weights as _tune
 
         return await _tune(self, **kwargs)
+
+    # --- Typed graph traversal / dependent joins (issue #95) ---------------
+    # Thin wrappers over pg_raggraph.graph_join — see that module and
+    # docs/cookbook/typed-graph-join.md for the full API and examples.
+
+    async def find_entities(
+        self,
+        name: str,
+        *,
+        fuzzy: bool = True,
+        entity_type: str | None = None,
+        namespace: str | None = None,
+        limit: int = 5,
+        min_score: float | None = None,
+    ):
+        """Bind a name to graph entities (exact + pg_trgm fuzzy match).
+
+        Returns a list of ``pg_raggraph.graph_join.EntityMatch`` ordered by
+        score (exact matches score 1.0). Use this to anchor ``traverse()``
+        or ``graph_join()`` on a named entity instead of an embedding.
+        """
+        from pg_raggraph import graph_join as _gj
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        with self.db.tenant(ns), self.db.readonly():
+            return await _gj.find_entities(
+                self.db,
+                self.config,
+                name,
+                fuzzy=fuzzy,
+                entity_type=entity_type,
+                namespace=ns,
+                limit=limit,
+                min_score=min_score,
+            )
+
+    async def traverse(
+        self,
+        entity_ids: list[int],
+        *,
+        rel_types: str | list[str] | None = None,
+        direction: str = "out",
+        max_hops: int = 1,
+        namespace: str | None = None,
+        limit: int = 200,
+    ):
+        """Typed, directed edge walk from ``entity_ids`` (one SQL round-trip).
+
+        ``rel_types`` accepts a single type or a synonym list (matched
+        case-insensitively); ``None`` walks all edge types. ``direction``
+        is ``"out"`` / ``"in"`` / ``"any"`` relative to the walked-from
+        entity. Returns ``pg_raggraph.graph_join.TraversalHop`` rows, each
+        carrying the reached entity, the traversed edge, and the edge's
+        provenance chunk ids.
+        """
+        from pg_raggraph import graph_join as _gj
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        with self.db.tenant(ns), self.db.readonly():
+            return await _gj.traverse(
+                self.db,
+                entity_ids,
+                rel_types=rel_types,
+                direction=direction,
+                max_hops=max_hops,
+                namespace=ns,
+                limit=limit,
+            )
+
+    async def graph_join(
+        self,
+        anchor: str | int,
+        bind: list[tuple],
+        intersect: list[tuple],
+        *,
+        namespace: str | None = None,
+        anchor_type: str | None = None,
+        fuzzy: bool = True,
+        match_limit: int = 50,
+    ):
+        """Dependent conjunctive join over the graph (one SQL round-trip).
+
+        Binds variables from an anchor entity via typed edges, then
+        intersects typed neighbor sets of those variables::
+
+            result = await rag.graph_join(
+                "Maria Ashby",
+                bind=[("LIVES_IN", "city"), (["CRAVES", "LIKES"], "food")],
+                intersect=[("LOCATED_IN", "$city"), ("SERVES", "$food")],
+            )
+
+        Returns ``pg_raggraph.graph_join.GraphJoinResult`` carrying the
+        bound anchor, the intermediate bindings, and every match with its
+        supporting edges and provenance chunk ids.
+        """
+        from pg_raggraph import graph_join as _gj
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        with self.db.tenant(ns), self.db.readonly():
+            return await _gj.graph_join(
+                self.db,
+                self.config,
+                anchor,
+                bind,
+                intersect,
+                namespace=ns,
+                anchor_type=anchor_type,
+                fuzzy=fuzzy,
+                match_limit=match_limit,
+            )

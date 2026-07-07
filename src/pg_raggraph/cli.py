@@ -87,6 +87,33 @@ def migrate(ctx):
         _handle_error(e)
 
 
+@main.command("rebuild-lexical-stats")
+@click.option("-n", "--namespace", default=None, help="Namespace (default: configured)")
+@click.pass_context
+def rebuild_lexical_stats(ctx, namespace):
+    """Recompute BM25 lexical statistics for a namespace (issue #96).
+
+    Needed once per namespace whose chunks predate migration 016, before
+    enabling lexical_backend="bm25". Later writes are maintained
+    incrementally by triggers.
+    """
+
+    async def _rebuild():
+        rag = GraphRAG(**ctx.obj["kwargs"])
+        await rag.connect()
+        stats = await rag.rebuild_lexical_stats(namespace)
+        await rag.close()
+        click.echo(f"Namespace:  {stats['namespace']}")
+        click.echo(f"Chunks:     {stats['chunks']}")
+        click.echo(f"Lexemes:    {stats['lexemes']}")
+        click.echo(f"Total len:  {stats['total_len']}")
+
+    try:
+        run_async(_rebuild())
+    except (ConnectionError, Exception) as e:
+        _handle_error(e)
+
+
 @main.command()
 @click.pass_context
 def status(ctx):
@@ -265,7 +292,11 @@ def ingest_chunkshop_table(
 @click.option(
     "--include-failed",
     is_flag=True,
-    help="Reset 'failed' docs to 'pending' at startup so they're retried",
+    help=(
+        "Reset 'failed' docs — and degraded 'ready' docs (per-chunk "
+        "extraction failures, graph_error set) — to 'pending' at startup "
+        "so they're retried"
+    ),
 )
 @click.option(
     "--daemon",
@@ -349,19 +380,27 @@ def extract(
             await release_processing(rag.db, namespace=namespace)
 
             if include_failed:
+                # Degraded docs (ready + graph_error: some chunks errored,
+                # issue #93) are retried too — re-extraction on a ready doc
+                # is idempotent (ON CONFLICT upserts), so re-queueing only
+                # fills the missing yield.
+                retry_where = (
+                    "(graph_status = 'failed' "
+                    "OR (graph_status = 'ready' AND graph_error IS NOT NULL))"
+                )
                 if namespace:
                     await rag.db.execute(
                         "UPDATE documents SET graph_status = 'pending', graph_error = NULL "
-                        "WHERE namespace = %s AND graph_status = 'failed'",
+                        f"WHERE namespace = %s AND {retry_where}",
                         (namespace,),
                     )
                 else:
                     await rag.db.execute(
                         "UPDATE documents SET graph_status = 'pending', graph_error = NULL "
-                        "WHERE graph_status = 'failed'"
+                        f"WHERE {retry_where}"
                     )
 
-            totals = {"claimed": 0, "ready": 0, "failed": 0, "ents": 0, "rels": 0}
+            totals = {"claimed": 0, "ready": 0, "failed": 0, "degraded": 0, "ents": 0, "rels": 0}
             iteration = 0
             import time as _time
 
@@ -402,11 +441,13 @@ def extract(
                 totals["claimed"] += stats.claimed
                 totals["ready"] += stats.ready
                 totals["failed"] += stats.failed
+                totals["degraded"] += stats.degraded
                 totals["ents"] += stats.entities
                 totals["rels"] += stats.relationships
                 click.echo(
                     f"[iter {iteration}] claimed={stats.claimed} ready={stats.ready} "
-                    f"failed={stats.failed} ents={stats.entities} rels={stats.relationships}",
+                    f"failed={stats.failed} degraded={stats.degraded} "
+                    f"ents={stats.entities} rels={stats.relationships}",
                     err=True,
                 )
 
@@ -442,10 +483,15 @@ def extract(
                         except asyncio.TimeoutError:
                             pass
 
+            degraded_note = (
+                f" ({totals['degraded']} ready-but-degraded — see documents.graph_error)"
+                if totals["degraded"]
+                else ""
+            )
             click.echo(
                 f"Done: {totals['ready']} ready / {totals['failed']} failed "
-                f"of {totals['claimed']} claimed. {totals['ents']} entities, "
-                f"{totals['rels']} relationships."
+                f"of {totals['claimed']} claimed{degraded_note}. "
+                f"{totals['ents']} entities, {totals['rels']} relationships."
             )
         finally:
             await rag.close()

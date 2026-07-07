@@ -1,5 +1,126 @@
 # Changelog
 
+## Unreleased
+
+### ⚠️ Changed — default behavior
+
+- **`fusion` default flipped `"linear"` → `"rrf"`** (issue #96, rung 1).
+  Rankings from `naive`/`local`/`global`/`hybrid` queries WILL change: legs
+  are now combined by Reciprocal Rank Fusion (scale-free) instead of a raw
+  weighted sum where the lexical leg's ~0.01–0.1 ts_rank scale made it a
+  near-no-op against cosine at 0.20 weight. Fused scores are small (~0.01)
+  and NOT comparable to linear scores — do not threshold on them. To
+  reproduce the old rankings byte-for-byte: `PGRG_FUSION=linear`,
+  `PGRGConfig(fusion="linear")`, or per-call `rag.query(..., fusion="linear")`.
+  `smart` mode is unaffected in its routing: its internal confidence probe is
+  pinned to linear (the 0.7/0.4 thresholds are calibrated on raw linear
+  scores).
+- **`fusion` now applies to `local` and `global` modes** (issue #96
+  addendum). Previously `fusion="rrf"` was silently inert outside the
+  naive family — a registered A/B on a global-mode cell replicated the
+  linear config without warning. Both graph modes now rank-fuse their
+  vector/lexical legs over the graph-selected chunk set; the constant
+  graph-presence leg drops out under rank fusion (it carries no ordering
+  information within the candidate set).
+
+### Fixed
+- **Silent extraction failure: per-chunk LLM errors no longer masquerade as
+  "no entities in this chunk" (#93).** `ExtractionResult` gained a
+  `failed`/`error` marker set by every extraction leg (LLM, deterministic
+  lede, and the `llm+lede` union). The backfill path (`pgrg extract`) now
+  applies yield accounting per doc: all chunks errored + zero yield →
+  `graph_status='failed'` with `graph_error = "extraction failed on N/M
+  chunks: <first error>"` (retryable); partial yield → `'ready'` but
+  degraded — `graph_error` keeps the failure summary instead of being
+  nulled. Genuinely-empty docs (no chunk errors) stay plain `'ready'`.
+  The synchronous ingest path counts a doc `degraded` on any chunk
+  failure (previously only when the whole extraction call raised) and
+  persists the same `graph_error` summary. The 2026-07-06 incident class
+  (mlx-lm truncation: 111 entities where 1,004 belonged, every status
+  green) is now visible from the status surface alone.
+
+### Added
+- **Per-doc extraction yield in `documents.metadata['extraction']`** —
+  `{"chunks", "chunks_failed", "entities", "relationships"}` persisted by
+  the backfill path (and `chunks/chunks_failed` by degraded sync ingests),
+  so corpus-wide yield audits are one JSONB query.
+- **`degraded` count in `graph_status_summary`** (thus `rag.status()`,
+  `/status`, `pgrg_status`, and `QueryResult.metadata`): ready docs whose
+  extraction had per-chunk failures (`graph_error` set). An overlay on
+  `ready`, not a fifth lifecycle state. Also on `ExtractStats`
+  (`degraded`, `chunks_failed`) and the `pgrg.backfill.extract` /
+  `pgrg.backfill.queue_depth` metrics.
+- **`pgrg extract --include-failed` re-queues degraded docs** too —
+  re-extraction is idempotent, so retrying a partial-yield doc only fills
+  in the missing graph.
+- **First-class ingest-completion signal** (#92). New public API:
+  `await rag.graph_ready(namespace)` (cheap bool — no doc is
+  `pending`/`processing`) and
+  `await rag.wait_for_graph_ready(namespace, timeout=600.0, poll_interval=2.0)`
+  (blocks until background extraction drains; returns the final per-status
+  summary; raises `TimeoutError` with the last-seen summary on timeout).
+  `'failed'` docs are terminal and don't block readiness. Replaces raw-SQL
+  polling of `documents.graph_status`.
+- `rag.status()` (and therefore `GET /status` and the MCP `pgrg_status`
+  tool) gains a derived `graph_ready: bool` alongside the existing counts.
+- FastAPI `/ask` response now includes `graph_status_summary` (top-level),
+  matching what `/query` already carried under `metadata` — partial-graph
+  answers are no longer indistinguishable from fully-baked ones.
+- **Per-KB (per-namespace) extraction prompt selection** (#94). The
+  extraction prompt is no longer forced to be process-global:
+  - `ingest()` / `ingest_records()` accept `extraction_prompt="prose"`
+    (etc.) as a per-call override.
+  - New config knob `extraction_prompt_by_namespace: dict[str, str]`
+    (env: `PGRG_EXTRACTION_PROMPT_BY_NAMESPACE` as JSON) maps namespace →
+    prompt, consulted on both the sync ingest path and the `pgrg extract`
+    drain.
+  - On deferred ingests the resolved prompt is stamped into
+    `documents.metadata['extraction_prompt']` (JSONB — no migration), so
+    those docs drain with the prompt they were ingested under regardless
+    of the drain worker's config. Sync docs are not stamped (extraction
+    already ran; `documents.metadata` surfaces on query results).
+  - Precedence: per-call kwarg > per-doc stamp > namespace map > global
+    `extraction_prompt`. Unknown prompt names raise `ValueError` at call
+    time (per-call kwarg fails before any write; a bad stamp/map entry
+    marks the doc `failed` at drain) instead of `get_prompt`'s silent
+    default fallback. The extraction LLM cache was already prompt-aware
+    (keyed on prompt name), so mixed prompts never collide.
+- **`lexical_backend="bm25"`** (issue #96, rung 2) — real Okapi BM25 for the
+  lexical leg, scored in SQL (k1/b tunable via `bm25_k1`/`bm25_b`): corpus
+  IDF from per-namespace stats tables (`lexeme_stats`,
+  `lexical_corpus_stats`, migration 016) maintained incrementally by
+  triggers — exact on insert/update/delete including the document-cascade
+  path, no drift. Default stays `"ts_rank"` (byte-identical SQL).
+  Pre-migration corpora need a one-time `rag.rebuild_lexical_stats()` /
+  `pgrg rebuild-lexical-stats`. See `docs/cookbook/bm25-lexical.md`.
+- **Identifier-preserving tokenization** (issue #96, rung 3) — the tsvector
+  parser splits `validate_billing_archive` into stemmed fragments regardless
+  of dictionary config; migration 016 injects underscored identifiers as
+  whole lexemes into `search_vector` (index side) and the BM25 query-term
+  set (query side, symmetric). Invisible to the ts_rank backend
+  (positionless lexemes rank 0 there); with `lexical_backend="bm25"` an
+  exact-identifier query ranks its defining chunk above tf-heavy prose.
+- **Typed graph traversal / dependent conjunctive joins (#95)** — new
+  `pg_raggraph.graph_join` module with thin `GraphRAG` wrappers:
+  - `rag.find_entities(name, fuzzy=…, entity_type=…)` — anchor binding via
+    exact + `pg_trgm` fuzzy match (seed on a *named* entity instead of the
+    whole-question embedding).
+  - `rag.traverse(entity_ids, rel_types=…, direction="out"|"in"|"any",
+    max_hops=…)` — typed, directed edge walk (recursive CTE, one round-trip)
+    returning each reached entity with the traversed edge and its provenance
+    chunk ids.
+  - `rag.graph_join(anchor, bind=[("LIVES_IN", "city"), …],
+    intersect=[("LOCATED_IN", "$city"), …])` — the dependent conjunctive join
+    ("restaurant in Maria's city that serves what she craves") executed as
+    indexed SQL joins in a single statement. Results carry the bound
+    intermediates, every supporting edge, and provenance chunk ids.
+    Rel-type matching is case-insensitive and accepts synonym lists
+    (`["LIKES", "CRAVES"]`); retracted edges never match. No schema changes —
+    uses the existing `idx_rel_src_type` / `idx_rel_dst_type` indexes
+    (EXPLAIN-verified no seq-scan at 2×10⁴ edges).
+    See `docs/cookbook/typed-graph-join.md`. Existing retrieval modes are
+    unchanged (additive).
+
 ## 0.5.0a19 — 2026-07-06 (prose extraction: prompt, lede_prose, llm+lede union)
 
 ### Added
