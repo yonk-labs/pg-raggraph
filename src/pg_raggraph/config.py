@@ -511,12 +511,29 @@ class PGRGConfig(BaseSettings):
     w_bm25: float = 0.20
     w_graph: float = 0.20
 
-    # Fusion strategy for hybrid retrieval (issue #57). "linear" (default)
-    # preserves the weighted-sum behavior byte-for-byte; "rrf" fuses by
-    # per-leg rank (Σ wᵢ / (rrf_k + rankᵢ)), which is scale-free across the
-    # cosine / ts_rank legs. Applies to naive + hybrid modes only.
-    fusion: Literal["linear", "rrf"] = "linear"
+    # Fusion strategy for hybrid retrieval (issue #57; default flipped to
+    # "rrf" in #96). "rrf" fuses by per-leg rank (Σ wᵢ / (rrf_k + rankᵢ)),
+    # which is scale-free across the cosine / lexical legs — under "linear"
+    # the ts_rank leg's raw scale (~0.01–0.1) made it a near-no-op at 0.20
+    # weight. "linear" preserves the weighted-sum behavior byte-for-byte for
+    # A/B reproducibility of existing deployments. Applies to naive, local,
+    # global, and hybrid modes; smart mode's internal confidence probe stays
+    # linear (its routing thresholds are calibrated on raw linear scores).
+    fusion: Literal["linear", "rrf"] = "rrf"
     rrf_k: int = 60  # RRF damping constant (standard default)
+
+    # Lexical scoring backend (issue #96). "ts_rank" (default) keeps
+    # PostgreSQL ts_rank: TF/proximity only, no corpus IDF. "bm25" scores
+    # Okapi BM25 in SQL from per-namespace stats maintained by the
+    # migration-016 triggers — IDF-aware, length-normalized, and
+    # identifier-safe (underscored identifiers survive tokenization on both
+    # the index and query side). Corpora ingested before migration 016 need
+    # a one-time rag.rebuild_lexical_stats() / `pgrg rebuild-lexical-stats`.
+    # BM25 raw scores are unbounded — designed for fusion="rrf" (default);
+    # under fusion="linear", retune w_bm25. See docs/cookbook/bm25-lexical.md.
+    lexical_backend: Literal["ts_rank", "bm25"] = "ts_rank"
+    bm25_k1: float = 1.2  # Okapi k1 — term-frequency saturation
+    bm25_b: float = 0.75  # Okapi b — document-length normalization strength
 
     w_recent: float = 0.10
     w_supersession: float = 0.10

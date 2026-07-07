@@ -311,7 +311,21 @@ A startup guard refuses to connect if `embedding_dim` no longer matches the live
 
 ## Query Modes Explained
 
-pg-raggraph offers **four query modes** that trade off speed, context breadth, and graph understanding:
+pg-raggraph offers **four query modes** that trade off speed, context breadth, and graph understanding.
+
+All modes combine a vector leg with a lexical leg. Two knobs shape that
+combination (issue #96):
+
+- **`fusion`** (default `"rrf"`, was `"linear"`) — Reciprocal Rank Fusion
+  combines the legs by rank instead of raw score, so the lexical leg votes
+  regardless of score scale. Set `PGRG_FUSION=linear` (or
+  `rag.query(..., fusion="linear")`) to reproduce pre-0.5.0a20 rankings
+  byte-for-byte.
+- **`lexical_backend`** (default `"ts_rank"`) — set `"bm25"` for real Okapi
+  BM25 with corpus IDF and identifier-safe tokenization (an exact-identifier
+  query like `validate_billing_archive` ranks its defining chunk first).
+  Pre-existing corpora need a one-time `pgrg rebuild-lexical-stats`.
+  See [`docs/cookbook/bm25-lexical.md`](cookbook/bm25-lexical.md).
 
 ### Naive Mode (Vector + BM25)
 ```bash
@@ -593,6 +607,10 @@ export PGRG_TOP_K=10                  # Results per query
 export PGRG_SIMILARITY_THRESHOLD=0.3  # Minimum similarity score
 export PGRG_RETRIEVAL_STRATEGY=weighted        # weighted | pre_filter | vector_first
 export PGRG_RETRIEVAL_OVERSAMPLE_FACTOR=10     # vector_first candidate sizing
+export PGRG_FUSION=rrf                # rrf (default) | linear — leg fusion (#96)
+export PGRG_LEXICAL_BACKEND=ts_rank   # ts_rank (default) | bm25 — lexical leg scoring (#96)
+export PGRG_BM25_K1=1.2               # BM25 tf saturation (bm25 backend)
+export PGRG_BM25_B=0.75               # BM25 length normalization (bm25 backend)
 ```
 
 `retrieval_strategy` controls the SQL shape of vector + metadata queries. The default `weighted` works everywhere; `pre_filter` is fastest when you have selective indexed predicates; `vector_first` is fastest for broad/no-predicate queries on single-namespace HNSW-eligible corpora. See [`docs/cookbook/retrieval-strategy.md`](cookbook/retrieval-strategy.md). Also available as a per-call kwarg.

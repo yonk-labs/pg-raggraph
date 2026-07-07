@@ -176,6 +176,38 @@ CREATE INDEX IF NOT EXISTS idx_entity_name_trgm ON entities USING gin (name gin_
 -- Full-text search index
 CREATE INDEX IF NOT EXISTS idx_chunk_search ON chunks USING gin (search_vector);
 
+-- Per-namespace lexical statistics for the BM25 backend (mirrors migration
+-- 016). Maintained incrementally by the trg_chunks_lexstats_* /
+-- trg_documents_lexstats_del triggers below; see the migration for the full
+-- maintenance-strategy notes.
+CREATE TABLE IF NOT EXISTS lexeme_stats (
+    namespace TEXT NOT NULL,
+    lexeme    TEXT NOT NULL,
+    df        BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (namespace, lexeme)
+);
+
+CREATE TABLE IF NOT EXISTS lexical_corpus_stats (
+    namespace   TEXT PRIMARY KEY,
+    chunk_count BIGINT NOT NULL DEFAULT 0,
+    total_len   BIGINT NOT NULL DEFAULT 0
+);
+
+-- Total term occurrences in a tsvector (sum of per-lexeme position counts).
+CREATE OR REPLACE FUNCTION pgrg_lexeme_len(v tsvector) RETURNS bigint AS $$
+    SELECT COALESCE(sum(COALESCE(array_length(t.positions, 1), 1)), 0)::bigint
+    FROM unnest(v) t
+$$ LANGUAGE sql IMMUTABLE PARALLEL SAFE;
+
+-- Identifier-shaped tokens (underscored), lowercased/deduped, as a
+-- positionless tsvector — the tsvector parser splits underscores regardless
+-- of dictionary config, so identifiers must bypass it (migration 016).
+CREATE OR REPLACE FUNCTION pgrg_identifier_tsvector(body text) RETURNS tsvector AS $$
+    SELECT COALESCE(array_to_tsvector(array_agg(DISTINCT lower(m[1]))), ''::tsvector)
+    FROM regexp_matches(body, '([A-Za-z0-9]+(?:_[A-Za-z0-9]+)+)', 'g') m
+    WHERE length(m[1]) <= 512
+$$ LANGUAGE sql IMMUTABLE PARALLEL SAFE;
+
 -- Trigger to auto-update search_vector on chunk insert/update. FTS indexes
 -- embedded_content so BM25 queries see heading text (hierarchy strategy) and
 -- any future neighbor/summary decoration. Falls back to content if
@@ -185,20 +217,25 @@ CREATE INDEX IF NOT EXISTS idx_chunk_search ON chunks USING gin (search_vector);
 --   'A' — embedded_content / content (body terms; rank highest)
 --   'B' — top_terms[*].term from metadata JSONB (chunkshop salient terms;
 --          allows BM25 retrieval by salient term even when not in body text)
+--   unweighted, positionless — identifier lexemes (migration 016); invisible
+--          to ts_rank, tf=1 for the BM25 backend
 -- Guard: absent / non-array top_terms produce an empty 'B' segment — no
 -- behavior change for chunks that don't carry top_terms.
 CREATE OR REPLACE FUNCTION pgrg_update_search_vector() RETURNS trigger AS $$
 DECLARE
     top_terms_text TEXT := '';
+    body TEXT;
 BEGIN
+    body := COALESCE(NEW.embedded_content, NEW.content);
     IF jsonb_typeof(NEW.metadata->'top_terms') = 'array' THEN
         SELECT COALESCE(string_agg(elem->>'term', ' '), '')
           INTO top_terms_text
           FROM jsonb_array_elements(NEW.metadata->'top_terms') elem;
     END IF;
     NEW.search_vector :=
-        setweight(to_tsvector('english', COALESCE(NEW.embedded_content, NEW.content)), 'A')
-        || setweight(to_tsvector('english', top_terms_text), 'B');
+        setweight(to_tsvector('english', body), 'A')
+        || setweight(to_tsvector('english', top_terms_text), 'B')
+        || pgrg_identifier_tsvector(body);
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -207,6 +244,156 @@ DROP TRIGGER IF EXISTS trg_chunk_search_vector ON chunks;
 CREATE TRIGGER trg_chunk_search_vector
     BEFORE INSERT OR UPDATE OF content, embedded_content ON chunks
     FOR EACH ROW EXECUTE FUNCTION pgrg_update_search_vector();
+
+-- Lexical-stats maintenance triggers (mirror migration 016 — see it for the
+-- deadlock-ordering and cascade-path rationale).
+CREATE OR REPLACE FUNCTION pgrg_lexstats_chunks_ins() RETURNS trigger AS $$
+BEGIN
+    INSERT INTO lexeme_stats (namespace, lexeme, df)
+    SELECT d.namespace, t.lexeme, count(*)
+    FROM newtab n
+    JOIN documents d ON d.id = n.document_id
+    CROSS JOIN LATERAL unnest(n.search_vector) t
+    GROUP BY d.namespace, t.lexeme
+    ORDER BY 1, 2
+    ON CONFLICT (namespace, lexeme)
+        DO UPDATE SET df = lexeme_stats.df + EXCLUDED.df;
+
+    INSERT INTO lexical_corpus_stats (namespace, chunk_count, total_len)
+    SELECT d.namespace, count(*), COALESCE(sum(pgrg_lexeme_len(n.search_vector)), 0)
+    FROM newtab n
+    JOIN documents d ON d.id = n.document_id
+    GROUP BY d.namespace
+    ON CONFLICT (namespace)
+        DO UPDATE SET chunk_count = lexical_corpus_stats.chunk_count + EXCLUDED.chunk_count,
+                      total_len   = lexical_corpus_stats.total_len + EXCLUDED.total_len;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_chunks_lexstats_ins ON chunks;
+CREATE TRIGGER trg_chunks_lexstats_ins
+    AFTER INSERT ON chunks
+    REFERENCING NEW TABLE AS newtab
+    FOR EACH STATEMENT EXECUTE FUNCTION pgrg_lexstats_chunks_ins();
+
+CREATE OR REPLACE FUNCTION pgrg_lexstats_chunks_del() RETURNS trigger AS $$
+BEGIN
+    UPDATE lexeme_stats ls
+    SET df = GREATEST(ls.df - dec.cnt, 0)
+    FROM (
+        SELECT d.namespace, t.lexeme, count(*) AS cnt
+        FROM oldtab o
+        JOIN documents d ON d.id = o.document_id
+        CROSS JOIN LATERAL unnest(o.search_vector) t
+        GROUP BY d.namespace, t.lexeme
+    ) dec
+    WHERE ls.namespace = dec.namespace AND ls.lexeme = dec.lexeme;
+
+    UPDATE lexical_corpus_stats cs
+    SET chunk_count = GREATEST(cs.chunk_count - dec.cnt, 0),
+        total_len   = GREATEST(cs.total_len - dec.len, 0)
+    FROM (
+        SELECT d.namespace, count(*) AS cnt,
+               COALESCE(sum(pgrg_lexeme_len(o.search_vector)), 0) AS len
+        FROM oldtab o
+        JOIN documents d ON d.id = o.document_id
+        GROUP BY d.namespace
+    ) dec
+    WHERE cs.namespace = dec.namespace;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_chunks_lexstats_del ON chunks;
+CREATE TRIGGER trg_chunks_lexstats_del
+    AFTER DELETE ON chunks
+    REFERENCING OLD TABLE AS oldtab
+    FOR EACH STATEMENT EXECUTE FUNCTION pgrg_lexstats_chunks_del();
+
+CREATE OR REPLACE FUNCTION pgrg_lexstats_chunks_upd() RETURNS trigger AS $$
+BEGIN
+    -- Only rows whose search_vector actually changed contribute; embedding-
+    -- or metadata-only bulk updates group over zero rows and no-op.
+    UPDATE lexeme_stats ls
+    SET df = GREATEST(ls.df - dec.cnt, 0)
+    FROM (
+        SELECT d.namespace, t.lexeme, count(*) AS cnt
+        FROM oldtab o
+        JOIN newtab n ON n.id = o.id
+        JOIN documents d ON d.id = o.document_id
+        CROSS JOIN LATERAL unnest(o.search_vector) t
+        WHERE o.search_vector IS DISTINCT FROM n.search_vector
+        GROUP BY d.namespace, t.lexeme
+    ) dec
+    WHERE ls.namespace = dec.namespace AND ls.lexeme = dec.lexeme;
+
+    INSERT INTO lexeme_stats (namespace, lexeme, df)
+    SELECT d.namespace, t.lexeme, count(*)
+    FROM newtab n
+    JOIN oldtab o ON o.id = n.id
+    JOIN documents d ON d.id = n.document_id
+    CROSS JOIN LATERAL unnest(n.search_vector) t
+    WHERE o.search_vector IS DISTINCT FROM n.search_vector
+    GROUP BY d.namespace, t.lexeme
+    ORDER BY 1, 2
+    ON CONFLICT (namespace, lexeme)
+        DO UPDATE SET df = lexeme_stats.df + EXCLUDED.df;
+
+    UPDATE lexical_corpus_stats cs
+    SET total_len = GREATEST(cs.total_len - dec.old_len + dec.new_len, 0)
+    FROM (
+        SELECT d.namespace,
+               COALESCE(sum(pgrg_lexeme_len(o.search_vector)), 0) AS old_len,
+               COALESCE(sum(pgrg_lexeme_len(n.search_vector)), 0) AS new_len
+        FROM oldtab o
+        JOIN newtab n ON n.id = o.id
+        JOIN documents d ON d.id = n.document_id
+        WHERE o.search_vector IS DISTINCT FROM n.search_vector
+        GROUP BY d.namespace
+    ) dec
+    WHERE cs.namespace = dec.namespace;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_chunks_lexstats_upd ON chunks;
+CREATE TRIGGER trg_chunks_lexstats_upd
+    AFTER UPDATE ON chunks
+    REFERENCING OLD TABLE AS oldtab NEW TABLE AS newtab
+    FOR EACH STATEMENT EXECUTE FUNCTION pgrg_lexstats_chunks_upd();
+
+CREATE OR REPLACE FUNCTION pgrg_lexstats_doc_del() RETURNS trigger AS $$
+BEGIN
+    UPDATE lexeme_stats ls
+    SET df = GREATEST(ls.df - dec.cnt, 0)
+    FROM (
+        SELECT t.lexeme, count(*) AS cnt
+        FROM chunks c
+        CROSS JOIN LATERAL unnest(c.search_vector) t
+        WHERE c.document_id = OLD.id
+        GROUP BY t.lexeme
+    ) dec
+    WHERE ls.namespace = OLD.namespace AND ls.lexeme = dec.lexeme;
+
+    UPDATE lexical_corpus_stats cs
+    SET chunk_count = GREATEST(cs.chunk_count - dec.cnt, 0),
+        total_len   = GREATEST(cs.total_len - dec.len, 0)
+    FROM (
+        SELECT count(*) AS cnt,
+               COALESCE(sum(pgrg_lexeme_len(c.search_vector)), 0) AS len
+        FROM chunks c
+        WHERE c.document_id = OLD.id
+    ) dec
+    WHERE cs.namespace = OLD.namespace AND dec.cnt > 0;
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_documents_lexstats_del ON documents;
+CREATE TRIGGER trg_documents_lexstats_del
+    BEFORE DELETE ON documents
+    FOR EACH ROW EXECUTE FUNCTION pgrg_lexstats_doc_del();
 
 -- ---------------------------------------------------------------------------
 -- Evolving-knowledge-RAG foundational DDL (mirrors migration 002).

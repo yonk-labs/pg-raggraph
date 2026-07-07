@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### ⚠️ Changed — default behavior
+
+- **`fusion` default flipped `"linear"` → `"rrf"`** (issue #96, rung 1).
+  Rankings from `naive`/`local`/`global`/`hybrid` queries WILL change: legs
+  are now combined by Reciprocal Rank Fusion (scale-free) instead of a raw
+  weighted sum where the lexical leg's ~0.01–0.1 ts_rank scale made it a
+  near-no-op against cosine at 0.20 weight. Fused scores are small (~0.01)
+  and NOT comparable to linear scores — do not threshold on them. To
+  reproduce the old rankings byte-for-byte: `PGRG_FUSION=linear`,
+  `PGRGConfig(fusion="linear")`, or per-call `rag.query(..., fusion="linear")`.
+  `smart` mode is unaffected in its routing: its internal confidence probe is
+  pinned to linear (the 0.7/0.4 thresholds are calibrated on raw linear
+  scores).
+- **`fusion` now applies to `local` and `global` modes** (issue #96
+  addendum). Previously `fusion="rrf"` was silently inert outside the
+  naive family — a registered A/B on a global-mode cell replicated the
+  linear config without warning. Both graph modes now rank-fuse their
+  vector/lexical legs over the graph-selected chunk set; the constant
+  graph-presence leg drops out under rank fusion (it carries no ordering
+  information within the candidate set).
+
 ### Fixed
 - **Silent extraction failure: per-chunk LLM errors no longer masquerade as
   "no entities in this chunk" (#93).** `ExtractionResult` gained a
@@ -64,6 +85,21 @@
     marks the doc `failed` at drain) instead of `get_prompt`'s silent
     default fallback. The extraction LLM cache was already prompt-aware
     (keyed on prompt name), so mixed prompts never collide.
+- **`lexical_backend="bm25"`** (issue #96, rung 2) — real Okapi BM25 for the
+  lexical leg, scored in SQL (k1/b tunable via `bm25_k1`/`bm25_b`): corpus
+  IDF from per-namespace stats tables (`lexeme_stats`,
+  `lexical_corpus_stats`, migration 016) maintained incrementally by
+  triggers — exact on insert/update/delete including the document-cascade
+  path, no drift. Default stays `"ts_rank"` (byte-identical SQL).
+  Pre-migration corpora need a one-time `rag.rebuild_lexical_stats()` /
+  `pgrg rebuild-lexical-stats`. See `docs/cookbook/bm25-lexical.md`.
+- **Identifier-preserving tokenization** (issue #96, rung 3) — the tsvector
+  parser splits `validate_billing_archive` into stemmed fragments regardless
+  of dictionary config; migration 016 injects underscored identifiers as
+  whole lexemes into `search_vector` (index side) and the BM25 query-term
+  set (query side, symmetric). Invisible to the ts_rank backend
+  (positionless lexemes rank 0 there); with `lexical_backend="bm25"` an
+  exact-identifier query ranks its defining chunk above tf-heavy prose.
 
 ## 0.5.0a19 — 2026-07-06 (prose extraction: prompt, lede_prose, llm+lede union)
 
