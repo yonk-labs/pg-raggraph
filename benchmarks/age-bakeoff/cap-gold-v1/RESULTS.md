@@ -285,6 +285,22 @@ Deviations D1/D2; none fixed in this branch):
 10. Ingest wall times are single-run, on a machine also running Docker
     containers; recorded for context, not claims.
 
+## Independent audit (smell-test, 2026-07-07)
+
+An adversarial audit agent re-derived the headline numbers from the live
+databases before publication. Verdict: CLEAN. Executed checks included:
+full independent seed-42 rescore of pgrg_naive (50 questions replayed:
+0.0446/0.0740/0.1182 — exact match) and both AGE arms via raw SQL replay
+(exact match); Task B ceiling arithmetic verified to 4 decimals per seed;
+the 19-edge merge loss verified at the edge level; ef_search=40 verified
+live via EXPLAIN in both arms. Contamination audit: 0/150 Task A questions
+contain a case caption (" v. "); 36/150 carry at least one gold-cited
+caption *token*, but of pgrg_naive's 53 top-20 gold hits on seed 42 only 1
+was attributable to such a leak — the lead is topical vocabulary matching,
+not identifier leakage. Minor accounting note: 11,548−11,522 = 26 net
+absorbed entities vs 32 distinct merged names in the log (some names
+merged repeatedly); no claimed number depends on this.
+
 ## Reproduce from clone
 
 Tested end-to-end on this machine (the numbers above are from exactly this
