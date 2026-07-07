@@ -1,14 +1,30 @@
-"""10 Use Cases Where Graph RAG Wins Over Vector-Only RAG.
+"""Graph-mode regression guards on multi-hop questions.
 
-These tests demonstrate specific scenarios where understanding relationships
-between entities (via graph traversal) produces better answers than
-semantic similarity search alone.
+What this suite GUARDS:
+- Hybrid retrieval never regresses below a *working* naive baseline on
+  multi-hop questions (``hybrid_score >= naive_score``), and hybrid itself
+  is working (``hybrid_score >= 1`` — the non-tie floor). A mutual failure
+  (0 == 0, both modes returning garbage) FAILS; before the floor was added
+  it passed, which made the suite unable to catch "graph expansion broke
+  retrieval entirely" regressions.
+- Graph traversal is load-bearing: ``test_00_multi_hop_edge_is_load_bearing``
+  is deterministic (hand-seeded graph, no LLM) and runs in default CI. It
+  fails if local/global/hybrid stop following relationship edges.
 
-Each test asks a question that REQUIRES multi-hop reasoning:
-- Vector-only finds semantically similar text but misses connections
-- Graph mode follows entity relationships across documents
+What this suite does NOT certify:
+- Graph *superiority* over vector-only retrieval. The directional claim
+  "hybrid > naive" was empirically flaky at this corpus size (see
+  test_07's history) — LLM-extraction variance means either mode can
+  legitimately edge out the other per question. The evidence that graph
+  beats naive on multi-hop lives in the calibrated A/B gate, not here:
+  benchmarks/ab-gate/RESULTS.md — MuSiQue real-KG multi-hop, ``local``
+  44-47% vs ``naive`` 39-43% (+4-5pp), stable across two answer-generation
+  runs and two judges.
 
-Run: uv run pytest tests/test_graph_wins.py -v -s
+The LLM-gated tests (01-10) skip unless PGRG_TEST_LLM_URL is reachable.
+test_00 always runs (needs only PostgreSQL + the local embedder).
+
+Run: uv run pytest tests/integration/test_graph_wins.py -v -s
 """
 
 from __future__ import annotations
@@ -78,6 +94,191 @@ def _score(result, keywords: list[str]) -> int:
     return sum(1 for k in keywords if k in content)
 
 
+def _assert_graph_guard(naive_score: int, hybrid_score: int, n_expected: int) -> None:
+    """Non-tie guard shared by the LLM-gated use-case tests.
+
+    Two assertions, deliberately weaker than "graph wins" (see module
+    docstring for why the directional claim is not certified here):
+
+    1. hybrid found at least one expected keyword — a 0 == 0 tie (both
+       modes broken) FAILS instead of passing.
+    2. hybrid did not regress below naive — the graph leg must never make
+       retrieval worse than the vector baseline it builds on.
+    """
+    assert hybrid_score >= 1, (
+        f"hybrid found 0/{n_expected} expected keywords — graph expansion "
+        "may be filtering everything out (mutual failure is a FAIL, not a tie)"
+    )
+    assert hybrid_score >= naive_score, (
+        f"hybrid ({hybrid_score}/{n_expected}) regressed below naive "
+        f"({naive_score}/{n_expected}) — the graph leg made retrieval worse"
+    )
+
+
+# ---------------------------------------------------------------------------
+# test_00 — deterministic, always-on (no LLM). The one test in this file that
+# runs in default CI and can FAIL if graph traversal regresses.
+# ---------------------------------------------------------------------------
+
+_DET_NS = "test_graph_wins_det"
+
+# Distractor chunks share vocabulary with the query theme (protocols,
+# deployments, approvals) so naive's top_k fills with them; the target chunk
+# is semantically distant from the query and reachable only via the graph.
+_DET_DISTRACTORS = [
+    "Deployment approvals for the mobile team are tracked in a spreadsheet.",
+    "Change-management protocol reviews require sign-off from two engineers.",
+    "The release train departs every Thursday regardless of feature readiness.",
+    "Incident postmortems follow a blameless template stored in Confluence.",
+    "Access approvals for production databases require a security ticket.",
+    "Protocol buffers are used for service-to-service message encoding.",
+    "The deployment pipeline runs canary analysis before full rollout.",
+    "Quarterly audit reviews check that approvals were properly recorded.",
+]
+
+# One entity per distractor chunk, so the target entity has to compete for
+# the seed slots (seed_k caps at 5) and cannot ride in on direct seeding.
+_DET_DISTRACTOR_ENTITIES = [
+    ("Change Management Protocol", "Sign-off process for engineering changes"),
+    ("Deployment Pipeline", "CI/CD pipeline with canary analysis"),
+    ("Release Train", "Weekly release schedule"),
+    ("Security Ticket Process", "Access approval workflow for production"),
+    ("Canary Analysis", "Automated rollout verification"),
+    ("Incident Postmortem", "Blameless review template"),
+    ("Audit Review", "Quarterly approval record checks"),
+    ("Protocol Buffers", "Service message encoding format"),
+]
+
+
+async def _seed_deterministic_graph(rag: GraphRAG) -> None:
+    """Hand-seed a namespace where one chunk is reachable ONLY via an edge.
+
+    Layout: two chunks mention the Zephyr Protocol (lexical + semantic match
+    for the query), one chunk documents the Flux Dampener (no lexical or
+    semantic overlap with the query), and a DOCUMENTED_BY relationship links
+    the two entities. Same direct-SQL seeding pattern as test_retrieval.py.
+    """
+    from pg_raggraph.embedding import get_embedding_provider
+
+    embedder = get_embedding_provider(rag.config)
+    await rag.delete(_DET_NS)
+    doc_id = await rag.db.insert_returning_id(
+        "INSERT INTO documents (namespace, content_hash, source_path) "
+        "VALUES (%s, %s, %s) RETURNING id",
+        (_DET_NS, "graph_wins_det_hash", "det/graph_wins.md"),
+    )
+    texts = [
+        "The Zephyr Protocol governs deployment approvals at Initech.",
+        "Zephyr Protocol review meetings happen every Tuesday at Initech.",
+        "The flux dampener calibration guide lives on the platform wiki.",
+        *_DET_DISTRACTORS,
+    ]
+    embeddings = await embedder.embed(texts)
+    chunk_ids = []
+    for text, emb in zip(texts, embeddings):
+        cid = await rag.db.insert_returning_id(
+            "INSERT INTO chunks (document_id, content, embedding, token_count) "
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (doc_id, text, emb, len(text.split())),
+        )
+        chunk_ids.append(cid)
+
+    async def _entity(name: str, desc: str) -> int:
+        emb = (await embedder.embed([f"{name} {desc}"]))[0]
+        return await rag.db.insert_returning_id(
+            "INSERT INTO entities (namespace, name, entity_type, description, embedding) "
+            "VALUES (%s, %s, %s, %s, %s) RETURNING id",
+            (_DET_NS, name, "concept", desc, emb),
+        )
+
+    for i, (name, desc) in enumerate(_DET_DISTRACTOR_ENTITIES):
+        eid = await _entity(name, desc)
+        await rag.db.execute(
+            "INSERT INTO entity_chunks (entity_id, chunk_id) VALUES (%s, %s)",
+            (eid, chunk_ids[3 + i]),
+        )
+
+    zephyr = await _entity("Zephyr Protocol", "Deployment approval process at Initech")
+    dampener = await _entity("Flux Dampener", "Hardware component requiring calibration")
+    for cid in (chunk_ids[0], chunk_ids[1]):
+        await rag.db.execute(
+            "INSERT INTO entity_chunks (entity_id, chunk_id) VALUES (%s, %s)",
+            (zephyr, cid),
+        )
+    await rag.db.execute(
+        "INSERT INTO entity_chunks (entity_id, chunk_id) VALUES (%s, %s)",
+        (dampener, chunk_ids[2]),
+    )
+    rid = await rag.db.insert_returning_id(
+        "INSERT INTO relationships (namespace, src_id, dst_id, rel_type, description) "
+        "VALUES (%s, %s, %s, %s, %s) RETURNING id",
+        (
+            _DET_NS,
+            zephyr,
+            dampener,
+            "DOCUMENTED_BY",
+            "Zephyr Protocol deployments require flux dampener calibration",
+        ),
+    )
+    await rag.db.execute(
+        "INSERT INTO relationship_chunks (relationship_id, chunk_id) VALUES (%s, %s)",
+        (rid, chunk_ids[2]),
+    )
+
+
+async def test_00_multi_hop_edge_is_load_bearing():
+    """Graph modes retrieve a chunk that vector+BM25 cannot see — and stop
+    retrieving it when the edge is removed.
+
+    Deterministic (fixed texts + local embedder, no LLM), so unlike the
+    LLM-gated tests below this one runs in default CI and fails if graph
+    traversal regresses. Three properties:
+
+    1. naive never returns the flux-dampener chunk (no lexical overlap with
+       the query; distractors out-rank it semantically) — fixture sanity:
+       if this fails, the corpus lost its discrimination margin.
+    2. local, global, and hybrid all return it — the 1-hop expansion works.
+    3. Ablation: after deleting the relationship row, none of the graph
+       modes return it — proving the hit came from edge traversal, not from
+       direct entity seeding or vector similarity.
+    """
+    rag = GraphRAG(dsn=TEST_DSN, namespace=_DET_NS, llm_base_url="")
+    await rag.connect()
+    try:
+        await _seed_deterministic_graph(rag)
+        q = "How does the Zephyr Protocol work?"
+
+        def _hit(result) -> bool:
+            return any("flux dampener" in c.content.lower() for c in result.chunks)
+
+        r_naive = await rag.query(q, mode="naive", namespace=_DET_NS, top_k=5)
+        assert not _hit(r_naive), (
+            "naive retrieved the graph-only chunk — the fixture no longer "
+            "discriminates (did the embedder or corpus change?)"
+        )
+        assert len(r_naive.chunks) == 5, "naive must fill top_k from the 11-chunk corpus"
+
+        for mode in ("local", "global", "hybrid"):
+            r = await rag.query(q, mode=mode, namespace=_DET_NS, top_k=5)
+            assert _hit(r), (
+                f"{mode} failed to traverse Zephyr Protocol -DOCUMENTED_BY-> "
+                "Flux Dampener: graph expansion is not doing work"
+            )
+
+        # Ablation: the edge must be load-bearing.
+        await rag.db.execute("DELETE FROM relationships WHERE namespace = %s", (_DET_NS,))
+        for mode in ("local", "global", "hybrid"):
+            r = await rag.query(q, mode=mode, namespace=_DET_NS, top_k=5)
+            assert not _hit(r), (
+                f"{mode} still returned the target chunk after the edge was "
+                "deleted — the pre-ablation hit did not come from traversal, "
+                "so this fixture is no longer testing the graph"
+            )
+    finally:
+        await rag.delete(_DET_NS)
+        await rag.close()
+
+
 @skip_no_llm
 async def test_01_transitive_dependency(rag):
     """If Auth goes down, what services are affected?
@@ -97,7 +298,7 @@ async def test_01_transitive_dependency(rag):
     print("\n  Q1: Transitive dependency chain")
     print(f"    Naive:  {naive_score}/{len(expected)} downstream services found")
     print(f"    Hybrid: {hybrid_score}/{len(expected)} downstream services found")
-    assert hybrid_score >= naive_score
+    _assert_graph_guard(naive_score, hybrid_score, len(expected))
 
 
 @skip_no_llm
@@ -119,7 +320,7 @@ async def test_02_incident_to_decision(rag):
     print("\n  Q2: Incident → Architecture Decision")
     print(f"    Naive:  {naive_score}/{len(expected)}")
     print(f"    Hybrid: {hybrid_score}/{len(expected)}")
-    assert hybrid_score >= naive_score
+    _assert_graph_guard(naive_score, hybrid_score, len(expected))
 
 
 @skip_no_llm
@@ -141,7 +342,7 @@ async def test_03_blast_radius(rag):
     print("\n  Q3: Blast radius — who to notify")
     print(f"    Naive:  {naive_score}/{len(expected)} people found")
     print(f"    Hybrid: {hybrid_score}/{len(expected)} people found")
-    assert hybrid_score >= naive_score
+    _assert_graph_guard(naive_score, hybrid_score, len(expected))
 
 
 @skip_no_llm
@@ -163,7 +364,7 @@ async def test_04_expertise_routing(rag):
     print("\n  Q4: Expertise routing")
     print(f"    Naive:  {naive_score}/{len(expected)} experts found")
     print(f"    Hybrid: {hybrid_score}/{len(expected)} experts found")
-    assert hybrid_score >= naive_score
+    _assert_graph_guard(naive_score, hybrid_score, len(expected))
 
 
 @skip_no_llm
@@ -185,7 +386,7 @@ async def test_05_service_restart_order(rag):
     print("\n  Q5: Service restart order")
     print(f"    Naive:  {naive_score}/{len(expected)} services in order")
     print(f"    Hybrid: {hybrid_score}/{len(expected)} services in order")
-    assert hybrid_score >= naive_score
+    _assert_graph_guard(naive_score, hybrid_score, len(expected))
 
 
 @skip_no_llm
@@ -207,7 +408,7 @@ async def test_06_risk_assessment(rag):
     print("\n  Q6: System risk assessment")
     print(f"    Naive:  {naive_score}/{len(expected)}")
     print(f"    Hybrid: {hybrid_score}/{len(expected)}")
-    assert hybrid_score >= naive_score
+    _assert_graph_guard(naive_score, hybrid_score, len(expected))
 
 
 @skip_no_llm
@@ -268,7 +469,7 @@ async def test_08_cascading_failure_path(rag):
     print("\n  Q8: Cascading failure + fallback")
     print(f"    Naive:  {naive_score}/{len(expected)}")
     print(f"    Hybrid: {hybrid_score}/{len(expected)}")
-    assert hybrid_score >= naive_score
+    _assert_graph_guard(naive_score, hybrid_score, len(expected))
 
 
 @skip_no_llm
@@ -289,7 +490,7 @@ async def test_09_cross_team_impact(rag):
     print("\n  Q9: Cross-team impact assessment")
     print(f"    Naive:  {naive_score}/{len(expected)}")
     print(f"    Hybrid: {hybrid_score}/{len(expected)}")
-    assert hybrid_score >= naive_score
+    _assert_graph_guard(naive_score, hybrid_score, len(expected))
 
 
 @skip_no_llm
@@ -311,7 +512,7 @@ async def test_10_historical_pattern(rag):
     print("\n  Q10: Historical pattern — config changes → incidents")
     print(f"    Naive:  {naive_score}/{len(expected)}")
     print(f"    Hybrid: {hybrid_score}/{len(expected)}")
-    assert hybrid_score >= naive_score
+    _assert_graph_guard(naive_score, hybrid_score, len(expected))
 
 
 @skip_no_llm

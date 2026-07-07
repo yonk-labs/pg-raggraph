@@ -158,8 +158,12 @@ async def test_query_returns_entities(seeded_rag):
 async def test_query_returns_relationships(seeded_rag):
     """Query results include related relationships."""
     result = await seeded_rag.query("PostgreSQL", mode="local", namespace="test_retrieval")
-    # Should find some relationships in the graph
-    assert len(result.relationships) >= 0  # May be 0 if chunks don't match
+    # The fixture links PostgreSQL to pgvector / LightRAG / AGE via seeded
+    # relationships; a local query on "PostgreSQL" must surface at least one.
+    assert len(result.relationships) > 0, (
+        "local mode returned no relationships from a fixture whose seeded "
+        "graph connects PostgreSQL to pgvector, LightRAG, and Apache AGE"
+    )
 
 
 async def test_query_latency(seeded_rag):

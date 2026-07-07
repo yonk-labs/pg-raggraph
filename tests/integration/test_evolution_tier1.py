@@ -498,7 +498,11 @@ async def test_retracted_behavior_hide_filters_retracted_docs():
             # Retracted chunks must not appear in result
             joined = " ".join(c.content for c in result.chunks).lower()
             assert "cognitive decline" not in joined
-            assert "reduce cardiovascular" in joined or len(result.chunks) >= 0
+            # The non-retracted doc must still be retrievable: hiding the
+            # retracted doc must not filter out valid content with it.
+            assert "reduce cardiovascular" in joined, (
+                f"valid (non-retracted) chunk missing from results: {joined!r}"
+            )
         finally:
             os.unlink(valid)
             os.unlink(retracted)
