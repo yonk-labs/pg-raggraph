@@ -79,9 +79,7 @@ def main() -> None:
                 "cites_in_corpus": c["cites_in_corpus"],
             }
             rows.append((c["id"], json.dumps(data), json.dumps([float(x) for x in e])))
-        with cur.copy(
-            "COPY cases_updated (id, data, description_vector) FROM STDIN"
-        ) as copy:
+        with cur.copy("COPY cases_updated (id, data, description_vector) FROM STDIN") as copy:
             for r in rows:
                 copy.write_row(r)
         print(f"loaded {len(rows)} cases into cases_updated")

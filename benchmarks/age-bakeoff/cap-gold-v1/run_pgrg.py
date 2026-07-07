@@ -134,8 +134,10 @@ async def latency_a(rag, results: dict) -> None:
                 "internal_p95": round(pctl(internal, 95), 1),
                 "n": len(wall),
             }
-            print(f"  latency {arm_name} [{profile}]: "
-                  f"{results['latencyA'][arm_name][profile]}", flush=True)
+            print(
+                f"  latency {arm_name} [{profile}]: {results['latencyA'][arm_name][profile]}",
+                flush=True,
+            )
 
     # ranking equality raw vs balanced on 5 questions, naive arm (§4)
     mismatches = 0
@@ -162,8 +164,11 @@ async def task_b(rag, results: dict, ent_name_to_id: dict[str, str]) -> None:
             results["taskB"].setdefault(arm_name, {"per_seed": {}})["per_seed"][str(seed)] = {
                 "recall": {f"@{k}": agg(r[k]) for k in KS}
             }
-            print(f"  taskB {arm_name} seed {seed}: "
-                  f"{results['taskB'][arm_name]['per_seed'][str(seed)]}", flush=True)
+            print(
+                f"  taskB {arm_name} seed {seed}: "
+                f"{results['taskB'][arm_name]['per_seed'][str(seed)]}",
+                flush=True,
+            )
 
         # typed_traverse (#95 primitives)
         r = {k: [] for k in KS}
@@ -182,8 +187,11 @@ async def task_b(rag, results: dict, ent_name_to_id: dict[str, str]) -> None:
             "recall": {f"@{k}": agg(r[k]) for k in KS},
             "anchor_misses": anchor_misses,
         }
-        print(f"  taskB pgrg_typed_traverse seed {seed}: "
-              f"{results['taskB']['pgrg_typed_traverse']['per_seed'][str(seed)]}", flush=True)
+        print(
+            f"  taskB pgrg_typed_traverse seed {seed}: "
+            f"{results['taskB']['pgrg_typed_traverse']['per_seed'][str(seed)]}",
+            flush=True,
+        )
 
 
 async def traverse_ranked(rag, caption: str, ent_name_to_id: dict[str, str]) -> list[str] | None:

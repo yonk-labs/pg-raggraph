@@ -165,8 +165,11 @@ def main() -> None:
                 results["taskB"].setdefault(arm_name, {"per_seed": {}})["per_seed"][str(seed)] = {
                     "recall": {f"@{k}": agg(r[k]) for k in KS}
                 }
-                print(f"  taskB {arm_name} seed {seed}: "
-                      f"{results['taskB'][arm_name]['per_seed'][str(seed)]}", flush=True)
+                print(
+                    f"  taskB {arm_name} seed {seed}: "
+                    f"{results['taskB'][arm_name]['per_seed'][str(seed)]}",
+                    flush=True,
+                )
 
             r = {k: [] for k in KS}
             anchor_misses = 0
@@ -181,8 +184,11 @@ def main() -> None:
             results["taskB"].setdefault("age_cypher_traverse", {"per_seed": {}})["per_seed"][
                 str(seed)
             ] = {"recall": {f"@{k}": agg(r[k]) for k in KS}, "anchor_misses": anchor_misses}
-            print(f"  taskB age_cypher_traverse seed {seed}: "
-                  f"{results['taskB']['age_cypher_traverse']['per_seed'][str(seed)]}", flush=True)
+            print(
+                f"  taskB age_cypher_traverse seed {seed}: "
+                f"{results['taskB']['age_cypher_traverse']['per_seed'][str(seed)]}",
+                flush=True,
+            )
 
         # ---- Task B latency ----
         gold_qs = json.load(open(DATA / f"gold_taskB_seed{LATENCY_SEED}.json"))
