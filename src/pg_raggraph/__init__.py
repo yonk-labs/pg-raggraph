@@ -1612,13 +1612,13 @@ class GraphRAG:
             # Use _json_default so datetime values in metadata (e.g.
             # effective_from / effective_to from evolution-tracking ingests)
             # serialize to ISO strings instead of crashing the ingest.
-            # Per-chunk failure accounting lands in metadata too (issue #93)
-            # so the yield loss stays queryable via JSONB, not just in-band.
-            if chunks_failed:
-                meta = {
-                    **meta,
-                    "extraction": {"chunks": len(chunks), "chunks_failed": chunks_failed},
-                }
+            # NOTE (#93 composition): documents.metadata is the CALLER's bag and
+            # must round-trip exactly (PRG-1 contract, test_consumer_surface).
+            # Per-chunk failure accounting therefore does NOT stamp metadata on
+            # the sync path — the failure summary travels via graph_error and
+            # the returned stats instead. The backfill drain stamps yield meta
+            # on docs it owns (deferred path), mirroring #94's deferred-only
+            # prompt stamping for the same reason.
             doc_metadata_json = json.dumps(meta, default=_json_default) if meta else "{}"
 
             # graph_status: 'pending' when extraction is deferred to a
