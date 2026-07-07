@@ -22,8 +22,10 @@ async def _make_rag(namespace: str) -> GraphRAG:
         namespace=namespace,
         # No LLM — deferred docs will mark 'ready' with empty graph when
         # extract_documents runs without a configured extractor. That's the
-        # right end-state for the "no extractor" path.
-        llm_base_url="http://localhost:99999/v1",
+        # right end-state for the "no extractor" path. Must be truly empty:
+        # an unreachable URL now counts as per-chunk extraction FAILURE
+        # (issue #93) and would mark docs 'failed'/degraded instead.
+        llm_base_url="",
     )
     await rag.connect()
     return rag
@@ -304,10 +306,11 @@ async def test_status_includes_graph_status_summary():
         s = await rag.status("test_bf_status")
         assert "graph_status" in s
         gs = s["graph_status"]
-        assert set(gs.keys()) == {"pending", "processing", "ready", "failed"}
+        assert set(gs.keys()) == {"pending", "processing", "ready", "failed", "degraded"}
         assert gs["pending"] == 2
         assert gs["ready"] == 1
         assert gs["failed"] == 0
+        assert gs["degraded"] == 0
     finally:
         await rag.delete("test_bf_status")
         await rag.close()

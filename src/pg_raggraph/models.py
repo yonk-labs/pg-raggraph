@@ -161,6 +161,12 @@ class ExtractedRelationship(BaseModel):
 class ExtractionResult(BaseModel):
     entities: list[ExtractedEntity] = Field(default_factory=list)
     relationships: list[ExtractedRelationship] = Field(default_factory=list)
+    # Issue #93: distinguishes "this chunk's extraction errored" from "this
+    # chunk legitimately contains no entities". Both look like an empty
+    # result; only the former must keep the document from silently flipping
+    # to graph_status='ready'. `error` carries the first failure reason.
+    failed: bool = False
+    error: str | None = None
 
 
 # --- Query models ---

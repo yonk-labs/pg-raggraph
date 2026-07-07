@@ -737,6 +737,16 @@ wall-time (B+C = 15.56s) is *also* faster than synchronous (26.27s)
 because the synchronous path holds per-doc transactions open across
 extraction.
 
+**Extraction failures are counted, not swallowed** (#93). A doc whose
+every chunk-extraction call errors with zero yield lands in
+`graph_status='failed'` (`graph_error` says `extraction failed on N/M
+chunks: …`); a doc with partial yield stays `'ready'` but keeps the
+failure summary in `graph_error` and counts under the `degraded` key in
+`graph_status_summary` / `rag.status()`. Per-doc yield
+(`chunks / chunks_failed / entities / relationships`) is persisted to
+`documents.metadata['extraction']`. `pgrg extract --include-failed`
+re-queues both failed and degraded docs.
+
 The full guide — three architectural patterns (sync / cron / always-on
 daemon), worked FastAPI end-to-end example, multi-worker safety
 invariants, operator playbook — is at
