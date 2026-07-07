@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 — 2026-07-07 (hardening: security P0s, claims corrections, merge audit, parallel drain)
 
 ### Data integrity — entity resolution/merge hardening
 
