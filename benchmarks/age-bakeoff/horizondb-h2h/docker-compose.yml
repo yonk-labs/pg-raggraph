@@ -1,0 +1,27 @@
+# AGE arm for the HorizonDB head-to-head. Reuses the age-bakeoff image
+# (AGE 1.5.0 + pgvector 0.8.0 on PG16, age in shared_preload_libraries).
+# Port 5440: 5434 = pg-raggraph dev PG, 5435 = age-bakeoff AGE,
+# 5439 = unrelated migration-v2 container on this machine.
+services:
+  age:
+    build:
+      context: ../docker/age
+      dockerfile: Dockerfile
+    image: age-bakeoff-age:pg16
+    container_name: horizondb-h2h-age
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: h2h_age
+    ports:
+      - "5440:5432"
+    volumes:
+      - h2h_age_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "h2h_age"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+volumes:
+  h2h_age_data:
