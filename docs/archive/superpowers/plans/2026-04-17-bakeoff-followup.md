@@ -1389,7 +1389,7 @@ What this benchmark measures, what it doesn't.
 
 ## Known engine asymmetries
 - **pg-raggraph writes via direct SQL, bypassing its LLM extractor** — benchmark exercises retrieval, not extraction. Why: extraction variability would dominate judge scores.
-- **AGE uses Cypher graph traversal + pgvector, fused client-side** — required because AGE cannot combine Cypher with pgvector in one SQL statement (see `docs/why-not-apache-age.md`).
+- **AGE uses Cypher graph traversal + pgvector, fused client-side** — chosen because we believed AGE could not combine Cypher with pgvector in one SQL statement (see `docs/why-not-apache-age.md`). *[2026-07-07 correction: that belief was wrong — `cypher()` CTEs can compose with pgvector in one statement (see `research/apache-age-evaluation.md`); the client-side fusion here was an implementation choice.]*
 - **AGE indexes**: default + manual BTREE/GIN per `sql/age_tuned_indexes.sql` (applied in the `age-tuned` label runs). See findings in REPORT.md §"AGE with tuned indexes".
 - **pg-raggraph retrieval fuses vector + BM25 + graph in one SQL query** — BM25 contribution is isolated in `--signals` runs.
 - **Entity resolution**: baseline pgrg runs use pre-resolved entities (fair to AGE); `resolved` label exercises `PgrgRawEngine` with pg_trgm.

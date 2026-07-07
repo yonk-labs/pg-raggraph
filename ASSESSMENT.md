@@ -2,11 +2,27 @@
 
 *Written at the end of a day of building, benchmarking, and breaking things. Dated honestly.*
 
+**Last verified against: v0.5.0a19, commit `e7a5320`, 2026-07-07** (see the 2026-07 update below; sections beneath it grade the v0.3.0-era codebase and are kept as history).
+
 ## TL;DR
 
-pg-raggraph is **a working, PostgreSQL-native GraphRAG library that delivers a measured +18.9% accuracy improvement** on a realistic 909-document developer codebase, at essentially the same latency as plain vector search. The architecture is sound, the tests pass, and one real-world validation is in the books.
+pg-raggraph is **a working, PostgreSQL-native GraphRAG library**. On a real 486-doc developer codebase, its 1-hop graph boost improved the top retrieved chunk's score by **+19.3%** over plain vector+BM25 at the same latency — a retrieval-quality proxy, not graded answer accuracy ([`benchmarks/pg-agents-results.md`](benchmarks/pg-agents-results.md)). On gold-labeled multi-hop QA (MuSiQue, dual LLM judges), recursive graph traversal beats pure vector by **+4–5pp** end-to-end ([`benchmarks/ab-gate/RESULTS.md`](benchmarks/ab-gate/RESULTS.md)). The architecture is sound and the tests pass.
 
 Below is the honest teardown.
+
+## 2026-07-07 Update — Claims Audit and Current State
+
+An adversarial audit of this project's public claims (AAT, 2026-07) forced corrections. Recording them here, because this file is the document the README points due-diligence readers at:
+
+- **Benchmark captions corrected.** Earlier revisions of this file and the README captioned the pg-agents top-score lift as an "accuracy" improvement. It is not: the metric is average score of the best retrieved chunk — a retrieval-confidence proxy; no answers were generated or graded in that run. Canonical numbers live in [`benchmarks/pg-agents-results.md`](benchmarks/pg-agents-results.md) (+19.3% top score, 486 docs). The lift did **not** transfer to gold-labeled QA: best +3.3pp on judged SCOTUS questions, within the noise floor ([`benchmarks/age-bakeoff/SESSION-HANDOFF.md`](benchmarks/age-bakeoff/SESSION-HANDOFF.md)). The end-to-end case for graph now rests on the MuSiQue result: `local` traversal beats `naive` by +4–5pp across two judges and two runs, with flat retrieval recall ([`benchmarks/ab-gate/RESULTS.md`](benchmarks/ab-gate/RESULTS.md)).
+- **AGE claim corrected.** "AGE Cypher and pgvector cannot combine in a single query" was wrong. Microsoft's [HorizonDB GraphRAG doc](https://learn.microsoft.com/en-us/azure/horizondb/ai/graph-rag) shows `ag_catalog.cypher()` CTEs composed with pgvector in one SQL statement, and the pattern runs on stock AGE 1.5.0. What survives — and is still dispositive — is the `shared_preload_libraries` cloud lockout (Azure-only among major managed providers), the openCypher subset (no `MERGE ... ON CREATE SET`, `EXISTS`, `datetime()`), manual graph maintenance with no CDC, and documented exponential path expansion beyond 3–4 hops (all per Microsoft's same doc).
+- **Scale since v0.3.0:** 887 tests (523 unit + 364 integration) at 0.5.0a19, fourteen releases on. Features graded "missing" below now exist: cross-encoder reranking (`src/pg_raggraph/reranker.py`), opt-in row-level security (`sql/migrations/003_rls_namespace.sql`), structured logging (`PGRG_LOG_FORMAT=json`), MCP server, background extraction, online embedding migration. Rate limiting remains delegated to a reverse proxy by design.
+- **Known open problems, unchanged:** SEC 10-Q gold QnA sits at ~47% in every mode (table chunking, not retrieval); retrieval coverage — not ranking — is the accuracy ceiling on gold-labeled corpora (~44% of required gold facts never reach top-10 on SCOTUS).
+- **In progress:** a reproducible head-to-head against Microsoft's HorizonDB GraphRAG accelerator on Microsoft's own corpus, and a factorial chunking × embedding experiment attacking the coverage ceiling.
+
+External code-quality audits of the current codebase came back solid; the corrections above are about claims, not code.
+
+---
 
 ## 2026-04 Update — What Got Fixed
 
@@ -43,7 +59,7 @@ Verified after each fix: `pytest` full suite (68/68), a dedicated regression scr
 ## What Actually Works (and is good)
 
 ### 1. The core graph-boost approach is genuinely novel and effective ✅
-We built a 1-hop graph re-ranker that runs in a single SQL query alongside pgvector, and on a real 909-doc corpus it improves top chunk scores by **+18.9%** over naive vector+BM25. That's not a latency story — that's real accuracy on real data. I've never seen this specific approach published and it beats the full-graph-traversal modes by 17 percentage points while being 4x faster.
+We built a 1-hop graph re-ranker that runs in a single SQL query alongside pgvector, and on a real dev-codebase corpus it improves top retrieved-chunk scores by **+19.3%** over naive vector+BM25 (retrieval-quality proxy — see the 2026-07 update above; canonical numbers in `benchmarks/pg-agents-results.md`). I've never seen this specific approach published, and on that corpus it beats the full-graph-traversal modes on top score while being 3-4x faster.
 
 ### 2. The architecture is actually PostgreSQL-native ✅
 - No Apache AGE (works on every managed PG provider: RDS, Supabase, Neon, Cloud SQL)
@@ -60,7 +76,7 @@ We built a 1-hop graph re-ranker that runs in a single SQL query alongside pgvec
 - With OpenAI gpt-4o-mini and `aggressive` profile: **~5s per document** for real engineering docs
 
 ### 4. The test suite is real ✅
-- **115 passing tests** (unit + integration + E2E + server + cleanup-sprint regression tests)
+- **115 passing tests** at v0.3.0 (887 as of 0.5.0a19) — unit + integration + E2E + server + cleanup-sprint regression tests
 - Unit tests for chunking, config, models, embedding protocols, extraction prompts
 - Integration tests hitting real PostgreSQL with real schema
 - E2E tests covering the full ingest → query flow
@@ -78,7 +94,7 @@ We built a 1-hop graph re-ranker that runs in a single SQL query alongside pgvec
 We dodged the litellm supply-chain attack (March 2026, versions 1.82.7-1.82.8) by using httpx directly against OpenAI-compatible APIs. Zero LLM-framework dependency.
 
 ### 7. Smart mode routing actually works ✅
-Confidence-triggered routing (high → naive fast path, medium → graph boost, low → local expansion) delivers boost-level accuracy with latency close to naive. On the 909-doc pg-agents corpus: **+18.9% accuracy, +17% latency**. The fast path stays fast.
+Confidence-triggered routing (high → naive fast path, medium → graph boost, low → local expansion) delivers boost-level top scores with latency close to naive. On the pg-agents corpus: **+19.3% top score at 91 ms vs naive's 85 ms** (retrieval proxy; `benchmarks/pg-agents-results.md`). The fast path stays fast.
 
 ---
 
@@ -88,7 +104,7 @@ Confidence-triggered routing (high → naive fast path, medium → graph boost, 
 We have `naive`, `naive_boost`, `smart`, `local`, `global`, `hybrid`. That's too many. A new user has no idea what to pick. The defaults are right (`smart`), but the mode explosion is going to cause confusion. I'd cut `global` and `hybrid` from the public API and keep them as internal helpers.
 
 ### 2. LLM-dependent tests still excluded from default CI ⚠️
-The core suite is 115 tests and runs without a live LLM. But `test_real_llm.py`, `test_user_journey.py`, `test_retrieval_comparison.py`, `test_graph_wins.py` need a live LLM and are excluded from `pytest` default. CI only runs the 115-test suite. The LLM tests run manually.
+The core suite (115 tests at v0.3.0; 887 at 0.5.0a19) runs without a live LLM. But `test_real_llm.py`, `test_user_journey.py`, `test_retrieval_comparison.py`, `test_graph_wins.py` need a live LLM and are excluded from `pytest` default. CI only runs the LLM-less suite. The LLM tests run manually.
 
 ### 3. The SEC 10-Q gold-QnA results are bad and we never fixed it ⚠️
 47% accuracy on 195 gold-standard SEC multi-doc questions. All modes score roughly the same. We never dug into why — it's almost certainly a chunking issue with financial tables (dollar amounts get split across chunks). We wrote it off as "chunking limitation, not retrieval issue" but never fixed the underlying problem.
@@ -97,7 +113,7 @@ The core suite is 115 tests and runs without a live LLM. But `test_real_llm.py`,
 Original README had `print(result.answer)` but `result.answer` was always empty. Fixed: `rag.ask()` now generates grounded answers via the configured LLM (or falls back to top-chunk summary). `pgrg ask` CLI and `/ask` HTTP endpoint both work.
 
 ### 5. Small corpus benchmarks misled us for a while ⚠️
-We ran hours of benchmarks on NTSB (20 docs), SCOTUS (390 docs), SEC (20 docs), PostgreSQL docs (31 docs) and concluded graph RAG's advantage was "narrow." Then we tested on pg-agents (909 docs) and got +18.9%. **The previous results weren't wrong, they just didn't stress the graph.** Small corpora make vector search look better because top_k=10 already returns most relevant chunks. We should have tested at scale first.
+We ran hours of benchmarks on NTSB (20 docs), SCOTUS (390 docs), SEC (20 docs), PostgreSQL docs (31 docs) and concluded graph RAG's advantage was "narrow." Then we tested on pg-agents (a few hundred interconnected docs) and got a +19.3% top-score lift (retrieval proxy). **The previous results weren't wrong, they just didn't stress the graph.** Small corpora make vector search look better because top_k=10 already returns most relevant chunks. We should have tested at scale first.
 
 ### 6. Our entity extraction has false positives ⚠️
 Example: `goodman` was extracted as a `person` entity from a BERT vocab file. The LLM sees any capitalized word in a list of words and thinks it's a name. No filter against this. A query about "goodman" returns vocab.txt as the top result. Real people's names in the corpus get conflated with vocabulary tokens.
@@ -173,7 +189,7 @@ Despite the list of gaps above, there are real wins worth documenting:
 
 ### Design decisions that survived contact with reality:
 
-**Rejecting Apache AGE.** Was tempting, would have been wrong. AGE doesn't work on most managed PG providers and can't combine with pgvector in one query. Our recursive CTE approach is faster and portable.
+**Rejecting Apache AGE.** Was tempting, would have been wrong. AGE doesn't work on most managed PG providers (`shared_preload_libraries`, Azure-only), and while its `cypher()` calls can be composed with pgvector in one SQL statement (see the 2026-07 update), the composition is awkward, agtype-cast-heavy, and undocumented outside Azure's fork. Our recursive CTE approach is plain SQL and portable.
 
 **Dropping litellm.** Saved us from the March 2026 supply-chain attack. Our httpx-based LLM client is 50 lines and works with any OpenAI-compatible API.
 
@@ -189,7 +205,7 @@ Despite the list of gaps above, there are real wins worth documenting:
 
 - **Graph boost beats graph traversal on top-K re-ranking.** This was a surprise. We built `local` mode first, then `naive_boost`, and naive_boost ended up being the better strategy.
 
-- **Small corpora hide graph RAG's value.** If we'd only tested on NTSB/SEC/SCOTUS/PG docs, we'd have shipped a library with no measurable accuracy improvement. pg_agents (909 docs) revealed the real win.
+- **Small corpora hide graph RAG's value.** If we'd only tested on NTSB/SEC/SCOTUS/PG docs, we'd have shipped a library with no measurable retrieval improvement. pg_agents (a few hundred interconnected docs) revealed the retrieval-quality win.
 
 - **SEC filings need structured extraction.** Financial tables don't chunk well as text. A future version needs table-aware extraction for 10-Q/10-K docs.
 
@@ -229,17 +245,25 @@ Despite the list of gaps above, there are real wins worth documenting:
 
 4. **Entity dedup sweep** — after ingestion, optionally run a merge pass for entities like `OpenAI` / `Open AI` that slipped past resolution at ingest time.
 
-5. **Cross-encoder reranking** — would likely add another +5-10% accuracy on top of the +18.9% graph boost.
+5. **Cross-encoder reranking** — would likely add further lift on top of the graph boost. *(Shipped since: `src/pg_raggraph/reranker.py`.)*
 
 ---
 
 ## Final Grade (v0.3.0)
 
 - **Architecture:** A- (sound, portable, novel graph-boost approach)
-- **Implementation:** B+ (115 tests, all AAT findings fixed, shared client pool, proper migration tracking)
+- **Implementation:** B+ (115 tests at the time, all AAT findings fixed, shared client pool, proper migration tracking)
 - **Documentation:** A- (honest benchmarks, complete API docs, accurate feature list)
 - **Production readiness:** B (deploy story exists, CI runs, retry + migration + MCP all work; still missing LangChain adapters and cross-encoder reranking)
 - **Innovation:** A (the graph-boost + smart routing approach is a real contribution)
 - **Honesty:** A+ (we've benchmarked where we fail and documented it)
 
 **Overall: B+.** The core engine is genuinely production-capable. Answer generation, MCP server, CI, CRUD API, migration framework, and deploy story are all shipped. What remains is accuracy ceiling work (SEC benchmark), ecosystem adapters (LangChain/LlamaIndex), and prompt tuning for the dev KB.
+
+---
+
+## Changelog
+
+- **2026-07-07** — Claims audit update: re-captioned the pg-agents lift as a retrieval-quality proxy (canonical source `benchmarks/pg-agents-results.md`), corrected the AGE/pgvector composability claim per Microsoft's HorizonDB doc, recorded current test count/version, and marked v0.3.0-era sections as historical. Triggered by the AAT external audit (`skill-output/aat/AAT-Teardown.md`, findings F-1..F-8).
+- **2026-04** — Cleanup-sprint update (see "2026-04 Update" section).
+- **Original** — Written against v0.3.0.

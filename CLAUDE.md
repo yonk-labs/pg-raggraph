@@ -16,9 +16,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Why NOT Apache AGE
 We evaluated AGE extensively (see `research/apache-age-evaluation.md`) and decided against it:
-- **Cloud compatibility** — AGE requires `shared_preload_libraries` (PG restart). Only Azure supports it among managed providers. No AWS RDS, no GCP Cloud SQL, no Supabase, no Neon. This kills adoption.
-- **No pgvector integration** — AGE Cypher and pgvector cannot combine in a single query. The core GraphRAG operation (graph traversal + vector similarity) requires two round-trips with AGE but one query with recursive CTEs.
-- **Performance** — Recursive CTEs are 2-40x faster for 1-3 hop traversals, which is the typical GraphRAG pattern. AGE defaults to sequential scans and has produced catastrophic query plans (LightRAG issue #2255: 49 billion estimated rows, 17-hour migration).
+- **Cloud compatibility** — AGE requires `shared_preload_libraries` (PG restart). Only Azure supports it among major managed providers. No AWS RDS, no GCP Cloud SQL, no Supabase, no Neon. This kills adoption.
+- **Awkward pgvector composition + Cypher subset** — AGE `cypher()` calls CAN be composed with pgvector in one SQL statement (Microsoft's HorizonDB GraphRAG doc shows the CTE pattern, verified on stock AGE 1.5.0: https://learn.microsoft.com/en-us/azure/horizondb/ai/graph-rag). But the pattern is undocumented outside Azure's fork, needs agtype casting at every boundary, and per Microsoft's own doc AGE implements only a subset of openCypher (no `MERGE ... ON CREATE SET`, `EXISTS`, `datetime()`), has manual graph maintenance with no CDC, and exhibits exponential path expansion beyond 3-4 hops. Recursive CTEs are plain SQL with none of that.
+- **Performance** — Recursive CTEs were 2-40x faster for 1-3 hop traversals in our pre-build traversal research (`research/apache-age-evaluation.md` — a different measurement from the bake-off's end-to-end 42-101x graph-mode retrieval differential; both are harness-scoped, not blanket claims). AGE defaults to sequential scans and has produced catastrophic query plans (LightRAG issue #2255: 49 billion estimated rows, 17-hour migration).
 - **Proven alternative** — postgres-graph-rag already validates that adjacency tables + recursive CTEs + pgvector is sufficient for full GraphRAG.
 
 Our graph approach: **adjacency tables** (`entities` + `relationships`) with proper indexes, **recursive CTEs** for multi-hop traversal, all composable with pgvector in unified SQL queries.

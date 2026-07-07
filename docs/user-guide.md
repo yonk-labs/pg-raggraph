@@ -1,6 +1,6 @@
 # pg-raggraph User Guide
 
-> The fastest, simplest way to add knowledge-graph-powered RAG to any app — backed by the PostgreSQL you already run.
+> Knowledge-graph-powered RAG for any app — backed by the PostgreSQL you already run.
 
 > **Picking a workload:** see [`USE-CASES.md`](USE-CASES.md) for the
 > classic-vs-evolving decision matrix and benchmark numbers.
