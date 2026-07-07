@@ -2605,6 +2605,25 @@ class GraphRAG:
             )
         return 1 if result else 0
 
+    async def rebuild_lexical_stats(self, namespace: str | None = None) -> dict:
+        """Recompute the BM25 lexical statistics for a namespace (issue #96).
+
+        The migration-016 triggers maintain ``lexeme_stats`` /
+        ``lexical_corpus_stats`` incrementally for every write made after the
+        migration; chunks ingested BEFORE it are not counted. Run this once
+        per pre-existing namespace before enabling
+        ``lexical_backend="bm25"``. CLI equivalent:
+        ``pgrg rebuild-lexical-stats``.
+
+        Returns ``{"namespace", "lexemes", "chunks", "total_len"}``.
+        """
+        from pg_raggraph.lexical import rebuild_lexical_stats
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        with self.db.tenant(ns):
+            return await rebuild_lexical_stats(self.db, ns)
+
     async def retract(
         self,
         *,

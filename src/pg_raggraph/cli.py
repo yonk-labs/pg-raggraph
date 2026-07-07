@@ -87,6 +87,33 @@ def migrate(ctx):
         _handle_error(e)
 
 
+@main.command("rebuild-lexical-stats")
+@click.option("-n", "--namespace", default=None, help="Namespace (default: configured)")
+@click.pass_context
+def rebuild_lexical_stats(ctx, namespace):
+    """Recompute BM25 lexical statistics for a namespace (issue #96).
+
+    Needed once per namespace whose chunks predate migration 016, before
+    enabling lexical_backend="bm25". Later writes are maintained
+    incrementally by triggers.
+    """
+
+    async def _rebuild():
+        rag = GraphRAG(**ctx.obj["kwargs"])
+        await rag.connect()
+        stats = await rag.rebuild_lexical_stats(namespace)
+        await rag.close()
+        click.echo(f"Namespace:  {stats['namespace']}")
+        click.echo(f"Chunks:     {stats['chunks']}")
+        click.echo(f"Lexemes:    {stats['lexemes']}")
+        click.echo(f"Total len:  {stats['total_len']}")
+
+    try:
+        run_async(_rebuild())
+    except (ConnectionError, Exception) as e:
+        _handle_error(e)
+
+
 @main.command()
 @click.pass_context
 def status(ctx):

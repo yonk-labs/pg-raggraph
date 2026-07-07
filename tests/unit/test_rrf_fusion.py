@@ -13,6 +13,8 @@ import pytest
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.retrieval import (
+    _build_global_query,
+    _build_local_query,
     _build_naive_prefilter,
     _build_naive_query,
     _build_naive_query_twostage,
@@ -24,8 +26,11 @@ from pg_raggraph.retrieval import (
 from pg_raggraph.retrieval import query as retrieval_query
 
 
-def test_fusion_defaults_to_linear():
-    assert PGRGConfig().fusion == "linear"
+def test_fusion_defaults_to_rrf():
+    """Issue #96: the default flipped "linear" → "rrf" — rank fusion is
+    scale-free, so the lexical leg actually votes. "linear" stays available
+    for byte-for-byte reproducibility of existing deployments."""
+    assert PGRGConfig().fusion == "rrf"
 
 
 def test_rrf_k_default_is_60():
@@ -43,8 +48,8 @@ def test_fusion_rejects_unknown():
 
 
 def test_effective_fusion_none_falls_back_to_config():
-    assert _effective_fusion(PGRGConfig(fusion="rrf"), None) == "rrf"
-    assert _effective_fusion(PGRGConfig(), None) == "linear"
+    assert _effective_fusion(PGRGConfig(fusion="linear"), None) == "linear"
+    assert _effective_fusion(PGRGConfig(), None) == "rrf"  # #96 default flip
 
 
 def test_effective_fusion_override_wins():
@@ -120,6 +125,39 @@ def test_vector_first_rrf_keeps_bare_hnsw_cte_and_postfilter():
 def test_vector_first_linear_unchanged():
     sql, _ = _build_naive_vector_first(PGRGConfig())
     assert "rank()" not in sql
+
+
+def test_local_rrf_ranks_relevant_chunks():
+    """Issue #96 addendum: fusion was silently inert in graph modes. The RRF
+    tail must rank the neighborhood chunk set per leg and drop the constant
+    graph-presence leg."""
+    sql, _ = _build_local_query(PGRGConfig(), fusion="rrf")
+    assert "WITH RECURSIVE seeds AS" in sql  # graph CTEs preserved
+    assert "rank() OVER (ORDER BY vec_score DESC)" in sql
+    assert "rank() OVER (ORDER BY bm25_score DESC)" in sql
+    assert "%(rrf_k)s" in sql
+    assert "%(w_graph)s" not in sql  # constant leg dropped under rank fusion
+
+
+def test_local_linear_unchanged():
+    sql, _ = _build_local_query(PGRGConfig())
+    assert "rank()" not in sql
+    assert "%(w_graph)s * 1.0" in sql
+
+
+def test_global_rrf_ranks_relevant_chunks():
+    sql, _ = _build_global_query(PGRGConfig(), fusion="rrf")
+    assert "WITH rel_matches AS" in sql  # graph CTEs preserved
+    assert "rank() OVER (ORDER BY vec_score DESC)" in sql
+    assert "rank() OVER (ORDER BY bm25_score DESC)" in sql
+    assert "%(rrf_k)s" in sql
+    assert "%(w_graph)s" not in sql
+
+
+def test_global_linear_unchanged():
+    sql, _ = _build_global_query(PGRGConfig())
+    assert "rank()" not in sql
+    assert "%(w_graph)s * 1.0" in sql
 
 
 def test_query_exposes_fusion_param():
