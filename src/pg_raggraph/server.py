@@ -141,7 +141,7 @@ def create_app(**kwargs) -> FastAPI:
     # PR-303: defense-in-depth security headers on every response, including
     # auth-middleware short-circuits. Added after the auth middleware so it's
     # the outermost wrapper (Starlette middleware is LIFO).
-    # PR-219: script-src is 'self' only — htmx/vis-network are vendored under
+    # PR-219: script-src is 'self' only — vis-network is vendored under
     # static/vendor/ and the UI logic lives in static/app.js, so no CDN host
     # and no 'unsafe-inline' is needed for scripts. style-src keeps
     # 'unsafe-inline' for the <style> block and style= attributes in the UI.

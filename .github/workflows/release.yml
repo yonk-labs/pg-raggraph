@@ -66,7 +66,6 @@ jobs:
           # PR-219: UI JS is vendored — CSP is script-src 'self', so the
           # wheel must ship these or the installed UI is blank.
           assert any('static/app.js' in n for n in names), 'missing static app.js'
-          assert any('static/vendor/htmx.min.js' in n for n in names), 'missing vendored htmx'
           assert any('static/vendor/vis-network.min.js' in n for n in names), 'missing vendored vis-network'
           print(f'wheel manifest sane: {len(names)} entries')
           "

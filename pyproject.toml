@@ -47,22 +47,32 @@ mcp = ["mcp>=1.0"]
 # without them a single generated file can explode into thousands of chunks and
 # OOM the embedding step (pg-raggraph#79, chunkshop#71). 0.9.0 introduced the
 # path-less language detection that caused the regression; 0.9.1 fixes it.
-chunkshop = ["chunkshop>=0.9.1"]
+# Capped at <0.10 (AAT-005): chunkshop_bridge.py reads chunkshop's private
+# _pending_calls/_pending_class_edges spill seams, and an untested chunkshop
+# release already broke production once (#79). Bumping the cap is a deliberate
+# per-release act — run tests/unit/test_chunkshop_canary.py + the integration
+# bridge suite against the new version first.
+chunkshop = ["chunkshop>=0.9.1,<0.10"]
 # Deterministic, LLM-free entity + co-occurrence-edge extraction.
 # Requires the spaCy model too: python -m spacy download en_core_web_sm
 # See docs/superpowers/specs/2026-05-18-lede-spacy-extraction-design.md
 # The [synonyms] extra pulls nltk/WordNet so the default query_expansion="moderate"
 # tier does real synonym expansion instead of degrading to raw seeds.
-lede_spacy = ["lede>=0.4.5", "lede-spacy[synonyms]>=0.4.5", "spacy>=3.7"]
+# Sibling deps capped like chunkshop (AAT-005) — untested releases resolve
+# straight into user installs otherwise.
+lede_spacy = ["lede>=0.4.5,<0.5", "lede-spacy[synonyms]>=0.4.5,<0.5", "spacy>=3.7"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "ruff>=0.5",
     "coverage>=7.0",
     "beautifulsoup4>=4.14.3",
-    "lede>=0.4.5",
-    "lede-spacy[synonyms]>=0.4.5",
+    "lede>=0.4.5,<0.5",
+    "lede-spacy[synonyms]>=0.4.5,<0.5",
     "spacy>=3.7",
+    # chunkshop in dev so `pip install -e .[dev]` runs the bridge tests and the
+    # private-seam canary locally instead of importorskip-ping them (AAT-005).
+    "chunkshop>=0.9.1,<0.10",
     # Code-graph tests need chunkshop's tree-sitter parse path; regex fallback
     # collapses symbol spans to one line and starves per-chunk call extraction.
     "tree-sitter>=0.25",
