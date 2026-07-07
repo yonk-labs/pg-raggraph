@@ -371,7 +371,16 @@ class Database:
             return False
 
     async def _prepare_connection(self, conn) -> None:
-        await register_vector_async(conn)
+        # register_vector_async runs 4 TypeInfo catalog queries and installs
+        # client-side adapters on the connection object — do it once per
+        # pooled connection, not on every checkout. Measured ~3 ms per
+        # fetch_all at localhost (benchmarks/regressions/
+        # query_latency_profile.py); ~20 ms/query saved on the default
+        # query path. The set_config calls below stay per-checkout: they
+        # are transactional, so a pool rollback can undo them.
+        if not getattr(conn, "_pgrg_vector_registered", False):
+            await register_vector_async(conn)
+            conn._pgrg_vector_registered = True
         if self.config.statement_timeout_ms > 0:
             await conn.execute(
                 "SELECT set_config('statement_timeout', %s, false)",
