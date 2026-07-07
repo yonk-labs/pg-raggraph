@@ -221,7 +221,9 @@ async def test_genuinely_empty_doc_stays_plain_ready():
 
 async def test_sync_ingest_counts_per_chunk_failures_as_degraded():
     """Synchronous ingest: one errored chunk (not a whole-call raise) marks
-    the doc degraded — graph_error persisted, chunks_failed in metadata."""
+    the doc degraded — graph_error persisted. documents.metadata stays the
+    CALLER's bag (PRG-1 round-trip contract): the sync path must NOT stamp
+    extraction accounting into it (post-#93 composition fix)."""
     ns = "test_bf93_sync"
     rag = await _make_rag(ns, chunk_max_tokens=64)
     try:
@@ -241,7 +243,9 @@ async def test_sync_ingest_counts_per_chunk_failures_as_degraded():
         meta = row["metadata"]
         if isinstance(meta, str):
             meta = json.loads(meta)
-        assert meta["extraction"]["chunks_failed"] == 1
+        # Caller-metadata purity: failure accounting lives in graph_error and
+        # returned stats, never in the caller's metadata bag on the sync path.
+        assert "extraction" not in (meta or {})
 
         summary = await rag._graph_status_summary(ns)
         assert summary["degraded"] == 1
