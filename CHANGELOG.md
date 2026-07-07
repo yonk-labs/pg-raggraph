@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 — 2026-07-07 (out of alpha: ready signal, failure accounting, per-KB prompts, typed graph joins, BM25 + RRF default)
 
 ### ⚠️ Changed — default behavior
 
