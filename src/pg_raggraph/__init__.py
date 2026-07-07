@@ -423,6 +423,7 @@ class GraphRAG:
         on_progress=None,
         *,
         metadata: dict | None = None,
+        extraction_prompt: str | None = None,
     ):
         """Ingest documents from file paths with parallel processing.
 
@@ -443,14 +444,25 @@ class GraphRAG:
                 ``version_label``, ``supersedes_document_id``, or
                 ``retraction_reason`` is present, a ``document_versions`` row
                 is also created mirroring the document's evolution metadata.
+            extraction_prompt: Per-call extraction prompt override (#94) —
+                wins over ``config.extraction_prompt_by_namespace`` and
+                ``config.extraction_prompt`` for every file in this call.
+                One of ``"default"``/``"dev"``/``"code"``/``"prose"``;
+                unknown names raise ValueError before any write.
         """
         import asyncio
 
         from pg_raggraph.chunking import chunk_document, content_hash
-        from pg_raggraph.extraction import extract_from_chunks, get_llm_provider
+        from pg_raggraph.extraction import (
+            extract_from_chunks,
+            get_llm_provider,
+            resolve_extraction_prompt,
+        )
 
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        # Fail loud on a bad prompt name BEFORE any document is written (#94).
+        resolve_extraction_prompt(self.config, namespace=ns, override=extraction_prompt)
         started = time.perf_counter()
         # PR-215: apply nice_level here (was previously in config init,
         # which surprised callers by mutating process priority on import).
@@ -582,6 +594,7 @@ class GraphRAG:
                             chunk_document,
                             extract_from_chunks,
                             metadata=metadata,
+                            extraction_prompt=extraction_prompt,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -666,6 +679,7 @@ class GraphRAG:
         defer_extraction: bool = False,
         batch_size: int = 64,
         cross_file_code_graph: bool | None = None,
+        extraction_prompt: str | None = None,
     ):
         """Ingest documents from in-memory records — no disk roundtrip.
 
@@ -768,6 +782,16 @@ class GraphRAG:
                 one chunkshop resolver accumulates every doc's symbols/calls
                 (O(symbols), not content) and a final pass writes the resolved
                 edges; each carries ``resolved_intra_file`` in its properties.
+            extraction_prompt: Per-call extraction prompt override (#94).
+                One of ``"default"``/``"dev"``/``"code"``/``"prose"``; unknown
+                names raise ValueError before any write. On deferred ingests
+                the resolved prompt is stamped into
+                ``documents.metadata['extraction_prompt']`` so the drain
+                (``pgrg extract``) extracts with the prompt the doc was
+                ingested under. Precedence: this kwarg > a record's
+                ``metadata['extraction_prompt']`` >
+                ``config.extraction_prompt_by_namespace[namespace]`` >
+                ``config.extraction_prompt``.
 
         Returns: same stats shape as ``ingest()``.
 
@@ -794,12 +818,18 @@ class GraphRAG:
         import asyncio
 
         from pg_raggraph.chunking import chunk_document, content_hash
-        from pg_raggraph.extraction import extract_from_chunks, get_llm_provider
+        from pg_raggraph.extraction import (
+            extract_from_chunks,
+            get_llm_provider,
+            resolve_extraction_prompt,
+        )
 
         if batch_size < 1:
             raise ValueError("batch_size must be >= 1")
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        # Fail loud on a bad prompt name BEFORE any document is written (#94).
+        resolve_extraction_prompt(self.config, namespace=ns, override=extraction_prompt)
         living_enabled = (
             self.config.living_knowledge if living_knowledge is None else living_knowledge
         )
@@ -997,6 +1027,7 @@ class GraphRAG:
                             code_source_content=rec_code_source_content,
                             corpus_code_graph=corpus_code_graph,
                             corpus_run_id=corpus_run_id,
+                            extraction_prompt=extraction_prompt,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -1093,6 +1124,7 @@ class GraphRAG:
         extract_from_chunks_fn,
         *,
         metadata: dict | None = None,
+        extraction_prompt: str | None = None,
     ):
         """Read a file from disk and ingest it.
 
@@ -1117,6 +1149,7 @@ class GraphRAG:
             chunk_document_fn=chunk_document_fn,
             extract_from_chunks_fn=extract_from_chunks_fn,
             metadata=metadata,
+            extraction_prompt=extraction_prompt,
         )
 
     async def _ingest_one_content(
@@ -1140,6 +1173,7 @@ class GraphRAG:
         code_source_content: str | None = None,
         corpus_code_graph=None,
         corpus_run_id=None,
+        extraction_prompt: str | None = None,
     ):
         """Ingest a single document from in-memory content with all DB
         writes in a single transaction.
@@ -1296,8 +1330,19 @@ class GraphRAG:
         # embeddings still land (so naive retrieval works), but extraction is
         # deferred to a `pgrg extract` worker that drains graph_status='pending'.
         extraction_degraded = False
+        from pg_raggraph.extraction import config_with_prompt, resolve_extraction_prompt
         from pg_raggraph.lede_extraction import LEDE_CAPABLE_EXTRACTORS
 
+        # #94: resolve the effective prompt for THIS document. Precedence:
+        # per-call kwarg > caller metadata stamp > namespace map > global
+        # config. The resolved name is also stamped into documents.metadata
+        # below so deferred docs drain with the same prompt.
+        prompt_name = resolve_extraction_prompt(
+            self.config,
+            namespace=ns,
+            override=extraction_prompt,
+            stamped=(metadata or {}).get("extraction_prompt"),
+        )
         _lede_path = getattr(self.config, "fact_extractor", "none") in LEDE_CAPABLE_EXTRACTORS
         if defer_extraction or (llm is None and not _lede_path) or skip_llm_for_this_doc:
             from pg_raggraph.models import ExtractionResult
@@ -1306,7 +1351,7 @@ class GraphRAG:
         else:
             try:
                 extraction_results = await extract_from_chunks_fn(
-                    chunks, llm, self.db, self.config
+                    chunks, llm, self.db, config_with_prompt(self.config, prompt_name)
                 )
             except Exception as e:
                 logger.warning(f"Extraction failed for {file_path}, ingesting as pure vector: {e}")
@@ -1484,7 +1529,17 @@ class GraphRAG:
             # un-retracting). COALESCE can't express this for booleans, so we
             # pass a separate `retracted_explicit` flag and gate the SET on it
             # via CASE WHEN.
-            meta = metadata or {}
+            meta = dict(metadata or {})
+            # #94: stamp the resolved extraction prompt on DEFERRED docs so
+            # the drain (`pgrg extract`) extracts them with the prompt they
+            # were ingested under, whatever the drain worker's config. Sync
+            # docs are not stamped — extraction already ran with the resolved
+            # prompt, and documents.metadata surfaces on query results, so an
+            # unconditional stamp would pollute the caller-metadata
+            # round-trip (PRG-1). A sync doc manually re-queued to 'pending'
+            # therefore resolves via namespace map > global at drain time.
+            if defer_extraction:
+                meta["extraction_prompt"] = prompt_name
             eff_from = meta.get("effective_from")
             eff_to = meta.get("effective_to")
             retracted_explicit = "retracted" in meta and meta["retracted"] is not None

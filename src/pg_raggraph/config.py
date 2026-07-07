@@ -115,6 +115,15 @@ class PGRGConfig(BaseSettings):
     # Typed Literal so a typo in PGRG_EXTRACTION_PROMPT raises ValidationError
     # at config init instead of silently falling back to "default".
     extraction_prompt: Literal["default", "dev", "code", "prose"] = "default"
+    # Per-namespace (per-KB) prompt map (#94): namespace → prompt name. Lets
+    # one deployment serve code KBs and prose KBs simultaneously. Consulted
+    # at extraction time on both the sync ingest path and the `pgrg extract`
+    # drain. Precedence: per-call `extraction_prompt=` kwarg > per-doc
+    # stamped `documents.metadata['extraction_prompt']` > this map >
+    # `extraction_prompt`. Env: PGRG_EXTRACTION_PROMPT_BY_NAMESPACE as JSON,
+    # e.g. '{"kb-chats": "prose", "kb-src": "code"}'. Values are validated
+    # at extraction time (ValueError on unknown names — fail loud).
+    extraction_prompt_by_namespace: dict[str, str] = {}
     # Skip entity/relationship extraction during ingestion.
     # Set true for pure vector RAG mode — no LLM needed for ingest.
     skip_extraction: bool = False

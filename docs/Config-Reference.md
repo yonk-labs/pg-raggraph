@@ -168,6 +168,26 @@ Cons: `dev`/`prose` over-extract on the wrong genre. The LLM cache keys on promp
 When to use: `dev` for codebases, runbooks, on-call docs, ADR collections. `prose` for chat logs, reviews, social/lifestyle corpora.
 When NOT to use: `dev` or `prose` for general-knowledge corpora — use `default`.
 
+### `extraction_prompt_by_namespace` (`dict[str, str]`, default: `{}`)
+Env var: `PGRG_EXTRACTION_PROMPT_BY_NAMESPACE` (JSON, e.g. `'{"kb-chats": "prose", "kb-src": "code"}'`)
+
+What: per-namespace (per-KB) extraction prompt map — namespace → prompt name. Consulted at extraction time on both the sync ingest path and the `pgrg extract` drain, so one deployment can serve code KBs and prose KBs with correct extraction simultaneously (#94).
+
+**Precedence** (first match wins):
+1. Per-call `extraction_prompt=` kwarg on `ingest()` / `ingest_records()`
+2. Per-doc stamp — `documents.metadata['extraction_prompt']`, written on **deferred** ingests with the resolved prompt so those docs drain with the prompt they were ingested under (a record's own `metadata["extraction_prompt"]` participates here too). Sync docs are not stamped — extraction already ran, and `documents.metadata` surfaces on query results.
+3. This map (`extraction_prompt_by_namespace[namespace]`)
+4. `extraction_prompt` (the process-global default)
+
+Deferred docs capture the prompt choice at **ingest** time; at **drain** time this map applies to unstamped rows (pre-#94 rows, or sync docs manually re-queued to `pending` — see the re-extraction procedure in the cookbook). To re-drain a stamped doc under a new prompt, clear or rewrite the stamp (`UPDATE documents SET metadata = metadata - 'extraction_prompt' …`).
+
+Unknown prompt names fail loud: a bad per-call kwarg raises `ValueError` before any write; a bad map entry or stamp raises at extraction time (drain marks the doc `failed` with the error in `graph_error`). This is stricter than `get_prompt`, which silently falls back to `default`.
+
+Pros: multi-tenant deployments stop being forced into one process-global prompt; the extraction cache is already prompt-aware (keyed on prompt name), so mixed prompts never collide.
+Cons: one more place prompt choice can come from — check the precedence list above when extraction output looks genre-mismatched.
+When to use: any deployment hosting KBs of different genres (code + chat + docs) under one process.
+When NOT to use: single-corpus deployments — set `extraction_prompt` instead.
+
 ### `skip_extraction` (bool, default: `False`)
 Env var: `PGRG_SKIP_EXTRACTION`
 

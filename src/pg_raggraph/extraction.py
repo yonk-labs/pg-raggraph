@@ -300,6 +300,68 @@ def get_prompt(name: str) -> str:
     return EXTRACTION_SYSTEM_PROMPT
 
 
+KNOWN_EXTRACTION_PROMPTS = ("default", "dev", "code", "prose")
+
+
+def resolve_extraction_prompt(
+    config,
+    *,
+    namespace: str | None = None,
+    override: str | None = None,
+    stamped: str | None = None,
+) -> str:
+    """Resolve the effective extraction prompt name for one document (#94).
+
+    Precedence (first non-empty wins):
+      1. ``override`` — the per-call ``extraction_prompt=`` kwarg on
+         ``ingest()`` / ``ingest_records()``.
+      2. ``stamped`` — ``documents.metadata['extraction_prompt']``, written
+         at ingest time so deferred docs drain with the prompt they were
+         ingested under, regardless of the drain worker's config.
+      3. ``config.extraction_prompt_by_namespace[namespace]`` — the per-KB map.
+      4. ``config.extraction_prompt`` — the process-global default.
+
+    Unlike ``get_prompt`` (which silently falls back to the default prompt),
+    an unknown name here raises ValueError: a typo in a per-call kwarg,
+    stamped metadata, or the namespace map should fail loud, not silently
+    extract with the wrong prompt.
+    """
+    ns_map = getattr(config, "extraction_prompt_by_namespace", None) or {}
+    candidates = (
+        ("extraction_prompt argument", override),
+        ("document metadata 'extraction_prompt'", stamped),
+        (
+            f"extraction_prompt_by_namespace[{namespace!r}]",
+            ns_map.get(namespace) if namespace is not None else None,
+        ),
+        ("config.extraction_prompt", getattr(config, "extraction_prompt", "default")),
+    )
+    for source, name in candidates:
+        if not name:
+            continue
+        if name not in KNOWN_EXTRACTION_PROMPTS:
+            raise ValueError(
+                f"Unknown extraction prompt {name!r} (from {source}); "
+                f"known prompts: {', '.join(KNOWN_EXTRACTION_PROMPTS)}"
+            )
+        return name
+    return "default"
+
+
+def config_with_prompt(config, prompt_name: str):
+    """Return ``config`` with ``extraction_prompt`` set to ``prompt_name``.
+
+    Every extractor reads the prompt from ``config.extraction_prompt``
+    (they all share the ``(chunks, llm, db, config)`` seam — including the
+    lede/union extractors, so a kwarg can't be threaded uniformly). A copied
+    config is how a per-document prompt reaches ``extract_from_chunks``
+    without mutating the shared process config.
+    """
+    if prompt_name == getattr(config, "extraction_prompt", "default"):
+        return config
+    return config.model_copy(update={"extraction_prompt": prompt_name})
+
+
 @runtime_checkable
 class LLMProvider(Protocol):
     """Protocol for LLM providers (OpenAI-compatible API)."""

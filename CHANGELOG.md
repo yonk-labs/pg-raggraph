@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Per-KB (per-namespace) extraction prompt selection** (#94). The
+  extraction prompt is no longer forced to be process-global:
+  - `ingest()` / `ingest_records()` accept `extraction_prompt="prose"`
+    (etc.) as a per-call override.
+  - New config knob `extraction_prompt_by_namespace: dict[str, str]`
+    (env: `PGRG_EXTRACTION_PROMPT_BY_NAMESPACE` as JSON) maps namespace →
+    prompt, consulted on both the sync ingest path and the `pgrg extract`
+    drain.
+  - On deferred ingests the resolved prompt is stamped into
+    `documents.metadata['extraction_prompt']` (JSONB — no migration), so
+    those docs drain with the prompt they were ingested under regardless
+    of the drain worker's config. Sync docs are not stamped (extraction
+    already ran; `documents.metadata` surfaces on query results).
+  - Precedence: per-call kwarg > per-doc stamp > namespace map > global
+    `extraction_prompt`. Unknown prompt names raise `ValueError` at call
+    time (per-call kwarg fails before any write; a bad stamp/map entry
+    marks the doc `failed` at drain) instead of `get_prompt`'s silent
+    default fallback. The extraction LLM cache was already prompt-aware
+    (keyed on prompt name), so mixed prompts never collide.
+
 ## 0.5.0a19 — 2026-07-06 (prose extraction: prompt, lede_prose, llm+lede union)
 
 ### Added
