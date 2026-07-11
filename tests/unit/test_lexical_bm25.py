@@ -143,3 +143,22 @@ def test_or_tsquery_preserves_underscore_identifiers():
     """Regression guard: Python's \\w+ keeps underscores, so the identifier
     reaches to_tsquery intact (where it becomes a lexeme phrase)."""
     assert "validate_billing_archive" in _to_or_tsquery("how does validate_billing_archive work")
+
+
+def test_or_tsquery_preserves_hyphen_compounds_and_parts():
+    """#102/#103: the bare \\w+ split dropped hyphens, desyncing from Postgres
+    (which stores INC-0001 as 'inc' + '-0001'). Keep the compound (→ phrase that
+    matches the index) AND the parts (→ recall for natural hyphenated phrases)."""
+    q = _to_or_tsquery("what caused INC-0001")
+    terms = q.split(" | ")
+    assert "inc-0001" in terms  # compound → to_tsquery phrase 'inc' <-> '-0001'
+    assert "inc" in terms and "0001" in terms  # parts preserved
+
+    # Natural hyphenated phrase keeps part-matching recall, not a strict compound.
+    mh = _to_or_tsquery("multi-hop retrieval").split(" | ")
+    assert {"multi-hop", "multi", "hop", "retrieval"} <= set(mh)
+
+
+def test_or_tsquery_byte_identical_for_non_hyphenated():
+    """The fix must not perturb non-hyphenated queries (contract)."""
+    assert _to_or_tsquery("payment service outage") == "payment | service | outage"

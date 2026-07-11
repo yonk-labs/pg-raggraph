@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from datetime import datetime
 from typing import Callable, Literal
@@ -165,6 +166,27 @@ def _merge_params(base: dict, extra: dict) -> dict:
     return {**base, **extra}
 
 
+def _query_tokens(text: str) -> list[str]:
+    """Tokenize query text, keeping hyphen compounds AND their parts (#102/#103).
+
+    The bare ``\\w+`` split dropped hyphens, which desyncs from PostgreSQL's
+    parser: it stores ``INC-0001`` as the lexemes ``inc`` + ``-0001`` (the
+    hyphen-digit run is a signed-integer token), so a query term ``0001`` never
+    matches the indexed ``-0001`` and the identifier is unretrievable through
+    the lexical leg. We emit the compound (``inc-0001`` → ``to_tsquery`` parses
+    it to the phrase ``'inc' <-> '-0001'``, matching the index) *plus* the split
+    parts, so natural hyphenated phrases like ``multi-hop`` keep the old
+    part-matching recall instead of collapsing to a strict compound phrase.
+    Byte-identical to the historical ``\\w+`` behavior for non-hyphenated text.
+    """
+    tokens: list[str] = []
+    for tok in re.findall(r"\w+(?:-\w+)+|\w+", text.lower()):
+        tokens.append(tok)
+        if "-" in tok:
+            tokens.extend(tok.split("-"))
+    return tokens
+
+
 def _to_or_tsquery(text: str, extra_terms: list[str] | None = None) -> str:
     """Convert text (plus optional expansion terms) to an OR-based tsquery.
 
@@ -172,15 +194,13 @@ def _to_or_tsquery(text: str, extra_terms: list[str] | None = None) -> str:
     single-arg behavior. With expansion terms, the union is deduped (order
     preserved) before the 20-term cap.
     """
-    import re
-
-    words = re.findall(r"\w+", text.lower())
+    words = _query_tokens(text)
     if not words and not extra_terms:
         return "empty"
     words = [w for w in words if len(w) > 2]
     if extra_terms:
         for t in extra_terms:
-            words.extend(w for w in re.findall(r"\w+", t.lower()) if len(w) > 2)
+            words.extend(w for w in _query_tokens(t) if len(w) > 2)
         seen: set[str] = set()
         deduped: list[str] = []
         for w in words:

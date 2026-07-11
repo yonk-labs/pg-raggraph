@@ -266,3 +266,42 @@ async def test_full_query_bm25_linear_still_works(seeded_rag):
         assert result.chunks
     finally:
         await rag.close()
+
+
+@pytest.mark.asyncio
+async def test_hyphen_id_tsquery_matches_indexed_vector():
+    """#102/#103 regression at the SQL boundary: the query the tokenizer builds
+    for a hyphen-numeric ID must match how Postgres indexed it. Before the fix
+    _to_or_tsquery('INC-0001') → 'inc | 0001', and '0001' never matched the
+    stored '-0001' lexeme, so the ID was unretrievable through the lexical leg."""
+    rag = GraphRAG(dsn=DSN, namespace=NS)
+    await rag.connect()
+    try:
+        # Core symmetry: indexed ID vector @@ the tokenizer's tsquery == TRUE.
+        row = await rag.db.fetch_one(
+            "SELECT to_tsvector('english', 'ticket INC-0001 root cause') "
+            "@@ to_tsquery('english', %s) AS hit",
+            (_to_or_tsquery("INC-0001"),),
+        )
+        assert row["hit"] is True  # was False pre-fix ('0001' != '-0001')
+
+        # A distractor mentioning only 'Inc' also matches (via the 'inc' part) —
+        # ranking, not matching, separates them; the point is the gold is now
+        # candidatable at all.
+        distractor = await rag.db.fetch_one(
+            "SELECT to_tsvector('english', 'Inc reported an outage') "
+            "@@ to_tsquery('english', %s) AS hit",
+            (_to_or_tsquery("INC-0001"),),
+        )
+        assert distractor["hit"] is True
+
+        # Recall preserved for natural hyphenated phrases: a doc with the parts
+        # non-adjacent still matches (compound-only would have failed this).
+        recall = await rag.db.fetch_one(
+            "SELECT to_tsvector('english', 'a multi and hop approach') "
+            "@@ to_tsquery('english', %s) AS hit",
+            (_to_or_tsquery("multi-hop"),),
+        )
+        assert recall["hit"] is True
+    finally:
+        await rag.close()
