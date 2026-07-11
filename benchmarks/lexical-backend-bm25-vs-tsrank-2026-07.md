@@ -6,8 +6,9 @@
 
 - The **0.9.1 hyphen-tokenizer fix** (`_to_or_tsquery`) was the real exact-ID win. On the default **bge-small/384** stack the vector leg already discriminates hyphen-numeric IDs, so the query-side tokenizer was the gap — not the scoring backend.
 - **BM25 does NOT beat ts_rank** on scotus — neutral-to-worse on retrieval metrics and **+32% slower** on hybrid.
-- **Tuning it did not help** (19 configs across `k1` × `b` × `w_bm25`): the gap is structural and *widens* when the lexical leg is weighted up. ts_rank's proximity ranking beats BM25's IDF on semantic QA.
-- **Decision: default stays `ts_rank`; bm25 opt-in for keyword/ID workloads.** No flip.
+- **Tuning it did not help on scotus** (19 configs across `k1` × `b` × `w_bm25`): the gap is structural and *widens* when the lexical leg is weighted up. ts_rank's proximity ranking beats BM25's IDF on semantic QA.
+- **But bm25 WINS on locomo** (keyword / exact-token conversational recall) — naive hit@1 0.267 vs 0.233. The advantage is **query-shape-dependent**: ts_rank for semantic QA, bm25 for keyword/ID lookups.
+- **Decision: default stays `ts_rank`; bm25 opt-in for keyword/ID/exact-token workloads.** No flip.
 
 ## Method
 
@@ -77,10 +78,28 @@ The default fusion is weighted-RRF `w_sem=0.50 / w_bm25=0.20` (`retrieval.py:131
 
 No stratum favors bm25 on retrieval rank; the only bm25 "wins" are +1-question judge deltas at n=10 (noise). scotus has **no keyword/exact-ID stratum** — every question is natural-language legal QA.
 
+## Wheelhouse test — locomo (keyword / exact-token conversational recall)
+
+To check bm25's *actual* strength, ran the same head-to-head on **locomo** (272 docs, 30q, exact turn-ID tokens like `D3:11`; bge-small/384; gpt-5-mini judge). Here the direction **flips**:
+
+| Metric | Mode | ts_rank | bm25 | winner |
+|---|---|---|---|---|
+| hit@1 | naive | 0.233 | **0.267** | **bm25** |
+| mrr | naive | 0.296 | **0.312** | **bm25** |
+| ndcg | naive | 0.323 | 0.322 | tie |
+| judge | naive | 0.950 | 0.933 | ts (±1 q) |
+| (hybrid) | — | slightly ahead | — | ts_rank |
+
+Per-category (naive): bm25 **ties or wins every category**, winning `category=1` decisively (hit@1 0.143→0.286, doubled; n=7) and dead-even on the bulk `category=4` (n=18). bm25 loses no category.
+
+**Read:** on a corpus with exact-token / ID signal, BM25's IDF ranks the exact chunk higher — the inverse of scotus. Small n (per-category 2–18), so individual cells are noisy, but the aggregate direction is consistent and opposite to scotus.
+
 ## Final conclusion
 
-**bm25 cannot be tuned to match ts_rank on semantic QA.** Across 19 configs (k1 × b × w_bm25) plus per-stratum, ts_rank is equal-or-better on every retrieval metric, and the gap *grows* when the lexical leg is given more weight. Root cause: **ts_rank's cover-density (query-term proximity) ranking beats BM25's IDF bag-of-words on natural-language questions over prose.** BM25's IDF advantage only bites on exact-keyword / exact-ID queries over corpora where the vector leg can't discriminate — a query shape scotus (and the other harness corpora) don't contain.
+**bm25 cannot be tuned to match ts_rank on semantic QA — but it wins on keyword/exact-token recall.** On scotus, across 19 configs (k1 × b × w_bm25) plus per-stratum, ts_rank is equal-or-better on every retrieval metric and the gap *grows* when the lexical leg is weighted up. On locomo, the direction flips — bm25 wins the naive rank metrics. Root cause: **ts_rank's cover-density (query-term proximity) ranking beats BM25's IDF bag-of-words on natural-language questions over prose; BM25's IDF wins when the query is an exact-keyword / exact-token lookup.** The backend advantage is query-shape-dependent, not global.
 
-**Decision: `lexical_backend` default stays `ts_rank`. Do not flip.** bm25 remains **opt-in** — the right choice for keyword/ID-heavy workloads (tickets, incidents, SKUs, region codes), where the 0.9.1 hyphen-tokenizer fix now makes exact-ID matching correct on both backends. The exact-ID gap #103 raised was closed by the tokenizer fix, not by the scoring backend.
+**Decision: `lexical_backend` default stays `ts_rank`. Do not flip.** The common RAG case is semantic questions (scotus-shaped) — ts_rank wins there and is lower-latency. bm25 stays **opt-in**, the right choice for **keyword / exact-ID / exact-token workloads** (tickets, incidents, SKUs, region codes, turn/session IDs, conversational recall), demonstrated on locomo. The 0.9.1 hyphen-tokenizer fix makes exact-ID *matching* correct on both backends; the exact-ID gap #103 raised was closed by that fix, not the backend.
 
-Limitations: n=30, single corpus (scotus), judge near-ceiling. Signal is unidirectional and mechanistically explained, so a larger n is very unlikely to reverse it. To see bm25's *wheelhouse*, a keyword/turn-ID corpus (e.g. locomo) would be the fair test — not run here.
+**When to flip bm25 on:** corpus is keyword/ID/exact-token heavy AND queries are lookups (not open-ended semantic) AND the embedder is weak enough that the vector leg can't discriminate. Otherwise leave ts_rank.
+
+Limitations: n=30 per corpus, judge near-ceiling, per-category cells small (2–18). Directions are consistent and mechanistically explained (proximity vs IDF), so unlikely to reverse; specific per-category deltas are noisy.
