@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.9.1 — 2026-07-11 (fix: hyphen-aware lexical query tokenizer, exact-ID retrieval)
+
 ### Fixed
 
 - **Hyphenated identifiers are retrievable through the lexical leg again
