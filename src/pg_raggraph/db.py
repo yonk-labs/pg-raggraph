@@ -386,10 +386,19 @@ class Database:
                 "SELECT set_config('statement_timeout', %s, false)",
                 (str(self.config.statement_timeout_ms),),
             )
-        if self.config.hnsw_ef_search > 0:
+        # Self-scale ef_search to the candidate set the re-scorer asks for
+        # (issue #99): two-stage retrieval fetches `retrieval_candidate_k`
+        # nearest chunks, but if HNSW's ef_search sits below that, the index
+        # returns fewer/worse candidates than requested — self-defeating on
+        # larger corpora. ef_search >= candidate_k is the pgvector rule of
+        # thumb; take it automatically rather than ship a magic default.
+        ef_search = self.config.hnsw_ef_search
+        if self.config.two_stage_retrieval:
+            ef_search = max(ef_search, self.config.retrieval_candidate_k)
+        if ef_search > 0:
             await conn.execute(
                 "SELECT set_config('hnsw.ef_search', %s, false)",
-                (str(self.config.hnsw_ef_search),),
+                (str(ef_search),),
             )
         if self.config.rls_enabled:
             tenant = self._tenant.get() or self.config.namespace

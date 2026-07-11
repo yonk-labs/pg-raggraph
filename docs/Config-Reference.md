@@ -440,6 +440,15 @@ Cons: keeps genuinely-identical entities with inconsistent numbering ("Ch 1" vs 
 When to use: default is right for almost everyone; widen the pattern (e.g. add date tokens) for release-notes corpora.
 When NOT to use: disabling on the versioned-docs workload the guard exists for.
 
+### `no_fuzzy_merge_types` (list[str], default: `[]`)
+Env var: `PGRG_NO_FUZZY_MERGE_TYPES` (comma/JSON list)
+
+What: entity types that must NEVER fuzzy-merge, regardless of score. They still merge on an exact (namespace, name) match, but never via the trgm+vector path. Generalizes the built-in `CODE_SYMBOL` exemption to caller-declared types.
+Pros: kills false merges for a whole class of names at once — e.g. legal case captions ("Smith v. Jones (Ohio 2019)" vs "Smith v. Jones (Texas 2021)") share party names and cross the threshold, collapsing distinct cases and destroying their edges.
+Cons: real duplicates of that type stay split unless their names match exactly. For a softer, score-based dial use `resolution_threshold`; for the version-token class use `entity_version_guard_pattern`.
+When to use: identity-keyed types where similar-but-distinct is the norm (case captions, ticket IDs, versioned artifacts).
+When NOT to use: types where aggressive dedup is desired — this is a hard block, not a nudge.
+
 ---
 
 ## Hybrid scoring weights

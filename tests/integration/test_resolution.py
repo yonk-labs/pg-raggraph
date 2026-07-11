@@ -142,6 +142,44 @@ async def test_code_symbols_never_fuzzy_merge(db, config):
     assert [r["name"] for r in rows] == ["pkg.mod.Foo", "pkg.mod.Foo.bar"]
 
 
+async def test_no_fuzzy_merge_types_are_exempt(db, config):
+    """Caller-declared no_fuzzy_merge_types must not fuzzy-merge even above the
+    threshold (issue #98): distinct legal case captions with similar party names
+    would otherwise collapse. Generalizes the built-in CODE_SYMBOL exemption."""
+    dim = config.embedding_dim
+    emb = [0.5] * dim  # identical embeddings → high vector score
+    config.resolution_threshold = 0.5
+    config.min_trgm_score = 0.2
+    config.no_fuzzy_merge_types = ["CASE"]
+
+    id1 = await resolve_entity(
+        name="Smith v. Jones (Ohio 2019)",
+        entity_type="CASE",
+        description="Case caption 1",
+        embedding=emb,
+        namespace="test_nofuzzy",
+        db=db,
+        config=config,
+    )
+    id2 = await resolve_entity(
+        name="Smith v. Jones (Texas 2021)",
+        entity_type="CASE",
+        description="Case caption 2",
+        embedding=emb,
+        namespace="test_nofuzzy",
+        db=db,
+        config=config,
+    )
+
+    assert id1 != id2
+    rows = await db.fetch_all(
+        "SELECT name FROM entities WHERE namespace = %s AND entity_type = 'CASE' "
+        "ORDER BY name",
+        ("test_nofuzzy",),
+    )
+    assert len(rows) == 2
+
+
 async def test_namespace_isolation(db, config):
     """Entities in different namespaces don't merge."""
     dim = config.embedding_dim
