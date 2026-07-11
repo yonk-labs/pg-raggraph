@@ -1551,9 +1551,7 @@ class GraphRAG:
                 # this and skip their lock-contended upserts for this doc's
                 # writes (issue #97). Caller must run rebuild_lexical_stats()
                 # after the batch to reconstruct exact stats.
-                await tx.execute(
-                    "SELECT set_config('pgrg.defer_lexical_stats', 'on', true)"
-                )
+                await tx.execute("SELECT set_config('pgrg.defer_lexical_stats', 'on', true)")
             # Incremental update: if source_path exists with a DIFFERENT hash,
             # the file has changed. Pick the prior *current* version (the one
             # still open: effective_to IS NULL) and supersede it inside the same

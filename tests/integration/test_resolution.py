@@ -173,8 +173,7 @@ async def test_no_fuzzy_merge_types_are_exempt(db, config):
 
     assert id1 != id2
     rows = await db.fetch_all(
-        "SELECT name FROM entities WHERE namespace = %s AND entity_type = 'CASE' "
-        "ORDER BY name",
+        "SELECT name FROM entities WHERE namespace = %s AND entity_type = 'CASE' ORDER BY name",
         ("test_nofuzzy",),
     )
     assert len(rows) == 2
