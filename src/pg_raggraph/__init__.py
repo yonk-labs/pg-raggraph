@@ -695,6 +695,7 @@ class GraphRAG:
         living_cadence: str | None = None,
         living_audit_diffs: bool | None = None,
         defer_extraction: bool = False,
+        defer_lexical_stats: bool = False,
         batch_size: int = 64,
         cross_file_code_graph: bool | None = None,
         extraction_prompt: str | None = None,
@@ -785,6 +786,16 @@ class GraphRAG:
                 extraction; chunks + embeddings still land so ``naive`` works.
                 Drain with ``pgrg extract``. Individual records can override
                 via the ``defer_extraction`` record key.
+            defer_lexical_stats: Bulk-load escape hatch (#97). When True, the
+                per-document ingest transactions skip the migration-016
+                ``lexeme_stats`` / ``lexical_corpus_stats`` maintenance triggers,
+                which otherwise serialize concurrent same-namespace ingest by
+                row-locking hot lexemes. ``search_vector`` is still populated, so
+                call ``rag.rebuild_lexical_stats(namespace)`` once after the batch
+                to reconstruct exact stats. Only matters for
+                ``lexical_backend="bm25"``; those scores are stale for the
+                namespace until the rebuild runs. Overridable per record via the
+                ``defer_lexical_stats`` record key.
             batch_size: Records are pulled and processed in batches of this
                 size, so peak memory is O(batch_size) rather than O(corpus).
                 ``records`` may therefore be a generator, a DB cursor, or an
@@ -981,6 +992,9 @@ class GraphRAG:
                         rec_rels = rec.get("relationships")
                         rec_skip_llm = bool(rec.get("skip_llm", False))
                         rec_defer_extraction = bool(rec.get("defer_extraction", defer_extraction))
+                        rec_defer_lexical_stats = bool(
+                            rec.get("defer_lexical_stats", defer_lexical_stats)
+                        )
                         rec_pre_chunked = rec.get("pre_chunked")
                         rec_code_source_content = rec.get("code_source_content")
                         living_context = None
@@ -1042,6 +1056,7 @@ class GraphRAG:
                             pre_chunked=rec_pre_chunked,
                             living_context=living_context,
                             defer_extraction=rec_defer_extraction,
+                            defer_lexical_stats=rec_defer_lexical_stats,
                             code_source_content=rec_code_source_content,
                             corpus_code_graph=corpus_code_graph,
                             corpus_run_id=corpus_run_id,
@@ -1190,6 +1205,7 @@ class GraphRAG:
         pre_chunked: list[dict] | None = None,
         living_context: _LivingContext | None = None,
         defer_extraction: bool = False,
+        defer_lexical_stats: bool = False,
         code_source_content: str | None = None,
         corpus_code_graph=None,
         corpus_run_id=None,
@@ -1530,6 +1546,12 @@ class GraphRAG:
         from pg_raggraph.resolution import resolve_entity
 
         async with self.db.transaction() as tx:
+            if defer_lexical_stats:
+                # Transaction-local: the migration-018 lexstats triggers honor
+                # this and skip their lock-contended upserts for this doc's
+                # writes (issue #97). Caller must run rebuild_lexical_stats()
+                # after the batch to reconstruct exact stats.
+                await tx.execute("SELECT set_config('pgrg.defer_lexical_stats', 'on', true)")
             # Incremental update: if source_path exists with a DIFFERENT hash,
             # the file has changed. Pick the prior *current* version (the one
             # still open: effective_to IS NULL) and supersede it inside the same

@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### Retrieval & ingest (issues #97, #98, #99)
+
+- **`hnsw_ef_search` self-scales to the candidate set (#99).** Two-stage
+  retrieval fetches `retrieval_candidate_k` (default 200) nearest chunks, but
+  the shipped `hnsw_ef_search=40` default capped HNSW candidate depth below
+  that on larger corpora — the index returned fewer/worse candidates than the
+  re-scorer asked for. `db.py` now floors the effective ef_search at
+  `retrieval_candidate_k` when two-stage retrieval is on (the pgvector
+  `ef_search >= k` rule of thumb), rather than shipping a magic default. No
+  behavior change when two-stage retrieval is off.
+- **`no_fuzzy_merge_types` config (#98).** Generalizes the built-in
+  `CODE_SYMBOL` fuzzy-merge exemption to caller-declared entity types. At
+  11.5K-entity scale (cap-gold-v1) default fuzzy resolution merged 137 distinct
+  legal case captions (1.19%), destroying CITES edges; declaring
+  `no_fuzzy_merge_types=["CASE"]` keeps such types exact-match-only. Exact
+  `(namespace, name)` matches still merge.
+- **`ingest_records(defer_lexical_stats=True)` bulk-load path (#97).** The
+  migration-016 lexical-stats triggers row-lock hot lexemes for the rest of
+  each per-doc ingest transaction, serializing concurrent same-namespace ingest
+  (cap-gold-v1: ~9h projected for 11.5K docs vs ~15min deferred). A new
+  transaction-local GUC (migration 018) lets the triggers skip their work
+  during a deferred load; `search_vector` still populates, so the existing
+  `rebuild_lexical_stats()` reconstructs exact stats afterward. Only
+  `lexical_backend="bm25"` stats are stale in the load→rebuild window.
+
 ### Performance
 
 - **Fuzzy name binds now use the trgm GIN index** (cap-gold-v1 engine-isolated

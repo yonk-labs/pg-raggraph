@@ -310,6 +310,10 @@ class PGRGConfig(BaseSettings):
     retrieval_candidate_k: int = 200
     hnsw_m: int = 16
     hnsw_ef_construction: int = 64
+    # HNSW query-time candidate depth (per-session GUC). Floor only: when
+    # two_stage_retrieval is on, db.py raises the effective value to at least
+    # retrieval_candidate_k so the index never returns fewer candidates than
+    # the re-scorer asks for (issue #99). Small default suits small corpora.
     hnsw_ef_search: int = 40
 
     # Retrieval pipeline strategy (applies to naive / naive_boost modes).
@@ -536,6 +540,12 @@ class PGRGConfig(BaseSettings):
     # the CODE_SYMBOL exemption to versioned-docs corpora. Empty string
     # disables the guard.
     entity_version_guard_pattern: str = r"\d+(?:\.\d+)*"
+    # Caller-declared entity types that must never fuzzy-merge (issue #98).
+    # Generalizes the built-in CODE_SYMBOL exemption: e.g. legal case captions
+    # ("no_fuzzy_merge_types=['CASE']") where similar party names cross the
+    # combined-score threshold and collapse distinct entities. These types fall
+    # through to exact-name insert; exact (namespace, name) matches still merge.
+    no_fuzzy_merge_types: list[str] = Field(default_factory=list)
 
     # --- Evolving-knowledge RAG (Tier 1+) ---
     # Zero cost when 'off'; ramp up per use case.

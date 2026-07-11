@@ -182,6 +182,7 @@ async def resolve_entity(
         match
         and match["combined"] >= config.resolution_threshold
         and entity_type != "CODE_SYMBOL"
+        and entity_type not in config.no_fuzzy_merge_types
         and not differs_only_by_version(name, match["name"], config.entity_version_guard_pattern)
     ):
         # Merge: update existing entity with new info.
