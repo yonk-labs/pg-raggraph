@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.9.0 — 2026-07-11 (retrieval & ingest: ef_search self-scale, no_fuzzy_merge_types, defer_lexical_stats bulk-load)
+
 ### Retrieval & ingest (issues #97, #98, #99)
 
 - **`hnsw_ef_search` self-scales to the candidate set (#99).** Two-stage
