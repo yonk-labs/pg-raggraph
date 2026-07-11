@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Fixed
+
+- **Hyphenated identifiers are retrievable through the lexical leg again
+  (#102/#103).** The query tokenizer (`_to_or_tsquery`) split on `\w+`, dropping
+  hyphens — desynced from PostgreSQL's parser, which stores `INC-0001` as the
+  lexemes `inc` + `-0001`. The query term `0001` never matched the indexed
+  `-0001`, so hyphen-numeric IDs (tickets, incidents, SKUs, region codes like
+  `us-east-1`) were unretrievable via `ts_rank`. The tokenizer now keeps the
+  hyphen compound (`inc-0001` → `to_tsquery` parses it to the phrase
+  `'inc' <-> '-0001'`, matching the index) **and** the split parts, so natural
+  hyphenated phrases (`multi-hop`) keep their part-matching recall rather than
+  collapsing to a strict compound phrase. Byte-identical for non-hyphenated
+  text. Note: under the default `lexical_backend="ts_rank"` this restores
+  *matching* but not full rank on near-duplicate corpora — IDF-aware scoring
+  (`lexical_backend="bm25"`) is the load-bearing win for exact-ID recall.
+
 ## 0.9.0 — 2026-07-11 (retrieval & ingest: ef_search self-scale, no_fuzzy_merge_types, defer_lexical_stats bulk-load)
 
 ### Retrieval & ingest (issues #97, #98, #99)
