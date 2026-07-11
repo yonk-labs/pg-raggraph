@@ -102,6 +102,30 @@ sorted `(namespace, lexeme)` so concurrent ingest transactions can't deadlock
 on shared lexeme rows; the known ceiling is hot-lexeme row locks serializing
 the *storage phase* of concurrent document transactions.
 
+### Bulk-load escape hatch (`defer_lexical_stats`)
+
+That serialization is the ceiling to bypass for large loads — a cap-gold-v1
+bake projected ~9h for 11.5K docs with the triggers active vs ~15min deferred.
+Pass `defer_lexical_stats=True` to skip the maintenance triggers during the
+load, then rebuild once:
+
+```python
+await rag.ingest_records(records, namespace="corpus", defer_lexical_stats=True)
+await rag.rebuild_lexical_stats("corpus")   # or: pgrg rebuild-lexical-stats -n corpus
+```
+
+`search_vector` is still populated during the deferred load (only the `df` /
+corpus-length bookkeeping is skipped), so the rebuild reconstructs **exact**
+stats from `chunks.search_vector` — the full-recompute path, not an
+approximation. It is transaction-local (a per-doc GUC the triggers honor), so
+it's safe to run concurrently with non-deferred ingest into other namespaces.
+
+**Trade-off:** between the deferred load and the rebuild, `lexeme_stats` /
+`lexical_corpus_stats` are stale for that namespace, so `lexical_backend="bm25"`
+scores are wrong in that window. Fine for an initial bulk load (nothing is
+querying yet); for a live namespace, rebuild before serving BM25 queries. The
+default `lexical_backend="ts_rank"` is unaffected — it doesn't read these stats.
+
 ## Interplay and caveats
 
 - **Fusion:** BM25 raw scores are unbounded (~0–15). Under the default
