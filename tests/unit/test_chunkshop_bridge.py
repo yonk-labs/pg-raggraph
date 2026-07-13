@@ -137,3 +137,67 @@ def test_summaries_by_fqn_extracts_map():
         {"text": "no prechunk"},  # records without pre_chunked are ignored
     ]
     assert summaries_by_fqn(records) == {"pkg.a": "Runs the job", "pkg.c": "C"}
+
+
+def test_code_summary_extractor_round_trips_through_bridge():
+    """End-to-end lock: real chunkshop code_summary extractor stamps a chunk's
+    metadata.summary, summaries_by_fqn reads it, and code_edges_to_known_graph
+    writes it into the CODE_SYMBOL entity description. Locks the contract
+    `docs/cookbook/chunkshop-integration.md##rich-code_symbol-descriptions`
+    promises, so a future chunkshop refactor that breaks the round-trip
+    fails this test instead of silently degrading symbol descriptions."""
+    pytest.importorskip("chunkshop")
+
+    from chunkshop.config import CodeSummaryExtractor as CodeSummaryCfg
+    from chunkshop.extractors import load_extractor
+
+    from pg_raggraph.chunkshop_bridge import (
+        attach_code_edges,
+        code_edges_to_known_graph,
+        summaries_by_fqn,
+    )
+
+    src = "def add(a, b):\n    return a + b\n"
+    ext = load_extractor(CodeSummaryCfg(type="code_summary", backend="first_n_sentences"))
+    result = ext.extract(src, chunk_metadata={"fqn": "pkg.math.add", "start_line": 1})
+    stamped_summary = result.metadata["summary"]
+    assert stamped_summary.strip(), "chunkshop code_summary produced empty summary"
+
+    # Wire it through the bridge the way Pattern C does.
+    records = [
+        {
+            "text": src,
+            "source_id": "pkg.math",
+            "pre_chunked": [
+                {
+                    "content": src,
+                    "metadata": {
+                        "fqn": "pkg.math.add",
+                        "summary": stamped_summary,
+                        "strategy": "symbol_aware",
+                    },
+                }
+            ],
+        }
+    ]
+    summaries = summaries_by_fqn(records)
+    assert summaries == {"pkg.math.add": stamped_summary}
+
+    edges = [
+        {
+            "src_fqn": "pkg.math.add",
+            "dst_fqn": "pkg.math.sub",
+            "edge_type": "CALLS",
+            "confidence": 1.0,
+            "evidence": {"snippet": "add(x, y)"},
+        }
+    ]
+    out = attach_code_edges(records, edges)
+    descs = {e["name"]: e["description"] for e in out[0]["entities"]}
+    assert descs["pkg.math.add"] == stamped_summary  # real summary, not fallback
+    assert descs["pkg.math.sub"] == "Code symbol pkg.math.sub"  # fallback still works
+
+    # And the same path with summaries passed explicitly (Pattern C public API).
+    entities, _ = code_edges_to_known_graph(edges, summaries=summaries)
+    by_name = {e["name"]: e["description"] for e in entities}
+    assert by_name["pkg.math.add"] == stamped_summary

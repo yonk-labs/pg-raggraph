@@ -672,6 +672,36 @@ These are tracked as follow-ups; none block the Pattern M MVP shipping.
 | Just-want-it-to-work | Default `chunk_strategy="auto"` (no chunkshop) |
 | Maximum reproducibility with chunkshop's own benchmarks | Pattern C with the same YAML chunkshop uses for its bake-offs |
 
+## Rich `CODE_SYMBOL` descriptions (Pattern C + `code_summary`)
+
+The bridge defaults each imported `CODE_SYMBOL` entity's description to
+`"Code symbol {fqn}"`. With chunkshop's `code_summary` extractor enabled, you
+get the actual 1–3 sentence natural-language summary instead — surfaced as
+the entity's `description`, which is what `graph_join` / `query` show in
+their results.
+
+Enable it in your chunkshop YAML:
+
+```yaml
+chunker:
+  type: symbol_aware
+extractor:
+  type: code_summary      # ← opt-in; default chunkshop configs leave this off
+  backend: lede           # or "first_n_sentences" (zero-dep fallback) or "callable"
+  max_length: 300
+```
+
+Then in pg-raggraph, `summaries_by_fqn(records)` reads `fqn` + `summary`
+from each chunk's metadata (already populated by chunkshop's PG sink),
+`attach_code_edges(records, edges)` derives it automatically, and
+`code_edges_to_known_graph` writes it into the `CODE_SYMBOL.description`.
+
+The end-to-end path is locked by `tests/unit/test_chunkshop_bridge.py::test_summaries_by_fqn_extracts_map`
+and `tests/integration/test_chunkshop_bridge.py::test_attach_code_edges_derives_summaries_from_records`
++ `test_code_edges_to_known_graph_uses_summary_description`. Without
+`code_summary` enabled you fall back to the generic description; with it,
+the bridge is byte-identical to the chunkshop-produced summary.
+
 ## Configuration reference
 
 The new chunk_strategy values land in [`docs/Config-Reference.md`](../Config-Reference.md) under `chunk_strategy`. Default stays `"auto"` (no chunkshop). Setting any `"chunkshop:*"` value triggers the lazy import and will error with an install hint if the extra wasn't installed.

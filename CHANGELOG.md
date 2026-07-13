@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+## 0.9.4 — 2026-07-13 (code_summary round-trip docs + e2e test)
+
+The chunkshop `code_summary` extractor → pg-raggraph `CODE_SYMBOL.description`
+path was already wired and tested in isolation, but only surfaced in two
+test names and a single deep-link in `docs/chunkshop-user-guide.md`. Users
+enabling the extractor (opt-in on the chunkshop side — stock YAML configs
+leave it off) had no cookbook entry explaining the swap from
+`"Code symbol {fqn}"` fallback to the real summary, and no test locked the
+end-to-end round-trip against the real chunkshop package.
+
+### Added
+
+- **`docs/cookbook/chunkshop-integration.md`** — new "Rich `CODE_SYMBOL`
+  descriptions (Pattern C + `code_summary`)" section with the chunkshop
+  YAML to enable the extractor.
+- **`src/pg_raggraph/chunkshop_bridge.py` module docstring** — surfaces
+  the `fqn` + `summary` → `CODE_SYMBOL.description` flow so a future
+  reader doesn't have to grep four modules to find it.
+- **`tests/unit/test_chunkshop_bridge.py::test_code_summary_extractor_round_trips_through_bridge`**
+  — runs the real `chunkshop.extractors.code_summary` on a tiny code
+  snippet, then threads the stamped metadata through `summaries_by_fqn`
+  → `attach_code_edges` → `code_edges_to_known_graph` and asserts the
+  symbol description equals the real summary, not the fallback.
+
+### No behavior change
+
+The code path existed already; this release just makes it discoverable and
+locks the contract so a future chunkshop refactor that breaks the
+round-trip fails CI instead of silently degrading symbol descriptions.
+
 ## 0.9.3 — 2026-07-13 (dep bumps: click 8.3.2→8.4.2, pillow 12.2.0→12.3.0 — pip-audit clean)
 
 Re-release of 0.9.2 with the lockfile cleaned up: the original 0.9.2 wheel
