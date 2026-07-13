@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Literal
 
@@ -156,6 +157,16 @@ class ExtractedRelationship(BaseModel):
     def model_post_init(self, __context) -> None:
         if self.weight is None:
             self.weight = 1.0
+        # Canonicalize rel_type format to UPPER_SNAKE_CASE (issue #106): the
+        # LLM emits format variants of the same type ("maintains relationship
+        # with" vs "MAINTAINS_RELATIONSHIP_WITH"). Every extraction path — LLM
+        # parse, lede extraction, cache revalidation — constructs this model,
+        # so normalizing here covers them all. Semantic synonym collapse stays
+        # out: rel_type remains open vocabulary; match it with the
+        # case-insensitive synonym lists traverse()/graph_join() accept, not
+        # raw string equality.
+        normalized = re.sub(r"[^A-Za-z0-9]+", "_", self.rel_type).strip("_").upper()
+        self.rel_type = normalized or "RELATED_TO"
 
 
 class ExtractionResult(BaseModel):

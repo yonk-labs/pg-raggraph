@@ -155,7 +155,12 @@ Relationship fields: source, target, rel_type, description, weight
 Rules:
 - Use proper nouns and specific names for entities
 - entity_type: lowercase (person, organization, technology, concept)
-- rel_type: UPPER_SNAKE_CASE (DEVELOPED_BY, USES, PART_OF, RELATED_TO)
+- rel_type: UPPER_SNAKE_CASE, short and generic — at most 3 words
+  (DEVELOPED_BY, USES, PART_OF, RELATED_TO)
+- REUSE the same rel_type for the same kind of relation across the whole
+  text; put specifics in description. E.g. MAINTAINS_RELATIONSHIP_WITH
+  with description "commercial banking relationship" — never
+  MAINTAINS_COMMERCIAL_BANKING_RELATIONSHIP_WITH
 - Only extract explicit facts from the text
 - Keep descriptions concise (1 sentence)
 - Normalize entity names (consistent casing)"""
@@ -202,6 +207,9 @@ Rules:
 - Prefer specific identifiers (file paths, commit SHAs, ticket IDs)
 - Entity names should be stable across documents (normalize "auth" vs "Auth Service")
 - Relationships should carry intent, not just co-occurrence
+- Use the preferred relationship types when they fit; a new rel_type must be
+  short and generic (at most 3 words) and reused consistently — put
+  specifics in the description, never in the rel_type
 - Keep descriptions concise (1 sentence)"""
 
 
@@ -234,6 +242,9 @@ Rules:
 - Extract meaning, not mechanics — concepts/responsibilities, not who-calls-whom.
 - Entity names stable across files (normalize "auth" vs "Auth").
 - Only what the code makes explicit (names, docstrings, imports, comments).
+- Use the preferred relationship types when they fit; a new rel_type must be
+  short and generic (at most 3 words), reused consistently — specifics go in
+  the description, never in the rel_type.
 - Keep descriptions to one sentence."""
 
 
