@@ -139,6 +139,13 @@ Latency is a handful of index lookups — comparable to `naive` mode, far below
 - **You supply the plan.** There is no NL→plan compiler; the caller (you, or
   an LLM agent choosing tool arguments) decides the bind/intersect shape.
   This is deliberate — the primitive stays deterministic and explainable.
+- **`rel_type` is open vocabulary, not an enum.** Extraction canonicalizes
+  the *format* (UPPER_SNAKE_CASE, since 0.9.2 — issue #106), but the LLM
+  still coins the words: the same underlying relation can surface as
+  `MAINTAINS_RELATIONSHIP_WITH` in one chunk and `MAINTAINS` in another.
+  Filter with synonym lists (`rel_types=["MAINTAINS", "MAINTAINS_RELATIONSHIP_WITH"]`),
+  never single-string equality, and check what actually got extracted first:
+  `SELECT rel_type, count(*) FROM relationships GROUP BY 1 ORDER BY 2 DESC`.
 - **Joins only pay off when the edges exist.** On prose corpora, pair with an
   extraction prompt that keeps join-critical edges
   (`extraction_prompt="prose"`, `fact_extractor="llm+lede"`).
