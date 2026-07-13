@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.9.3 — 2026-07-13 (dep bumps: click 8.3.2→8.4.2, pillow 12.2.0→12.3.0 — pip-audit clean)
+
+Re-release of 0.9.2 with the lockfile cleaned up: the original 0.9.2 wheel
+published before the weekly `pip-audit` job ran, and the lockfile change
+that clears six advisories (PYSEC-2026-2132 on click, PYSEC-2026-2253/
+2254/2255/2256/2257 on pillow) only protects CI/local resolution. Bumping
+the version so the wheel on PyPI also resolves to the fixed deps.
+
+### Fixed
+
+- **Six transitive-dep advisories cleared.** Both are transitive: `click`
+  via typer/fastembed/uvicorn/chunkshop, `pillow` via fastembed/chunkshop.
+  Resolved with `uv lock --upgrade-package click --upgrade-package pillow`.
+  Audit job is back to `No known vulnerabilities found`.
+
 ## 0.9.2 — 2026-07-13 (graph_analyze API, lexical entity-seed leg, rel_type canonicalization)
 
 ### Added
