@@ -520,6 +520,15 @@ Env var: `PGRG_BM25_B`
 What: Okapi BM25 document-length normalization strength (0 = none, 1 = full).
 When to use: lower toward 0.3 if long chunks are being unfairly penalized (e.g., code files chunked large).
 
+### `seed_min_wsim` (float, default: `0.6`)
+Env var: `PGRG_SEED_MIN_WSIM`
+
+What: minimum `pg_trgm` `word_similarity(entity.name, query)` for an entity to join the local/global traversal seed set alongside the vector-kNN seeds (issue #105). Lexical seeds always outrank vector seeds, and a verbatim mention scores 1.0 — so the exact entity ranks above near-miss siblings (`CASE-2021-0454` beats every other `CASE-2021-*`).
+Pros: opaque identifiers and near-duplicate names anchor graph traversal even when their embeddings are meaningless — the failure mode where graph modes were structurally blind to exact-ID lookups.
+Cons: lowering it admits incidental name matches into the seed set, displacing vector seeds (the union is capped at `seed_k`).
+When to use: leave at 0.6 (mirrors pg_trgm's own `word_similarity_threshold` default). Raise toward 1.0 for exact-only anchoring.
+When NOT to use: don't drop below ~0.3 — short common entity names start matching every query.
+
 ### `w_recent` (float, default: `0.10`)
 Env var: `PGRG_W_RECENT`
 
