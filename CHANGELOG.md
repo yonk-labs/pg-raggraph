@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Added
+
+- **`GraphRAG.graph_analyze()` — set-seeded, authority-scored graph
+  retrieval (#100).** The cap-gold-v1 Tier 3 shape (semantic top-K seed →
+  typed multi-hop expansion → in-degree authority over the expanded set →
+  structured metadata filter → RRF-fused top-N with provenance) promoted
+  from proven benchmark SQL to a public five-stage plan API:
+  `graph_analyze(seed=SemanticSeed(...)|ids|NameSeed(...),
+  expand=Expand(...), score=Authority(...), filter=MetadataFilter(...),
+  fuse=RRF(...))`. One SQL round-trip; every leg runs on existing indexes.
+  See `docs/cookbook/graph-analyze.md` and the design note
+  `docs/superpowers/specs/2026-07-11-graph-analyze-api-design.md`.
+
 ## 0.9.1 — 2026-07-11 (fix: hyphen-aware lexical query tokenizer, exact-ID retrieval)
 
 ### Fixed

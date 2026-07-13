@@ -3425,3 +3425,58 @@ class GraphRAG:
                 fuzzy=fuzzy,
                 match_limit=match_limit,
             )
+
+    async def graph_analyze(
+        self,
+        seed,
+        expand,
+        *,
+        score=None,
+        filter=None,  # noqa: A002 - mirrors the design-doc API
+        fuse=None,
+        top_k: int = 10,
+        namespace: str | None = None,
+    ):
+        """Set-seeded, authority-scored graph retrieval in one SQL statement
+        (issue #100) — the "expand then rank by connectedness" plan::
+
+            from pg_raggraph.graph_analyze import (
+                SemanticSeed, Expand, Authority, MetadataFilter, RRF,
+            )
+            rows = await rag.graph_analyze(
+                seed=SemanticSeed(question, top_k=60, entity_type="case"),
+                expand=Expand(rel_types="CITES", direction="out", max_hops=2),
+                score=Authority(metric="in_degree"),
+                filter=MetadataFilter({"decision_year": ("gte", 1990)}),
+                fuse=RRF(legs=("semantic", "authority")),
+                top_k=10,
+            )
+
+        ``seed`` is a ``SemanticSeed``, a list of entity ids, or a
+        ``NameSeed`` (exact + pg_trgm binding). Returns
+        ``pg_raggraph.graph_analyze.AnalyzedChunk`` rows — provenance plus
+        per-leg scores next to the fused score. See
+        ``docs/cookbook/graph-analyze.md``.
+        """
+        from pg_raggraph import graph_analyze as _ga
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        embedder = self._get_embedder()
+
+        async def _embed_one(text: str) -> list[float]:
+            return (await embedder.embed([text]))[0]
+
+        with self.db.tenant(ns), self.db.readonly():
+            return await _ga.graph_analyze(
+                self.db,
+                self.config,
+                _embed_one,
+                seed,
+                expand,
+                score=score,
+                filter=filter,
+                fuse=fuse,
+                top_k=top_k,
+                namespace=ns,
+            )
