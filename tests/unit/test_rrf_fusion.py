@@ -132,7 +132,7 @@ def test_local_rrf_ranks_relevant_chunks():
     tail must rank the neighborhood chunk set per leg and drop the constant
     graph-presence leg."""
     sql, _ = _build_local_query(PGRGConfig(), fusion="rrf")
-    assert "WITH RECURSIVE seeds AS" in sql  # graph CTEs preserved
+    assert "WITH RECURSIVE vec_seeds AS" in sql  # graph CTEs preserved (#105 seed union)
     assert "rank() OVER (ORDER BY vec_score DESC)" in sql
     assert "rank() OVER (ORDER BY bm25_score DESC)" in sql
     assert "%(rrf_k)s" in sql
@@ -147,7 +147,7 @@ def test_local_linear_unchanged():
 
 def test_global_rrf_ranks_relevant_chunks():
     sql, _ = _build_global_query(PGRGConfig(), fusion="rrf")
-    assert "WITH rel_matches AS" in sql  # graph CTEs preserved
+    assert "rel_matches AS" in sql  # graph CTEs preserved (#105 lex_seeds prepended)
     assert "rank() OVER (ORDER BY vec_score DESC)" in sql
     assert "rank() OVER (ORDER BY bm25_score DESC)" in sql
     assert "%(rrf_k)s" in sql

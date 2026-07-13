@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Fixed
+
+- **Local/global graph modes anchor on entity names, not just embeddings
+  (#105).** Traversal seeding was vector-kNN only, so opaque identifiers
+  (case ids, account numbers) and near-duplicate names anchored the wrong
+  entity and the gold chunk never entered the graph-gated candidate pool —
+  results were structurally insensitive to the lexical backend. A lexical
+  seed leg (`pg_trgm word_similarity` over entity names, indexed via a
+  trgm match-ANY gate on the query tokens) now unions with the vector
+  seeds, capped at `seed_k`, with verbatim/near-verbatim name mentions
+  ranked first. New knob: `seed_min_wsim` (default 0.6, mirrors pg_trgm's
+  `word_similarity_threshold`). Queries with no entity-name mention keep
+  byte-identical vector-only seeding.
+
 ## 0.9.1 — 2026-07-11 (fix: hyphen-aware lexical query tokenizer, exact-ID retrieval)
 
 ### Fixed

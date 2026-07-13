@@ -584,6 +584,15 @@ class PGRGConfig(BaseSettings):
     bm25_k1: float = 1.2  # Okapi k1 — term-frequency saturation
     bm25_b: float = 0.75  # Okapi b — document-length normalization strength
 
+    # Lexical entity-seed gate for local/global graph modes (issue #105):
+    # minimum pg_trgm word_similarity(entity.name, query) for an entity to
+    # join the traversal seed set alongside the vector-kNN seeds. 0.6
+    # mirrors pg_trgm's default word_similarity_threshold — admits verbatim
+    # and near-verbatim name/identifier mentions, ranks the exact hit first.
+    # Raise toward 1.0 for exact-only anchoring; lower to catch sloppier
+    # mentions at the cost of incidental matches.
+    seed_min_wsim: float = 0.6
+
     w_recent: float = 0.10
     w_supersession: float = 0.10
     temporal_half_life_years: float = 5.0

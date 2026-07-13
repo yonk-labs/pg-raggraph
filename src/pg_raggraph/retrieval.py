@@ -903,6 +903,52 @@ LIMIT %(top_k)s
 """
 
 
+# Gate threshold for the trgm match-ANY operator in the lexical seed leg.
+# Deliberately permissive: it only has to admit every row the exact
+# word_similarity() gate would keep (a long entity name vs its shortest
+# identifying query token can score ~0.2), while still driving the index.
+# The exact gate (config.seed_min_wsim) does the real filtering.
+SEED_GATE_TRGM_THRESHOLD = "0.15"
+# Transaction-local GUCs for every local/global/hybrid execution: pins the
+# trgm operator gate so a session-level pg_trgm.similarity_threshold can't
+# silently narrow the lexical seed leg below what the exact gate keeps.
+_SEED_SET_LOCAL = {"pg_trgm.similarity_threshold": SEED_GATE_TRGM_THRESHOLD}
+
+
+def _lexical_seed_cte() -> str:
+    """Lexical entity-anchor leg for graph-mode seeding (issue #105).
+
+    Vector-only seeding never anchors opaque identifiers or near-duplicate
+    names: kNN picks the wrong entity, the gold chunk never enters the
+    graph-gated pool, and no downstream scoring can recover. This leg adds
+    entities whose *name* appears (near-)verbatim in the query.
+
+    The trgm match-ANY operator (``%%``, psycopg-escaped) over the query
+    tokens is the index-eligible gate — Bitmap Index Scan on
+    idx_entity_name_trgm, with pg_trgm.similarity_threshold pinned low via
+    set_local (SEED_GATE_TRGM_THRESHOLD). ``word_similarity(name, query)``
+    is the exact gate: ~1.0 when the name is lifted verbatim into the query,
+    which puts the exact hit above near-miss siblings (all CASE-2021-* names
+    pass the gate; only the queried one scores 1.0). Measured on 20K
+    entities: 1.7 ms indexed vs 65 ms as a bare word_similarity scan.
+
+    Scores are ``1.0 + word_similarity`` so lexical anchors outrank every
+    vector seed (cosine sim <= 1.0). An empty token list matches nothing —
+    seed set byte-identical to the historical vector-only behavior.
+    NOTE: psycopg parses placeholders even in SQL comments, so no bare
+    percent signs in the SQL text.
+    """
+    return """lex_seeds AS (
+    SELECT id, 1.0 + word_similarity(name, %(query)s) AS sim
+    FROM entities
+    WHERE namespace = %(namespace)s
+      AND name %% ANY(%(query_tokens)s)
+      AND word_similarity(name, %(query)s) > %(seed_min_wsim)s
+    ORDER BY sim DESC
+    LIMIT %(seed_k)s
+)"""
+
+
 def _build_local_query(
     cfg: PGRGConfig,
     as_of: datetime | None = None,
@@ -935,12 +981,22 @@ def _build_local_query(
         clauses.append(mt_clause)
         extra_params = _merge_params(extra_params, mt_params)
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
-    cte = """
-WITH RECURSIVE seeds AS (
+    cte = f"""
+WITH RECURSIVE vec_seeds AS (
     SELECT id, 1 - (embedding <=> %(embedding)s::vector) AS sim
     FROM entities
     WHERE namespace = %(namespace)s
     ORDER BY embedding <=> %(embedding)s::vector
+    LIMIT %(seed_k)s
+),
+{_lexical_seed_cte()},
+seeds AS (
+    -- Union of the vector and lexical legs, capped at seed_k. Lexical sims
+    -- sit in (1.0, 2.0], so exact/near-verbatim name anchors rank first.
+    SELECT id, max(sim) AS sim
+    FROM (SELECT id, sim FROM lex_seeds UNION ALL SELECT id, sim FROM vec_seeds) u
+    GROUP BY id
+    ORDER BY sim DESC
     LIMIT %(seed_k)s
 ),
 neighborhood AS (
@@ -1018,8 +1074,9 @@ def _build_global_query(
         clauses.append(mt_clause)
         extra_params = _merge_params(extra_params, mt_params)
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
-    cte = """
-WITH rel_matches AS (
+    cte = f"""
+WITH {_lexical_seed_cte()},
+rel_matches AS (
     SELECT r.id, r.src_id, r.dst_id, r.rel_type, r.description,
            1 - (e_src.embedding <=> %(embedding)s::vector) AS src_sim,
            1 - (e_dst.embedding <=> %(embedding)s::vector) AS dst_sim
@@ -1037,6 +1094,10 @@ rel_entity_ids AS (
     SELECT src_id AS id FROM rel_matches
     UNION
     SELECT dst_id AS id FROM rel_matches
+    UNION
+    -- Lexical anchors join the entity set directly (#105): their chunks
+    -- must enter the pool even when no top-seed_k relationship touches them.
+    SELECT id FROM lex_seeds
 ),
 relevant_chunks AS (
     SELECT DISTINCT c.id,
@@ -1216,6 +1277,10 @@ async def query(
         "top_k": effective_top_k,
         "candidate_k": candidate_k,
         "seed_k": min(effective_top_k, 5),
+        # Lexical seed leg (#105) — same tokenization as the tsquery
+        # (hyphen compounds + parts, len > 2, 20-term cap).
+        "query_tokens": [t for t in _query_tokens(question) if len(t) > 2][:20],
+        "seed_min_wsim": config.seed_min_wsim,
         "max_hops": config.max_hops,
         "w_sem": config.w_sem,
         "w_bm25": config.w_bm25,
@@ -1330,7 +1395,7 @@ async def query(
             memory_tier,
             fusion=effective_fusion,
         )
-        rows = await db.fetch_all(sql, _merge_params(params, extra))
+        rows = await db.fetch_all(sql, _merge_params(params, extra), set_local=_SEED_SET_LOCAL)
     elif mode == "global":
         sql, extra = _build_global_query(
             config,
@@ -1342,7 +1407,7 @@ async def query(
             memory_tier,
             fusion=effective_fusion,
         )
-        rows = await db.fetch_all(sql, _merge_params(params, extra))
+        rows = await db.fetch_all(sql, _merge_params(params, extra), set_local=_SEED_SET_LOCAL)
     elif mode == "hybrid":
         # Run local and global, merge results. The legs stay linear-scored
         # even under fusion="rrf": RRF fuses the two already-ranked lists in
@@ -1366,8 +1431,12 @@ async def query(
             supersession_behavior,
             memory_tier,
         )
-        local_rows = await db.fetch_all(local_sql, _merge_params(params, local_extra))
-        global_rows = await db.fetch_all(global_sql, _merge_params(params, global_extra))
+        local_rows = await db.fetch_all(
+            local_sql, _merge_params(params, local_extra), set_local=_SEED_SET_LOCAL
+        )
+        global_rows = await db.fetch_all(
+            global_sql, _merge_params(params, global_extra), set_local=_SEED_SET_LOCAL
+        )
         if effective_fusion == "rrf":
             rows = _rrf_merge(local_rows, global_rows, config.rrf_k, effective_top_k)
         else:
