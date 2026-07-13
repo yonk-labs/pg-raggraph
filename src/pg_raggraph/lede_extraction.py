@@ -74,9 +74,10 @@ def ensure_lede_available() -> None:
 def _entities_from_text(text: str) -> list[ExtractedEntity]:
     """Untyped entity strings via lede's spaCy backend → ExtractedEntity.
 
-    lede 0.3.0's public API returns a flat tuple of surface strings with
-    no NER labels, so entity_type is the generic "entity". Reuses the
-    existing false-positive filter.
+    The lede public API returns a flat tuple of surface strings with no NER
+    labels (documented backward-compatible across 0.3.0 → 0.4.x), so
+    entity_type is the generic "entity". Reuses the existing false-positive
+    filter.
     """
     import lede
     import lede_spacy  # noqa: F401  (registers the spacy backend on import)
