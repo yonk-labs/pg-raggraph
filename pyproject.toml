@@ -47,12 +47,13 @@ mcp = ["mcp>=1.0"]
 # without them a single generated file can explode into thousands of chunks and
 # OOM the embedding step (pg-raggraph#79, chunkshop#71). 0.9.0 introduced the
 # path-less language detection that caused the regression; 0.9.1 fixes it.
-# Capped at <0.10 (AAT-005): chunkshop_bridge.py reads chunkshop's private
+# Capped at <1.1 (AAT-005): chunkshop_bridge.py reads chunkshop's private
 # _pending_calls/_pending_class_edges spill seams, and an untested chunkshop
 # release already broke production once (#79). Bumping the cap is a deliberate
 # per-release act — run tests/unit/test_chunkshop_canary.py + the integration
-# bridge suite against the new version first.
-chunkshop = ["chunkshop>=0.9.1,<0.10"]
+# bridge suite against the new version first. rc4 cleared the canary (Jul 13,
+# commit prior to this bump) but 1.0.0rc5+ is still untested and not on PyPI.
+chunkshop = ["chunkshop>=0.9.1,<1.1"]
 # Deterministic, LLM-free entity + co-occurrence-edge extraction.
 # Requires the spaCy model too: python -m spacy download en_core_web_sm
 # See docs/superpowers/specs/2026-05-18-lede-spacy-extraction-design.md
@@ -72,7 +73,7 @@ dev = [
     "spacy>=3.7",
     # chunkshop in dev so `pip install -e .[dev]` runs the bridge tests and the
     # private-seam canary locally instead of importorskip-ping them (AAT-005).
-    "chunkshop>=0.9.1,<0.10",
+    "chunkshop>=0.9.1,<1.1",
     # Code-graph tests need chunkshop's tree-sitter parse path; regex fallback
     # collapses symbol spans to one line and starves per-chunk call extraction.
     "tree-sitter>=0.25",

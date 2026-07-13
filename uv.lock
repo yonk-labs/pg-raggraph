@@ -1944,8 +1944,8 @@ server = [
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4", marker = "extra == 'dev'", specifier = ">=4.14.3" },
-    { name = "chunkshop", marker = "extra == 'chunkshop'", specifier = ">=0.9.1,<0.10" },
-    { name = "chunkshop", marker = "extra == 'dev'", specifier = ">=0.9.1,<0.10" },
+    { name = "chunkshop", marker = "extra == 'chunkshop'", specifier = ">=0.9.1,<1.1" },
+    { name = "chunkshop", marker = "extra == 'dev'", specifier = ">=0.9.1,<1.1" },
     { name = "click", specifier = ">=8.0" },
     { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.110" },
