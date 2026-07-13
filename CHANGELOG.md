@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.9.2 — 2026-07-13 (graph_analyze API, lexical entity-seed leg, rel_type canonicalization)
+
 ### Added
 
 - **`GraphRAG.graph_analyze()` — set-seeded, authority-scored graph
@@ -28,6 +30,22 @@
   ranked first. New knob: `seed_min_wsim` (default 0.6, mirrors pg_trgm's
   `word_similarity_threshold`). Queries with no entity-name mention keep
   byte-identical vector-only seeding.
+
+- **`rel_type` format canonicalized to `UPPER_SNAKE_CASE` (#106).** The
+  same underlying relation was landing as
+  `MAINTAINS_COMMERCIAL_BANKING_RELATIONSHIP_WITH` and
+  `MAINTAINS_RELATIONSHIP_WITH` in one corpus, breaking typed filters and
+  text-to-cypher. `ExtractedRelationship.model_post_init` now canonicalizes
+  `rel_type` to `UPPER_SNAKE_CASE` at the single construction seam every
+  extraction path goes through (LLM parse, lede extraction, cache
+  revalidation); empty-after-normalize falls back to `RELATED_TO`. The
+  default/dev/code prompts now require short generic rel_types (≤3 words)
+  with specifics pushed to `description` — the prose prompt's closed-set
+  rule already prevented this drift. Semantic synonym collapse
+  (`MAINTAINS` vs `MAINTAINS_RELATIONSHIP_WITH`) is deliberately out: it
+  needs judgment, not string rules; `traverse` / `graph_join` synonym
+  lists remain the query-side answer. See
+  `docs/cookbook/typed-graph-join.md`.
 
 ## 0.9.1 — 2026-07-11 (fix: hyphen-aware lexical query tokenizer, exact-ID retrieval)
 
