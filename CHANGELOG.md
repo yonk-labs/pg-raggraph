@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## 0.9.5 — 2026-07-14 (event-time supersession fix for evolving-knowledge chains)
+
+The same-id supersede path closed a predecessor's `effective_to` at ingest
+wall-clock time regardless of the document's actual event date. For an
+event-dated chain ingested in a single session, every superseded window
+became `[event_date, now]`, so any historical `as_of` query matched the
+entire chain prefix and version selection degenerated to vector similarity
+among near-identical versions instead of picking the version that was
+actually in effect at that point in time.
+
+### Fixed
+
+- **`as_of` version selection on event-time chains (#111).** An incoming
+  version carrying an explicit `effective_from` in metadata now closes its
+  predecessor at that value instead of ingest wall-clock time. Chains
+  without event stamps are unaffected — they keep the wall-clock close,
+  since ingest time IS their event time. Regression test covers a
+  3-version event-dated chain and asserts each superseded window closes
+  exactly where its successor opens.
+
 ## 0.9.4 — 2026-07-13 (code_summary round-trip docs + e2e test)
 
 The chunkshop `code_summary` extractor → pg-raggraph `CODE_SYMBOL.description`
