@@ -1571,6 +1571,13 @@ class GraphRAG:
             # down, so this only switches modes for plain re-ingests.
             keep_history = self.config.evolution_tier != "off" and living_context is None
             supersede_ts = datetime.now(timezone.utc)
+            # #111: an incoming version carrying an explicit event-time
+            # effective_from closes its predecessor at that value, not at
+            # ingest wall-clock — otherwise every superseded window in an
+            # event-dated chain spans [event_date, now] and any historical
+            # as_of matches the whole prefix. Chains without event stamps
+            # keep the wall-clock close (ingest time IS their event time).
+            close_at = (metadata or {}).get("effective_from") or supersede_ts
             stale = await tx.fetch_one(
                 "SELECT id, content_hash, metadata FROM documents "
                 "WHERE namespace = %s AND source_path = %s AND content_hash != %s "
@@ -1583,7 +1590,7 @@ class GraphRAG:
                     await tx.execute(
                         "UPDATE documents SET effective_to = COALESCE(effective_to, %s) "
                         "WHERE id = %s",
-                        (supersede_ts, stale["id"]),
+                        (close_at, stale["id"]),
                     )
                     logger.info(f"Superseded prior version of {file_path} (history retained)")
                 else:

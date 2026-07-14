@@ -271,6 +271,51 @@ async def test_reingest_changed_content_keeps_history_when_evolution_on():
         await rag.close()
 
 
+async def test_reingest_event_time_chain_closes_predecessor_at_successor_effective_from():
+    """#111: event-dated same-path chains must close each superseded window
+    at the SUCCESSOR's effective_from, not ingest wall-clock. Wall-clock
+    close makes every window in a chain ingested in one session span
+    [event_date, now], so any historical as_of matches the entire prefix
+    and selection degenerates to vector similarity among near-identical
+    versions.
+    """
+    import os
+    import tempfile
+
+    ns = "test_evo_event_chain"
+    rag = await _fresh(ns)
+    rag.config.evolution_tier = "structural"
+    try:
+        fd, path = tempfile.mkstemp(suffix=".md")
+        os.close(fd)
+        try:
+            versions = [
+                (datetime(2024, 1, 10, tzinfo=timezone.utc), "1000"),
+                (datetime(2024, 1, 19, tzinfo=timezone.utc), "1007"),
+                (datetime(2024, 1, 28, tzinfo=timezone.utc), "1014"),
+            ]
+            for eff_from, value in versions:
+                Path(path).write_text(f"# Metric\n\nThe value is {value}.\n")
+                await rag.ingest([path], namespace=ns, metadata={"effective_from": eff_from})
+
+            docs = await rag.db.fetch_all(
+                "SELECT effective_from, effective_to FROM documents "
+                "WHERE namespace = %s ORDER BY effective_from",
+                (ns,),
+            )
+            assert len(docs) == 3
+            for prev, nxt in zip(docs, docs[1:]):
+                assert prev["effective_to"] == nxt["effective_from"], (
+                    "superseded version must close at successor's event-time "
+                    "effective_from, not ingest wall-clock"
+                )
+            assert docs[-1]["effective_to"] is None, "newest version stays current"
+        finally:
+            os.unlink(path)
+    finally:
+        await rag.close()
+
+
 async def test_reingest_changed_content_deletes_when_evolution_off():
     """Default (evolution_tier='off') keeps the destructive-replace behavior:
     no unbounded history growth for users who don't opt into time-travel."""
