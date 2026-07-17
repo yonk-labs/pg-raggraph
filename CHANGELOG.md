@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Fixed
+
+- **`graph_analyze` silent zero-match expansion (#112).** A typed plan
+  whose `expand.rel_types` matched no stored edge types (e.g. requesting
+  `"related"` against a store whose extraction produced `OWNED_BY` /
+  `REPORTS_TO` / …) expanded to nothing and silently returned seed-linked
+  chunks only — downstream this read as "one hop short" (bench forensics:
+  0/64 hop2 answers, all naming the intermediate entity, 0 gold docs
+  retrieved). Two changes: `Expand(rel_types=None)` (now the default)
+  expands over ALL live edge types, parity with `traverse`; and a
+  vocabulary guard raises `ValueError` naming the namespace's real edge
+  vocabulary when requested `rel_types` (expand or score) match zero live
+  edges in a namespace that has live edges. Fused output also gains a
+  deterministic `chunk_id` tie-break. Regression tests cover the mismatch
+  guard, untyped 2-hop reach, and cross-namespace isolation of plan
+  results (the #112 symptom-2 falsification: retrieval cannot leak
+  another namespace's content).
+
 ## 0.9.6 — 2026-07-17 (provenance-scoped relationship answer-context)
 
 `query()` attaches related entities and 1-hop relationships to every

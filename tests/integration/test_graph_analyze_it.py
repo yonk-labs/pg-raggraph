@@ -217,3 +217,99 @@ async def test_name_seed_unbindable_returns_empty(seeded):
         expand=Expand(rel_types="CITES"),
     )
     assert rows == []
+
+
+# --- issue #112 regressions --------------------------------------------------
+# Bench forensics: a plan expanding on rel_types=["related"] against a store
+# whose extraction produced typed edges (CITES, OWNED_BY, ...) matched ZERO
+# edges — hop CTEs came back empty, hood collapsed to the seed entity, and
+# the plan silently returned seed-linked chunks only. Downstream that read as
+# "one hop short" (the intermediate node's doc answered 63/64 hop2 cases).
+
+
+@pytest.mark.asyncio
+async def test_rel_type_vocab_mismatch_raises(seeded):
+    """The #112 failure shape: requested types match no live edges in a
+    namespace that HAS live edges → loud error naming the real vocabulary,
+    not a silent seed-only result."""
+    rag, entity_ids, _ = seeded
+    with pytest.raises(ValueError, match=r"match no live edges.*CITES"):
+        await rag.graph_analyze(
+            seed=[entity_ids["caseA"]],
+            expand=Expand(rel_types="related", max_hops=2),
+            fuse=RRF(legs=("authority",)),
+        )
+
+
+@pytest.mark.asyncio
+async def test_untyped_expand_reaches_two_hops(seeded):
+    """Expand(rel_types=None) walks all edge types — caseA reaches the
+    landmark at hop 2 without knowing the extraction vocabulary."""
+    rag, entity_ids, chunk_ids = seeded
+    rows = await rag.graph_analyze(
+        seed=[entity_ids["caseA"]],
+        expand=Expand(max_hops=2),
+        fuse=RRF(legs=("authority",)),
+        top_k=10,
+    )
+    by_chunk = {r.chunk_id: r for r in rows}
+    assert chunk_ids["landmark"] in by_chunk
+    assert by_chunk[chunk_ids["landmark"]].authority == 3  # untyped in-degree
+
+
+@pytest.mark.asyncio
+async def test_namespace_isolation(seeded):
+    """#112 symptom 2 falsification (retrieval side): an identically-named
+    entity graph in a sibling namespace never leaks into this namespace's
+    plan results, and vice versa."""
+    rag, entity_ids, chunk_ids = seeded
+    ns2 = f"{NS}_other"
+    from pg_raggraph.embedding import get_embedding_provider
+
+    embedder = get_embedding_provider(rag.config)
+    other_text = "Case A: an unrelated maritime dispute in the other tenant."
+    (emb,) = await embedder.embed([other_text])
+    try:
+        doc_id = await rag.db.insert_returning_id(
+            "INSERT INTO documents (namespace, content_hash, source_path) "
+            "VALUES (%s, %s, %s) RETURNING id",
+            (ns2, uuid.uuid4().hex, "other/caseA.md"),
+        )
+        cid = await rag.db.insert_returning_id(
+            "INSERT INTO chunks (document_id, content, embedding, token_count) "
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (doc_id, other_text, emb, len(other_text.split())),
+        )
+        eid = await rag.db.insert_returning_id(
+            "INSERT INTO entities (namespace, name, entity_type, description, embedding) "
+            "VALUES (%s, %s, %s, %s, %s) RETURNING id",
+            (ns2, "caseA", "case", other_text, emb),
+        )
+        await rag.db.execute(
+            "INSERT INTO entity_chunks (entity_id, chunk_id) VALUES (%s, %s)",
+            (eid, cid),
+        )
+        await rag.db.execute(
+            "INSERT INTO relationships (namespace, src_id, dst_id, rel_type) "
+            "VALUES (%s, %s, %s, %s)",
+            (ns2, eid, eid, "SELF_CITES"),
+        )
+
+        rows = await rag.graph_analyze(
+            seed=NameSeed("caseA"),
+            expand=Expand(max_hops=2),
+            fuse=RRF(legs=("authority",)),
+            top_k=50,
+        )
+        assert cid not in {r.chunk_id for r in rows}, "cross-namespace chunk leaked"
+
+        rows2 = await rag.graph_analyze(
+            seed=NameSeed("caseA"),
+            expand=Expand(max_hops=2),
+            fuse=RRF(legs=("authority",)),
+            top_k=50,
+            namespace=ns2,
+        )
+        assert {r.chunk_id for r in rows2} == {cid}
+    finally:
+        await rag.delete(ns2)

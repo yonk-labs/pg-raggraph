@@ -46,6 +46,15 @@ def test_expand_normalizes_and_validates():
         Expand(rel_types="CITES", max_hops=11)
 
 
+def test_expand_untyped_default_walks_all_edge_types():
+    """rel_types=None (the default) expands over every live edge type —
+    the issue #112 escape hatch when the extraction vocabulary is unknown."""
+    e = Expand()
+    assert e.rel_types is None
+    assert e.direction == "out"
+    assert e.max_hops == 2
+
+
 def test_authority_only_in_degree():
     assert Authority().metric == "in_degree"
     assert Authority(rel_types="cites").rel_types == ("CITES",)
@@ -173,3 +182,25 @@ def test_retracted_edges_never_match():
     sql = build_analyze_sql([1], Expand(rel_types="CITES"), "", ("authority",))
     # both the expansion hops and the authority aggregate skip retracted edges
     assert sql.count("NOT COALESCE(r.retracted, FALSE)") >= 2
+
+
+def test_untyped_expand_sql_has_no_rel_type_predicate():
+    """Expand(rel_types=None): no rel_type filter in the hops OR the
+    in-degree aggregate (authority follows the expansion's typedness)."""
+    sql = build_analyze_sql([1], Expand(max_hops=2), "", ("authority",))
+    assert "%(expand_types)s" not in sql
+    assert "%(authority_types)s" not in sql
+    assert "hop_1 AS" in sql and "hop_2 AS" in sql
+
+
+def test_untyped_expand_with_typed_authority():
+    """score=Authority(rel_types=...) keeps the in-degree typed even when
+    the expansion is untyped."""
+    sql = build_analyze_sql([1], Expand(), "", ("authority",), authority_typed=True)
+    assert "%(expand_types)s" not in sql
+    assert "%(authority_types)s" in sql
+
+
+def test_fused_order_is_deterministic_on_ties():
+    sql = build_analyze_sql([1], Expand(rel_types="CITES"), "", ("authority",))
+    assert "ORDER BY score DESC, chunk_id" in sql
