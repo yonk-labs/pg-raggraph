@@ -93,8 +93,10 @@ def test_naive_builders_swap_lexical_backend(builder, fusion):
 @pytest.mark.parametrize("builder", [_build_local_query, _build_global_query])
 @pytest.mark.parametrize("fusion", ["linear", "rrf"])
 def test_graph_builders_swap_lexical_backend(builder, fusion):
-    ts_sql, _ = builder(PGRGConfig(), fusion=fusion)
-    bm_sql, _ = builder(PGRGConfig(lexical_backend="bm25"), fusion=fusion)
+    # w_rare=0 isolates the lexical-leg swap from the #114 coverage bonus
+    # (which also references lexeme_stats), same as the naive twin above.
+    ts_sql, _ = builder(PGRGConfig(w_rare=0), fusion=fusion)
+    bm_sql, _ = builder(PGRGConfig(lexical_backend="bm25", w_rare=0), fusion=fusion)
     assert "lexeme_stats" not in ts_sql and "ts_rank(" in ts_sql
     assert "lexeme_stats" in bm_sql and "ts_rank(" not in bm_sql
 

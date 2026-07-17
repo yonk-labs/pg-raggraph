@@ -137,9 +137,10 @@ def _rare_bonus_sql(cfg: PGRGConfig, alias: str) -> str:
     Score-additive (NOT a fourth RRF rank leg) on purpose: rank fusion
     flattens a decisive df=1 exact-ID match into a one-step rank delta,
     which is exactly the failure being fixed. ``w_rare == 0`` emits nothing,
-    keeping the SQL byte-identical to the pre-#114 builders. Naive family
-    only — graph modes restrict candidates by traversal and are out of
-    #114's scope.
+    keeping the SQL byte-identical to the pre-#114 builders. Applies to the
+    naive family AND the graph builders (local/global linear bases + the
+    shared RRF tail) — the graph-gated candidate pool has the same
+    near-duplicate ordering blindness inside it.
     """
     if cfg.w_rare <= 0:
         return ""
@@ -902,7 +903,7 @@ def _graph_rrf_tail(
     builders drop their zero graph leg.
     """
     lex = lexical_score_sql(cfg, "rc")
-    rrf_base = _rrf_fused_base_expr()
+    rrf_base = _rrf_fused_base_expr() + _rare_bonus_sql(cfg, "r")
     return f""",
 scored AS (
     SELECT rc.id, rc.content, rc.metadata, rc.document_id,
@@ -995,7 +996,7 @@ def _build_local_query(
         "%(w_sem)s * (1 - (rc.embedding <=> %(embedding)s::vector)) + "
         f"%(w_bm25)s * {lex} + "
         "%(w_graph)s * 1.0"  # graph leg: binary presence in neighborhood
-    )
+    ) + _rare_bonus_sql(cfg, "rc")
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -1089,7 +1090,7 @@ def _build_global_query(
         "%(w_sem)s * (1 - (rc.embedding <=> %(embedding)s::vector)) + "
         f"%(w_bm25)s * {lex} + "
         "%(w_graph)s * 1.0"  # graph leg: binary presence via relationship seed
-    )
+    ) + _rare_bonus_sql(cfg, "rc")
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",

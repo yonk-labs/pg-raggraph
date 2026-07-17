@@ -108,6 +108,16 @@ async def test_linear_fusion_also_recovers_gold(seeded_rag):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["local", "global", "hybrid"])
+async def test_graph_modes_execute_with_rare_bonus(seeded_rag, mode):
+    """Graph builders carry the bonus too — their SQL must bind and execute
+    under default config (this namespace has no graph, so results may be
+    empty; the guard is against bind/SQL errors, not ranking)."""
+    result = await seeded_rag.query(QUERY, mode=mode, namespace=NS, top_k=12)
+    assert result is not None
+
+
+@pytest.mark.asyncio
 async def test_exact_id_query_surfaces_id_docs(seeded_rag):
     """A ticket-only query (the #103 exact-ID class): the only docs carrying
     the query's unique hyphenated id must not be buried by template siblings

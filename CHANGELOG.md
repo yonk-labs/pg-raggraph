@@ -20,12 +20,14 @@
   bonus scores the same term set the tsquery searches (including
   `retrieval_expansion` / alias terms), is score-additive by design
   (rank-flattening a decisive df=1 match is the failure being fixed),
-  leaves graph-mode SQL untouched, degrades to a no-op on pre-016
-  corpora without stats, and `w_rare=0` restores the prior SQL
-  byte-for-byte. `naive_boost` and `smart` inherit through the naive
-  builders. Regression tests cover the fleet geometry (gold recovered
-  from a 16-doc name cohort under naive / naive_boost / linear fusion),
-  the exact-ID query class from #103, and SQL-shape guards.
+  degrades to a no-op on pre-016 corpora without stats, and `w_rare=0`
+  restores the prior SQL byte-for-byte. Applies to the naive family AND
+  the `local`/`global`/`hybrid` graph builders — the graph-gated pool
+  has the same near-duplicate ordering blindness inside it; `naive_boost`
+  and `smart` inherit through the naive builders. Regression tests cover
+  the fleet geometry (gold recovered from a 16-doc name cohort under
+  naive / naive_boost / linear fusion), the exact-ID query class from
+  #103, graph-mode execution, and SQL-shape guards.
 
 ## 0.9.7 — 2026-07-17 (graph_analyze vocabulary guard + untyped expansion)
 

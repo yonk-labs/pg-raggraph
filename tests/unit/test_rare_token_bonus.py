@@ -51,10 +51,19 @@ def test_w_rare_zero_is_a_kill_switch(builder, fusion):
 
 @pytest.mark.parametrize("builder", [_build_local_query, _build_global_query])
 @pytest.mark.parametrize("fusion", ["linear", "rrf"])
-def test_graph_builders_stay_untouched(builder, fusion):
-    """#114 is scoped to the naive family — graph-mode SQL must not change."""
+def test_graph_builders_carry_rare_bonus_by_default(builder, fusion):
+    """The graph-gated pool has the same near-duplicate ordering blindness —
+    local/global carry the bonus too (follow-up to #114)."""
     sql, _ = builder(PGRGConfig(), fusion=fusion)
+    assert "%(w_rare)s" in sql
+
+
+@pytest.mark.parametrize("builder", [_build_local_query, _build_global_query])
+@pytest.mark.parametrize("fusion", ["linear", "rrf"])
+def test_graph_builders_kill_switch(builder, fusion):
+    sql, _ = builder(PGRGConfig(w_rare=0), fusion=fusion)
     assert "%(w_rare)s" not in sql
+    assert "lexeme_stats" not in sql
 
 
 def test_coverage_sql_is_namespace_scoped_and_bounded():
