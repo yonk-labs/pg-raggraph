@@ -71,6 +71,19 @@ def ensure_lede_available() -> None:
         raise RuntimeError(f"spaCy model `en_core_web_sm` not available. {_INSTALL_HINT}") from e
 
 
+def _clean_entity_name(name: str) -> str:
+    """Trim NER span bleed from markdown-ish text.
+
+    spaCy models (observed with en_core_web_sm 3.8.0) can extend an NER span
+    across a line break into the next markdown bullet, yielding names like
+    ``"Lisa Wang\\n- *"``. An entity name never legitimately spans a line in
+    the text we feed the deterministic extractors, so cut at the first
+    newline and strip bullet/emphasis punctuation from the edges. Clean
+    names pass through byte-identical.
+    """
+    return (name or "").split("\n", 1)[0].strip(" \t-*_•#`")
+
+
 def _entities_from_text(text: str) -> list[ExtractedEntity]:
     """Untyped entity strings via lede's spaCy backend → ExtractedEntity.
 
@@ -90,7 +103,7 @@ def _entities_from_text(text: str) -> list[ExtractedEntity]:
     seen: set[str] = set()
     out: list[ExtractedEntity] = []
     for name in raw:
-        name = (name or "").strip()
+        name = _clean_entity_name(name)
         if name in seen or not _is_valid_entity(name):
             continue
         seen.add(name)
@@ -257,7 +270,7 @@ def _prose_extract_one(text: str) -> ExtractionResult:
         for ent in sent.ents:
             if ent.label_ in _NER_SKIP_LABELS:
                 continue
-            name = ent.text.strip()
+            name = _clean_entity_name(ent.text)
             if not _is_valid_entity(name):
                 continue
             entities.setdefault(

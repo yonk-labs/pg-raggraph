@@ -231,3 +231,15 @@ def test_union_merges_llm_and_deterministic_legs(monkeypatch):
     names = [e.name for e in results[0].entities]
     assert "Gumbo" in names and "gumbo" not in names  # casefold union
     assert "Bayou Belle" in names  # deterministic leg contributed
+
+
+def test_clean_entity_name_trims_markdown_span_bleed():
+    """en_core_web_sm 3.8.0 extends NER spans across line breaks into the
+    next markdown bullet; names must come out clean (anchor regression for
+    the extraction-yield gate)."""
+    clean = lede_extraction._clean_entity_name
+    assert clean("Lisa Wang\n- *") == "Lisa Wang"
+    assert clean("  Kong  ") == "Kong"
+    assert clean("**Payment Service**") == "Payment Service"
+    assert clean("Lisa Wang") == "Lisa Wang"  # clean names pass through
+    assert clean("") == ""
