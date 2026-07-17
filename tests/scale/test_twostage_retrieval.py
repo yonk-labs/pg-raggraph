@@ -100,8 +100,20 @@ async def test_real_builders_two_stage_uses_hnsw_single_stage_seqscans(scale_rag
     config = scale_rag.config
 
     # Two-stage: the real builder must EXPLAIN onto the HNSW index.
+    # On a lean chunks table the planner may legitimately prefer a
+    # scan+top-N-sort on cost (observed: table-state-dependent flapping) —
+    # that cost choice is not the regression this test guards. Penalizing
+    # seqscan AND sort makes the ELIGIBILITY check deterministic: the
+    # candidate CTE's `ORDER BY embedding <=> q LIMIT k` can then only be
+    # served by the ordered HNSW scan, so an HNSW-eligible builder must
+    # show idx_chunk_embed while an ineligible one (the regression) still
+    # has no index path to show. The outer ORDER BY score has no
+    # alternative to Sort, so it keeps working under the penalty.
     two_sql, two_extra = _build_naive_query_twostage(config, None, None, None)
-    two_plan = await scale_rag.db.fetch_all("EXPLAIN " + two_sql, _merge_params(params, two_extra))
+    async with scale_rag.db.transaction() as tx:
+        await tx.execute("SET LOCAL enable_seqscan = off")
+        await tx.execute("SET LOCAL enable_sort = off")
+        two_plan = await tx.fetch_all("EXPLAIN " + two_sql, _merge_params(params, two_extra))
     two_text = "\n".join(str(r) for r in two_plan)
     assert "idx_chunk_embed" in two_text, (
         f"two-stage builder did NOT use HNSW idx_chunk_embed.\nPLAN:\n{two_text}"
