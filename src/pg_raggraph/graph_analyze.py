@@ -84,16 +84,19 @@ class Expand:
     """Typed, directed expansion from the seed set. Unrolled fixed-hop CTEs
     (the proven Tier 3 shape) — each hop is an indexed join on
     ``relationships(src_id|dst_id, rel_type)``. ``rel_types`` accepts a
-    single type or a case-insensitive synonym list."""
+    single type, a case-insensitive synonym list, or ``None`` to expand
+    over ALL live edge types (parity with ``traverse``) — the safe choice
+    when the extraction vocabulary isn't known up front (issue #112)."""
 
-    rel_types: str | Sequence[str]
+    rel_types: str | Sequence[str] | None = None
     direction: str = "out"
     max_hops: int = 2
 
     def __post_init__(self):
         # Normalize eagerly so a bad plan fails at construction, not at SQL
         # time. frozen dataclass → object.__setattr__.
-        object.__setattr__(self, "rel_types", normalize_rel_types(self.rel_types))
+        if self.rel_types is not None:
+            object.__setattr__(self, "rel_types", normalize_rel_types(self.rel_types))
         _validate_direction(self.direction)
         if not 1 <= self.max_hops <= MAX_HOPS_CAP:
             raise ValueError(f"max_hops must be in 1..{MAX_HOPS_CAP}, got {self.max_hops}")
@@ -102,8 +105,9 @@ class Expand:
 @dataclass(frozen=True)
 class Authority:
     """Authority weighting over the expanded set. ``in_degree`` counts live
-    edges of ``rel_types`` (default: the Expand types) pointing INTO each
-    neighborhood entity — indexed on ``relationships(dst_id, rel_type)``."""
+    edges of ``rel_types`` (default: the Expand types; ALL types when the
+    expansion is untyped) pointing INTO each neighborhood entity — indexed
+    on ``relationships(dst_id, rel_type)``."""
 
     metric: str = "in_degree"
     rel_types: str | Sequence[str] | None = None
@@ -233,13 +237,25 @@ def build_analyze_sql(
     expand: Expand,
     metadata_where: str,
     fuse_legs: tuple[str, ...],
+    authority_typed: bool | None = None,
 ) -> str:
     """One-statement SQL for the five-stage plan. Mirrors PGRG_TIER3:
     seeds → hop_1..hop_n (unrolled, DISTINCT per hop) → hood → authority
-    (targeted in-degree) → cand (chunks + provenance + filter) → RRF."""
+    (targeted in-degree) → cand (chunks + provenance + filter) → RRF.
+
+    ``authority_typed=None`` follows the expand stage: the in-degree
+    aggregate is type-filtered iff the expansion is."""
     semantic = isinstance(seed, SemanticSeed)
+    if authority_typed is None:
+        authority_typed = expand.rel_types is not None
 
     join_cond, next_expr = _hop_fragments(expand.direction)
+    expand_type_pred = (
+        "\n      AND upper(r.rel_type) = ANY(%(expand_types)s)" if expand.rel_types else ""
+    )
+    authority_type_pred = (
+        "\n     AND upper(r.rel_type) = ANY(%(authority_types)s)" if authority_typed else ""
+    )
     hops = []
     for i in range(1, expand.max_hops + 1):
         prev = "seeds" if i == 1 else f"hop_{i - 1}"
@@ -247,8 +263,7 @@ def build_analyze_sql(
     SELECT DISTINCT {next_expr} AS entity_id
     FROM relationships r
     JOIN {prev} p ON {join_cond}
-    WHERE r.namespace = %(namespace)s AND {_EDGE_LIVE}
-      AND upper(r.rel_type) = ANY(%(expand_types)s)
+    WHERE r.namespace = %(namespace)s AND {_EDGE_LIVE}{expand_type_pred}
 )""")
     hood_union = "\n    UNION SELECT entity_id FROM ".join(
         ["seeds"] + [f"hop_{i}" for i in range(1, expand.max_hops + 1)]
@@ -282,8 +297,7 @@ authority AS (
     FROM hood h
     LEFT JOIN relationships r
       ON r.dst_id = h.entity_id
-     AND upper(r.rel_type) = ANY(%(authority_types)s)
-     AND r.namespace = %(namespace)s AND {_EDGE_LIVE}
+     AND r.namespace = %(namespace)s AND {_EDGE_LIVE}{authority_type_pred}
     GROUP BY h.entity_id
 ),
 cand AS (
@@ -305,7 +319,7 @@ SELECT chunk_id, document_id, content, source_path, doc_metadata,
        semantic_score, authority,
        {rrf_expr} AS score
 FROM cand
-ORDER BY score DESC
+ORDER BY score DESC, chunk_id
 LIMIT %(top_k)s
 """
 
@@ -383,13 +397,43 @@ async def graph_analyze(
             "the semantic leg only exists under a SemanticSeed"
         )
 
+    # rel_type vocabulary guard (issue #112): a typed plan whose types match
+    # ZERO live edges silently degrades to seed-only retrieval — the caller
+    # gets plausible-looking chunks with no expansion and no signal. Same
+    # philosophy as the MetadataFilter structured-field guard: reject loudly.
+    # Only enforced when the namespace has live edges at all (an empty or
+    # still-backfilling graph legitimately matches nothing).
+    authority_types = score.rel_types or expand.rel_types
+    requested = [
+        ("expand.rel_types", expand.rel_types),
+        ("score.rel_types", score.rel_types),
+    ]
+    if any(types for _, types in requested):
+        known_rows = await db.fetch_all(
+            "SELECT DISTINCT upper(r.rel_type) AS rel_type FROM relationships r "
+            f"WHERE r.namespace = %(namespace)s AND {_EDGE_LIVE}",
+            {"namespace": namespace},
+        )
+        known = {r["rel_type"] for r in known_rows}
+        for stage, types in requested:
+            if known and types and not set(types) & known:
+                shown = sorted(known)
+                listing = ", ".join(shown[:20]) + (", …" if len(shown) > 20 else "")
+                raise ValueError(
+                    f"{stage} {sorted(types)} match no live edges in namespace "
+                    f"{namespace!r} — known rel_types: [{listing}]. Use "
+                    f"rel_types=None to expand over all edge types."
+                )
+
     params: dict = {
         "namespace": namespace,
         "top_k": top_k,
         "rrf_k": fuse.k if fuse.k is not None else config.rrf_k,
-        "expand_types": list(expand.rel_types),
-        "authority_types": list(score.rel_types or expand.rel_types),
     }
+    if expand.rel_types is not None:
+        params["expand_types"] = list(expand.rel_types)
+    if authority_types is not None:
+        params["authority_types"] = list(authority_types)
 
     if isinstance(seed, SemanticSeed):
         params["qvec"] = await embed(seed.query)
@@ -421,7 +465,13 @@ async def graph_analyze(
     metadata_where, mf_params = build_metadata_where(filter, config)
     params.update(mf_params)
 
-    sql = build_analyze_sql(sql_seed, expand, metadata_where, fuse.legs)
+    sql = build_analyze_sql(
+        sql_seed,
+        expand,
+        metadata_where,
+        fuse.legs,
+        authority_typed=authority_types is not None,
+    )
     rows = await db.fetch_all(sql, params)
     return [
         AnalyzedChunk(

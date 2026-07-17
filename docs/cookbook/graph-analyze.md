@@ -43,7 +43,12 @@ for r in rows:  # list[AnalyzedChunk], best fused score first
     Unbindable names return `[]` rather than raising.
 - **`expand`** — typed, directed expansion, unrolled one indexed join per
   hop (`max_hops` capped at 10). `rel_types` accepts a synonym list,
-  matched case-insensitively. Retracted edges never match.
+  matched case-insensitively, or `None` (the default) to expand over ALL
+  live edge types — the safe choice when you don't know the extraction
+  vocabulary. Retracted edges never match. **Vocabulary guard (issue
+  #112):** if the requested `rel_types` match zero live edges in a
+  namespace that has live edges, the plan raises `ValueError` naming the
+  real edge vocabulary instead of silently returning seed-only chunks.
 - **`score`** — authority weighting over the expanded set. Only
   `in_degree` today: a targeted count of live `rel_types` edges INTO each
   neighborhood entity, driven by the `relationships(dst_id, rel_type)`
@@ -78,9 +83,10 @@ concrete instance of the one-database, one-query thesis.
   Both are stage parameters precisely so a second metric (out-degree,
   weighted degree) can land without touching the call shape — file an
   issue with the use case.
-- **`rel_types` is required on `expand`.** Untyped whole-graph expansion
-  with authority scoring is a different (and much more expensive) question;
-  use `traverse(rel_types=None)` if you just need the walk.
+- **Untyped expansion is broader, not smarter.** `rel_types=None` walks
+  every edge type, so dense graphs pull larger neighborhoods per hop —
+  type the expansion once you know the vocabulary (the vocabulary-guard
+  error message lists it).
 - **Authority counts edges into the *expanded set only*.** That is the
   Tier 3 semantics (rank what the seed neighborhood cites), not global
   PageRank.
