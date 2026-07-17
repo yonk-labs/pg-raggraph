@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## 0.9.6 — 2026-07-17 (provenance-scoped relationship answer-context)
+
+`query()` attaches related entities and 1-hop relationships to every
+result — in every mode, including `naive` — and `answer.generate_answer`
+injects them into the synthesis prompt. The relationship fetch was
+namespace-wide: any edge touching a seed entity qualified, so a generic
+entity shared across documents ("reversal", "dispute") bridged every
+document in the namespace and other documents' actor/date facts reached
+the prompt. On corpora of near-identical cases the model answered with a
+different case's facts entirely (cross-document answer bleed, reported
+downstream as EnterpriseDB/bento#970).
+
+### Fixed
+
+- **Cross-document relationship bleed in the answer context (#113).**
+  Candidate 1-hop edges are now scoped to the retrieved chunks'
+  documents via `relationship_chunks` provenance, filtered before the
+  LIMIT so out-of-scope edges can't consume the 20 slots. Edges with no
+  provenance rows (manually seeded `known_relationships`) stay visible.
+  Regression tests cover bleed-exclusion, unprovenanced retention, and
+  multi-document retrieval scope.
+
 ## 0.9.5 — 2026-07-14 (event-time supersession fix for evolving-knowledge chains)
 
 The same-id supersede path closed a predecessor's `effective_to` at ingest
