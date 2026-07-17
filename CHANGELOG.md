@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.9.8 — 2026-07-17 (rare-token IDF-coverage bonus + lede entity-name hygiene)
+
+On template-near-duplicate corpora, retrieval scoring had no rarity
+signal anywhere in the stack: the query's discriminating tokens (exact
+ids, names, unique amounts) carried no extra weight, so the gold record
+deterministically missed top-k while slots filled with template siblings.
+Separately, spaCy NER span bleed was polluting lede-extracted entity
+names with markdown fragments.
+
 ### Fixed
 
 - **Naive top-k deterministic miss on template-near-duplicate corpora
@@ -31,7 +40,21 @@
   and `smart` inherit through the naive builders. Regression tests cover
   the fleet geometry (gold recovered from a 16-doc name cohort under
   naive / naive_boost / linear fusion), the exact-ID query class from
-  #103, graph-mode execution, and SQL-shape guards.
+  #103, graph-mode execution, and SQL-shape guards. Closes the #103
+  IDF-aware-scoring item; the tokenizer fix and #105 graph seeding cover
+  the rest, so #103 is closed with this release too.
+- **lede entity names polluted by NER span bleed.** en_core_web_sm 3.8.0
+  extends NER spans across line breaks into the next markdown bullet
+  (`"Lisa Wang\n- *"`), dirtying entity names in both deterministic lede
+  paths (resolution, seeding, display). `_clean_entity_name` cuts at the
+  first newline and strips bullet/emphasis punctuation; clean names pass
+  through byte-identical.
+
+### Changed
+
+- Two flaky-by-design tests made deterministic (ef_search assertion
+  isolated from #99 self-scaling; two-stage HNSW EXPLAIN turned into a
+  pure eligibility check) — the full suite now passes 1112/0.
 
 ## 0.9.7 — 2026-07-17 (graph_analyze vocabulary guard + untyped expansion)
 
