@@ -69,18 +69,26 @@ EMBEDDED_CONFIG = dict(
 TOP_K = 5  # < corpus size, so rank actually discriminates
 
 CORPUS = [
-    "Incident INC-0001 root cause: disk pressure on the ingest worker at 02:00 UTC forced a restart.",
-    "The billing service retries failed archive writes three times before paging the oncall engineer.",
-    "Postgres connection pool exhaustion caused the checkout latency spike last Tuesday afternoon.",
-    "Deployment rollback procedure: flip the feature flag, drain traffic, then redeploy the previous tag.",
+    "Incident INC-0001 root cause: disk pressure on the ingest worker at 02:00 UTC "
+    "forced a restart.",
+    "The billing service retries failed archive writes three times before paging "
+    "the oncall engineer.",
+    "Postgres connection pool exhaustion caused the checkout latency spike last "
+    "Tuesday afternoon.",
+    "Deployment rollback procedure: flip the feature flag, drain traffic, then "
+    "redeploy the previous tag.",
     "The search relevance team tuned BM25 weights to improve recall on rare product identifiers.",
-    "Nightly ETL loads the analytics warehouse; a schema drift broke the revenue dashboard on Monday.",
-    "Kubernetes pod eviction under memory pressure restarted the recommendation model server twice.",
+    "Nightly ETL loads the analytics warehouse; a schema drift broke the revenue "
+    "dashboard on Monday.",
+    "Kubernetes pod eviction under memory pressure restarted the recommendation "
+    "model server twice.",
     "Customer support escalation SLA is four hours for priority-one authentication outages.",
     "The caching layer uses valkey with a sixty second TTL for hot product catalog reads.",
-    "A migration lock held by a long transaction blocked the users table alter for twenty minutes.",
+    "A migration lock held by a long transaction blocked the users table alter "
+    "for twenty minutes.",
     "The CDN cache purge webhook fires on every publish to invalidate stale marketing pages.",
-    "Load testing revealed the auth token endpoint saturates CPU at fifteen hundred requests per second.",
+    "Load testing revealed the auth token endpoint saturates CPU at fifteen "
+    "hundred requests per second.",
 ]
 
 QUERIES = [
@@ -188,7 +196,10 @@ def _print_parity_table(matrix: dict) -> None:
         es_ord += e == s
         sb_ord += s == b
         es_t1 += e[:1] == s[:1]
-        print(f"{q[:44]:44s} {o:>6d}/{TOP_K} {str(e == s):>8s} {str(s == b):>8s} {str(e[:1] == s[:1]):>13s}")
+        print(
+            f"{q[:44]:44s} {o:>6d}/{TOP_K} {str(e == s):>8s} {str(s == b):>8s} "
+            f"{str(e[:1] == s[:1]):>13s}"
+        )
     n = TOP_K * len(QUERIES)
     print("-" * 88)
     print(
@@ -211,7 +222,9 @@ def test_service_and_bento_are_exactly_equal(parity_matrix):
     real regression in the bento -> proxy wiring (e.g. a param dropped or
     reordered by the forwarder), not embedding noise."""
     mismatches = {
-        q: (m["service"], m["bento"]) for q, m in parity_matrix.items() if m["service"] != m["bento"]
+        q: (m["service"], m["bento"])
+        for q, m in parity_matrix.items()
+        if m["service"] != m["bento"]
     }
     assert not mismatches, f"service vs bento diverged (wiring regression): {mismatches}"
 
