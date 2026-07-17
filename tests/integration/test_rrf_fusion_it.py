@@ -343,8 +343,14 @@ async def test_hybrid_rrf_matches_rrf_merge_of_legs(seeded_rag):
     q = "PostgreSQL GraphRAG frameworks"
     top_k = rag.config.top_k
 
-    local = await rag.query(q, mode="local")
-    glob = await rag.query(q, mode="global")
+    # fusion="linear" mirrors the production hybrid path: its legs stay
+    # linear-scored even under fusion="rrf" (rank-fusing rank-fused legs
+    # would double-apply the damping — see the hybrid branch in query()).
+    # Before the #114 bonus the linear and rrf leg orderings happened to
+    # coincide on this fixture; the parity contract is against the linear
+    # legs hybrid actually runs.
+    local = await rag.query(q, mode="local", fusion="linear")
+    glob = await rag.query(q, mode="global", fusion="linear")
     # Public results are already score-sorted, so list position == leg rank,
     # exactly what the internal hybrid merge sees.
     local_rows = [{"id": c.chunk_id, "score": c.score} for c in local.chunks]
