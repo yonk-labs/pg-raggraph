@@ -18,7 +18,7 @@ from pg_raggraph.evolution import (
     evolution_where_clauses,
     memory_tier_clause,
 )
-from pg_raggraph.lexical import lexical_score_sql
+from pg_raggraph.lexical import idf_coverage_sql, lexical_score_sql
 from pg_raggraph.models import ChunkResult, EntityResult, QueryResult, RelationshipResult
 
 logger = logging.getLogger("pg_raggraph.retrieval")
@@ -129,6 +129,21 @@ def _rrf_fused_base_expr() -> str:
     dropped. ``vec_rank``/``bm25_rank`` are produced by the ``ranked`` CTE.
     """
     return "%(w_sem)s / (%(rrf_k)s + vec_rank) + %(w_bm25)s / (%(rrf_k)s + bm25_rank)"
+
+
+def _rare_bonus_sql(cfg: PGRGConfig, alias: str) -> str:
+    """Additive IDF-coverage bonus for naive-family score expressions (#114).
+
+    Score-additive (NOT a fourth RRF rank leg) on purpose: rank fusion
+    flattens a decisive df=1 exact-ID match into a one-step rank delta,
+    which is exactly the failure being fixed. ``w_rare == 0`` emits nothing,
+    keeping the SQL byte-identical to the pre-#114 builders. Naive family
+    only — graph modes restrict candidates by traversal and are out of
+    #114's scope.
+    """
+    if cfg.w_rare <= 0:
+        return ""
+    return f" + %(w_rare)s * {idf_coverage_sql(alias)}"
 
 
 def _rrf_merge(local_rows: list, global_rows: list, k: int, top_k: int) -> list:
@@ -246,10 +261,14 @@ def _build_naive_query(
         )
     lex = lexical_score_sql(cfg, "c")
     base = (
-        "%(w_sem)s * (1 - (c.embedding <=> %(embedding)s::vector)) + "
-        f"%(w_bm25)s * {lex} + "
-        "%(w_graph)s * 0"  # naive has no graph leg
-    ) + mf_soft_sql
+        (
+            "%(w_sem)s * (1 - (c.embedding <=> %(embedding)s::vector)) + "
+            f"%(w_bm25)s * {lex} + "
+            "%(w_graph)s * 0"  # naive has no graph leg
+        )
+        + _rare_bonus_sql(cfg, "c")
+        + mf_soft_sql
+    )
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -310,7 +329,7 @@ def _build_naive_query_rrf(
     score-scale nudge that has no meaning once we fuse by rank.
     """
     lex = lexical_score_sql(cfg, "c")
-    rrf_base = _rrf_fused_base_expr()
+    rrf_base = _rrf_fused_base_expr() + _rare_bonus_sql(cfg, "r")
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -407,10 +426,14 @@ def _build_naive_query_twostage(
         )
     lex = lexical_score_sql(cfg, "cand")
     base = (
-        "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
-        f"%(w_bm25)s * {lex} + "
-        "%(w_graph)s * 0"  # naive has no graph leg
-    ) + mf_soft_sql
+        (
+            "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
+            f"%(w_bm25)s * {lex} + "
+            "%(w_graph)s * 0"  # naive has no graph leg
+        )
+        + _rare_bonus_sql(cfg, "cand")
+        + mf_soft_sql
+    )
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -474,7 +497,7 @@ def _build_naive_query_twostage_rrf(
     fusion over the candidate pool, re-joining documents for evolution columns.
     """
     lex = lexical_score_sql(cfg, "cand")
-    rrf_base = _rrf_fused_base_expr()
+    rrf_base = _rrf_fused_base_expr() + _rare_bonus_sql(cfg, "r")
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -571,10 +594,14 @@ def _build_naive_prefilter(
         )
     lex = lexical_score_sql(cfg, "cand")
     base = (
-        "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
-        f"%(w_bm25)s * {lex} + "
-        "%(w_graph)s * 0"
-    ) + mf_soft_sql
+        (
+            "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
+            f"%(w_bm25)s * {lex} + "
+            "%(w_graph)s * 0"
+        )
+        + _rare_bonus_sql(cfg, "cand")
+        + mf_soft_sql
+    )
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -633,7 +660,7 @@ def _build_naive_prefilter_rrf(
     materializes the predicate subset (no vector ORDER BY), then RRF ranks
     over that subset."""
     lex = lexical_score_sql(cfg, "cand")
-    rrf_base = _rrf_fused_base_expr()
+    rrf_base = _rrf_fused_base_expr() + _rare_bonus_sql(cfg, "r")
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -734,10 +761,14 @@ def _build_naive_vector_first(
         )
     lex = lexical_score_sql(cfg, "cand")
     base = (
-        "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
-        f"%(w_bm25)s * {lex} + "
-        "%(w_graph)s * 0"
-    ) + mf_soft_sql
+        (
+            "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
+            f"%(w_bm25)s * {lex} + "
+            "%(w_graph)s * 0"
+        )
+        + _rare_bonus_sql(cfg, "cand")
+        + mf_soft_sql
+    )
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -799,7 +830,7 @@ def _build_naive_vector_first_rrf(
     is unchanged; the namespace/evolution post-filter moves into the scored
     CTE so RRF ranks only post-filtered rows."""
     lex = lexical_score_sql(cfg, "cand")
-    rrf_base = _rrf_fused_base_expr()
+    rrf_base = _rrf_fused_base_expr() + _rare_bonus_sql(cfg, "r")
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -1291,10 +1322,17 @@ async def query(
     q_embedding = (await embedder.embed([question]))[0]
 
     # #1: expand the BM25 term set when enabled (default off → byte-identical).
+    # rare_query feeds the #114 IDF-coverage bonus and must carry the SAME
+    # term set the tsquery searches — a raw-question-only bonus would fight
+    # alias/synonym expansion on lexically-decided rankings.
+    rare_query = question
     if config.retrieval_expansion != "off" or config.retrieval_alias_map:
         from pg_raggraph.summary import expand_query_terms
 
-        tsquery = _to_or_tsquery(question, expand_query_terms(question, config))
+        expansion_terms = expand_query_terms(question, config)
+        tsquery = _to_or_tsquery(question, expansion_terms)
+        if expansion_terms:
+            rare_query = question + " " + " ".join(expansion_terms)
     else:
         tsquery = _to_or_tsquery(question)
 
@@ -1314,6 +1352,10 @@ async def query(
         "w_sem": config.w_sem,
         "w_bm25": config.w_bm25,
         "w_graph": config.w_graph,
+        # Bound unconditionally — only referenced when w_rare > 0 injects
+        # the IDF-coverage bonus into the naive builders (issue #114).
+        "w_rare": config.w_rare,
+        "rare_query": rare_query,
         "rrf_k": config.rrf_k,
         # Bound unconditionally (like rrf_k) — only referenced when
         # lexical_backend == "bm25" swaps the leg expression (issue #96).

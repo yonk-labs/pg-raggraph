@@ -70,6 +70,8 @@ async def _build_params(scale_rag, question, namespace):
         "w_sem": config.w_sem,
         "w_bm25": config.w_bm25,
         "w_graph": config.w_graph,
+        "w_rare": config.w_rare,
+        "rare_query": question,
         **evolution_bind_params(config),
     }
 

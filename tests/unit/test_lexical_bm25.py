@@ -82,8 +82,10 @@ def test_bm25_expression_is_namespace_scoped():
 )
 @pytest.mark.parametrize("fusion", ["linear", "rrf"])
 def test_naive_builders_swap_lexical_backend(builder, fusion):
-    ts_sql, _ = builder(PGRGConfig(), fusion=fusion)
-    bm_sql, _ = builder(PGRGConfig(lexical_backend="bm25"), fusion=fusion)
+    # w_rare=0 isolates the lexical-leg swap — the #114 IDF-coverage bonus
+    # also references lexeme_stats and would mask the backend assertion.
+    ts_sql, _ = builder(PGRGConfig(w_rare=0), fusion=fusion)
+    bm_sql, _ = builder(PGRGConfig(lexical_backend="bm25", w_rare=0), fusion=fusion)
     assert "lexeme_stats" not in ts_sql and "ts_rank(" in ts_sql
     assert "lexeme_stats" in bm_sql and "ts_rank(" not in bm_sql
 

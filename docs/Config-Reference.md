@@ -482,6 +482,15 @@ Cons: too high creates "graph bias" — chunks score high just for being densely
 When to use: 0.3 on multi-doc corpora where reasoning chains matter.
 When NOT to use: above 0.4 — graph signal swamps direct relevance.
 
+### `w_rare` (float, default: `0.01`)
+Env var: `PGRG_W_RARE`
+
+What: weight of the IDF-coverage rare-token bonus in `naive`-family scoring (issue #114): `w_rare × (matched query IDF mass / total query IDF mass)`, computed from the migration-016 `lexeme_stats` regardless of `lexical_backend`. Score-additive on purpose — a decisive exact-ID match must not be re-flattened into a one-step rank delta.
+Pros: rescues exact-ID / rare-name queries on template-near-duplicate corpora, where ts_rank (no IDF) and rank fusion both mute the discriminating token. Near-neutral on common-vocabulary queries (coverage is then roughly uniform).
+Cons: on corpora ingested before migration 016 the stats are empty and the term scores 0 (harmless no-op) until `rag.rebuild_lexical_stats()`.
+When to use: raise toward 0.02–0.05 for ticket/SKU/incident-id lookup corpora.
+When NOT to use: 0 restores the pre-#114 SQL byte-for-byte (kill switch).
+
 ### `fusion` (`"linear" | "rrf"`, default: `rrf`)
 Env var: `PGRG_FUSION`
 

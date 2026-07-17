@@ -45,6 +45,16 @@ _QUERY_LEXEMES_EXPR = (
     "tsvector_to_array(to_tsvector('english', %(query)s) || pgrg_identifier_tsvector(%(query)s))"
 )
 
+# Same normalization, but over the EXPANDED query text (%(rare_query)s: the
+# raw question plus any retrieval_expansion / retrieval_alias_map terms).
+# The #114 coverage bonus must score the same term set the tsquery searches,
+# or it fights the expansion features: an alias-lifted doc would win the
+# lexical leg only to be out-scored by a raw-term-only bonus.
+_RARE_QUERY_LEXEMES_EXPR = (
+    "tsvector_to_array(to_tsvector('english', %(rare_query)s)"
+    " || pgrg_identifier_tsvector(%(rare_query)s))"
+)
+
 
 def bm25_score_sql(alias: str) -> str:
     """Okapi BM25 as a correlated scalar subquery over ``{alias}.search_vector``.
@@ -74,6 +84,42 @@ def bm25_score_sql(alias: str) -> str:
     JOIN lexical_corpus_stats cs
         ON cs.namespace = %(namespace)s
     WHERE lex.lexeme = ANY({_QUERY_LEXEMES_EXPR}))"""
+
+
+def idf_coverage_sql(alias: str) -> str:
+    """IDF-coverage rare-token bonus term (issue #114), in [0, 1].
+
+    The fraction of the query's total IDF mass covered by this chunk's
+    matched lexemes: sum(IDF) over query lexemes present in the chunk,
+    divided by sum(IDF) over all query lexemes known to the namespace.
+    Rare tokens (ticket ids, names, amounts) carry almost all of a query's
+    IDF mass, so the docs sharing them separate decisively from template
+    near-duplicates that merely match many common words — the class where
+    ts_rank (no IDF) and rank-flattened RRF fusion both go blind.
+
+    Self-contained: keyed on ``{alias}.id`` (fetches search_vector itself),
+    so it composes into any naive SELECT block regardless of which columns
+    the enclosing CTE carries. The denominator subquery is uncorrelated —
+    the planner runs it once per statement (InitPlan). Missing stats
+    (pre-016 corpora before rebuild) make both sums empty and the term
+    scores 0 for every row — ordering falls back to the base score.
+    """
+    idf = "ln(1.0 + (GREATEST(cs.chunk_count - ls.df, 0) + 0.5) / (ls.df + 0.5))"
+    return f"""((SELECT COALESCE(sum({idf}), 0.0)
+    FROM chunks ch
+    CROSS JOIN LATERAL unnest(ch.search_vector) lex
+    JOIN lexeme_stats ls
+        ON ls.namespace = %(namespace)s AND ls.lexeme = lex.lexeme
+    JOIN lexical_corpus_stats cs
+        ON cs.namespace = %(namespace)s
+    WHERE ch.id = {alias}.id
+      AND lex.lexeme = ANY({_RARE_QUERY_LEXEMES_EXPR}))
+    / GREATEST((SELECT COALESCE(sum({idf}), 0.0)
+    FROM unnest({_RARE_QUERY_LEXEMES_EXPR}) q(lexeme)
+    JOIN lexeme_stats ls
+        ON ls.namespace = %(namespace)s AND ls.lexeme = q.lexeme
+    JOIN lexical_corpus_stats cs
+        ON cs.namespace = %(namespace)s), 1e-9))"""
 
 
 def lexical_score_sql(cfg: PGRGConfig, alias: str) -> str:

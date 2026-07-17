@@ -560,6 +560,20 @@ class PGRGConfig(BaseSettings):
     w_bm25: float = 0.20
     w_graph: float = 0.20
 
+    # IDF-coverage rare-token bonus for naive-family scoring (issue #114):
+    # additive w_rare * (matched query IDF mass / total query IDF mass),
+    # computed from the migration-016 lexeme_stats regardless of
+    # lexical_backend. Rescues exact-ID / rare-name queries on
+    # template-near-duplicate corpora where ts_rank (no IDF) and
+    # rank-flattened RRF both mute the discriminating token. Score-additive
+    # by design — a decisive df=1 match must not be re-flattened to a rank.
+    # 0 disables and restores byte-identical pre-#114 SQL. Calibrated
+    # against RRF term magnitudes (w/(rrf_k+rank) ≈ 0.0005–0.008): full
+    # coverage (=1.0) outweighs any vector-rank deficit, near-uniform
+    # coverage on common-token queries shifts ranks by at most a step or
+    # two. Pre-016 corpora without lexical stats score 0 (no-op).
+    w_rare: float = 0.01
+
     # Fusion strategy for hybrid retrieval (issue #57; default flipped to
     # "rrf" in #96). "rrf" fuses by per-leg rank (Σ wᵢ / (rrf_k + rankᵢ)),
     # which is scale-free across the cosine / lexical legs — under "linear"

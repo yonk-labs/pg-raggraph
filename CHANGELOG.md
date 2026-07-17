@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### Fixed
+
+- **Naive top-k deterministic miss on template-near-duplicate corpora
+  (#114).** On corpora where many documents share a near-identical template
+  (dispute records, tickets, SKUs), a query carrying rare discriminating
+  tokens (an exact id, a customer name, a unique amount) deterministically
+  excluded the gold record from top-k: ts_rank has no IDF, so siblings
+  matching many common template words outranked the docs matching the
+  query's rare tokens (bench forensics: the only docs containing the
+  query's unique ticket id sat at lexical rank 51/54), and RRF rank
+  fusion flattened what little signal survived while vector similarity
+  among near-duplicates is uniform noise. Fix: an IDF-coverage bonus
+  (`w_rare`, default 0.01) added to every naive-family score expression —
+  `w_rare × (matched query IDF mass / total query IDF mass)`, computed
+  from the migration-016 `lexeme_stats` under any `lexical_backend`. The
+  bonus scores the same term set the tsquery searches (including
+  `retrieval_expansion` / alias terms), is score-additive by design
+  (rank-flattening a decisive df=1 match is the failure being fixed),
+  leaves graph-mode SQL untouched, degrades to a no-op on pre-016
+  corpora without stats, and `w_rare=0` restores the prior SQL
+  byte-for-byte. `naive_boost` and `smart` inherit through the naive
+  builders. Regression tests cover the fleet geometry (gold recovered
+  from a 16-doc name cohort under naive / naive_boost / linear fusion),
+  the exact-ID query class from #103, and SQL-shape guards.
+
 ## 0.9.7 — 2026-07-17 (graph_analyze vocabulary guard + untyped expansion)
 
 A `graph_analyze` plan whose typed expansion named edge types that don't

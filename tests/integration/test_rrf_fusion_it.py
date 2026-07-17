@@ -232,6 +232,7 @@ async def test_naive_rrf_score_matches_formula(seeded_rag):
     rag = seeded_rag
     cfg = rag.config
     cfg.two_stage_retrieval = False  # exercise the single-pass RRF builder
+    cfg.w_rare = 0  # isolate the RRF rank formula from the #114 coverage bonus
     q = "PostgreSQL pgvector database"
     embedder = get_embedding_provider(cfg)
     q_emb = (await embedder.embed([q]))[0]
