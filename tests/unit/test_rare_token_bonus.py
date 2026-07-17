@@ -28,7 +28,9 @@ NAIVE_BUILDERS = [
 
 
 def test_w_rare_default_on():
-    assert PGRGConfig().w_rare == 0.01
+    # 0.002 calibrated on the MuSiQue/MHR retrieval A/B (2026-07-17):
+    # neutral on multi-hop semantic QA, still decisive on the #114 class.
+    assert PGRGConfig().w_rare == 0.002
 
 
 @pytest.mark.parametrize("builder", NAIVE_BUILDERS)

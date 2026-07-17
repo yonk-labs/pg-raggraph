@@ -14,7 +14,11 @@
   query's unique ticket id sat at lexical rank 51/54), and RRF rank
   fusion flattened what little signal survived while vector similarity
   among near-duplicates is uniform noise. Fix: an IDF-coverage bonus
-  (`w_rare`, default 0.01) added to every naive-family score expression —
+  (`w_rare`, default 0.002 — calibrated on a MuSiQue/MHR 100-query
+  retrieval A/B: neutral on multi-hop semantic QA, still decisive on the
+  near-duplicate class; at 0.01 hop-1 anchor docs crowded lexically-
+  disjoint hop-2 answer docs out of top-k, MuSiQue span_recall −9pp)
+  added to every naive-family score expression —
   `w_rare × (matched query IDF mass / total query IDF mass)`, computed
   from the migration-016 `lexeme_stats` under any `lexical_backend`. The
   bonus scores the same term set the tsquery searches (including

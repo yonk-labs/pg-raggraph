@@ -482,13 +482,13 @@ Cons: too high creates "graph bias" — chunks score high just for being densely
 When to use: 0.3 on multi-doc corpora where reasoning chains matter.
 When NOT to use: above 0.4 — graph signal swamps direct relevance.
 
-### `w_rare` (float, default: `0.01`)
+### `w_rare` (float, default: `0.002`)
 Env var: `PGRG_W_RARE`
 
 What: weight of the IDF-coverage rare-token bonus in retrieval scoring (issue #114): `w_rare × (matched query IDF mass / total query IDF mass)`, computed from the migration-016 `lexeme_stats` regardless of `lexical_backend`. Applies to the `naive` family and the `local`/`global`/`hybrid` graph builders (`naive_boost`/`smart` inherit). Score-additive on purpose — a decisive exact-ID match must not be re-flattened into a one-step rank delta.
-Pros: rescues exact-ID / rare-name queries on template-near-duplicate corpora, where ts_rank (no IDF) and rank fusion both mute the discriminating token. Near-neutral on common-vocabulary queries (coverage is then roughly uniform).
-Cons: on corpora ingested before migration 016 the stats are empty and the term scores 0 (harmless no-op) until `rag.rebuild_lexical_stats()`.
-When to use: raise toward 0.02–0.05 for ticket/SKU/incident-id lookup corpora.
+Pros: rescues exact-ID / rare-name queries on template-near-duplicate corpora, where ts_rank (no IDF) and rank fusion both mute the discriminating token. The 0.002 default is calibrated (MuSiQue/MHR retrieval A/B, 2026-07-17) to beat the arbitrary vector-rank noise among near-duplicates while staying neutral on multi-hop semantic QA.
+Cons: raising it too far lets hop-1 anchor docs crowd lexically-disjoint hop-2 answer docs out of top-k (at 0.01, MuSiQue span_recall dropped 9pp). On corpora ingested before migration 016 the stats are empty and the term scores 0 (harmless no-op) until `rag.rebuild_lexical_stats()`.
+When to use: raise toward 0.01 for exact-ID lookup corpora (tickets, SKUs, incident ids) where queries name the record they want.
 When NOT to use: 0 restores the pre-#114 SQL byte-for-byte (kill switch).
 
 ### `fusion` (`"linear" | "rrf"`, default: `rrf`)

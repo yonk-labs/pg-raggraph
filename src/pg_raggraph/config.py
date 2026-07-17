@@ -568,11 +568,16 @@ class PGRGConfig(BaseSettings):
     # rank-flattened RRF both mute the discriminating token. Score-additive
     # by design — a decisive df=1 match must not be re-flattened to a rank.
     # 0 disables and restores byte-identical pre-#114 SQL. Calibrated
-    # against RRF term magnitudes (w/(rrf_k+rank) ≈ 0.0005–0.008): full
-    # coverage (=1.0) outweighs any vector-rank deficit, near-uniform
-    # coverage on common-token queries shifts ranks by at most a step or
-    # two. Pre-016 corpora without lexical stats score 0 (no-op).
-    w_rare: float = 0.01
+    # empirically (2026-07-17, MuSiQue/MHR 100q retrieval A/B): the bonus
+    # must beat the arbitrary vector-rank noise among near-duplicate
+    # templates (the #114 class) WITHOUT overriding real semantic
+    # separation on multi-hop corpora — at 0.01 hop-1 anchor docs crowded
+    # lexically-disjoint hop-2 answer docs out of top-k (MuSiQue
+    # span_recall −9pp); at 0.002 MuSiQue is neutral (span_recall
+    # unchanged, hit@1 +1pp) and the #114 recovery holds. Raise toward
+    # 0.01+ only for exact-ID lookup corpora. Pre-016 corpora without
+    # lexical stats score 0 (no-op).
+    w_rare: float = 0.002
 
     # Fusion strategy for hybrid retrieval (issue #57; default flipped to
     # "rrf" in #96). "rrf" fuses by per-leg rank (Σ wᵢ / (rrf_k + rankᵢ)),
