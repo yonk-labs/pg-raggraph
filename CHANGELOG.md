@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.9.7 — 2026-07-17 (graph_analyze vocabulary guard + untyped expansion)
+
+A `graph_analyze` plan whose typed expansion named edge types that don't
+exist in the store expanded over nothing and silently returned seed-linked
+chunks only. Downstream this read as a traversal that systematically stops
+one hop short — every multi-hop answer naming the intermediate entity
+instead of the target (reported from bench forensics as #112).
+
 ### Fixed
 
 - **`graph_analyze` silent zero-match expansion (#112).** A typed plan
