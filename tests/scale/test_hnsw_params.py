@@ -18,10 +18,14 @@ TEST_DSN = os.environ.get(
 
 @pytest.mark.asyncio
 async def test_hnsw_ef_search_applied_to_acquired_connections():
+    # two_stage_retrieval=False isolates the configured value from the #99
+    # self-scaling floor (max(configured, retrieval_candidate_k)) — with the
+    # default two-stage ON, 80 would be raised to candidate_k (200).
     db = Database(
         PGRGConfig(
             dsn=TEST_DSN,
             hnsw_ef_search=80,
+            two_stage_retrieval=False,
             pool_min=1,
             pool_max=1,
         )
@@ -30,6 +34,29 @@ async def test_hnsw_ef_search_applied_to_acquired_connections():
     try:
         row = await db.fetch_one("SHOW hnsw.ef_search")
         assert row["hnsw.ef_search"] == "80"
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_hnsw_ef_search_self_scales_to_candidate_k():
+    """#99: with two-stage retrieval ON, ef_search is floored at
+    retrieval_candidate_k so the index never returns fewer candidates than
+    the re-scorer asks for."""
+    db = Database(
+        PGRGConfig(
+            dsn=TEST_DSN,
+            hnsw_ef_search=80,
+            two_stage_retrieval=True,
+            retrieval_candidate_k=200,
+            pool_min=1,
+            pool_max=1,
+        )
+    )
+    await db.connect()
+    try:
+        row = await db.fetch_one("SHOW hnsw.ef_search")
+        assert row["hnsw.ef_search"] == "200"
     finally:
         await db.close()
 
