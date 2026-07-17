@@ -1145,7 +1145,12 @@ WITH seed_entities AS MATERIALIZED (
     FROM entity_chunks
     WHERE chunk_id = ANY(%(chunk_ids)s)
 ),
-rel_ids AS MATERIALIZED (
+seed_docs AS MATERIALIZED (
+    SELECT DISTINCT document_id
+    FROM chunks
+    WHERE id = ANY(%(chunk_ids)s)
+),
+candidate_rels AS MATERIALIZED (
     (
         SELECT r.id
         FROM relationships r
@@ -1156,6 +1161,30 @@ rel_ids AS MATERIALIZED (
         SELECT r.id
         FROM relationships r
         JOIN seed_entities s ON s.entity_id = r.dst_id
+    )
+),
+-- Provenance scope (#113): a 1-hop edge enters the answer context only if it
+-- was extracted from one of the *retrieved* documents (relationship_chunks ->
+-- chunks -> documents), or carries no provenance rows at all (manually seeded
+-- known_relationships). Without this, a generic entity shared across documents
+-- ("reversal", "dispute") bridges every document in the namespace and injects
+-- other documents' actor/date facts into the synthesis prompt -- cross-document
+-- answer bleed. Filter BEFORE the LIMIT so out-of-scope edges can't eat the
+-- 20 slots.
+rel_ids AS MATERIALIZED (
+    SELECT cr.id
+    FROM candidate_rels cr
+    WHERE EXISTS (
+        SELECT 1
+        FROM relationship_chunks rc
+        JOIN chunks c ON c.id = rc.chunk_id
+        JOIN seed_docs sd ON sd.document_id = c.document_id
+        WHERE rc.relationship_id = cr.id
+    )
+    OR NOT EXISTS (
+        SELECT 1
+        FROM relationship_chunks rc
+        WHERE rc.relationship_id = cr.id
     )
     LIMIT 20
 )
