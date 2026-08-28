@@ -50,7 +50,16 @@ def _require_bento_stack():
 def proxy_request(method: str, path: str, body: dict | None = None, timeout: int = 30) -> dict:
     """One HTTP call to the proxy's internal :8000 via ``docker exec curl``
     -- the only reachable path, since the container publishes no host port."""
-    cmd = ["docker", "exec", PROXY_CONTAINER, "curl", "-s", "-X", method, f"http://localhost:8000{path}"]
+    cmd = [
+        "docker",
+        "exec",
+        PROXY_CONTAINER,
+        "curl",
+        "-s",
+        "-X",
+        method,
+        f"http://localhost:8000{path}",
+    ]
     if body is not None:
         cmd += ["-H", "Content-Type: application/json", "-d", json.dumps(body)]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)

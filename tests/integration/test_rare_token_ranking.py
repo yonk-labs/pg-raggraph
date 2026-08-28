@@ -20,13 +20,18 @@ pytestmark = pytest.mark.integration
 TEST_DSN = "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
 NS = "test_rare_token_rank"
 
-_VENDORS = ["Northwind Supply", "Acme Retail", "Globex Market", "Initech Store",
-            "Umbrella Mart"]
-_NAMES = ["Maria Ashby", "Deshawn Boudreaux", "Ines Iyer", "Silas Grady",
-          "Lucia Whitfield"]
-_OFFICERS = ["Officer Dana Kowalski", "Officer Miguel Serrano", "Officer Priya Nair",
-             "Officer Tom Okafor", "Officer Lena Vogel", "Officer Sam Whitaker",
-             "Officer Aisha Diallo", "Officer Chen Wei"]
+_VENDORS = ["Northwind Supply", "Acme Retail", "Globex Market", "Initech Store", "Umbrella Mart"]
+_NAMES = ["Maria Ashby", "Deshawn Boudreaux", "Ines Iyer", "Silas Grady", "Lucia Whitfield"]
+_OFFICERS = [
+    "Officer Dana Kowalski",
+    "Officer Miguel Serrano",
+    "Officer Priya Nair",
+    "Officer Tom Okafor",
+    "Officer Lena Vogel",
+    "Officer Sam Whitaker",
+    "Officer Aisha Diallo",
+    "Officer Chen Wei",
+]
 
 _N = 80
 _GOLD_IDX = 3  # Silas Grady / Initech Store / $103.00
@@ -51,16 +56,18 @@ def _make_corpus():
         )
         records.append({"text": content, "source_id": f"dsp-{i}"})
     gold_dsp = f"DSP-{1000 + _GOLD_IDX}"
-    for j, content in enumerate([
-        f"Ticket TCKT-1065: escalation opened for dispute {gold_dsp}. "
-        f"Routed to the disputes queue for officer review.",
-        f"Ticket TCKT-1065 audit log: status changed OPEN -> IN_REVIEW. "
-        f"Linked case {gold_dsp}.",
-        f"Ticket TCKT-1065 SLA record: response due within 48 hours of filing. "
-        f"Case reference {gold_dsp}.",
-        f"Ticket TCKT-1065 communications log: cardholder notified of "
-        f"provisional credit. See {gold_dsp}.",
-    ]):
+    for j, content in enumerate(
+        [
+            f"Ticket TCKT-1065: escalation opened for dispute {gold_dsp}. "
+            f"Routed to the disputes queue for officer review.",
+            f"Ticket TCKT-1065 audit log: status changed OPEN -> IN_REVIEW. "
+            f"Linked case {gold_dsp}.",
+            f"Ticket TCKT-1065 SLA record: response due within 48 hours of filing. "
+            f"Case reference {gold_dsp}.",
+            f"Ticket TCKT-1065 communications log: cardholder notified of "
+            f"provisional credit. See {gold_dsp}.",
+        ]
+    ):
         records.append({"text": content, "source_id": f"dsp-ref-{j}"})
     return records
 
@@ -100,9 +107,7 @@ async def test_naive_boost_recovers_gold_from_template_cohort(seeded_rag):
 
 @pytest.mark.asyncio
 async def test_linear_fusion_also_recovers_gold(seeded_rag):
-    result = await seeded_rag.query(
-        QUERY, mode="naive", namespace=NS, top_k=12, fusion="linear"
-    )
+    result = await seeded_rag.query(QUERY, mode="naive", namespace=NS, top_k=12, fusion="linear")
     srcs = _sources(result)
     assert GOLD in srcs, f"gold {GOLD} missing under fusion=linear (#114): {srcs}"
 
@@ -125,7 +130,9 @@ async def test_exact_id_query_surfaces_id_docs(seeded_rag):
     51/54 under ts_rank."""
     result = await seeded_rag.query(
         "What is the current status of ticket TCKT-1065?",
-        mode="naive", namespace=NS, top_k=12,
+        mode="naive",
+        namespace=NS,
+        top_k=12,
     )
     srcs = _sources(result)
     ref_hits = sum(1 for s in srcs if s.startswith("dsp-ref-"))
