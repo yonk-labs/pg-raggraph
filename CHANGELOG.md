@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Fixed
+
+- **Relationship direction inconsistent with its own description (#110).**
+  No extraction prompt ever defined what direction means — the LLM
+  oriented `(src, dst)` arbitrarily, agreeing with the edge's own
+  free-text description only ~half the time (passive-voice text is the
+  measured inversion trigger). All four prompts now carry the orientation
+  contract: `"source REL_TYPE target" must read as a true sentence`, with
+  the passive inversion called out. Extraction cache version bumped
+  `extract_v1` → `extract_v2` — the key carries the prompt name, not its
+  text, so without the bump already-cached chunks would keep their
+  old-direction extractions.
+
 ## 0.9.8 — 2026-07-17 (rare-token IDF-coverage bonus + lede entity-name hygiene)
 
 On template-near-duplicate corpora, retrieval scoring had no rarity
