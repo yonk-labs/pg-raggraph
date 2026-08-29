@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.9.9 — 2026-08-29 (graph_analyze seed anchoring + direction contract + source_type + expansion default off)
+
 ### Changed
 
 - **`query_expansion` default `moderate` → `off` (#89).** A 3-tier ×

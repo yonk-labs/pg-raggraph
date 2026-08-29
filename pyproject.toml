@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pg-raggraph"
-version = "0.9.8"
+version = "0.9.9"
 description = "PostgreSQL-native GraphRAG: vector search, BM25, and knowledge-graph traversal in a single Postgres database."
 readme = "README.md"
 license = "MIT"
@@ -57,8 +57,9 @@ chunkshop = ["chunkshop>=0.9.1,<1.1"]
 # Deterministic, LLM-free entity + co-occurrence-edge extraction.
 # Requires the spaCy model too: python -m spacy download en_core_web_sm
 # See docs/superpowers/specs/2026-05-18-lede-spacy-extraction-design.md
-# The [synonyms] extra pulls nltk/WordNet so the default query_expansion="moderate"
-# tier does real synonym expansion instead of degrading to raw seeds.
+# The [synonyms] extra pulls nltk/WordNet so the opt-in query_expansion="moderate"
+# tier does real synonym expansion instead of degrading to raw seeds
+# (default is "off" since 0.9.9 — see benchmarks/query-expansion-sweep-2026-08.md).
 # Sibling deps capped like chunkshop (AAT-005) — untested releases resolve
 # straight into user installs otherwise.
 lede_spacy = ["lede>=0.4.5,<0.5", "lede-spacy[synonyms]>=0.4.5,<0.5", "spacy>=3.7"]
