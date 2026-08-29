@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- **`documents.source_type` origin label (#38).** Migration 019 adds a
+  nullable `source_type VARCHAR(64)` on documents (partial index on
+  `(namespace, source_type)`). Stamp it at ingest with
+  `ingest_records(..., source_type="crm_note")` — a per-record
+  `"source_type"` key overrides the call-level value — and it surfaces on
+  `ChunkResult.source_type` from every retrieval strategy, so multi-source
+  responses are identifiable (citation chips). Re-ingest without a stamp
+  keeps the stored value (COALESCE, same semantics as `version_label`).
+
 ## 0.9.8 — 2026-07-17 (rare-token IDF-coverage bonus + lede entity-name hygiene)
 
 On template-near-duplicate corpora, retrieval scoring had no rarity

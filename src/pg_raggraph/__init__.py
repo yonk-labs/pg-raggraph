@@ -699,6 +699,7 @@ class GraphRAG:
         batch_size: int = 64,
         cross_file_code_graph: bool | None = None,
         extraction_prompt: str | None = None,
+        source_type: str | None = None,
     ):
         """Ingest documents from in-memory records — no disk roundtrip.
 
@@ -745,6 +746,12 @@ class GraphRAG:
                   "description": "...", "properties": {...}}``. ``src``
                   and ``dst`` are required and must match either a
                   caller-supplied or LLM-extracted entity name.
+                - ``source_type`` (str, optional): per-document origin label
+                  (e.g. ``"ticket"``, ``"crm_note"``) surfaced on
+                  ``ChunkResult.source_type`` at query time (issue #38).
+                  Overrides the call-level ``source_type`` kwarg, which
+                  stamps every record in the batch that has no per-record
+                  value.
                 - ``skip_llm`` (bool, optional, default False): skip LLM
                   extraction for this document. Useful when the caller's
                   known_entities/known_relationships already cover what
@@ -991,6 +998,9 @@ class GraphRAG:
                         rec_entities = rec.get("entities")
                         rec_rels = rec.get("relationships")
                         rec_skip_llm = bool(rec.get("skip_llm", False))
+                        # issue #38: call-level source_type stamps the batch;
+                        # a per-record "source_type" key overrides it.
+                        rec_source_type = rec.get("source_type", source_type)
                         rec_defer_extraction = bool(rec.get("defer_extraction", defer_extraction))
                         rec_defer_lexical_stats = bool(
                             rec.get("defer_lexical_stats", defer_lexical_stats)
@@ -1061,6 +1071,7 @@ class GraphRAG:
                             corpus_code_graph=corpus_code_graph,
                             corpus_run_id=corpus_run_id,
                             extraction_prompt=extraction_prompt,
+                            source_type=rec_source_type,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -1210,6 +1221,7 @@ class GraphRAG:
         corpus_code_graph=None,
         corpus_run_id=None,
         extraction_prompt: str | None = None,
+        source_type: str | None = None,
     ):
         """Ingest a single document from in-memory content with all DB
         writes in a single transaction.
@@ -1667,8 +1679,8 @@ class GraphRAG:
                 "INSERT INTO documents "
                 "(namespace, content_hash, source_path, metadata, "
                 " effective_from, effective_to, retracted, version_label, "
-                " graph_status, graph_error) "
-                "VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s) "
+                " source_type, graph_status, graph_error) "
+                "VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s) "
                 "ON CONFLICT (namespace, content_hash) DO UPDATE "
                 "SET source_path = EXCLUDED.source_path, "
                 "    metadata = documents.metadata || EXCLUDED.metadata, "
@@ -1680,6 +1692,8 @@ class GraphRAG:
                 "THEN EXCLUDED.retracted ELSE documents.retracted END, "
                 "    version_label = COALESCE("
                 "EXCLUDED.version_label, documents.version_label), "
+                "    source_type = COALESCE("
+                "EXCLUDED.source_type, documents.source_type), "
                 "    graph_error = EXCLUDED.graph_error "
                 "RETURNING id",
                 (
@@ -1691,6 +1705,7 @@ class GraphRAG:
                     eff_to,
                     retracted_value,
                     version_label,
+                    source_type,
                     graph_status_value,
                     extraction_error[:2000] if extraction_error else None,
                     retracted_explicit,
