@@ -1,0 +1,3203 @@
+{
+  "arm": "direction",
+  "model": "gpt-5-nano",
+  "docs": [
+    {
+      "doc_id": "reg-0",
+      "gold": [
+        {
+          "agent": "Elmsworth Materials",
+          "patient": "Ostrella Pharma",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Yarrowgate Analytics",
+          "patient": "Peltway Capital",
+          "family": "OWNS",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nOstrella Pharma was taken over by Elmsworth Materials last quarter. A controlling interest in Peltway Capital is held by Yarrowgate Analytics."
+    },
+    {
+      "doc_id": "reg-1",
+      "gold": [
+        {
+          "agent": "Priya Ferreira",
+          "patient": "Elmsworth Logistics",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Ruben Havel",
+          "patient": "Tovrik Energy",
+          "family": "FOUNDED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nElmsworth Logistics was established by Priya Ferreira as an independent venture. Tovrik Energy was established by Ruben Havel as an independent venture."
+    },
+    {
+      "doc_id": "reg-2",
+      "gold": [
+        {
+          "agent": "Sundrell Robotics",
+          "patient": "Caldrix Group",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Elmsworth Rail",
+          "patient": "Kestwick Marine",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Sundrell Marine",
+          "patient": "Dunmere Systems",
+          "family": "OWNS",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nCaldrix Group was taken over by Sundrell Robotics last quarter. Kestwick Marine was taken over by Elmsworth Rail last quarter. A controlling interest in Dunmere Systems is held by Sundrell Marine."
+    },
+    {
+      "doc_id": "reg-3",
+      "gold": [
+        {
+          "agent": "Norvane Analytics",
+          "patient": "Halloway Analytics",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Zephyrine Foods",
+          "patient": "Ironcrest Capital",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Quillon Partners",
+          "patient": "Marchbanks Rail",
+          "family": "PARENT_OF",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nHalloway Analytics operates as a division of Norvane Analytics. Ironcrest Capital is a wholly-owned subsidiary of Zephyrine Foods. Quillon Partners is the parent company of Marchbanks Rail."
+    },
+    {
+      "doc_id": "reg-4",
+      "gold": [
+        {
+          "agent": "Elsa Okonkwo",
+          "patient": "Ostrella Packaging",
+          "family": "FOUNDED",
+          "voice": "active"
+        },
+        {
+          "agent": "Ruben Nakagawa",
+          "patient": "Quillon Aviation",
+          "family": "FOUNDED",
+          "voice": "active"
+        },
+        {
+          "agent": "Ravelin Textiles",
+          "patient": "Peltway Materials",
+          "family": "ACQUIRED",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nElsa Okonkwo founded Ostrella Packaging to enter the regional market. Ruben Nakagawa founded Quillon Aviation to enter the regional market. Ravelin Textiles acquired Peltway Materials in an all-cash deal."
+    },
+    {
+      "doc_id": "reg-5",
+      "gold": [
+        {
+          "agent": "Elmsworth Textiles",
+          "patient": "Bramwick Rail",
+          "family": "PARENT_OF",
+          "voice": "active"
+        },
+        {
+          "agent": "Veltrax Materials",
+          "patient": "Bramwick Energy",
+          "family": "PARENT_OF",
+          "voice": "active"
+        },
+        {
+          "agent": "Sundrell Analytics",
+          "patient": "Veltrax Group",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nElmsworth Textiles operates Bramwick Rail as one of its divisions. Veltrax Materials operates Bramwick Energy as one of its divisions. Veltrax Group is a wholly-owned subsidiary of Sundrell Analytics."
+    },
+    {
+      "doc_id": "reg-6",
+      "gold": [
+        {
+          "agent": "Ironcrest Foods",
+          "patient": "Ironcrest Marine",
+          "family": "OWNS",
+          "voice": "active"
+        },
+        {
+          "agent": "Elmsworth Packaging",
+          "patient": "Elmsworth Aviation",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Elmsworth Capital",
+          "patient": "Marchbanks Materials",
+          "family": "OWNS",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nIroncrest Foods owns a controlling interest in Ironcrest Marine. Elmsworth Packaging completed its takeover of Elmsworth Aviation last quarter. Elmsworth Capital holds a majority stake in Marchbanks Materials."
+    },
+    {
+      "doc_id": "reg-7",
+      "gold": [
+        {
+          "agent": "Quillon Media",
+          "patient": "Norvane Pharma",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Zephyrine Pharma",
+          "patient": "Kestwick Industries",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Quillon Packaging",
+          "patient": "Elmsworth Partners",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Mira Sorenson",
+          "patient": "Lumetta Logistics",
+          "family": "FOUNDED",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nNorvane Pharma was taken over by Quillon Media last quarter. Kestwick Industries operates as a division of Zephyrine Pharma. Elmsworth Partners was taken over by Quillon Packaging last quarter. Mira Sorenson established Lumetta Logistics as an independent venture."
+    },
+    {
+      "doc_id": "reg-8",
+      "gold": [
+        {
+          "agent": "Kestwick Materials",
+          "patient": "Tovrik Robotics",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Lumetta Industries",
+          "patient": "Norvane Materials",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Salome Duval",
+          "patient": "Halloway Textiles",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Elmsworth Industries",
+          "patient": "Ostrella Rail",
+          "family": "OWNS",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nTovrik Robotics was taken over by Kestwick Materials last quarter. Norvane Materials is majority-owned by Lumetta Industries. Halloway Textiles was established by Salome Duval as an independent venture. Elmsworth Industries holds a majority stake in Ostrella Rail."
+    },
+    {
+      "doc_id": "reg-9",
+      "gold": [
+        {
+          "agent": "Halloway Group",
+          "patient": "Yarrowgate Partners",
+          "family": "PARENT_OF",
+          "voice": "active"
+        },
+        {
+          "agent": "Peltway Media",
+          "patient": "Bramwick Logistics",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Priya Okonkwo",
+          "patient": "Zephyrine Textiles",
+          "family": "FOUNDED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nHalloway Group is the parent company of Yarrowgate Partners. A controlling interest in Bramwick Logistics is held by Peltway Media. Zephyrine Textiles was established by Priya Okonkwo as an independent venture."
+    },
+    {
+      "doc_id": "reg-10",
+      "gold": [
+        {
+          "agent": "Quillon Systems",
+          "patient": "Tovrik Foods",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Yarrowgate Capital",
+          "patient": "Marchbanks Aviation",
+          "family": "OWNS",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nTovrik Foods was taken over by Quillon Systems last quarter. A controlling interest in Marchbanks Aviation is held by Yarrowgate Capital."
+    },
+    {
+      "doc_id": "reg-11",
+      "gold": [
+        {
+          "agent": "Tobias Havel",
+          "patient": "Bramwick Media",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Ironcrest Pharma",
+          "patient": "Halloway Media",
+          "family": "PARENT_OF",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nBramwick Media was established by Tobias Havel as an independent venture. Ironcrest Pharma operates Halloway Media as one of its divisions."
+    },
+    {
+      "doc_id": "reg-12",
+      "gold": [
+        {
+          "agent": "Priya Abernathy",
+          "patient": "Ostrella Energy",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Lumetta Systems",
+          "patient": "Norvane Logistics",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Bramwick Marine",
+          "patient": "Sundrell Industries",
+          "family": "PARENT_OF",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nOstrella Energy was established by Priya Abernathy as an independent venture. A controlling interest in Norvane Logistics is held by Lumetta Systems. Bramwick Marine operates Sundrell Industries as one of its divisions."
+    },
+    {
+      "doc_id": "reg-13",
+      "gold": [
+        {
+          "agent": "Norvane Textiles",
+          "patient": "Halloway Logistics",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Caldrix Robotics",
+          "patient": "Caldrix Foods",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Caldrix Partners",
+          "patient": "Elmsworth Energy",
+          "family": "PARENT_OF",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nHalloway Logistics is majority-owned by Norvane Textiles. Caldrix Foods is majority-owned by Caldrix Robotics. Caldrix Partners is the parent company of Elmsworth Energy."
+    },
+    {
+      "doc_id": "reg-14",
+      "gold": [
+        {
+          "agent": "Halloway Aviation",
+          "patient": "Veltrax Robotics",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Bramwick Systems",
+          "patient": "Zephyrine Systems",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Zephyrine Materials",
+          "patient": "Kestwick Capital",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nVeltrax Robotics is a wholly-owned subsidiary of Halloway Aviation. Zephyrine Systems operates as a division of Bramwick Systems. Kestwick Capital operates as a division of Zephyrine Materials."
+    },
+    {
+      "doc_id": "reg-15",
+      "gold": [
+        {
+          "agent": "Bramwick Capital",
+          "patient": "Peltway Group",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Ostrella Systems",
+          "patient": "Yarrowgate Pharma",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Caldrix Industries",
+          "patient": "Halloway Robotics",
+          "family": "OWNS",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nPeltway Group is majority-owned by Bramwick Capital. Yarrowgate Pharma is majority-owned by Ostrella Systems. Caldrix Industries holds a majority stake in Halloway Robotics."
+    },
+    {
+      "doc_id": "reg-16",
+      "gold": [
+        {
+          "agent": "Tovrik Systems",
+          "patient": "Tovrik Industries",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Bramwick Pharma",
+          "patient": "Fenmore Logistics",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Marchbanks Partners",
+          "patient": "Norvane Rail",
+          "family": "OWNS",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nTovrik Systems acquired Tovrik Industries in an all-cash deal. Bramwick Pharma completed its takeover of Fenmore Logistics last quarter. Marchbanks Partners owns a controlling interest in Norvane Rail."
+    },
+    {
+      "doc_id": "reg-17",
+      "gold": [
+        {
+          "agent": "Ruben Duval",
+          "patient": "Marchbanks Textiles",
+          "family": "FOUNDED",
+          "voice": "active"
+        },
+        {
+          "agent": "Ravelin Energy",
+          "patient": "Tovrik Textiles",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Halloway Mining",
+          "patient": "Peltway Foods",
+          "family": "OWNS",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nRuben Duval founded Marchbanks Textiles to enter the regional market. Tovrik Textiles was acquired by Ravelin Energy in an all-cash deal. A controlling interest in Peltway Foods is held by Halloway Mining."
+    },
+    {
+      "doc_id": "reg-18",
+      "gold": [
+        {
+          "agent": "Peltway Systems",
+          "patient": "Ostrella Aviation",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Ostrella Materials",
+          "patient": "Zephyrine Mining",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Dunmere Analytics",
+          "patient": "Peltway Robotics",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Priya Nakagawa",
+          "patient": "Fenmore Industries",
+          "family": "FOUNDED",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nPeltway Systems acquired Ostrella Aviation in an all-cash deal. Zephyrine Mining is majority-owned by Ostrella Materials. A controlling interest in Peltway Robotics is held by Dunmere Analytics. Priya Nakagawa established Fenmore Industries as an independent venture."
+    },
+    {
+      "doc_id": "reg-19",
+      "gold": [
+        {
+          "agent": "Yarrowgate Packaging",
+          "patient": "Ironcrest Aviation",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Kestwick Aviation",
+          "patient": "Tovrik Logistics",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nIroncrest Aviation is a wholly-owned subsidiary of Yarrowgate Packaging. Tovrik Logistics operates as a division of Kestwick Aviation."
+    },
+    {
+      "doc_id": "reg-20",
+      "gold": [
+        {
+          "agent": "Sundrell Energy",
+          "patient": "Veltrax Foods",
+          "family": "PARENT_OF",
+          "voice": "active"
+        },
+        {
+          "agent": "Elmsworth Holdings",
+          "patient": "Caldrix Packaging",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Aiko Kestenholz",
+          "patient": "Tovrik Holdings",
+          "family": "FOUNDED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nSundrell Energy operates Veltrax Foods as one of its divisions. Caldrix Packaging operates as a division of Elmsworth Holdings. Tovrik Holdings was founded by Aiko Kestenholz to enter the regional market."
+    },
+    {
+      "doc_id": "reg-21",
+      "gold": [
+        {
+          "agent": "Elsa Ferreira",
+          "patient": "Kestwick Pharma",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Zephyrine Media",
+          "patient": "Marchbanks Analytics",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nKestwick Pharma was founded by Elsa Ferreira to enter the regional market. Marchbanks Analytics operates as a division of Zephyrine Media."
+    },
+    {
+      "doc_id": "reg-22",
+      "gold": [
+        {
+          "agent": "Kestwick Partners",
+          "patient": "Caldrix Aviation",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Ostrella Mining",
+          "patient": "Veltrax Textiles",
+          "family": "PARENT_OF",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nCaldrix Aviation is a wholly-owned subsidiary of Kestwick Partners. Ostrella Mining operates Veltrax Textiles as one of its divisions."
+    },
+    {
+      "doc_id": "reg-23",
+      "gold": [
+        {
+          "agent": "Viktor Okonkwo",
+          "patient": "Ravelin Capital",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Halloway Industries",
+          "patient": "Bramwick Materials",
+          "family": "OWNS",
+          "voice": "active"
+        },
+        {
+          "agent": "Dunmere Aviation",
+          "patient": "Veltrax Logistics",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nRavelin Capital was established by Viktor Okonkwo as an independent venture. Halloway Industries holds a majority stake in Bramwick Materials. Veltrax Logistics was taken over by Dunmere Aviation last quarter."
+    },
+    {
+      "doc_id": "reg-24",
+      "gold": [
+        {
+          "agent": "Lumetta Rail",
+          "patient": "Kestwick Holdings",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Fenmore Materials",
+          "patient": "Yarrowgate Materials",
+          "family": "OWNS",
+          "voice": "active"
+        },
+        {
+          "agent": "Peltway Analytics",
+          "patient": "Fenmore Aviation",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nKestwick Holdings operates as a division of Lumetta Rail. Fenmore Materials owns a controlling interest in Yarrowgate Materials. Fenmore Aviation was acquired by Peltway Analytics in an all-cash deal."
+    },
+    {
+      "doc_id": "reg-25",
+      "gold": [
+        {
+          "agent": "Felix Nakagawa",
+          "patient": "Veltrax Packaging",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Elmsworth Robotics",
+          "patient": "Fenmore Analytics",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Elmsworth Foods",
+          "patient": "Ravelin Analytics",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nVeltrax Packaging was established by Felix Nakagawa as an independent venture. Fenmore Analytics operates as a division of Elmsworth Robotics. Ravelin Analytics operates as a division of Elmsworth Foods."
+    },
+    {
+      "doc_id": "reg-26",
+      "gold": [
+        {
+          "agent": "Yarrowgate Rail",
+          "patient": "Halloway Pharma",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Aiko Havel",
+          "patient": "Lumetta Aviation",
+          "family": "FOUNDED",
+          "voice": "active"
+        },
+        {
+          "agent": "Yarrowgate Marine",
+          "patient": "Zephyrine Marine",
+          "family": "ACQUIRED",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nYarrowgate Rail acquired Halloway Pharma in an all-cash deal. Aiko Havel founded Lumetta Aviation to enter the regional market. Yarrowgate Marine completed its takeover of Zephyrine Marine last quarter."
+    },
+    {
+      "doc_id": "reg-27",
+      "gold": [
+        {
+          "agent": "Felix Marchetti",
+          "patient": "Sundrell Capital",
+          "family": "FOUNDED",
+          "voice": "active"
+        },
+        {
+          "agent": "Tobias Ferreira",
+          "patient": "Ironcrest Robotics",
+          "family": "FOUNDED",
+          "voice": "active"
+        },
+        {
+          "agent": "Halloway Packaging",
+          "patient": "Fenmore Partners",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nFelix Marchetti founded Sundrell Capital to enter the regional market. Tobias Ferreira established Ironcrest Robotics as an independent venture. Fenmore Partners was acquired by Halloway Packaging in an all-cash deal."
+    },
+    {
+      "doc_id": "reg-28",
+      "gold": [
+        {
+          "agent": "Elsa Sorenson",
+          "patient": "Sundrell Textiles",
+          "family": "FOUNDED",
+          "voice": "active"
+        },
+        {
+          "agent": "Aiko Lindqvist",
+          "patient": "Norvane Systems",
+          "family": "FOUNDED",
+          "voice": "active"
+        },
+        {
+          "agent": "Ironcrest Mining",
+          "patient": "Halloway Materials",
+          "family": "OWNS",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nElsa Sorenson founded Sundrell Textiles to enter the regional market. Aiko Lindqvist established Norvane Systems as an independent venture. Ironcrest Mining owns a controlling interest in Halloway Materials."
+    },
+    {
+      "doc_id": "reg-29",
+      "gold": [
+        {
+          "agent": "Fenmore Systems",
+          "patient": "Marchbanks Holdings",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Ostrella Robotics",
+          "patient": "Ironcrest Group",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Yarrowgate Textiles",
+          "patient": "Ravelin Rail",
+          "family": "PARENT_OF",
+          "voice": "active"
+        },
+        {
+          "agent": "Quillon Energy",
+          "patient": "Fenmore Capital",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nMarchbanks Holdings operates as a division of Fenmore Systems. Ostrella Robotics completed its takeover of Ironcrest Group last quarter. Yarrowgate Textiles is the parent company of Ravelin Rail. Fenmore Capital is a wholly-owned subsidiary of Quillon Energy."
+    },
+    {
+      "doc_id": "reg-30",
+      "gold": [
+        {
+          "agent": "Yarrowgate Mining",
+          "patient": "Bramwick Group",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Marchbanks Foods",
+          "patient": "Yarrowgate Foods",
+          "family": "OWNS",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nYarrowgate Mining completed its takeover of Bramwick Group last quarter. Marchbanks Foods holds a majority stake in Yarrowgate Foods."
+    },
+    {
+      "doc_id": "reg-31",
+      "gold": [
+        {
+          "agent": "Yarrowgate Logistics",
+          "patient": "Dunmere Industries",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Tovrik Analytics",
+          "patient": "Marchbanks Industries",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Felix Ferreira",
+          "patient": "Dunmere Media",
+          "family": "FOUNDED",
+          "voice": "active"
+        },
+        {
+          "agent": "Kestwick Analytics",
+          "patient": "Bramwick Industries",
+          "family": "ACQUIRED",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nDunmere Industries was taken over by Yarrowgate Logistics last quarter. Marchbanks Industries operates as a division of Tovrik Analytics. Felix Ferreira founded Dunmere Media to enter the regional market. Kestwick Analytics completed its takeover of Bramwick Industries last quarter."
+    },
+    {
+      "doc_id": "reg-32",
+      "gold": [
+        {
+          "agent": "Caldrix Textiles",
+          "patient": "Peltway Aviation",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Ostrella Capital",
+          "patient": "Veltrax Energy",
+          "family": "OWNS",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nCaldrix Textiles acquired Peltway Aviation in an all-cash deal. Ostrella Capital holds a majority stake in Veltrax Energy."
+    },
+    {
+      "doc_id": "reg-33",
+      "gold": [
+        {
+          "agent": "Ironcrest Materials",
+          "patient": "Peltway Rail",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Lumetta Group",
+          "patient": "Kestwick Rail",
+          "family": "OWNS",
+          "voice": "active"
+        },
+        {
+          "agent": "Mira Ferreira",
+          "patient": "Veltrax Analytics",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Ironcrest Analytics",
+          "patient": "Ravelin Mining",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nPeltway Rail operates as a division of Ironcrest Materials. Lumetta Group owns a controlling interest in Kestwick Rail. Veltrax Analytics was founded by Mira Ferreira to enter the regional market. Ravelin Mining was acquired by Ironcrest Analytics in an all-cash deal."
+    },
+    {
+      "doc_id": "reg-34",
+      "gold": [
+        {
+          "agent": "Peltway Packaging",
+          "patient": "Ravelin Logistics",
+          "family": "OWNS",
+          "voice": "active"
+        },
+        {
+          "agent": "Ingrid Marchetti",
+          "patient": "Yarrowgate Holdings",
+          "family": "FOUNDED",
+          "voice": "active"
+        },
+        {
+          "agent": "Ravelin Group",
+          "patient": "Ravelin Foods",
+          "family": "OWNS",
+          "voice": "active"
+        },
+        {
+          "agent": "Salome Sorenson",
+          "patient": "Ostrella Logistics",
+          "family": "FOUNDED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nPeltway Packaging holds a majority stake in Ravelin Logistics. Ingrid Marchetti founded Yarrowgate Holdings to enter the regional market. Ravelin Group owns a controlling interest in Ravelin Foods. Ostrella Logistics was founded by Salome Sorenson to enter the regional market."
+    },
+    {
+      "doc_id": "reg-35",
+      "gold": [
+        {
+          "agent": "Ingrid Havel",
+          "patient": "Dunmere Capital",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Ravelin Partners",
+          "patient": "Zephyrine Capital",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Norvane Robotics",
+          "patient": "Fenmore Media",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Viktor Sorenson",
+          "patient": "Caldrix Marine",
+          "family": "FOUNDED",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nDunmere Capital was established by Ingrid Havel as an independent venture. Zephyrine Capital is a wholly-owned subsidiary of Ravelin Partners. A controlling interest in Fenmore Media is held by Norvane Robotics. Viktor Sorenson founded Caldrix Marine to enter the regional market."
+    },
+    {
+      "doc_id": "reg-36",
+      "gold": [
+        {
+          "agent": "Zephyrine Holdings",
+          "patient": "Elmsworth Group",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Dunmere Foods",
+          "patient": "Peltway Textiles",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Ingrid Kestenholz",
+          "patient": "Fenmore Group",
+          "family": "FOUNDED",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nElmsworth Group is majority-owned by Zephyrine Holdings. Peltway Textiles was taken over by Dunmere Foods last quarter. Ingrid Kestenholz established Fenmore Group as an independent venture."
+    },
+    {
+      "doc_id": "reg-37",
+      "gold": [
+        {
+          "agent": "Zephyrine Analytics",
+          "patient": "Sundrell Group",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Halloway Energy",
+          "patient": "Zephyrine Robotics",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Halloway Capital",
+          "patient": "Zephyrine Partners",
+          "family": "OWNS",
+          "voice": "active"
+        },
+        {
+          "agent": "Ravelin Materials",
+          "patient": "Quillon Pharma",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nA controlling interest in Sundrell Group is held by Zephyrine Analytics. Zephyrine Robotics operates as a division of Halloway Energy. Halloway Capital owns a controlling interest in Zephyrine Partners. Quillon Pharma operates as a division of Ravelin Materials."
+    },
+    {
+      "doc_id": "reg-38",
+      "gold": [
+        {
+          "agent": "Kestwick Mining",
+          "patient": "Elmsworth Systems",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Salome Nakagawa",
+          "patient": "Tovrik Rail",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Bramwick Foods",
+          "patient": "Quillon Group",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Lumetta Media",
+          "patient": "Caldrix Holdings",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nElmsworth Systems is majority-owned by Kestwick Mining. Tovrik Rail was established by Salome Nakagawa as an independent venture. Quillon Group is majority-owned by Bramwick Foods. Caldrix Holdings is a wholly-owned subsidiary of Lumetta Media."
+    },
+    {
+      "doc_id": "reg-39",
+      "gold": [
+        {
+          "agent": "Tobias Sorenson",
+          "patient": "Peltway Energy",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Marchbanks Robotics",
+          "patient": "Ravelin Marine",
+          "family": "OWNS",
+          "voice": "active"
+        },
+        {
+          "agent": "Sundrell Mining",
+          "patient": "Ravelin Systems",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nPeltway Energy was established by Tobias Sorenson as an independent venture. Marchbanks Robotics owns a controlling interest in Ravelin Marine. Ravelin Systems was taken over by Sundrell Mining last quarter."
+    },
+    {
+      "doc_id": "reg-40",
+      "gold": [
+        {
+          "agent": "Dunmere Rail",
+          "patient": "Veltrax Rail",
+          "family": "OWNS",
+          "voice": "active"
+        },
+        {
+          "agent": "Marchbanks Energy",
+          "patient": "Caldrix Capital",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Sundrell Foods",
+          "patient": "Norvane Holdings",
+          "family": "PARENT_OF",
+          "voice": "active"
+        },
+        {
+          "agent": "Norvane Industries",
+          "patient": "Yarrowgate Systems",
+          "family": "OWNS",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nDunmere Rail holds a majority stake in Veltrax Rail. Caldrix Capital was acquired by Marchbanks Energy in an all-cash deal. Sundrell Foods is the parent company of Norvane Holdings. Yarrowgate Systems is majority-owned by Norvane Industries."
+    },
+    {
+      "doc_id": "reg-41",
+      "gold": [
+        {
+          "agent": "Tovrik Partners",
+          "patient": "Veltrax Pharma",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Bramwick Holdings",
+          "patient": "Kestwick Energy",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Marchbanks Logistics",
+          "patient": "Marchbanks Marine",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nVeltrax Pharma operates as a division of Tovrik Partners. Kestwick Energy operates as a division of Bramwick Holdings. Marchbanks Marine was acquired by Marchbanks Logistics in an all-cash deal."
+    },
+    {
+      "doc_id": "reg-42",
+      "gold": [
+        {
+          "agent": "Tovrik Capital",
+          "patient": "Ostrella Marine",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Aiko Duval",
+          "patient": "Dunmere Logistics",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Ingrid Ferreira",
+          "patient": "Veltrax Capital",
+          "family": "FOUNDED",
+          "voice": "active"
+        },
+        {
+          "agent": "Marcus Ferreira",
+          "patient": "Dunmere Pharma",
+          "family": "FOUNDED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nTovrik Capital acquired Ostrella Marine in an all-cash deal. Dunmere Logistics was established by Aiko Duval as an independent venture. Ingrid Ferreira established Veltrax Capital as an independent venture. Dunmere Pharma was founded by Marcus Ferreira to enter the regional market."
+    },
+    {
+      "doc_id": "reg-43",
+      "gold": [
+        {
+          "agent": "Ostrella Group",
+          "patient": "Yarrowgate Aviation",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Veltrax Industries",
+          "patient": "Lumetta Materials",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Kestwick Textiles",
+          "patient": "Dunmere Marine",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Sundrell Packaging",
+          "patient": "Dunmere Robotics",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nYarrowgate Aviation operates as a division of Ostrella Group. Lumetta Materials operates as a division of Veltrax Industries. Kestwick Textiles completed its takeover of Dunmere Marine last quarter. Dunmere Robotics was acquired by Sundrell Packaging in an all-cash deal."
+    },
+    {
+      "doc_id": "reg-44",
+      "gold": [
+        {
+          "agent": "Quillon Holdings",
+          "patient": "Ravelin Robotics",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Ostrella Media",
+          "patient": "Norvane Packaging",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Quillon Robotics",
+          "patient": "Yarrowgate Media",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nRavelin Robotics operates as a division of Quillon Holdings. Norvane Packaging was acquired by Ostrella Media in an all-cash deal. Yarrowgate Media was acquired by Quillon Robotics in an all-cash deal."
+    },
+    {
+      "doc_id": "reg-45",
+      "gold": [
+        {
+          "agent": "Elmsworth Pharma",
+          "patient": "Peltway Partners",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Marchbanks Media",
+          "patient": "Bramwick Mining",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Peltway Industries",
+          "patient": "Ravelin Holdings",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Tobias Lindqvist",
+          "patient": "Norvane Foods",
+          "family": "FOUNDED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nPeltway Partners is majority-owned by Elmsworth Pharma. Bramwick Mining was acquired by Marchbanks Media in an all-cash deal. A controlling interest in Ravelin Holdings is held by Peltway Industries. Norvane Foods was founded by Tobias Lindqvist to enter the regional market."
+    },
+    {
+      "doc_id": "reg-46",
+      "gold": [
+        {
+          "agent": "Tovrik Aviation",
+          "patient": "Caldrix Materials",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Ostrella Textiles",
+          "patient": "Elmsworth Mining",
+          "family": "OWNS",
+          "voice": "active"
+        },
+        {
+          "agent": "Ruben Abernathy",
+          "patient": "Kestwick Logistics",
+          "family": "FOUNDED",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nCaldrix Materials operates as a division of Tovrik Aviation. Ostrella Textiles holds a majority stake in Elmsworth Mining. Ruben Abernathy founded Kestwick Logistics to enter the regional market."
+    },
+    {
+      "doc_id": "reg-47",
+      "gold": [
+        {
+          "agent": "Veltrax Holdings",
+          "patient": "Halloway Systems",
+          "family": "OWNS",
+          "voice": "active"
+        },
+        {
+          "agent": "Ostrella Industries",
+          "patient": "Tovrik Group",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Zephyrine Industries",
+          "patient": "Lumetta Analytics",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Marcus Okonkwo",
+          "patient": "Ironcrest Industries",
+          "family": "FOUNDED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nVeltrax Holdings owns a controlling interest in Halloway Systems. Tovrik Group was acquired by Ostrella Industries in an all-cash deal. Lumetta Analytics is majority-owned by Zephyrine Industries. Ironcrest Industries was established by Marcus Okonkwo as an independent venture."
+    },
+    {
+      "doc_id": "reg-48",
+      "gold": [
+        {
+          "agent": "Dunmere Packaging",
+          "patient": "Quillon Analytics",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Veltrax Systems",
+          "patient": "Caldrix Energy",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Tovrik Packaging",
+          "patient": "Sundrell Media",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Sundrell Rail",
+          "patient": "Norvane Marine",
+          "family": "PARENT_OF",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nDunmere Packaging completed its takeover of Quillon Analytics last quarter. Veltrax Systems acquired Caldrix Energy in an all-cash deal. Sundrell Media is majority-owned by Tovrik Packaging. Sundrell Rail is the parent company of Norvane Marine."
+    },
+    {
+      "doc_id": "reg-49",
+      "gold": [
+        {
+          "agent": "Elsa Abernathy",
+          "patient": "Ironcrest Holdings",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Ironcrest Partners",
+          "patient": "Bramwick Analytics",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Quillon Mining",
+          "patient": "Norvane Capital",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Elsa Marchetti",
+          "patient": "Quillon Logistics",
+          "family": "FOUNDED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nIroncrest Holdings was established by Elsa Abernathy as an independent venture. A controlling interest in Bramwick Analytics is held by Ironcrest Partners. Quillon Mining completed its takeover of Norvane Capital last quarter. Quillon Logistics was established by Elsa Marchetti as an independent venture."
+    },
+    {
+      "doc_id": "reg-50",
+      "gold": [
+        {
+          "agent": "Elmsworth Marine",
+          "patient": "Ravelin Industries",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Bramwick Robotics",
+          "patient": "Lumetta Textiles",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Halloway Rail",
+          "patient": "Marchbanks Capital",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nRavelin Industries is a wholly-owned subsidiary of Elmsworth Marine. Lumetta Textiles is a wholly-owned subsidiary of Bramwick Robotics. Marchbanks Capital was taken over by Halloway Rail last quarter."
+    },
+    {
+      "doc_id": "reg-51",
+      "gold": [
+        {
+          "agent": "Marcus Sorenson",
+          "patient": "Marchbanks Packaging",
+          "family": "FOUNDED",
+          "voice": "active"
+        },
+        {
+          "agent": "Salome Kestenholz",
+          "patient": "Caldrix Pharma",
+          "family": "FOUNDED",
+          "voice": "active"
+        },
+        {
+          "agent": "Ravelin Media",
+          "patient": "Ironcrest Media",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nMarcus Sorenson established Marchbanks Packaging as an independent venture. Salome Kestenholz founded Caldrix Pharma to enter the regional market. Ironcrest Media is a wholly-owned subsidiary of Ravelin Media."
+    },
+    {
+      "doc_id": "reg-52",
+      "gold": [
+        {
+          "agent": "Caldrix Logistics",
+          "patient": "Lumetta Marine",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Zephyrine Energy",
+          "patient": "Bramwick Aviation",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Priya Kestenholz",
+          "patient": "Tovrik Pharma",
+          "family": "FOUNDED",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nCaldrix Logistics completed its takeover of Lumetta Marine last quarter. Zephyrine Energy acquired Bramwick Aviation in an all-cash deal. Tovrik Pharma was founded by Priya Kestenholz to enter the regional market."
+    },
+    {
+      "doc_id": "reg-53",
+      "gold": [
+        {
+          "agent": "Marchbanks Group",
+          "patient": "Elmsworth Media",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Felix Okonkwo",
+          "patient": "Kestwick Packaging",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Dunmere Partners",
+          "patient": "Kestwick Robotics",
+          "family": "ACQUIRED",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nMarchbanks Group completed its takeover of Elmsworth Media last quarter. Kestwick Packaging was founded by Felix Okonkwo to enter the regional market. Dunmere Partners completed its takeover of Kestwick Robotics last quarter."
+    },
+    {
+      "doc_id": "reg-54",
+      "gold": [
+        {
+          "agent": "Fenmore Energy",
+          "patient": "Norvane Aviation",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Aiko Marchetti",
+          "patient": "Caldrix Rail",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Marchbanks Systems",
+          "patient": "Peltway Holdings",
+          "family": "PARENT_OF",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nNorvane Aviation was taken over by Fenmore Energy last quarter. Caldrix Rail was founded by Aiko Marchetti to enter the regional market. Marchbanks Systems is the parent company of Peltway Holdings."
+    },
+    {
+      "doc_id": "reg-55",
+      "gold": [
+        {
+          "agent": "Lumetta Partners",
+          "patient": "Fenmore Rail",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Norvane Energy",
+          "patient": "Peltway Logistics",
+          "family": "PARENT_OF",
+          "voice": "active"
+        },
+        {
+          "agent": "Ironcrest Energy",
+          "patient": "Kestwick Systems",
+          "family": "OWNS",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nFenmore Rail is a wholly-owned subsidiary of Lumetta Partners. Norvane Energy operates Peltway Logistics as one of its divisions. A controlling interest in Kestwick Systems is held by Ironcrest Energy."
+    },
+    {
+      "doc_id": "reg-56",
+      "gold": [
+        {
+          "agent": "Caldrix Analytics",
+          "patient": "Lumetta Packaging",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Tovrik Mining",
+          "patient": "Halloway Partners",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Viktor Nakagawa",
+          "patient": "Lumetta Pharma",
+          "family": "FOUNDED",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nLumetta Packaging is a wholly-owned subsidiary of Caldrix Analytics. Halloway Partners was acquired by Tovrik Mining in an all-cash deal. Viktor Nakagawa founded Lumetta Pharma to enter the regional market."
+    },
+    {
+      "doc_id": "reg-57",
+      "gold": [
+        {
+          "agent": "Elsa Nakagawa",
+          "patient": "Ravelin Aviation",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Ostrella Foods",
+          "patient": "Dunmere Textiles",
+          "family": "ACQUIRED",
+          "voice": "active"
+        },
+        {
+          "agent": "Doran Duval",
+          "patient": "Norvane Mining",
+          "family": "FOUNDED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Caldrix Mining",
+          "patient": "Fenmore Foods",
+          "family": "OWNS",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nRavelin Aviation was founded by Elsa Nakagawa to enter the regional market. Ostrella Foods acquired Dunmere Textiles in an all-cash deal. Norvane Mining was founded by Doran Duval to enter the regional market. Caldrix Mining holds a majority stake in Fenmore Foods."
+    },
+    {
+      "doc_id": "reg-58",
+      "gold": [
+        {
+          "agent": "Sundrell Holdings",
+          "patient": "Sundrell Materials",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Ostrella Partners",
+          "patient": "Sundrell Logistics",
+          "family": "ACQUIRED",
+          "voice": "passive"
+        },
+        {
+          "agent": "Tovrik Marine",
+          "patient": "Ironcrest Textiles",
+          "family": "PARENT_OF",
+          "voice": "passive"
+        },
+        {
+          "agent": "Zephyrine Aviation",
+          "patient": "Quillon Textiles",
+          "family": "OWNS",
+          "voice": "passive"
+        }
+      ],
+      "text": "Corporate registry brief.\nSundrell Materials operates as a division of Sundrell Holdings. Sundrell Logistics was acquired by Ostrella Partners in an all-cash deal. Ironcrest Textiles operates as a division of Tovrik Marine. Quillon Textiles is majority-owned by Zephyrine Aviation."
+    },
+    {
+      "doc_id": "reg-59",
+      "gold": [
+        {
+          "agent": "Lumetta Energy",
+          "patient": "Zephyrine Group",
+          "family": "PARENT_OF",
+          "voice": "active"
+        },
+        {
+          "agent": "Yarrowgate Energy",
+          "patient": "Fenmore Mining",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Norvane Partners",
+          "patient": "Norvane Media",
+          "family": "OWNS",
+          "voice": "passive"
+        },
+        {
+          "agent": "Ostrella Analytics",
+          "patient": "Kestwick Media",
+          "family": "ACQUIRED",
+          "voice": "active"
+        }
+      ],
+      "text": "Corporate registry brief.\nLumetta Energy operates Zephyrine Group as one of its divisions. A controlling interest in Fenmore Mining is held by Yarrowgate Energy. A controlling interest in Norvane Media is held by Norvane Partners. Ostrella Analytics completed its takeover of Kestwick Media last quarter."
+    }
+  ],
+  "seed": 42,
+  "elapsed_s": 170.3,
+  "totals": {
+    "gold_pairs": 191,
+    "matched_pairs": 191,
+    "scored": 136,
+    "correct": 134,
+    "excluded": 55,
+    "errors": 0
+  },
+  "by_voice": {
+    "active": {
+      "correct": 44,
+      "scored": 45
+    },
+    "passive": {
+      "correct": 90,
+      "scored": 91
+    }
+  },
+  "misses": [
+    {
+      "doc": "reg-39",
+      "gold": {
+        "agent": "Tobias Sorenson",
+        "patient": "Peltway Energy",
+        "family": "FOUNDED",
+        "voice": "passive"
+      },
+      "rel": {
+        "source": "Tobias Sorenson",
+        "target": "Peltway Energy",
+        "rel_type": "DEVELOPED_BY",
+        "description": "founded Peltway Energy"
+      }
+    },
+    {
+      "doc": "reg-42",
+      "gold": {
+        "agent": "Ingrid Ferreira",
+        "patient": "Veltrax Capital",
+        "family": "FOUNDED",
+        "voice": "active"
+      },
+      "rel": {
+        "source": "Ingrid Ferreira",
+        "target": "Veltrax Capital",
+        "rel_type": "DEVELOPED_BY",
+        "description": "established Veltrax Capital"
+      }
+    }
+  ],
+  "extractions": [
+    {
+      "doc_id": "reg-0",
+      "relationships": [
+        {
+          "source": "Ostrella Pharma",
+          "target": "Elmsworth Materials",
+          "rel_type": "RELATED_TO",
+          "description": "taken over by Elmsworth Materials",
+          "weight": 1.0
+        },
+        {
+          "source": "Yarrowgate Analytics",
+          "target": "Peltway Capital",
+          "rel_type": "RELATED_TO",
+          "description": "holds controlling stake in Peltway Capital",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-1",
+      "relationships": [
+        {
+          "source": "Elmsworth Logistics",
+          "target": "Priya Ferreira",
+          "rel_type": "ESTABLISHED_BY",
+          "description": "Elmsworth Logistics was established by Priya Ferreira.",
+          "weight": 1.0
+        },
+        {
+          "source": "Tovrik Energy",
+          "target": "Ruben Havel",
+          "rel_type": "ESTABLISHED_BY",
+          "description": "Tovrik Energy was established by Ruben Havel.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-2",
+      "relationships": [
+        {
+          "source": "Sundrell Robotics",
+          "target": "Caldrix Group",
+          "rel_type": "ACQUIRED",
+          "description": "acquired Caldrix Group.",
+          "weight": 0.95
+        },
+        {
+          "source": "Elmsworth Rail",
+          "target": "Kestwick Marine",
+          "rel_type": "ACQUIRED",
+          "description": "acquired Kestwick Marine.",
+          "weight": 0.95
+        },
+        {
+          "source": "Sundrell Marine",
+          "target": "Dunmere Systems",
+          "rel_type": "HAS_INTEREST_IN",
+          "description": "holding a controlling interest in Dunmere Systems.",
+          "weight": 0.8
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-3",
+      "relationships": [
+        {
+          "source": "Halloway Analytics",
+          "target": "Norvane Analytics",
+          "rel_type": "PART_OF",
+          "description": "division of Norvane Analytics.",
+          "weight": 1.0
+        },
+        {
+          "source": "Ironcrest Capital",
+          "target": "Zephyrine Foods",
+          "rel_type": "PART_OF",
+          "description": "wholly-owned subsidiary of Zephyrine Foods.",
+          "weight": 1.0
+        },
+        {
+          "source": "Marchbanks Rail",
+          "target": "Quillon Partners",
+          "rel_type": "PART_OF",
+          "description": "parent-subidiary relationship.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-4",
+      "relationships": [
+        {
+          "source": "Elsa Okonkwo",
+          "target": "Ostrella Packaging",
+          "rel_type": "FOUNDED",
+          "description": "founder of organization to enter regional market",
+          "weight": 0.9
+        },
+        {
+          "source": "Ruben Nakagawa",
+          "target": "Quillon Aviation",
+          "rel_type": "FOUNDED",
+          "description": "founder of organization to enter regional market",
+          "weight": 0.9
+        },
+        {
+          "source": "Ravelin Textiles",
+          "target": "Peltway Materials",
+          "rel_type": "ACQUIRED",
+          "description": "acquired organization in all-cash deal",
+          "weight": 0.95
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-5",
+      "relationships": [
+        {
+          "source": "Bramwick Rail",
+          "target": "Elmsworth Textiles",
+          "rel_type": "PART_OF",
+          "description": "rail division of Elmsworth Textiles",
+          "weight": 1.0
+        },
+        {
+          "source": "Bramwick Energy",
+          "target": "Veltrax Materials",
+          "rel_type": "PART_OF",
+          "description": "division of Veltrax Materials",
+          "weight": 1.0
+        },
+        {
+          "source": "Veltrax Group",
+          "target": "Sundrell Analytics",
+          "rel_type": "PART_OF",
+          "description": "subsidiary of Sundrell Analytics",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-6",
+      "relationships": [
+        {
+          "source": "Ironcrest Foods",
+          "target": "Ironcrest Marine",
+          "rel_type": "OWNS",
+          "description": "owning a controlling interest in Ironcrest Marine",
+          "weight": 1.0
+        },
+        {
+          "source": "Elmsworth Packaging",
+          "target": "Elmsworth Aviation",
+          "rel_type": "ACQUIRED",
+          "description": "acquired Elmsworth Aviation via takeover",
+          "weight": 1.0
+        },
+        {
+          "source": "Elmsworth Capital",
+          "target": "Marchbanks Materials",
+          "rel_type": "OWNS",
+          "description": "holding majority stake in Marchbanks Materials",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-7",
+      "relationships": [
+        {
+          "source": "Norvane Pharma",
+          "target": "Quillon Media",
+          "rel_type": "PART_OF",
+          "description": "taken over by Quillon Media",
+          "weight": 1.0
+        },
+        {
+          "source": "Kestwick Industries",
+          "target": "Zephyrine Pharma",
+          "rel_type": "PART_OF",
+          "description": "division of Zephyrine Pharma",
+          "weight": 1.0
+        },
+        {
+          "source": "Elmsworth Partners",
+          "target": "Quillon Packaging",
+          "rel_type": "PART_OF",
+          "description": "taken over by Quillon Packaging",
+          "weight": 1.0
+        },
+        {
+          "source": "Lumetta Logistics",
+          "target": "Mira Sorenson",
+          "rel_type": "DEVELOPED_BY",
+          "description": "Lumetta Logistics founded by Mira Sorenson",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-8",
+      "relationships": [
+        {
+          "source": "Kestwick Materials",
+          "target": "Tovrik Robotics",
+          "rel_type": "RELATED_TO",
+          "description": "acquisition of Tovrik Robotics by Kestwick Materials",
+          "weight": 1.0
+        },
+        {
+          "source": "Lumetta Industries",
+          "target": "Norvane Materials",
+          "rel_type": "RELATED_TO",
+          "description": "majority ownership of Norvane Materials by Lumetta Industries",
+          "weight": 1.0
+        },
+        {
+          "source": "Halloway Textiles",
+          "target": "Salome Duval",
+          "rel_type": "DEVELOPED_BY",
+          "description": "established by Salome Duval",
+          "weight": 1.0
+        },
+        {
+          "source": "Elmsworth Industries",
+          "target": "Ostrella Rail",
+          "rel_type": "RELATED_TO",
+          "description": "majority stake in Ostrella Rail held by Elmsworth Industries",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-9",
+      "relationships": [
+        {
+          "source": "Yarrowgate Partners",
+          "target": "Halloway Group",
+          "rel_type": "PART_OF",
+          "description": "Yarrowgate Partners is part of Halloway Group",
+          "weight": 1.0
+        },
+        {
+          "source": "Bramwick Logistics",
+          "target": "Peltway Media",
+          "rel_type": "PART_OF",
+          "description": "Peltway Media holds Bramwick Logistics' controlling stake",
+          "weight": 1.0
+        },
+        {
+          "source": "Zephyrine Textiles",
+          "target": "Priya Okonkwo",
+          "rel_type": "DEVELOPED_BY",
+          "description": "Zephyrine Textiles was developed by Priya Okonkwo",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-10",
+      "relationships": [
+        {
+          "source": "Quillon Systems",
+          "target": "Tovrik Foods",
+          "rel_type": "TAKES_OVER",
+          "description": "acquisition of Tovrik Foods by Quillon Systems in the last quarter",
+          "weight": 1.0
+        },
+        {
+          "source": "Yarrowgate Capital",
+          "target": "Marchbanks Aviation",
+          "rel_type": "HOLDS_INTEREST_IN",
+          "description": "holding a controlling interest in Marchbanks Aviation",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-11",
+      "relationships": [
+        {
+          "source": "Bramwick Media",
+          "target": "Tobias Havel",
+          "rel_type": "DEVELOPED_BY",
+          "description": "Bramwick Media was established by Tobias Havel.",
+          "weight": 1.0
+        },
+        {
+          "source": "Halloway Media",
+          "target": "Ironcrest Pharma",
+          "rel_type": "PART_OF",
+          "description": "Halloway Media is a division of Ironcrest Pharma.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-12",
+      "relationships": [
+        {
+          "source": "Ostrella Energy",
+          "target": "Priya Abernathy",
+          "rel_type": "DEVELOPED_BY",
+          "description": "established by",
+          "weight": 1.0
+        },
+        {
+          "source": "Lumetta Systems",
+          "target": "Norvane Logistics",
+          "rel_type": "RELATED_TO",
+          "description": "holding a controlling interest in Norvane Logistics",
+          "weight": 1.0
+        },
+        {
+          "source": "Sundrell Industries",
+          "target": "Bramwick Marine",
+          "rel_type": "PART_OF",
+          "description": "division of Bramwick Marine",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-13",
+      "relationships": [
+        {
+          "source": "Norvane Textiles",
+          "target": "Halloway Logistics",
+          "rel_type": "RELATED_TO",
+          "description": "ownership relationship (majority-owned)",
+          "weight": 1.0
+        },
+        {
+          "source": "Caldrix Robotics",
+          "target": "Caldrix Foods",
+          "rel_type": "RELATED_TO",
+          "description": "ownership relationship (majority-owned)",
+          "weight": 1.0
+        },
+        {
+          "source": "Caldrix Partners",
+          "target": "Elmsworth Energy",
+          "rel_type": "RELATED_TO",
+          "description": "parent company relationship",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-14",
+      "relationships": [
+        {
+          "source": "Veltrax Robotics",
+          "target": "Halloway Aviation",
+          "rel_type": "PART_OF",
+          "description": "subsidiary of Halloway Aviation.",
+          "weight": 1.0
+        },
+        {
+          "source": "Zephyrine Systems",
+          "target": "Bramwick Systems",
+          "rel_type": "PART_OF",
+          "description": "division of Bramwick Systems.",
+          "weight": 1.0
+        },
+        {
+          "source": "Kestwick Capital",
+          "target": "Zephyrine Materials",
+          "rel_type": "PART_OF",
+          "description": "division of Zephyrine Materials.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-15",
+      "relationships": [
+        {
+          "source": "Peltway Group",
+          "target": "Bramwick Capital",
+          "rel_type": "MAJORITY_OWNED_BY",
+          "description": "Peltway Group is majority-owned by Bramwick Capital.",
+          "weight": 1.0
+        },
+        {
+          "source": "Yarrowgate Pharma",
+          "target": "Ostrella Systems",
+          "rel_type": "MAJORITY_OWNED_BY",
+          "description": "Yarrowgate Pharma is majority-owned by Ostrella Systems.",
+          "weight": 1.0
+        },
+        {
+          "source": "Halloway Robotics",
+          "target": "Caldrix Industries",
+          "rel_type": "MAJORITY_OWNED_BY",
+          "description": "Halloway Robotics is majority-owned by Caldrix Industries.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-16",
+      "relationships": [
+        {
+          "source": "Tovrik Systems",
+          "target": "Tovrik Industries",
+          "rel_type": "RELATED_TO",
+          "description": "Acquisition of Tovrik Industries by Tovrik Systems.",
+          "weight": 1.0
+        },
+        {
+          "source": "Bramwick Pharma",
+          "target": "Fenmore Logistics",
+          "rel_type": "RELATED_TO",
+          "description": "Acquisition of Fenmore Logistics by Bramwick Pharma.",
+          "weight": 1.0
+        },
+        {
+          "source": "Marchbanks Partners",
+          "target": "Norvane Rail",
+          "rel_type": "RELATED_TO",
+          "description": "Ownership of Norvane Rail by Marchbanks Partners.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-17",
+      "relationships": [
+        {
+          "source": "Marchbanks Textiles",
+          "target": "Ruben Duval",
+          "rel_type": "DEVELOPED_BY",
+          "description": "founded by Ruben Duval",
+          "weight": 0.0
+        },
+        {
+          "source": "Tovrik Textiles",
+          "target": "Ravelin Energy",
+          "rel_type": "PART_OF",
+          "description": "acquired in an all-cash deal by Ravelin Energy",
+          "weight": 0.0
+        },
+        {
+          "source": "Peltway Foods",
+          "target": "Halloway Mining",
+          "rel_type": "PART_OF",
+          "description": "controlling interest held by Halloway Mining",
+          "weight": 0.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-18",
+      "relationships": [
+        {
+          "source": "Peltway Systems",
+          "target": "Ostrella Aviation",
+          "rel_type": "ACQUIRED",
+          "description": "all-cash acquisition of Ostrella Aviation",
+          "weight": 1.0
+        },
+        {
+          "source": "Ostrella Materials",
+          "target": "Zephyrine Mining",
+          "rel_type": "OWNS",
+          "description": "majority ownership of Zephyrine Mining",
+          "weight": 1.0
+        },
+        {
+          "source": "Dunmere Analytics",
+          "target": "Peltway Robotics",
+          "rel_type": "OWNS",
+          "description": "holds a controlling interest in Peltway Robotics",
+          "weight": 1.0
+        },
+        {
+          "source": "Priya Nakagawa",
+          "target": "Fenmore Industries",
+          "rel_type": "ESTABLISHED",
+          "description": "founded Fenmore Industries",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-19",
+      "relationships": [
+        {
+          "source": "Ironcrest Aviation",
+          "target": "Yarrowgate Packaging",
+          "rel_type": "PART_OF",
+          "description": "wholly-owned subsidiary relationship",
+          "weight": 1.0
+        },
+        {
+          "source": "Tovrik Logistics",
+          "target": "Kestwick Aviation",
+          "rel_type": "PART_OF",
+          "description": "division relationship",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-20",
+      "relationships": [
+        {
+          "source": "Veltrax Foods",
+          "target": "Sundrell Energy",
+          "rel_type": "PART_OF",
+          "description": "division of Sundrell Energy",
+          "weight": 1.0
+        },
+        {
+          "source": "Caldrix Packaging",
+          "target": "Elmsworth Holdings",
+          "rel_type": "PART_OF",
+          "description": "division of Elmsworth Holdings",
+          "weight": 1.0
+        },
+        {
+          "source": "Tovrik Holdings",
+          "target": "Aiko Kestenholz",
+          "rel_type": "DEVELOPED_BY",
+          "description": "founded by Aiko Kestenholz",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-21",
+      "relationships": [
+        {
+          "source": "Elsa Ferreira",
+          "target": "Kestwick Pharma",
+          "rel_type": "FOUNDED",
+          "description": "Elsa Ferreira founded Kestwick Pharma",
+          "weight": 1.0
+        },
+        {
+          "source": "Marchbanks Analytics",
+          "target": "Zephyrine Media",
+          "rel_type": "PART_OF",
+          "description": "Marchbanks Analytics is a division of Zephyrine Media",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-22",
+      "relationships": [
+        {
+          "source": "Caldrix Aviation",
+          "target": "Kestwick Partners",
+          "rel_type": "PART_OF",
+          "description": "Caldrix Aviation is a subsidiary of Kestwick Partners.",
+          "weight": 1.0
+        },
+        {
+          "source": "Veltrax Textiles",
+          "target": "Ostrella Mining",
+          "rel_type": "PART_OF",
+          "description": "Veltrax Textiles is a division of Ostrella Mining.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-23",
+      "relationships": [
+        {
+          "source": "Ravelin Capital",
+          "target": "Viktor Okonkwo",
+          "rel_type": "DEVELOPED_BY",
+          "description": "Viktor Okonkwo established Ravelin Capital.",
+          "weight": 0.9
+        },
+        {
+          "source": "Halloway Industries",
+          "target": "Bramwick Materials",
+          "rel_type": "RELATED_TO",
+          "description": "holds a majority stake in Bramwick Materials.",
+          "weight": 0.8
+        },
+        {
+          "source": "Dunmere Aviation",
+          "target": "Veltrax Logistics",
+          "rel_type": "RELATED_TO",
+          "description": "acquired Veltrax Logistics.",
+          "weight": 0.9
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-24",
+      "relationships": [
+        {
+          "source": "Kestwick Holdings",
+          "target": "Lumetta Rail",
+          "rel_type": "PART_OF",
+          "description": "Kestwick Holdings is a division of Lumetta Rail.",
+          "weight": 1.0
+        },
+        {
+          "source": "Fenmore Materials",
+          "target": "Yarrowgate Materials",
+          "rel_type": "RELATED_TO",
+          "description": "Fenmore Materials owns a controlling interest in Yarrowgate Materials.",
+          "weight": 1.0
+        },
+        {
+          "source": "Peltway Analytics",
+          "target": "Fenmore Aviation",
+          "rel_type": "RELATED_TO",
+          "description": "Peltway Analytics acquired Fenmore Aviation in an all-cash deal.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-25",
+      "relationships": [
+        {
+          "source": "Felix Nakagawa",
+          "target": "Veltrax Packaging",
+          "rel_type": "ESTABLISHED",
+          "description": "Felix Nakagawa founded Veltrax Packaging.",
+          "weight": 1.0
+        },
+        {
+          "source": "Fenmore Analytics",
+          "target": "Elmsworth Robotics",
+          "rel_type": "PART_OF",
+          "description": "Fenmore Analytics is a division of Elmsworth Robotics.",
+          "weight": 1.0
+        },
+        {
+          "source": "Ravelin Analytics",
+          "target": "Elmsworth Foods",
+          "rel_type": "PART_OF",
+          "description": "Ravelin Analytics is a division of Elmsworth Foods.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-26",
+      "relationships": [
+        {
+          "source": "Yarrowgate Rail",
+          "target": "Halloway Pharma",
+          "rel_type": "RELATED_TO",
+          "description": "acquisition in an all-cash deal",
+          "weight": 1.0
+        },
+        {
+          "source": "Yarrowgate Marine",
+          "target": "Zephyrine Marine",
+          "rel_type": "RELATED_TO",
+          "description": "takeover",
+          "weight": 1.0
+        },
+        {
+          "source": "Lumetta Aviation",
+          "target": "Aiko Havel",
+          "rel_type": "DEVELOPED_BY",
+          "description": "founding relationship",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-27",
+      "relationships": [
+        {
+          "source": "Sundrell Capital",
+          "target": "Felix Marchetti",
+          "rel_type": "DEVELOPED_BY",
+          "description": "The founding of Sundrell Capital by Felix Marchetti.",
+          "weight": 1.0
+        },
+        {
+          "source": "Ironcrest Robotics",
+          "target": "Tobias Ferreira",
+          "rel_type": "DEVELOPED_BY",
+          "description": "The founding of Ironcrest Robotics by Tobias Ferreira.",
+          "weight": 1.0
+        },
+        {
+          "source": "Halloway Packaging",
+          "target": "Fenmore Partners",
+          "rel_type": "RELATED_TO",
+          "description": "The acquisition of Fenmore Partners by Halloway Packaging in an all-cash deal.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-28",
+      "relationships": [
+        {
+          "source": "Elsa Sorenson",
+          "target": "Sundrell Textiles",
+          "rel_type": "FOUNDED",
+          "description": "founder relationship",
+          "weight": 1.0
+        },
+        {
+          "source": "Aiko Lindqvist",
+          "target": "Norvane Systems",
+          "rel_type": "FOUNDED",
+          "description": "founder relationship",
+          "weight": 1.0
+        },
+        {
+          "source": "Ironcrest Mining",
+          "target": "Halloway Materials",
+          "rel_type": "OWNS",
+          "description": "ownership relationship",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-29",
+      "relationships": [
+        {
+          "source": "Marchbanks Holdings",
+          "target": "Fenmore Systems",
+          "rel_type": "PART_OF",
+          "description": "Marchbanks Holdings is a division of Fenmore Systems",
+          "weight": 1.0
+        },
+        {
+          "source": "Ostrella Robotics",
+          "target": "Ironcrest Group",
+          "rel_type": "RELATED_TO",
+          "description": "acquisition relationship with Ironcrest Group",
+          "weight": 1.0
+        },
+        {
+          "source": "Ravelin Rail",
+          "target": "Yarrowgate Textiles",
+          "rel_type": "PART_OF",
+          "description": "Ravelin Rail is a subsidiary of Yarrowgate Textiles",
+          "weight": 1.0
+        },
+        {
+          "source": "Fenmore Capital",
+          "target": "Quillon Energy",
+          "rel_type": "PART_OF",
+          "description": "Fenmore Capital is a subsidiary of Quillon Energy",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-30",
+      "relationships": [
+        {
+          "source": "Yarrowgate Mining",
+          "target": "Bramwick Group",
+          "rel_type": "RELATED_TO",
+          "description": "Acquisition of Bramwick Group by Yarrowgate Mining completed.",
+          "weight": 1.0
+        },
+        {
+          "source": "Marchbanks Foods",
+          "target": "Yarrowgate Foods",
+          "rel_type": "RELATED_TO",
+          "description": "Marchbanks Foods holds a majority stake in Yarrowgate Foods.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-31",
+      "relationships": [
+        {
+          "source": "Dunmere Industries",
+          "target": "Yarrowgate Logistics",
+          "rel_type": "ACQUIRED_BY",
+          "description": "Dunmere Industries was acquired by Yarrowgate Logistics.",
+          "weight": 1.0
+        },
+        {
+          "source": "Marchbanks Industries",
+          "target": "Tovrik Analytics",
+          "rel_type": "PART_OF",
+          "description": "Marchbanks Industries is a division of Tovrik Analytics.",
+          "weight": 1.0
+        },
+        {
+          "source": "Felix Ferreira",
+          "target": "Dunmere Media",
+          "rel_type": "FOUNDED",
+          "description": "Felix Ferreira founded Dunmere Media.",
+          "weight": 1.0
+        },
+        {
+          "source": "Bramwick Industries",
+          "target": "Kestwick Analytics",
+          "rel_type": "ACQUIRED_BY",
+          "description": "Bramwick Industries was acquired by Kestwick Analytics.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-32",
+      "relationships": [
+        {
+          "source": "Caldrix Textiles",
+          "target": "Peltway Aviation",
+          "rel_type": "RELATED_TO",
+          "description": "acquisition of Peltway Aviation",
+          "weight": 1.0
+        },
+        {
+          "source": "Ostrella Capital",
+          "target": "Veltrax Energy",
+          "rel_type": "RELATED_TO",
+          "description": "majority stake in Veltrax Energy",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-33",
+      "relationships": [
+        {
+          "source": "Peltway Rail",
+          "target": "Ironcrest Materials",
+          "rel_type": "PART_OF",
+          "description": "Peltway Rail is a division of Ironcrest Materials.",
+          "weight": 1.0
+        },
+        {
+          "source": "Lumetta Group",
+          "target": "Kestwick Rail",
+          "rel_type": "RELATED_TO",
+          "description": "Lumetta Group owns a controlling stake in Kestwick Rail.",
+          "weight": 1.0
+        },
+        {
+          "source": "Veltrax Analytics",
+          "target": "Mira Ferreira",
+          "rel_type": "DEVELOPED_BY",
+          "description": "Veltrax Analytics was founded by Mira Ferreira.",
+          "weight": 1.0
+        },
+        {
+          "source": "Ravelin Mining",
+          "target": "Ironcrest Analytics",
+          "rel_type": "RELATED_TO",
+          "description": "Ravelin Mining was acquired by Ironcrest Analytics in an all-cash deal.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-34",
+      "relationships": [
+        {
+          "source": "Ravelin Logistics",
+          "target": "Peltway Packaging",
+          "rel_type": "PART_OF",
+          "description": "majority stake ownership",
+          "weight": 1.0
+        },
+        {
+          "source": "Yarrowgate Holdings",
+          "target": "Ingrid Marchetti",
+          "rel_type": "DEVELOPED_BY",
+          "description": "founding by Ingrid Marchetti",
+          "weight": 1.0
+        },
+        {
+          "source": "Ravelin Foods",
+          "target": "Ravelin Group",
+          "rel_type": "PART_OF",
+          "description": "controlling interest",
+          "weight": 1.0
+        },
+        {
+          "source": "Ostrella Logistics",
+          "target": "Salome Sorenson",
+          "rel_type": "DEVELOPED_BY",
+          "description": "founding by Salome Sorenson",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-35",
+      "relationships": [
+        {
+          "source": "Dunmere Capital",
+          "target": "Ingrid Havel",
+          "rel_type": "DEVELOPED_BY",
+          "description": "founded by Ingrid Havel",
+          "weight": 1.0
+        },
+        {
+          "source": "Zephyrine Capital",
+          "target": "Ravelin Partners",
+          "rel_type": "PART_OF",
+          "description": "subsidiary of Ravelin Partners",
+          "weight": 1.0
+        },
+        {
+          "source": "Norvane Robotics",
+          "target": "Fenmore Media",
+          "rel_type": "RELATED_TO",
+          "description": "holds a controlling interest in Fenmore Media",
+          "weight": 1.0
+        },
+        {
+          "source": "Caldrix Marine",
+          "target": "Viktor Sorenson",
+          "rel_type": "DEVELOPED_BY",
+          "description": "founded by Viktor Sorenson",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-36",
+      "relationships": [
+        {
+          "source": "Elmsworth Group",
+          "target": "Zephyrine Holdings",
+          "rel_type": "RELATED_TO",
+          "description": "majority-owned by Zephyrine Holdings.",
+          "weight": 1.0
+        },
+        {
+          "source": "Peltway Textiles",
+          "target": "Dunmere Foods",
+          "rel_type": "RELATED_TO",
+          "description": "taken over by Dunmere Foods last quarter.",
+          "weight": 1.0
+        },
+        {
+          "source": "Fenmore Group",
+          "target": "Ingrid Kestenholz",
+          "rel_type": "DEVELOPED_BY",
+          "description": "established by Ingrid Kestenholz.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-37",
+      "relationships": [
+        {
+          "source": "Zephyrine Analytics",
+          "target": "Sundrell Group",
+          "rel_type": "OWNS",
+          "description": "holds a controlling interest in Sundrell Group",
+          "weight": 1.0
+        },
+        {
+          "source": "Zephyrine Robotics",
+          "target": "Halloway Energy",
+          "rel_type": "PART_OF",
+          "description": "division of Halloway Energy",
+          "weight": 1.0
+        },
+        {
+          "source": "Halloway Capital",
+          "target": "Zephyrine Partners",
+          "rel_type": "OWNS",
+          "description": "owns Zephyrine Partners",
+          "weight": 1.0
+        },
+        {
+          "source": "Quillon Pharma",
+          "target": "Ravelin Materials",
+          "rel_type": "PART_OF",
+          "description": "division of Ravelin Materials",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-38",
+      "relationships": [
+        {
+          "source": "Elmsworth Systems",
+          "target": "Kestwick Mining",
+          "rel_type": "PART_OF",
+          "description": "ownership relationship",
+          "weight": 1.0
+        },
+        {
+          "source": "Tovrik Rail",
+          "target": "Salome Nakagawa",
+          "rel_type": "DEVELOPED_BY",
+          "description": "established by",
+          "weight": 1.0
+        },
+        {
+          "source": "Quillon Group",
+          "target": "Bramwick Foods",
+          "rel_type": "PART_OF",
+          "description": "ownership relationship",
+          "weight": 1.0
+        },
+        {
+          "source": "Caldrix Holdings",
+          "target": "Lumetta Media",
+          "rel_type": "PART_OF",
+          "description": "ownership relationship",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-39",
+      "relationships": [
+        {
+          "source": "Tobias Sorenson",
+          "target": "Peltway Energy",
+          "rel_type": "DEVELOPED_BY",
+          "description": "founded Peltway Energy",
+          "weight": 1.0
+        },
+        {
+          "source": "Marchbanks Robotics",
+          "target": "Ravelin Marine",
+          "rel_type": "RELATED_TO",
+          "description": "owns a controlling interest in",
+          "weight": 0.9
+        },
+        {
+          "source": "Sundrell Mining",
+          "target": "Ravelin Systems",
+          "rel_type": "RELATED_TO",
+          "description": "acquired Ravelin Systems last quarter",
+          "weight": 0.9
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-40",
+      "relationships": [
+        {
+          "source": "Dunmere Rail",
+          "target": "Veltrax Rail",
+          "rel_type": "MAJORITY_OWNERSHIP",
+          "description": "Dunmere Rail holds a majority stake in Veltrax Rail.",
+          "weight": 1.0
+        },
+        {
+          "source": "Marchbanks Energy",
+          "target": "Caldrix Capital",
+          "rel_type": "ACQUIRED",
+          "description": "Marchbanks Energy acquired Caldrix Capital in an all-cash deal.",
+          "weight": 1.0
+        },
+        {
+          "source": "Sundrell Foods",
+          "target": "Norvane Holdings",
+          "rel_type": "PARENT_OF",
+          "description": "Sundrell Foods is the parent company of Norvane Holdings.",
+          "weight": 1.0
+        },
+        {
+          "source": "Norvane Industries",
+          "target": "Yarrowgate Systems",
+          "rel_type": "MAJORITY_OWNERSHIP",
+          "description": "Norvane Industries majority-owns Yarrowgate Systems.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-41",
+      "relationships": [
+        {
+          "source": "Veltrax Pharma",
+          "target": "Tovrik Partners",
+          "rel_type": "PART_OF",
+          "description": "Veltrax Pharma is a division of Tovrik Partners.",
+          "weight": 1.0
+        },
+        {
+          "source": "Kestwick Energy",
+          "target": "Bramwick Holdings",
+          "rel_type": "PART_OF",
+          "description": "Kestwick Energy is a division of Bramwick Holdings.",
+          "weight": 1.0
+        },
+        {
+          "source": "Marchbanks Marine",
+          "target": "Marchbanks Logistics",
+          "rel_type": "RELATED_TO",
+          "description": "acquired by Marchbanks Logistics",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-42",
+      "relationships": [
+        {
+          "source": "Tovrik Capital",
+          "target": "Ostrella Marine",
+          "rel_type": "RELATED_TO",
+          "description": "acquired Ostrella Marine",
+          "weight": 1.0
+        },
+        {
+          "source": "Dunmere Logistics",
+          "target": "Aiko Duval",
+          "rel_type": "DEVELOPED_BY",
+          "description": "established by Aiko Duval",
+          "weight": 1.0
+        },
+        {
+          "source": "Ingrid Ferreira",
+          "target": "Veltrax Capital",
+          "rel_type": "DEVELOPED_BY",
+          "description": "established Veltrax Capital",
+          "weight": 1.0
+        },
+        {
+          "source": "Dunmere Pharma",
+          "target": "Marcus Ferreira",
+          "rel_type": "DEVELOPED_BY",
+          "description": "founded by Marcus Ferreira to enter the regional market.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-43",
+      "relationships": [
+        {
+          "source": "Yarrowgate Aviation",
+          "target": "Ostrella Group",
+          "rel_type": "PART_OF",
+          "description": "division of Ostrella Group",
+          "weight": 1.0
+        },
+        {
+          "source": "Lumetta Materials",
+          "target": "Veltrax Industries",
+          "rel_type": "PART_OF",
+          "description": "division of Veltrax Industries",
+          "weight": 1.0
+        },
+        {
+          "source": "Dunmere Marine",
+          "target": "Kestwick Textiles",
+          "rel_type": "PART_OF",
+          "description": "taken over by Kestwick Textiles",
+          "weight": 1.0
+        },
+        {
+          "source": "Dunmere Robotics",
+          "target": "Sundrell Packaging",
+          "rel_type": "PART_OF",
+          "description": "taken over by Sundrell Packaging",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-44",
+      "relationships": [
+        {
+          "source": "Ravelin Robotics",
+          "target": "Quillon Holdings",
+          "rel_type": "PART_OF",
+          "description": "division relationship.",
+          "weight": 1.0
+        },
+        {
+          "source": "Norvane Packaging",
+          "target": "Ostrella Media",
+          "rel_type": "PART_OF",
+          "description": "acquired by Ostrella Media.",
+          "weight": 1.0
+        },
+        {
+          "source": "Yarrowgate Media",
+          "target": "Quillon Robotics",
+          "rel_type": "PART_OF",
+          "description": "acquired by Quillon Robotics.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-45",
+      "relationships": [
+        {
+          "source": "Peltway Partners",
+          "target": "Elmsworth Pharma",
+          "rel_type": "RELATED_TO",
+          "description": "majority-owned by Elmsworth Pharma",
+          "weight": 0.9
+        },
+        {
+          "source": "Bramwick Mining",
+          "target": "Marchbanks Media",
+          "rel_type": "RELATED_TO",
+          "description": "acquired in an all-cash deal",
+          "weight": 0.9
+        },
+        {
+          "source": "Ravelin Holdings",
+          "target": "Peltway Industries",
+          "rel_type": "RELATED_TO",
+          "description": "controlling stake held by Peltway Industries",
+          "weight": 0.85
+        },
+        {
+          "source": "Norvane Foods",
+          "target": "Tobias Lindqvist",
+          "rel_type": "RELATED_TO",
+          "description": "founded by Tobias Lindqvist",
+          "weight": 0.8
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-46",
+      "relationships": [
+        {
+          "source": "Caldrix Materials",
+          "target": "Tovrik Aviation",
+          "rel_type": "PART_OF",
+          "description": "Caldrix Materials is a division of Tovrik Aviation",
+          "weight": 1.0
+        },
+        {
+          "source": "Ostrella Textiles",
+          "target": "Elmsworth Mining",
+          "rel_type": "OWNS",
+          "description": "holds a majority stake in Elmsworth Mining",
+          "weight": 1.0
+        },
+        {
+          "source": "Ruben Abernathy",
+          "target": "Kestwick Logistics",
+          "rel_type": "FOUNDED",
+          "description": "founded Kestwick Logistics",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-47",
+      "relationships": [
+        {
+          "source": "Veltrax Holdings",
+          "target": "Halloway Systems",
+          "rel_type": "OWNS",
+          "description": "owns a controlling interest in Halloway Systems",
+          "weight": 1.0
+        },
+        {
+          "source": "Ostrella Industries",
+          "target": "Tovrik Group",
+          "rel_type": "ACQUIRED",
+          "description": "acquired Tovrik Group in an all-cash deal",
+          "weight": 1.0
+        },
+        {
+          "source": "Zephyrine Industries",
+          "target": "Lumetta Analytics",
+          "rel_type": "OWNS",
+          "description": "holds a majority stake in Lumetta Analytics",
+          "weight": 1.0
+        },
+        {
+          "source": "Marcus Okonkwo",
+          "target": "Ironcrest Industries",
+          "rel_type": "ESTABLISHED",
+          "description": "established Ironcrest Industries as an independent venture",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-48",
+      "relationships": [
+        {
+          "source": "Dunmere Packaging",
+          "target": "Quillon Analytics",
+          "rel_type": "RELATED_TO",
+          "description": "acquisition",
+          "weight": 1.0
+        },
+        {
+          "source": "Veltrax Systems",
+          "target": "Caldrix Energy",
+          "rel_type": "RELATED_TO",
+          "description": "all-cash acquisition",
+          "weight": 1.0
+        },
+        {
+          "source": "Sundrell Media",
+          "target": "Tovrik Packaging",
+          "rel_type": "RELATED_TO",
+          "description": "majority-owned by",
+          "weight": 1.0
+        },
+        {
+          "source": "Sundrell Rail",
+          "target": "Norvane Marine",
+          "rel_type": "RELATED_TO",
+          "description": "parent company",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-49",
+      "relationships": [
+        {
+          "source": "Ironcrest Holdings",
+          "target": "Elsa Abernathy",
+          "rel_type": "DEVELOPED_BY",
+          "description": "Ironcrest Holdings was established by Elsa Abernathy.",
+          "weight": 1.0
+        },
+        {
+          "source": "Ironcrest Partners",
+          "target": "Bramwick Analytics",
+          "rel_type": "RELATED_TO",
+          "description": "Ironcrest Partners holds a controlling stake in Bramwick Analytics.",
+          "weight": 1.0
+        },
+        {
+          "source": "Quillon Mining",
+          "target": "Norvane Capital",
+          "rel_type": "RELATED_TO",
+          "description": "Quillon Mining completed the takeover of Norvane Capital.",
+          "weight": 1.0
+        },
+        {
+          "source": "Quillon Logistics",
+          "target": "Elsa Marchetti",
+          "rel_type": "DEVELOPED_BY",
+          "description": "Quillon Logistics was established by Elsa Marchetti.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-50",
+      "relationships": [
+        {
+          "source": "Ravelin Industries",
+          "target": "Elmsworth Marine",
+          "rel_type": "PART_OF",
+          "description": "wholly-owned subsidiary",
+          "weight": 1.0
+        },
+        {
+          "source": "Lumetta Textiles",
+          "target": "Bramwick Robotics",
+          "rel_type": "PART_OF",
+          "description": "wholly-owned subsidiary",
+          "weight": 1.0
+        },
+        {
+          "source": "Halloway Rail",
+          "target": "Marchbanks Capital",
+          "rel_type": "TAKEN_OVER",
+          "description": "takeover",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-51",
+      "relationships": [
+        {
+          "source": "Marcus Sorenson",
+          "target": "Marchbanks Packaging",
+          "rel_type": "RELATED_TO",
+          "description": "Marcus Sorenson founded Marchbanks Packaging",
+          "weight": 1.0
+        },
+        {
+          "source": "Salome Kestenholz",
+          "target": "Caldrix Pharma",
+          "rel_type": "RELATED_TO",
+          "description": "Salome Kestenholz founded Caldrix Pharma to enter the regional market",
+          "weight": 1.0
+        },
+        {
+          "source": "Ironcrest Media",
+          "target": "Ravelin Media",
+          "rel_type": "PART_OF",
+          "description": "Ironcrest Media is a wholly-owned subsidiary of Ravelin Media",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-52",
+      "relationships": [
+        {
+          "source": "Caldrix Logistics",
+          "target": "Lumetta Marine",
+          "rel_type": "RELATED_TO",
+          "description": "takeover of Lumetta Marine",
+          "weight": 0.9
+        },
+        {
+          "source": "Zephyrine Energy",
+          "target": "Bramwick Aviation",
+          "rel_type": "RELATED_TO",
+          "description": "acquisition in all-cash deal",
+          "weight": 0.9
+        },
+        {
+          "source": "Tovrik Pharma",
+          "target": "Priya Kestenholz",
+          "rel_type": "DEVELOPED_BY",
+          "description": "founded by Priya Kestenholz",
+          "weight": 0.95
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-53",
+      "relationships": [
+        {
+          "source": "Marchbanks Group",
+          "target": "Elmsworth Media",
+          "rel_type": "RELATED_TO",
+          "description": "takeover of Elmsworth Media (last quarter)",
+          "weight": 1.0
+        },
+        {
+          "source": "Dunmere Partners",
+          "target": "Kestwick Robotics",
+          "rel_type": "RELATED_TO",
+          "description": "takeover of Kestwick Robotics (last quarter)",
+          "weight": 1.0
+        },
+        {
+          "source": "Kestwick Packaging",
+          "target": "Felix Okonkwo",
+          "rel_type": "DEVELOPED_BY",
+          "description": "founded to enter regional market",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-54",
+      "relationships": [
+        {
+          "source": "Norvane Aviation",
+          "target": "Fenmore Energy",
+          "rel_type": "PART_OF",
+          "description": "acquired by Fenmore Energy",
+          "weight": 1.0
+        },
+        {
+          "source": "Caldrix Rail",
+          "target": "Aiko Marchetti",
+          "rel_type": "DEVELOPED_BY",
+          "description": "founded by Aiko Marchetti",
+          "weight": 1.0
+        },
+        {
+          "source": "Peltway Holdings",
+          "target": "Marchbanks Systems",
+          "rel_type": "PART_OF",
+          "description": "subsidiary of Marchbanks Systems",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-55",
+      "relationships": [
+        {
+          "source": "Fenmore Rail",
+          "target": "Lumetta Partners",
+          "rel_type": "PART_OF",
+          "description": "subsidiary relationship",
+          "weight": 1.0
+        },
+        {
+          "source": "Peltway Logistics",
+          "target": "Norvane Energy",
+          "rel_type": "PART_OF",
+          "description": "division relationship",
+          "weight": 1.0
+        },
+        {
+          "source": "Ironcrest Energy",
+          "target": "Kestwick Systems",
+          "rel_type": "RELATED_TO",
+          "description": "holding a controlling interest in",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-56",
+      "relationships": [
+        {
+          "source": "Lumetta Packaging",
+          "target": "Caldrix Analytics",
+          "rel_type": "PART_OF",
+          "description": "Lumetta Packaging is a wholly-owned subsidiary of Caldrix Analytics.",
+          "weight": 1.0
+        },
+        {
+          "source": "Halloway Partners",
+          "target": "Tovrik Mining",
+          "rel_type": "PART_OF",
+          "description": "Halloway Partners was acquired by Tovrik Mining in an all-cash deal.",
+          "weight": 1.0
+        },
+        {
+          "source": "Lumetta Pharma",
+          "target": "Viktor Nakagawa",
+          "rel_type": "DEVELOPED_BY",
+          "description": "Lumetta Pharma was founded by Viktor Nakagawa.",
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-57",
+      "relationships": [
+        {
+          "source": "Ravelin Aviation",
+          "target": "Elsa Nakagawa",
+          "rel_type": "DEVELOPED_BY",
+          "description": "Elsa Nakagawa is founder of Ravelin Aviation.",
+          "weight": 1.0
+        },
+        {
+          "source": "Ostrella Foods",
+          "target": "Dunmere Textiles",
+          "rel_type": "RELATED_TO",
+          "description": "Ostrella Foods acquired Dunmere Textiles in an all-cash deal.",
+          "weight": 0.9
+        },
+        {
+          "source": "Norvane Mining",
+          "target": "Doran Duval",
+          "rel_type": "DEVELOPED_BY",
+          "description": "Doran Duval is founder of Norvane Mining.",
+          "weight": 1.0
+        },
+        {
+          "source": "Caldrix Mining",
+          "target": "Fenmore Foods",
+          "rel_type": "RELATED_TO",
+          "description": "holds a majority stake in Fenmore Foods.",
+          "weight": 0.9
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-58",
+      "relationships": [
+        {
+          "source": "Sundrell Materials",
+          "target": "Sundrell Holdings",
+          "rel_type": "PART_OF",
+          "description": "division of Sundrell Holdings",
+          "weight": 0.95
+        },
+        {
+          "source": "Sundrell Logistics",
+          "target": "Ostrella Partners",
+          "rel_type": "PART_OF",
+          "description": "acquired by",
+          "weight": 0.9
+        },
+        {
+          "source": "Ironcrest Textiles",
+          "target": "Tovrik Marine",
+          "rel_type": "PART_OF",
+          "description": "division of",
+          "weight": 0.9
+        },
+        {
+          "source": "Quillon Textiles",
+          "target": "Zephyrine Aviation",
+          "rel_type": "PART_OF",
+          "description": "majority-owned by",
+          "weight": 0.85
+        }
+      ]
+    },
+    {
+      "doc_id": "reg-59",
+      "relationships": [
+        {
+          "source": "Zephyrine Group",
+          "target": "Lumetta Energy",
+          "rel_type": "PART_OF",
+          "description": "Zephyrine Group is a division of Lumetta Energy.",
+          "weight": 1.0
+        },
+        {
+          "source": "Yarrowgate Energy",
+          "target": "Fenmore Mining",
+          "rel_type": "RELATED_TO",
+          "description": "holding a controlling interest in Fenmore Mining.",
+          "weight": 1.0
+        },
+        {
+          "source": "Norvane Partners",
+          "target": "Norvane Media",
+          "rel_type": "RELATED_TO",
+          "description": "holding a controlling interest in Norvane Media.",
+          "weight": 1.0
+        },
+        {
+          "source": "Ostrella Analytics",
+          "target": "Kestwick Media",
+          "rel_type": "RELATED_TO",
+          "description": "completed takeover of Kestwick Media.",
+          "weight": 1.0
+        }
+      ]
+    }
+  ]
+}

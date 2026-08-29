@@ -161,6 +161,8 @@ Rules:
   text; put specifics in description. E.g. MAINTAINS_RELATIONSHIP_WITH
   with description "commercial banking relationship" — never
   MAINTAINS_COMMERCIAL_BANKING_RELATIONSHIP_WITH
+- Direction matters: "source REL_TYPE target" must read as a true sentence.
+  Passive text inverts it — "X is owned by Y" means source=Y OWNS target=X.
 - Only extract explicit facts from the text
 - Keep descriptions concise (1 sentence)
 - Normalize entity names (consistent casing)"""
@@ -210,6 +212,8 @@ Rules:
 - Use the preferred relationship types when they fit; a new rel_type must be
   short and generic (at most 3 words) and reused consistently — put
   specifics in the description, never in the rel_type
+- Direction matters: "source REL_TYPE target" must read as a true sentence.
+  Passive text inverts it — "X is owned by Y" means source=Y OWNS target=X.
 - Keep descriptions concise (1 sentence)"""
 
 
@@ -245,6 +249,8 @@ Rules:
 - Use the preferred relationship types when they fit; a new rel_type must be
   short and generic (at most 3 words), reused consistently — specifics go in
   the description, never in the rel_type.
+- Direction matters: "source REL_TYPE target" must read as a true sentence.
+  Passive text inverts it — "X is owned by Y" means source=Y OWNS target=X.
 - Keep descriptions to one sentence."""
 
 
@@ -295,6 +301,8 @@ Rules:
   serves whenever the text states them.
 - Use ONLY the relationship types listed above. If none fits exactly, use
   the closest listed type — never invent a new one.
+- Direction matters: "source REL_TYPE target" must read as a true sentence.
+  Passive text inverts it — "X is owned by Y" means source=Y OWNS target=X.
 - Only extract facts the text states or clearly implies.
 - Normalize entity names (consistent casing); keep descriptions to one
   sentence."""
@@ -456,8 +464,13 @@ def get_llm_provider(config: PGRGConfig) -> LLMProvider:
 
 
 def _cache_key(chunk_content: str, prompt_name: str = "default") -> str:
-    """Generate cache key for a chunk's extraction (prompt-aware)."""
-    return hashlib.sha256(f"extract_v1:{prompt_name}:{chunk_content}".encode()).hexdigest()
+    """Generate cache key for a chunk's extraction (prompt-aware).
+
+    The key carries the prompt NAME, not its text — bump the version prefix
+    whenever a prompt's extraction contract changes, or cached chunks keep
+    their old extractions (v2: #110 direction contract).
+    """
+    return hashlib.sha256(f"extract_v2:{prompt_name}:{chunk_content}".encode()).hexdigest()
 
 
 def _is_insufficient_privilege(exc: Exception) -> bool:

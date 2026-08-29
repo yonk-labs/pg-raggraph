@@ -35,7 +35,12 @@ for r in rows:  # list[AnalyzedChunk], best fused score first
 - **`seed`** — where the neighborhood starts. Three forms:
   - `SemanticSeed(query, top_k=60, entity_type=None)` — the `top_k` nearest
     chunks to the (embedder-embedded) query, mapped to their linked
-    entities, optionally restricted to one entity type;
+    entities, optionally restricted to one entity type. Entities whose
+    *name* appears (near-)verbatim in the query also join the seed set
+    directly via a lexical anchor leg (issue #115) — so opaque
+    identifiers ("CASE-2024-0117") and near-duplicate names anchor the
+    plan even when pure cosine ranking would miss them. The
+    `entity_type` restriction applies to both legs;
   - `list[int]` — literal entity ids (compose with `find_entities` /
     `traverse` output);
   - `NameSeed(name, entity_type=None, fuzzy=True, limit=5)` — exact +
