@@ -724,6 +724,32 @@ pg-raggraph automatically skips documents that haven't changed. You can safely r
 4. Entities are resolved against existing ones (pg_trgm fuzzy + vector similarity)
 5. Everything is stored in PostgreSQL with content hashes for dedup
 
+### Labeling sources (`source_type`)
+
+When one knowledge base mixes origins (CRM notes + tickets + wiki pages),
+stamp each document with a `source_type` at ingest so responses are
+identifiable to the reader — citation chips can render which source each
+result came from:
+
+```python
+await rag.ingest_records(
+    [
+        {"text": "...", "source_id": "crm:42"},                          # gets "crm_note"
+        {"text": "...", "source_id": "jira:7", "source_type": "ticket"}, # per-record override
+    ],
+    namespace="support",
+    source_type="crm_note",  # call-level default for the batch
+)
+
+result = await rag.query("...", namespace="support")
+for c in result.chunks:
+    print(c.source_type)  # "crm_note" / "ticket" / None for unstamped docs
+```
+
+The label surfaces on `ChunkResult.source_type` from every retrieval mode.
+Re-ingesting the same content without a stamp keeps the stored value
+(same semantics as `version_label`); it never overwrites with NULL.
+
 ### Deferred extraction (background drain)
 
 Step 3 above — LLM/lede entity + relationship extraction — is the slow leg.
