@@ -501,8 +501,12 @@ class PGRGConfig(BaseSettings):
     summary_length_ceiling_chunks: int = 30  # >= this many chunks → ceiling
     summary_escalation: bool = True  # append "full sources available" affordance
     result_cache_size: int = 128  # in-process LRU capacity (0 disables caching)
-    # Query → hint pipeline.
-    query_expansion: Literal["off", "lemma", "moderate", "aggressive"] = "moderate"
+    # Query → hint pipeline. Default "off" (#89): a 3-tier × MHR/MuSiQue ×
+    # 100-query L0_summary sweep found expansion quality-neutral (1/200
+    # queries changed span_recall) while "moderate" pays spaCy+WordNet load
+    # (~1.2s cold, ~4.5ms/query warm) and pollutes hints with synonym noise.
+    # See benchmarks/query-expansion-sweep-2026-08.md. Tiers remain opt-in.
+    query_expansion: Literal["off", "lemma", "moderate", "aggressive"] = "off"
     summary_seed_terms: int = 4  # top_terms(question, n=) seed count
     expand_top_k: int = 3  # per-seed synonym/similar cap in expand_hints
     expand_weight: float = 0.5  # expansion-term weight multiplier (dict input)

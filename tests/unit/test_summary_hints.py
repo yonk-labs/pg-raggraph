@@ -18,6 +18,14 @@ def test_query_result_summary_roundtrips():
     assert qr.model_dump()["summary"] == "a deterministic summary"
 
 
+def test_query_expansion_default_is_off():
+    """#89 sweep lock: expansion was quality-neutral on MHR/MuSiQue (1/200
+    queries changed span_recall) while 'moderate' pays spaCy+WordNet load
+    and synonym noise on every summary query. Re-run the sweep
+    (benchmarks/query-expansion-sweep-2026-08.md) before changing this."""
+    assert PGRGConfig().query_expansion == "off"
+
+
 def test_seed_weights_are_deterministic_and_descending():
     q = "What county does John Smith live in and what taxes apply?"
     w1 = summary_mod._seed_weights(q, n=4)
