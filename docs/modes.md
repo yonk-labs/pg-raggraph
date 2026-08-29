@@ -6,7 +6,7 @@ pg-raggraph has 6 retrieval modes. This guide explains what each one does, when 
 
 ---
 
-## The 6 Modes at a Glance
+## The 7 Modes at a Glance
 
 | Mode | Strategy | Best For | Latency | Top-score lift (pg-agents dev corpus)¹ |
 |------|----------|----------|:-------:|:-------------------------:|
@@ -16,6 +16,7 @@ pg-raggraph has 6 retrieval modes. This guide explains what each one does, when 
 | `local` | Seed from vector → expand via recursive CTE | "Pull in new chunks via graph" | 220ms | +2.4% |
 | `global` | Search by relationships → find linked chunks | Relationship-centric questions | 150ms | varies |
 | `hybrid` | local + global merged | Most exhaustive | 450ms | +2.4% |
+| `summary` | Base retrieval + lede extractive compression | Token-light context for LLM callers | base mode + ms-scale pack | n/a (changes packaging, not ranking) |
 
 ¹ "Top-score lift" = improvement in the average score of the best retrieved chunk — a retrieval-quality proxy, **not** graded answer accuracy. Canonical source: [`benchmarks/pg-agents-results.md`](../benchmarks/pg-agents-results.md). On gold-labeled QA (SCOTUS, LLM-judged) mode switches moved judged accuracy by at most +3.3pp ([`SESSION-HANDOFF.md`](../benchmarks/age-bakeoff/SESSION-HANDOFF.md)); on multi-hop MuSiQue with a real extracted KG, `local` beats `naive` by +4–5pp end-to-end ([`ab-gate/RESULTS.md`](../benchmarks/ab-gate/RESULTS.md)).
 
@@ -333,6 +334,43 @@ Honest note: **hybrid is not the "most accurate" mode**. On the pg-agents benchm
 
 ```bash
 pgrg query "question" -m hybrid  # only when you want to explore
+```
+
+---
+
+## `summary` — Extractive Context Compression
+
+Runs a base retrieval (`summary_base_mode`, default `hybrid`), then
+compresses the retrieved context with lede's deterministic extractive
+summarizer — no LLM call. Query terms become weighted hints that steer
+which sentences survive, and the packed text lands on `result.summary`
+alongside the untouched `result.chunks`.
+
+### What it does
+1. Run the base mode (`summary_base_mode`: naive / local / global / hybrid)
+2. Build hints from the query (`build_hints`; synonym expansion is opt-in —
+   `query_expansion` defaults to `off`, see
+   [`benchmarks/query-expansion-sweep-2026-08.md`](../benchmarks/query-expansion-sweep-2026-08.md))
+3. lede-summarize the concatenated chunks toward those hints, keeping
+   headings and appending a key-facts section (both configurable)
+4. Small contexts skip compression entirely
+   (`summary_skip_small_contexts=True`, threshold
+   `summary_min_context_tokens=8000`) — you never pay to shrink what
+   already fits
+
+### When to use
+- **You feed retrieval output to an LLM and pay per token** — the point
+  is a smaller, query-focused context, not different ranking
+- **Long-document corpora** where top-k chunks overflow the answer budget
+
+### When to avoid
+- **Tiny corpora / small top-k** — below the token threshold it returns
+  the chunks as-is, so plain `smart` is simpler
+- **When you need verbatim chunk text downstream** — use
+  `result.chunks`, which summary mode leaves intact
+
+```bash
+pgrg query "question" -m summary
 ```
 
 ---
