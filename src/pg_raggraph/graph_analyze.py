@@ -39,6 +39,7 @@ from pg_raggraph.graph_join import (
     find_entities,
     normalize_rel_types,
 )
+from pg_raggraph.retrieval import _SEED_SET_LOCAL, _query_tokens
 
 # --------------------------------------------------------------------------
 # Plan stages (pure dataclasses — unit-testable without a database)
@@ -202,11 +203,29 @@ def _hop_fragments(direction: str) -> tuple[str, str]:
 
 
 def _seed_cte(seed: SemanticSeed | Sequence[int]) -> str:
-    """The ``seeds`` CTE: one column, ``entity_id``."""
+    """The ``seeds`` CTE: one column, ``entity_id``.
+
+    SemanticSeed plans union two legs (issue #115, the #105 pattern):
+    vector top-K chunks mapped to their entities, plus a lexical
+    entity-anchor leg — entities whose *name* appears (near-)verbatim in
+    the query. Vector-only seeding never anchors opaque identifiers or
+    near-duplicate names: on template corpora cosine collapses onto a hub
+    chunk and the same noise seed anchors every query. The trgm match-ANY
+    operator (``%%``, psycopg-escaped) is the index gate — threshold
+    pinned low via set_local, same GUC pin as retrieval's graph modes —
+    and ``word_similarity(name, query)`` is the exact gate. An empty
+    token list matches nothing: seed set identical to the historical
+    vector-only behavior.
+    """
     if isinstance(seed, SemanticSeed):
         type_join = (
             "JOIN entities e ON e.id = ec.entity_id "
             "AND lower(e.entity_type) = lower(%(seed_entity_type)s)"
+            if seed.entity_type is not None
+            else ""
+        )
+        lex_type_pred = (
+            "\n      AND lower(e.entity_type) = lower(%(seed_entity_type)s)"
             if seed.entity_type is not None
             else ""
         )
@@ -218,11 +237,24 @@ def _seed_cte(seed: SemanticSeed | Sequence[int]) -> str:
     ORDER BY c.embedding <=> %(qvec)s::vector
     LIMIT %(seed_top_k)s
 ),
+lex_seed_entities AS (
+    SELECT e.id AS entity_id
+    FROM entities e
+    WHERE e.namespace = %(namespace)s
+      AND e.name %% ANY(%(query_tokens)s)
+      AND word_similarity(e.name, %(seed_query)s) > %(seed_min_wsim)s{lex_type_pred}
+    ORDER BY word_similarity(e.name, %(seed_query)s) DESC
+    LIMIT %(seed_top_k)s
+),
 seeds AS (
-    SELECT DISTINCT ec.entity_id
-    FROM seed_chunks sc
-    JOIN entity_chunks ec ON ec.chunk_id = sc.id
-    {type_join}
+    SELECT DISTINCT entity_id FROM (
+        SELECT ec.entity_id
+        FROM seed_chunks sc
+        JOIN entity_chunks ec ON ec.chunk_id = sc.id
+        {type_join}
+        UNION ALL
+        SELECT entity_id FROM lex_seed_entities
+    ) u
 )"""
     # id seed (NameSeed resolves to ids in Python first)
     return """seeds AS (
@@ -438,6 +470,11 @@ async def graph_analyze(
     if isinstance(seed, SemanticSeed):
         params["qvec"] = await embed(seed.query)
         params["seed_top_k"] = seed.top_k
+        # Lexical entity-anchor leg (#115) — same tokenization as the #105
+        # graph-mode seed leg (hyphen compounds + parts, len > 2, 20-term cap).
+        params["seed_query"] = seed.query
+        params["query_tokens"] = [t for t in _query_tokens(seed.query) if len(t) > 2][:20]
+        params["seed_min_wsim"] = config.seed_min_wsim
         if seed.entity_type is not None:
             params["seed_entity_type"] = seed.entity_type
         sql_seed: SemanticSeed | Sequence[int] = seed
@@ -472,7 +509,13 @@ async def graph_analyze(
         fuse.legs,
         authority_typed=authority_types is not None,
     )
-    rows = await db.fetch_all(sql, params)
+    rows = await db.fetch_all(
+        sql,
+        params,
+        # Pin the trgm gate for the lexical seed leg, same as retrieval's
+        # graph modes — a session-level threshold can't narrow it.
+        set_local=_SEED_SET_LOCAL if isinstance(seed, SemanticSeed) else None,
+    )
     return [
         AnalyzedChunk(
             chunk_id=r["chunk_id"],
