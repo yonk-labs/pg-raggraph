@@ -294,7 +294,7 @@ def _build_naive_query(
 SELECT c.id, COALESCE(c.embedded_content, c.content) AS content, c.metadata,
        d.source_path,
        d.metadata AS doc_metadata,
-       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       d.retracted, d.version_label, d.source_type, d.effective_from, d.effective_to,
        (SELECT dv.document_id FROM document_versions dv
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
@@ -366,7 +366,7 @@ ranked AS (
 SELECT r.id, r.content, r.metadata,
        d.source_path,
        d.metadata AS doc_metadata,
-       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       d.retracted, d.version_label, d.source_type, d.effective_from, d.effective_to,
        (SELECT dv.document_id FROM document_versions dv
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
@@ -467,7 +467,7 @@ WITH candidates AS (
 SELECT cand.id, cand.content, cand.metadata,
        d.source_path,
        d.metadata AS doc_metadata,
-       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       d.retracted, d.version_label, d.source_type, d.effective_from, d.effective_to,
        (SELECT dv.document_id FROM document_versions dv
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
@@ -541,7 +541,7 @@ ranked AS (
 SELECT r.id, r.content, r.metadata,
        d.source_path,
        d.metadata AS doc_metadata,
-       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       d.retracted, d.version_label, d.source_type, d.effective_from, d.effective_to,
        (SELECT dv.document_id FROM document_versions dv
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
@@ -631,7 +631,7 @@ WITH filtered AS (
 SELECT cand.id, cand.content, cand.metadata,
        d.source_path,
        d.metadata AS doc_metadata,
-       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       d.retracted, d.version_label, d.source_type, d.effective_from, d.effective_to,
        (SELECT dv.document_id FROM document_versions dv
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
@@ -702,7 +702,7 @@ ranked AS (
 SELECT r.id, r.content, r.metadata,
        d.source_path,
        d.metadata AS doc_metadata,
-       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       d.retracted, d.version_label, d.source_type, d.effective_from, d.effective_to,
        (SELECT dv.document_id FROM document_versions dv
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
@@ -800,7 +800,7 @@ WITH candidates AS (
 SELECT cand.id, cand.content, cand.metadata,
        d.source_path,
        d.metadata AS doc_metadata,
-       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       d.retracted, d.version_label, d.source_type, d.effective_from, d.effective_to,
        (SELECT dv.document_id FROM document_versions dv
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
@@ -874,7 +874,7 @@ ranked AS (
 SELECT r.id, r.content, r.metadata,
        d.source_path,
        d.metadata AS doc_metadata,
-       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       d.retracted, d.version_label, d.source_type, d.effective_from, d.effective_to,
        (SELECT dv.document_id FROM document_versions dv
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
@@ -922,7 +922,7 @@ ranked AS (
 SELECT r.id, r.content, r.metadata,
        d.source_path,
        d.metadata AS doc_metadata,
-       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       d.retracted, d.version_label, d.source_type, d.effective_from, d.effective_to,
        (SELECT dv.document_id FROM document_versions dv
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
@@ -1060,7 +1060,7 @@ relevant_chunks AS (
 SELECT rc.id, rc.content, rc.metadata,
        d.source_path,
        d.metadata AS doc_metadata,
-       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       d.retracted, d.version_label, d.source_type, d.effective_from, d.effective_to,
        (SELECT dv.document_id FROM document_versions dv
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
@@ -1149,7 +1149,7 @@ relevant_chunks AS (
 SELECT rc.id, rc.content, rc.metadata,
        d.source_path,
        d.metadata AS doc_metadata,
-       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       d.retracted, d.version_label, d.source_type, d.effective_from, d.effective_to,
        (SELECT dv.document_id FROM document_versions dv
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
@@ -1585,6 +1585,9 @@ async def query(
                 # content scoping without opting into evolution scoring.
                 # See issue #17.
                 version_label=row.get("version_label"),
+                # source_type mirrors version_label: caller-stamped origin
+                # label, tier-independent (issue #38).
+                source_type=row.get("source_type"),
                 effective_from=(row.get("effective_from") if evo_on else None),
                 effective_to=(row.get("effective_to") if evo_on else None),
                 superseded_by_id=(row.get("superseded_by_id") if evo_on else None),

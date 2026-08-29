@@ -197,6 +197,10 @@ class ChunkResult(BaseModel):
     metadata: dict | None = None
     retracted: bool | None = None
     version_label: str | None = None
+    source_type: str | None = None
+    """Per-document origin label stamped at ingest (issue #38) — e.g.
+    "crm_note" vs "ticket" — so multi-source responses are identifiable.
+    Tier-independent, like version_label."""
     effective_from: datetime | None = None
     effective_to: datetime | None = None
     superseded_by_id: int | None = None
