@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Changed
+
+- **`query_expansion` default `moderate` → `off` (#89).** A 3-tier ×
+  MHR/MuSiQue × 100-query `L0_summary` sweep found hint expansion
+  quality-neutral on our corpora (1 of 200 queries changed span_recall;
+  `off` ≡ `lemma` byte-identical) while `moderate` pays ~1.2s cold
+  spaCy+WordNet load, ~4.5ms per warm summary query, and pollutes hints
+  with synonym noise. All tiers remain opt-in; `aggressive` still degrades
+  to `moderate` without a vector model. Matches stele's cross-domain
+  finding. Details: `benchmarks/query-expansion-sweep-2026-08.md`.
 ### Added
 
 - **`documents.source_type` origin label (#38).** Migration 019 adds a
