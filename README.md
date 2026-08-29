@@ -291,6 +291,9 @@ graph TB
 | `local` | Seed → recursive CTE traversal → rank | ~220 ms |
 | `global` | Relationship-centric retrieval | ~150 ms |
 | `hybrid` | local + global merged | ~450 ms |
+| `summary` | Base retrieval + lede extractive compression — token-light context in `result.summary` | base mode + ms-scale pack |
+
+Mixed-origin KBs (CRM notes + tickets + wiki): stamp records with `source_type=...` at ingest and every mode returns it on `ChunkResult.source_type`, so citation chips know which source each result came from — see [`docs/user-guide.md`](docs/user-guide.md#labeling-sources-source_type).
 
 Need a *join*, not a search? `rag.graph_join(...)` executes typed, anchor-seeded dependent joins over the entity graph ("restaurant in Maria's city that serves what she craves") in one SQL statement, with full edge/chunk provenance — see [`docs/cookbook/typed-graph-join.md`](docs/cookbook/typed-graph-join.md).
 
