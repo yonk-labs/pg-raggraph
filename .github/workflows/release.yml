@@ -97,6 +97,9 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
+          # This job installs nothing (uv publish over downloaded artifacts);
+          # v7's default cache post-step errors on the missing cache dir.
+          enable-cache: false
       - uses: actions/download-artifact@v8
         with:
           name: dist
