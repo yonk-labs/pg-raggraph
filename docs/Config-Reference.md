@@ -137,7 +137,7 @@ Env var: `PGRG_LLM_MODEL`
 
 What: model identifier passed to the LLM endpoint.
 Pros: bigger models extract higher-quality entities and relationships at ingest.
-Cons: bigger model = more cost (per-call for paid APIs) or slower (for local).
+Cons: bigger model = more cost (per-call for paid APIs) or slower (for local). GOTCHA: the extraction cache (`pgrg_llm_cache`) keys on prompt name + chunk content, **not** the model — changing `llm_model` alone and re-extracting replays the old model's cached output. Wipe the cache (`DELETE FROM pgrg_llm_cache`) to actually exercise a new model; see [cookbook/background-extraction.md](cookbook/background-extraction.md#re-extracting-a-corpus-with-different-settings).
 When to use: `gpt-4o-mini` or `gpt-5-mini` for top extraction quality. `Qwen3-Coder-Next-int4` for cheap local.
 When NOT to use: changing without re-ingesting if you care about a consistent graph quality across the corpus.
 
@@ -150,14 +150,43 @@ Cons: passing via constructor literal leaks into stack traces. Prefer env var.
 When to use: any non-local LLM endpoint.
 When NOT to use: never hardcode in source. Use env vars or a secret manager.
 
-### `extraction_prompt` (`"default" | "dev"`, default: `default`)
+### `llm_max_tokens` (int, default: `0`)
+Env var: `PGRG_LLM_MAX_TOKENS`
+
+What: `max_tokens` sent on JSON-mode extraction calls. `0` omits the field (server default; identical to prior behavior).
+Pros: fixes silent extraction loss on local servers with small completion defaults — mlx-lm's 512 truncates extraction JSON mid-object, which parses as empty and yields no graph, with no error anywhere.
+Cons: none for extraction-sized outputs; a too-small value reintroduces the truncation it exists to fix.
+When to use: `4096` for any local OpenAI-compatible server (mlx-lm, llama.cpp server) whose completion default is small.
+When NOT to use: hosted APIs with generous defaults — leave at `0`.
+
+### `extraction_prompt` (`"default" | "dev" | "code" | "prose"`, default: `default`)
 Env var: `PGRG_EXTRACTION_PROMPT`
 
-What: which entity-extraction prompt to use at ingest. `default` is general-purpose; `dev` is tuned for developer corpora (people, services, libraries, files, commits, incidents, ADRs).
-Pros: `dev` produces meaningfully better entities + relationships on dev knowledge bases.
-Cons: `dev` over-extracts on non-dev corpora (medical, legal).
-When to use: `dev` for codebases, runbooks, on-call docs, ADR collections.
-When NOT to use: `dev` for general-knowledge corpora — use `default`.
+What: which entity-extraction prompt to use at ingest. `default` is general-purpose; `dev` is tuned for developer corpora (people, services, libraries, files, commits, incidents, ADRs); `code` extracts a conceptual graph from source code (modules, components, concepts) on top of the deterministic call graph; `prose` targets everyday text — chats, reviews, bios, journals — allowing common-noun entities (foods, activities), base-form dish naming ("wood-fired margherita pizza" → `pizza`), first-person speaker resolution in chat logs, and a closed relationship set (`LIVES_IN`/`LIKES`/`SERVES`/`LOCATED_IN`/… — preference-verb synonyms like crave/love/hate map onto `LIKES`/`DISLIKES`/`PREFERS` instead of minting bespoke edge types).
+Pros: matching the prompt to the corpus genre is the single biggest extraction-quality lever. `default`'s proper-noun bias drops preference/location relations from conversational text that `prose` keeps.
+Cons: `dev`/`prose` over-extract on the wrong genre. The LLM cache keys on prompt name, so switching prompts re-extracts (by design — no stale collisions).
+When to use: `dev` for codebases, runbooks, on-call docs, ADR collections. `prose` for chat logs, reviews, social/lifestyle corpora.
+When NOT to use: `dev` or `prose` for general-knowledge corpora — use `default`.
+
+### `extraction_prompt_by_namespace` (`dict[str, str]`, default: `{}`)
+Env var: `PGRG_EXTRACTION_PROMPT_BY_NAMESPACE` (JSON, e.g. `'{"kb-chats": "prose", "kb-src": "code"}'`)
+
+What: per-namespace (per-KB) extraction prompt map — namespace → prompt name. Consulted at extraction time on both the sync ingest path and the `pgrg extract` drain, so one deployment can serve code KBs and prose KBs with correct extraction simultaneously (#94).
+
+**Precedence** (first match wins):
+1. Per-call `extraction_prompt=` kwarg on `ingest()` / `ingest_records()`
+2. Per-doc stamp — `documents.metadata['extraction_prompt']`, written on **deferred** ingests with the resolved prompt so those docs drain with the prompt they were ingested under (a record's own `metadata["extraction_prompt"]` participates here too). Sync docs are not stamped — extraction already ran, and `documents.metadata` surfaces on query results.
+3. This map (`extraction_prompt_by_namespace[namespace]`)
+4. `extraction_prompt` (the process-global default)
+
+Deferred docs capture the prompt choice at **ingest** time; at **drain** time this map applies to unstamped rows (pre-#94 rows, or sync docs manually re-queued to `pending` — see the re-extraction procedure in the cookbook). To re-drain a stamped doc under a new prompt, clear or rewrite the stamp (`UPDATE documents SET metadata = metadata - 'extraction_prompt' …`).
+
+Unknown prompt names fail loud: a bad per-call kwarg raises `ValueError` before any write; a bad map entry or stamp raises at extraction time (drain marks the doc `failed` with the error in `graph_error`). This is stricter than `get_prompt`, which silently falls back to `default`.
+
+Pros: multi-tenant deployments stop being forced into one process-global prompt; the extraction cache is already prompt-aware (keyed on prompt name), so mixed prompts never collide.
+Cons: one more place prompt choice can come from — check the precedence list above when extraction output looks genre-mismatched.
+When to use: any deployment hosting KBs of different genres (code + chat + docs) under one process.
+When NOT to use: single-corpus deployments — set `extraction_prompt` instead.
 
 ### `skip_extraction` (bool, default: `False`)
 Env var: `PGRG_SKIP_EXTRACTION`
@@ -393,6 +422,33 @@ Cons: too high silently rejects valid synonym candidates that don't share charac
 When to use: 0.4 for clean datasets where typos are rare.
 When NOT to use: 0.0 — every entity becomes a candidate and resolution becomes O(N²).
 
+### `entity_description_max_chars` (int, default: `2000`)
+Env var: `PGRG_ENTITY_DESCRIPTION_MAX_CHARS`
+
+What: hard cap on `entities.description` length, enforced keep-first (oldest text survives) at every merge/append site. `0` disables.
+Pros: hub entities in churny corpora stop growing multi-KB blobs that degrade entity embeddings and get re-embedded on every merge.
+Cons: novel facts arriving after the cap is full are dropped from the description (they remain in chunks/provenance).
+When to use: lower (500-1000) for corpora with verbose LLM extraction descriptions; run `rag.trim_entity_descriptions()` once for pre-cap corpora.
+When NOT to use: 0 (disabled) on long-lived living-knowledge namespaces — that's exactly where unbounded growth hurts.
+
+### `entity_version_guard_pattern` (str, default: `\d+(?:\.\d+)*`)
+Env var: `PGRG_ENTITY_VERSION_GUARD_PATTERN`
+
+What: regex for version-like tokens; two names that differ only by such a token ("PostgreSQL 14" vs "PostgreSQL 15") refuse to fuzzy-merge regardless of score. Empty string disables.
+Pros: protects versioned-docs corpora from false merges that silently collapse distinct versions into one entity — irreparable short of re-ingest.
+Cons: keeps genuinely-identical entities with inconsistent numbering ("Ch 1" vs "Ch 01") separate; merge those manually via `rag.merge_entities()`.
+When to use: default is right for almost everyone; widen the pattern (e.g. add date tokens) for release-notes corpora.
+When NOT to use: disabling on the versioned-docs workload the guard exists for.
+
+### `no_fuzzy_merge_types` (list[str], default: `[]`)
+Env var: `PGRG_NO_FUZZY_MERGE_TYPES` (comma/JSON list)
+
+What: entity types that must NEVER fuzzy-merge, regardless of score. They still merge on an exact (namespace, name) match, but never via the trgm+vector path. Generalizes the built-in `CODE_SYMBOL` exemption to caller-declared types.
+Pros: kills false merges for a whole class of names at once — e.g. legal case captions ("Smith v. Jones (Ohio 2019)" vs "Smith v. Jones (Texas 2021)") share party names and cross the threshold, collapsing distinct cases and destroying their edges.
+Cons: real duplicates of that type stay split unless their names match exactly. For a softer, score-based dial use `resolution_threshold`; for the version-token class use `entity_version_guard_pattern`.
+When to use: identity-keyed types where similar-but-distinct is the norm (case captions, ticket IDs, versioned artifacts).
+When NOT to use: types where aggressive dedup is desired — this is a hard block, not a nudge.
+
 ---
 
 ## Hybrid scoring weights
@@ -411,11 +467,11 @@ When NOT to use: 0.0 — you'd be turning off the dominant signal.
 ### `w_bm25` (float, default: `0.20`)
 Env var: `PGRG_W_BM25`
 
-What: weight of BM25 keyword match (Postgres tsvector + tsquery).
+What: weight of the lexical leg (see `lexical_backend` — `ts_rank` by default, Okapi BM25 opt-in).
 Pros: high weight = prefers exact keyword match. Crucial for rare-vocabulary queries (proper nouns, code identifiers).
-Cons: too high ignores semantic intent.
+Cons: under `fusion="linear"` this multiplies a RAW score, and ts_rank raw scores (~0.01–0.1) are an order of magnitude below cosine (~0.6–0.9) — the leg barely votes (issue #96). Under the default `fusion="rrf"` the weight applies to a rank, so scales don't matter.
 When to use: 0.3-0.4 for code/log/identifier-heavy corpora.
-When NOT to use: 0.0 — losing BM25 hurts on names and codes.
+When NOT to use: 0.0 — losing the lexical leg hurts on names and codes.
 
 ### `w_graph` (float, default: `0.20`)
 Env var: `PGRG_W_GRAPH`
@@ -425,6 +481,62 @@ Pros: high weight = prefers chunks connected via entity graph. Big lift on multi
 Cons: too high creates "graph bias" — chunks score high just for being densely connected, even when off-topic.
 When to use: 0.3 on multi-doc corpora where reasoning chains matter.
 When NOT to use: above 0.4 — graph signal swamps direct relevance.
+
+### `w_rare` (float, default: `0.002`)
+Env var: `PGRG_W_RARE`
+
+What: weight of the IDF-coverage rare-token bonus in retrieval scoring (issue #114): `w_rare × (matched query IDF mass / total query IDF mass)`, computed from the migration-016 `lexeme_stats` regardless of `lexical_backend`. Applies to the `naive` family and the `local`/`global`/`hybrid` graph builders (`naive_boost`/`smart` inherit). Score-additive on purpose — a decisive exact-ID match must not be re-flattened into a one-step rank delta.
+Pros: rescues exact-ID / rare-name queries on template-near-duplicate corpora, where ts_rank (no IDF) and rank fusion both mute the discriminating token. The 0.002 default is calibrated (MuSiQue/MHR retrieval A/B, 2026-07-17) to beat the arbitrary vector-rank noise among near-duplicates while staying neutral on multi-hop semantic QA.
+Cons: raising it too far lets hop-1 anchor docs crowd lexically-disjoint hop-2 answer docs out of top-k (at 0.01, MuSiQue span_recall dropped 9pp). On corpora ingested before migration 016 the stats are empty and the term scores 0 (harmless no-op) until `rag.rebuild_lexical_stats()`.
+When to use: raise toward 0.01 for exact-ID lookup corpora (tickets, SKUs, incident ids) where queries name the record they want.
+When NOT to use: 0 restores the pre-#114 SQL byte-for-byte (kill switch).
+
+### `fusion` (`"linear" | "rrf"`, default: `rrf`)
+Env var: `PGRG_FUSION`
+
+What: how the cosine / lexical legs combine into one chunk score. `rrf` (Reciprocal Rank Fusion, `Σ wᵢ / (rrf_k + rankᵢ)`) fuses by per-leg rank — scale-free, so the lexical leg actually votes. `linear` is the pre-0.5.0a20 weighted raw-score sum, kept for byte-for-byte reproducibility.
+**Default changed in issue #96** (was `linear`): the raw-scale mismatch made the linear lexical leg a near-no-op. Applies to `naive`, `local`, `global`, and `hybrid` modes; `smart` mode's internal confidence probe always runs linear (its 0.7/0.4 thresholds are calibrated on raw linear scores).
+Per-call override: `rag.query(..., fusion="linear")`.
+Pros: rank fusion is robust to score-scale drift across backends and embedders.
+Cons: fused scores are small (~0.01) and NOT comparable to linear scores — don't threshold on them.
+When to use: the default. `linear` only to reproduce historical rankings exactly.
+
+### `rrf_k` (int, default: `60`)
+Env var: `PGRG_RRF_K`
+
+What: RRF damping constant — higher flattens the difference between adjacent ranks.
+When to use: leave at 60 (the literature default) unless you have eval data saying otherwise.
+
+### `lexical_backend` (`"ts_rank" | "bm25"`, default: `ts_rank`)
+Env var: `PGRG_LEXICAL_BACKEND`
+
+What: scoring function for the lexical leg. `ts_rank` is PostgreSQL's built-in — term frequency + proximity only, **no corpus IDF**, so a rare identifier gets no advantage over a common word. `bm25` scores Okapi BM25 in SQL from per-namespace statistics (`lexeme_stats` / `lexical_corpus_stats`, migration 016) maintained incrementally by triggers — IDF-aware, length-normalized, identifier-safe.
+Pros: `bm25` makes exact-term and code-identifier queries rank the defining chunk first instead of tf-heavy prose (issue #96).
+Cons: BM25 raw scores are unbounded — pair with `fusion="rrf"` (default) or retune `w_bm25` under linear. Adds a per-candidate stats join (cheap at candidate-pool sizes, costlier in single-pass `weighted` strategy on huge namespaces).
+When to use: code KBs, log corpora, anything where identifiers and rare terms decide relevance.
+Migration note: corpora ingested before migration 016 need a one-time `rag.rebuild_lexical_stats()` (or `pgrg rebuild-lexical-stats`); stats for new writes are maintained automatically, including decrements on delete (exact, no drift).
+See: [`docs/cookbook/bm25-lexical.md`](cookbook/bm25-lexical.md).
+
+### `bm25_k1` (float, default: `1.2`)
+Env var: `PGRG_BM25_K1`
+
+What: Okapi BM25 term-frequency saturation. Higher = repeated terms keep earning score longer.
+When to use: 1.2–2.0 is the standard range; raise slightly for long-form prose chunks.
+
+### `bm25_b` (float, default: `0.75`)
+Env var: `PGRG_BM25_B`
+
+What: Okapi BM25 document-length normalization strength (0 = none, 1 = full).
+When to use: lower toward 0.3 if long chunks are being unfairly penalized (e.g., code files chunked large).
+
+### `seed_min_wsim` (float, default: `0.6`)
+Env var: `PGRG_SEED_MIN_WSIM`
+
+What: minimum `pg_trgm` `word_similarity(entity.name, query)` for an entity to join the local/global traversal seed set alongside the vector-kNN seeds (issue #105). Lexical seeds always outrank vector seeds, and a verbatim mention scores 1.0 — so the exact entity ranks above near-miss siblings (`CASE-2021-0454` beats every other `CASE-2021-*`).
+Pros: opaque identifiers and near-duplicate names anchor graph traversal even when their embeddings are meaningless — the failure mode where graph modes were structurally blind to exact-ID lookups.
+Cons: lowering it admits incidental name matches into the seed set, displacing vector seeds (the union is capped at `seed_k`).
+When to use: leave at 0.6 (mirrors pg_trgm's own `word_similarity_threshold` default). Raise toward 1.0 for exact-only anchoring.
+When NOT to use: don't drop below ~0.3 — short common entity names start matching every query.
 
 ### `w_recent` (float, default: `0.10`)
 Env var: `PGRG_W_RECENT`
@@ -580,15 +692,15 @@ Cons: adds ingest cost; false-positive rate depends on the extractor model.
 When to use: any evolving knowledge corpus.
 When NOT to use: static benchmarks (waste of cycles); when the extractor is unreliable.
 
-### `fact_extractor` (`"llm" | "lede_spacy" | "none"`, default: `none`)
+### `fact_extractor` (`"llm" | "lede_spacy" | "lede_prose" | "llm+lede" | "none"`, default: `none`)
 Env var: `PGRG_FACT_EXTRACTOR`
 
-What: extractor backend for the graph. `llm` = full-quality LLM entity+relationship extraction, expensive. `lede_spacy` = deterministic, LLM-free: lede + lede-spacy NER produce (untyped) entities and edges are sentence-level co-occurrence (`RELATED_TO`); no LLM, no network. `none` = disabled.
-Requires (for `lede_spacy`): `pip install 'pg-raggraph[lede_spacy]'` **and** `python -m spacy download en_core_web_sm`. Selecting `lede_spacy` builds a graph **without** `llm_base_url` set; missing deps fail loud with the exact install commands.
-Pros: `lede_spacy` is ~sub-5ms/doc and fully offline; `llm` gives higher relational quality.
-Cons: `llm` adds an extraction LLM call per chunk. `lede_spacy` edges are co-occurrence, not semantic relations; entities are untyped (`entity_type="entity"`) in this version.
-When to use: `lede_spacy` when you need a graph with no LLM/offline; `llm` for higher-quality typed relations.
-When NOT to use: `none` is correct unless you want a graph. NOTE: `lede_spacy` does **not** emit SPO triples and does **not** populate the Tier 2 `facts` table — that is a tracked follow-up.
+What: extractor backend for the graph. `llm` = full-quality LLM entity+relationship extraction, expensive. `lede_spacy` = deterministic, LLM-free: lede + lede-spacy NER produce (untyped) entities and edges are sentence-level co-occurrence (`RELATED_TO`); no LLM, no network. `lede_prose` = the deterministic net widened for everyday prose: full spaCy NER (keeps `FAC`/`ORG` — venues, businesses) **plus** noun-chunk head lemmas as entities ("the seafood gumbo" → `gumbo`, variant phrase kept in the description), same co-occurrence edges — head-lemma canonicalization makes dish/thing variants land on one node deterministically. `llm+lede` = runs the LLM extractor **and** `lede_prose` per chunk and unions the results: typed LLM edges plus a deterministic co-occurrence net that guarantees in-sentence links survive even when the LLM drops them (degrades to the deterministic leg, with one warning, if no LLM is configured). `none` = disabled.
+Requires (for `lede_spacy`/`lede_prose`/`llm+lede`): `pip install 'pg-raggraph[lede_spacy]'` **and** `python -m spacy download en_core_web_sm`. The deterministic paths build a graph **without** `llm_base_url` set; missing deps fail loud with the exact install commands.
+Pros: deterministic paths are ~sub-5ms/doc and fully offline; `llm` gives higher relational quality; `llm+lede` gets both — typed intent edges where the LLM succeeds, guaranteed co-occurrence links where it doesn't.
+Cons: `llm` adds an extraction LLM call per chunk. Co-occurrence edges are proximity, not semantic relations. `lede_prose` noun-chunk heads are noisier than NER — more (small) entities per doc; a built-in stoplist trims the worst abstract heads.
+When to use: `lede_prose` for offline graphs over conversational/review corpora; `llm+lede` when extraction recall is the binding constraint (a missed edge is unrecoverable at query time; a noisy one just ranks lower). Pair `llm+lede` with `extraction_prompt="prose"` on lifestyle/chat corpora.
+When NOT to use: `none` is correct unless you want a graph. NOTE: none of these emit SPO triples or populate the Tier 2 `facts` table — that is a tracked follow-up.
 
 ### `fact_dedup_threshold` (float, default: `0.8`)
 Env var: `PGRG_FACT_DEDUP_THRESHOLD`

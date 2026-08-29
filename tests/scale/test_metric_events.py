@@ -31,7 +31,7 @@ async def test_ingest_and_query_emit_namespace_metric_events(scale_rag, caplog):
     assert len(ingest_metrics) == 1
     assert ingest_metrics[0].namespace == "scale_k7"
     assert ingest_metrics[0].mode == "records"
-    assert ingest_metrics[0].latency_ms >= 0
+    assert ingest_metrics[0].latency_ms > 0  # measured wall time of a real ingest
     assert ingest_metrics[0].ingested == 1
 
     caplog.clear()
@@ -41,5 +41,5 @@ async def test_ingest_and_query_emit_namespace_metric_events(scale_rag, caplog):
     assert len(query_metrics) == 1
     assert query_metrics[0].namespace == "scale_k7"
     assert query_metrics[0].mode == "naive"
-    assert query_metrics[0].latency_ms >= 0
+    assert query_metrics[0].latency_ms > 0  # measured wall time of a real query
     assert isinstance(query_metrics[0].top_k, int)

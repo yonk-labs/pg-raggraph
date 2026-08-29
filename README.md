@@ -2,7 +2,7 @@
 
 > **PostgreSQL-native GraphRAG.** Vector search, full-text search, and knowledge-graph traversal — all in a single SQL query. No Neo4j. No Pinecone. No Apache AGE. Just the Postgres you already run.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Tests](https://img.shields.io/badge/tests-593%20passing-brightgreen)](#tests-and-benchmarks) [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](pyproject.toml) [![Status: alpha](https://img.shields.io/badge/status-alpha%20(0.5.0a5)-orange)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Tests](https://github.com/yonk-labs/pg-raggraph/actions/workflows/test.yml/badge.svg)](https://github.com/yonk-labs/pg-raggraph/actions/workflows/test.yml) [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](pyproject.toml) [![PyPI](https://img.shields.io/pypi/v/pg-raggraph)](https://pypi.org/project/pg-raggraph/) [![Status: alpha](https://img.shields.io/badge/status-alpha-orange)]()
 
 ---
 
@@ -14,13 +14,13 @@ It is also a **full toolkit** around that library: a CLI (`pgrg`), an optional F
 
 Two retrieval workloads are first-class:
 
-- **Classic GraphRAG** — static corpora, code Q&A, technical docs, multi-hop entity reasoning. Validated at **+18.9% accuracy lift** over plain vector search on a real 909-doc dev codebase.
-- **Evolving knowledge** — corpora where the right answer depends on *time*, *version*, or *retraction status*. Validated on Python 3.10/3.11/3.12 docs (**13/13 perfect version-filter purity**) and PubMed HRT retractions (**15/15 perfect on retraction-aware + time-travel queries**).
+- **Classic GraphRAG** — static corpora, code Q&A, technical docs, multi-hop entity reasoning. On a real 486-doc dev codebase, 1-hop graph boost improved the top retrieved chunk's score by **+19.3%** over plain vector+BM25 at the same latency ([source](benchmarks/pg-agents-results.md)) — a retrieval-quality proxy, not graded answer accuracy. On gold-labeled multi-hop QA (MuSiQue, LLM-judged), graph traversal (`local`) beats pure vector by **+4–5pp** end-to-end, stable across two judges ([source](benchmarks/ab-gate/RESULTS.md)).
+- **Evolving knowledge** — corpora where the right answer depends on *time*, *version*, or *retraction status*. Validated on Python 3.10/3.11/3.12 docs (**13/13 version-filter purity**, with one honest unfiltered-query miss — see below) and PubMed HRT retractions (**10/10 graded checks**: 5/5 retraction-aware + 5/5 time-travel; 5 background smoke checks also pass).
 
 Two ingest patterns are also first-class:
 
 - **Synchronous** (the default) — `ingest()` returns when the graph is built. Right for batch loads and small/fast extractors.
-- **Deferred + background drain** — pass `defer_extraction=True` and `ingest_records()` returns in chunk + embed time only (**~18 ms/doc**, 59× faster than synchronous extract on lede_spacy MHR). A `pgrg extract` worker (cron-driven or always-on daemon) backfills entities/relationships out-of-band. Multi-worker safe by construction. For code KBs (`chunk_strategy="chunkshop:symbol_aware"`), `pgrg backfill-code-graph` rebuilds the `CALLS`/`INHERITS`/`IMPLEMENTS` call graph out-of-band too — so fast code-KB ingest no longer trades away the graph (#81). See [`docs/cookbook/background-extraction.md`](docs/cookbook/background-extraction.md).
+- **Deferred + background drain** — pass `defer_extraction=True` and `ingest_records()` returns in chunk + embed time only (**~18 ms/doc**, 59× faster than synchronous extract on lede_spacy MHR — measured with a warm embedding cache and a deterministic no-LLM extractor; first-run cold ingest will be slower, see the [methodology](docs/cookbook/background-extraction.md#benchmark)). A `pgrg extract` worker (cron-driven or always-on daemon) backfills entities/relationships out-of-band. Multi-worker safe by construction. For code KBs (`chunk_strategy="chunkshop:symbol_aware"`), `pgrg backfill-code-graph` rebuilds the `CALLS`/`INHERITS`/`IMPLEMENTS` call graph out-of-band too — so fast code-KB ingest no longer trades away the graph (#81). See [`docs/cookbook/background-extraction.md`](docs/cookbook/background-extraction.md).
 
 ## Why it exists
 
@@ -110,7 +110,7 @@ Sources:
 
 That's the whole loop. From `pip install` to a grounded answer in five minutes.
 
-> **One thing to know about `pgrg serve`** — the bundled FastAPI web UI is for **local development and demos only**. It ships without authentication, rate limiting, or upload size caps. **Do not expose it directly to the public internet.** For production, put it behind a reverse proxy that adds auth, TLS, and rate limits — or embed `create_app()` in your own FastAPI application. See [`docs/user-guide.md#production-deployment`](docs/user-guide.md#production-deployment) for the recommended setup.
+> **One thing to know about `pgrg serve`** — the bundled FastAPI web UI is for **local development and demos only**. It binds `127.0.0.1` by default, so it's only reachable from your machine. Exposing it (`--host 0.0.0.0`) requires `PGRG_SERVER_API_KEY` to be set — the server refuses a non-loopback bind without auth, because the API allows ingest, query, and delete. **Do not expose it directly to the public internet.** For production, put it behind a reverse proxy that adds TLS and rate limits — or embed `create_app()` in your own FastAPI application. See [`docs/user-guide.md#production-deployment`](docs/user-guide.md#production-deployment) for the recommended setup.
 
 ## MCP server
 
@@ -120,24 +120,41 @@ playbook in its MCP `initialize` response, so agents pick the right tool
 on the first try instead of grepping the filesystem. When you ingest
 with `defer_extraction=True`, a per-file staleness banner warns the
 agent which documents have fresh chunks but still-pending graph
-extraction.
+extraction, and `pgrg_status` reports a `graph_ready` boolean so agents
+can tell when background extraction has drained. Its status summary also
+carries a `degraded` count — docs that are ready but had per-chunk
+extraction failures (partial graph; doesn't block readiness).
 
 See [`docs/user-guide.md`](docs/user-guide.md#mcp-server) for the full
 tool list and the `PGRG_MCP_INGEST_ROOTS` allow-list.
 
 ## Tests and benchmarks
 
-Real numbers from real corpora. No cherry-picking.
+Real numbers from real corpora — the wins and the losses. Every number below traces to a results file in [`benchmarks/`](benchmarks/).
 
-**Classic GraphRAG** — `pg-agents` real dev codebase (909 docs, 17K entities, 38K relationships):
+**Classic GraphRAG** — `pg-agents` real dev codebase (486 docs, 17,437 entities, 38,195 relationships; 15 queries). The metric is **average score of the best retrieved chunk** — a retrieval-quality proxy; no answers were generated or graded in this run. Source: [`benchmarks/pg-agents-results.md`](benchmarks/pg-agents-results.md).
 
-| Mode | Avg top score | Latency p50 | vs naive |
+| Mode | Avg top score | Avg latency | vs naive |
 |------|:-:|:-:|:-:|
-| naive (vector + BM25) | 0.602 | 109 ms | baseline |
-| **`naive_boost`** ⭐ | **0.716** | **107 ms** | **+18.9%** |
-| **`smart`** (default) | **0.716** | 127 ms | **+18.9%** at routing |
-| local (graph traversal) | 0.614 | 423 ms | +1.9% |
-| hybrid (local + global) | 0.614 | 482 ms | +1.9% |
+| naive (vector + BM25) | 0.593 | 85 ms | baseline |
+| **`naive_boost`** ⭐ | **0.708** | **82 ms** | **+19.3%** |
+| **`smart`** (default) | **0.708** | 91 ms | **+19.3%** at routing |
+| local (graph traversal) | 0.607 | 220 ms | +2.4% |
+| hybrid (local + global) | 0.607 | 282 ms | +2.4% |
+
+Caveats, stated up front:
+
+- The pg-agents corpus is a private codebase — this suite is **not** re-runnable from clone. The evolving-knowledge and bake-off suites below ship download scripts/fixtures and are.
+- The top-score lift did **not** transfer to gold-labeled QA: on the SCOTUS legal corpus (LLM-judged), naive/naive_boost moved judged accuracy by at most +3.3pp (+1 question of 30 — within the ±3.3pp-per-question noise floor). Details: [`benchmarks/age-bakeoff/SESSION-HANDOFF.md`](benchmarks/age-bakeoff/SESSION-HANDOFF.md).
+- Historical docs cite other snapshots of this growing corpus (356 and 909 docs) with slightly different aggregate lifts; `benchmarks/pg-agents-results.md` is the canonical source.
+
+**Where graph genuinely wins** — MuSiQue multi-hop QA over a real LLM-extracted knowledge graph (9,809 typed edges, 100 compositional 2/3/4-hop questions, dual LLM judges): `local` (recursive traversal) beats pure vector by **+4–5pp** end-to-end, stable across two judges and two answer-generation runs. Retrieval recall stays flat (~58–59% in every mode) — the lift comes from better answer context, not from surfacing more gold paragraphs. Source: [`benchmarks/ab-gate/RESULTS.md`](benchmarks/ab-gate/RESULTS.md).
+
+**Where graph does not win** (kept on purpose):
+
+- **SEC 10-Q gold QnA** — ~47% accuracy across ALL modes; the ceiling is financial-table chunking, not retrieval mode ([`benchmarks/FINAL_RESULTS.md`](benchmarks/FINAL_RESULTS.md)).
+- **NTSB aviation reports** — self-contained narratives; graph modes add no measurable lift over naive ([`benchmarks/FINAL_RESULTS.md`](benchmarks/FINAL_RESULTS.md)).
+- **MuSiQue raw EM/F1** — verbose generative answers tank exact-match scoring (27% of EM=0 answers were judged fully correct by both LLM judges); the judge and support-recall columns are the meaningful signal ([`benchmarks/FINAL_RESULTS.md`](benchmarks/FINAL_RESULTS.md)).
 
 **Evolving knowledge — versioned docs** ([`benchmarks/python-versioned-docs/`](benchmarks/python-versioned-docs/)):
 
@@ -148,9 +165,11 @@ Real numbers from real corpora. No cherry-picking.
 | ≥ 80% of `version_filter`-tagged Qs return top-5 chunks ONLY from matching version | **100% (13/13)** | ✅ |
 | ≥ 1 unfiltered_target Q has expected version in top-3 | 1/2 | ✅ |
 
+Overall 14/15. The honest miss: an *unfiltered* query about a Python 3.12-only feature (PEP 695 `type` aliases) drifted to 3.10/3.11 chunks, because the older `TypeAlias` terminology has stronger surface overlap. That failure mode is exactly what `version_filter` exists for ([`results.md`](benchmarks/python-versioned-docs/results.md)).
+
 **Evolving knowledge — medical retractions** ([`benchmarks/medical-hrt/`](benchmarks/medical-hrt/)):
 
-48 PubMed abstracts on HRT + cardiovascular outcomes (1998–2025), 7 epistemically-retracted (WHI 2002 superseded the prior consensus), 15 hand-written gold questions.
+48 PubMed abstracts on HRT + cardiovascular outcomes (1998–2025), 7 epistemically-retracted (WHI 2002 superseded the prior consensus), 15 hand-written gold questions: 5 retraction-aware + 5 time-travel (graded below) + 5 background questions (smoke checks that only assert results are returned).
 
 | Threshold | Result | Pass? |
 |---|---|:-:|
@@ -161,13 +180,20 @@ Real numbers from real corpora. No cherry-picking.
 
 | Axis | pg-raggraph | Apache AGE |
 |---|:-:|:-:|
-| Accuracy (fully_correct/30) | 17–18 | 17–18 (tie) |
-| Retrieval p50 latency | **32–73 ms** | 3,079–3,906 ms (**42–111× slower**) |
+| Accuracy (fully_correct/30, LLM-judged) | 17–18 | 17–18 (tie) |
+| Retrieval p50, graph-assisted modes¹ | **32–73 ms** | 3,079–3,906 ms |
 | Cloud compatibility | RDS, Supabase, Neon, Cloud SQL, Azure, self-host | Azure only |
+
+¹ Measured end-to-end through each engine's adapter on our bake-off harness (`hybrid`/`local`/`global`/`naive_boost`/`smart`), a 42–101× p50 differential on this corpus. The naive-mode differential is excluded: both engines execute the same pgvector query in that mode, so it can only reflect adapter overhead (audit pending). Judged accuracy carries error bars — ±1 question = ±3.3pp, and judge choice alone swings scores by ~3–20pp on these corpora. Don't read this as a blanket "faster than AGE" claim: at small scale, raw AGE SQL can outrun pg-raggraph's Python API.
+
+**The reproducible head-to-head is done** — preregistered methodology, 11,548 public-domain Caselaw Access Project cases, citation-derived gold (150 questions across 3 seeds), independently smell-tested, re-runnable from a clone: [`benchmarks/age-bakeoff/cap-gold-v1/`](benchmarks/age-bakeoff/cap-gold-v1/). Findings, all sides:
+- **Retrieval quality:** pg-raggraph `naive_boost` R@20 **0.133** vs Microsoft's published AGE authority-boost pattern **0.084** vs vector-only 0.074 — driven by chunk granularity + BM25, not traversal ([RESULTS](benchmarks/age-bakeoff/cap-gold-v1/RESULTS.md)). Our own graph-heavy modes lose to naive on this task; reported.
+- **Engine-isolated traversal** (bare SQL, exact anchors, both sides): recursive CTE p50 **0.34 / 0.42 / 0.95 ms** at 1/2/3 hops vs AGE variable-length Cypher **33.7 / 52.4 / 132.1 ms** (p95 670 ms at 3 hops) — row-count parity ±0.2%. Against AGE's cheaper fixed-hop form, ~8× at 1 hop ([PIPELINES](benchmarks/age-bakeoff/cap-gold-v1/PIPELINES.md)).
+- **Realistic semantic→graph pipelines are mixed:** AGE's one-row-per-case shape wins the 1-hop pipeline on latency (9.5 vs 37 ms p50); our chunk-granular provenance costs those milliseconds and buys the recall above. Near-parity at 2 hops. Both engines express a composed analytics slice (semantic seed → 2-hop expansion → authority scoring → filters → fusion) in a single SQL statement — though AGE needs two statements when traversal must consume dynamic seeds.
 
 Full bake-off report: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](benchmarks/age-bakeoff/results/REPORT-VERDICT.md).
 
-**Test suite:** 593 passing tests (350 unit + 243 integration) across `tests/unit/` and `tests/integration/`, including a 27-test error-path suite that asserts specific exception types on bad DSNs, naive `as_of`, oversize `/ingest`, path traversal, etc. CI runs the full suite against pgvector containers on Python 3.12 and 3.13.
+**Test suite:** 887 tests as of 0.5.0a19 (523 unit + 364 integration) across `tests/unit/` and `tests/integration/`, including a dedicated error-path suite that asserts specific exception types on bad DSNs, naive `as_of`, oversize `/ingest`, path traversal, etc. CI runs the full suite against pgvector containers on Python 3.12 and 3.13.
 
 ## Where to go next
 
@@ -199,12 +225,14 @@ Full bake-off report: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](bench
 | [`docs/cookbook/metadata-indexes.md`](docs/cookbook/metadata-indexes.md) | Btree / GIN / generated-column indexes on `chunks.metadata` and `documents.metadata`. Runtime API (`recommend_metadata_indexes()`, `apply_metadata_indexes_concurrently()`). |
 | [`docs/cookbook/changing-embedding-dimensions.md`](docs/cookbook/changing-embedding-dimensions.md) | Move a live database to a new embedding model/dimension online via the `pgrg migrate-embeddings` expand/contract column swap — no parallel DB, brief cutover, startup dim-guard. |
 | [`docs/cookbook/background-extraction.md`](docs/cookbook/background-extraction.md) | Decouple LLM/lede extraction from ingest: `defer_extraction=True` + `pgrg extract` (CLI / `--daemon`). Architectural patterns (sync vs cron vs daemon), end-to-end FastAPI walkthrough, multi-worker safety invariants, 60× time-to-queryable benchmark. |
+| [`docs/cookbook/typed-graph-join.md`](docs/cookbook/typed-graph-join.md) | Typed traversal + dependent conjunctive joins: `find_entities()` (fuzzy anchor binding), `traverse()` (typed/directed walks), `graph_join()` (bind-then-intersect join questions) — one SQL round-trip, full provenance. |
+| [`docs/cookbook/graph-analyze.md`](docs/cookbook/graph-analyze.md) | `graph_analyze()` — set-seeded, authority-scored retrieval as a five-stage plan: seed (semantic/ids/name) → typed expansion → in-degree authority → metadata filter → RRF fusion, in one SQL statement with provenance. |
 | [`docs/user-guide.md`](docs/user-guide.md) | Full user guide. Installation, all 6 modes, configuration, REST API, production deployment, troubleshooting. |
 | [`docs/devmem-guide.md`](docs/devmem-guide.md) | `pgrg devmem` — the developer-knowledge-base flavor with code-aware chunking + dev-tuned extraction. |
 | [`docs/chunkshop-user-guide.md`](docs/chunkshop-user-guide.md) | Chunkshop integration guide: chunker-only strategies, Postgres table bridge, CLI import, code-edge graph import, and the `code-impact` symbol-graph query. |
 | [`research/`](research/) | Architecture rationale, vs-AGE evaluation, competitor analyses (LightRAG, Neo4j, Zep). |
 | [`ASSESSMENT.md`](ASSESSMENT.md) | No-BS project evaluation. Strengths, gaps, where you should and shouldn't use it. |
-| [`benchmarks/`](benchmarks/) | Every benchmark corpus + runner + results document. Re-runnable from clone. |
+| [`benchmarks/`](benchmarks/) | Every benchmark runner + results document. The evolving-knowledge and bake-off suites are re-runnable from clone; the pg-agents corpus is private and is not. |
 
 ---
 
@@ -264,6 +292,8 @@ graph TB
 | `global` | Relationship-centric retrieval | ~150 ms |
 | `hybrid` | local + global merged | ~450 ms |
 
+Need a *join*, not a search? `rag.graph_join(...)` executes typed, anchor-seeded dependent joins over the entity graph ("restaurant in Maria's city that serves what she craves") in one SQL statement, with full edge/chunk provenance — see [`docs/cookbook/typed-graph-join.md`](docs/cookbook/typed-graph-join.md).
+
 Full deep-dive with selection guidance and per-mode SQL: [`docs/modes.md`](docs/modes.md). Schema diagram + ER relationships: [`docs/user-guide.md#schema-overview`](docs/user-guide.md#schema-overview).
 
 ## Configuration (essentials)
@@ -295,7 +325,7 @@ pgrg status [-n NS]                      # Graph statistics
 pgrg delete -n NS                        # Delete a namespace's data
 
 # Servers
-pgrg serve --port 8080                   # FastAPI + web UI (local/demo only)
+pgrg serve --port 8080                   # FastAPI + web UI (binds 127.0.0.1; --host needs PGRG_SERVER_API_KEY)
 pgrg demo                                # Auto-ingest sample data + launch UI
 pgrg mcp-serve                           # MCP stdio server for Claude Desktop / Cursor / Zed
 
@@ -329,12 +359,26 @@ Throttle profiles tune CPU-yield + parallel ingest knobs:
 
 We evaluated AGE (PostgreSQL's graph extension) before writing a line of code. We rejected it for four reasons:
 
-1. **Cloud killed.** AGE requires `shared_preload_libraries` — only Azure supports it among managed providers. No RDS, Supabase, Neon, or Cloud SQL.
-2. **Can't combine with pgvector in a single query.** AGE Cypher and pgvector live in different worlds. The killer GraphRAG operation needs two round-trips with AGE; one query with recursive CTEs.
-3. **Slower for GraphRAG patterns.** Bake-off measurements: AGE is **42–111× slower** on retrieval than recursive CTEs for the typical 1-3 hop pattern.
+1. **Cloud killed.** AGE requires `shared_preload_libraries` — only Azure supports it among major managed providers. No RDS, Supabase, Neon, or Cloud SQL. This alone is dispositive for a library targeting "the Postgres you already run."
+2. **Awkward pgvector composition, and a Cypher subset.** AGE's `cypher()` calls *can* be composed with pgvector in a single SQL statement — [Microsoft's HorizonDB GraphRAG doc](https://learn.microsoft.com/en-us/azure/horizondb/ai/graph-rag) shows the CTE pattern, and we've run it on stock AGE 1.5.0. But it's undocumented outside Azure's fork, requires agtype casting at every boundary, and Azure's own seed SQL doesn't run unmodified on stock AGE. Per Microsoft's same doc, AGE implements a subset of openCypher (no `MERGE ... ON CREATE SET`, no `EXISTS` subqueries, no `datetime()`), graph maintenance is manual with no CDC sync, and variable-length paths beyond 3–4 hops "can produce exponential path expansion." Recursive CTEs are plain SQL: no casts, no fork, no subset.
+3. **Traversal is measurably slower — engine vs engine.** In the preregistered CAP head-to-head ([cap-gold-v1](benchmarks/age-bakeoff/cap-gold-v1/PIPELINES.md), bare SQL both sides, exact anchors, work parity verified), recursive CTEs held **sub-millisecond p50 through 3 hops** while AGE's variable-length Cypher grew from 33.7 ms to 132.1 ms p50 (670 ms p95) — with AGE's own docs warning of exponential path expansion. The earlier adapter-level 42–101× bake-off differential is consistent but harness-scoped; the engine-isolated numbers are the citable ones. Honest counterweight: on realistic semantic-first pipelines AGE's coarser row shape can win latency at 1 hop (see benchmarks section).
 4. **Production disaster.** LightRAG Issue #2255: 17-hour migration with AGE caused by a query plan estimating 49 **billion** intermediate rows for a 681K-row join. Closed `NOT_PLANNED`.
 
 Full analysis: [`research/apache-age-evaluation.md`](research/apache-age-evaluation.md). Bake-off verdict: [`benchmarks/age-bakeoff/results/REPORT-VERDICT.md`](benchmarks/age-bakeoff/results/REPORT-VERDICT.md).
+
+## What about PostgreSQL 19's native graph queries (SQL/PGQ)?
+
+PostgreSQL 19 (Beta 1 shipped June 2026, GA expected ~Sept/Oct 2026) adds **SQL/PGQ**: native property-graph pattern matching (`CREATE PROPERTY GRAPH` + `GRAPH_TABLE`), the ISO SQL:2023 standard. (It's *not* GraphQL; that's an unrelated API layer from extensions like `pg_graphql`.)
+
+This is good news, and it's our thesis. SQL/PGQ rewrites graph patterns into **ordinary relational joins over your existing tables**, with no new engine, and crucially it's **in core** (no `shared_preload_libraries`), so it'll run on RDS / Supabase / Neon. It's the cloud-friendly, in-core answer Apache AGE never managed to be.
+
+It does **not** replace pg-raggraph:
+
+1. **Fixed-depth only.** The initial release has no variable-length path traversal, which is exactly what our recursive-CTE `local` mode does (vector-seeded, 1..N hops, in one query). That's deferred to a future Postgres release.
+2. **It's a query syntax, not a GraphRAG pipeline.** SQL/PGQ assumes you *already have* the graph. pg-raggraph is what builds it: entity/relationship extraction, entity resolution, hybrid retrieval, confidence routing, provenance, incremental updates.
+3. **Version floor.** SQL/PGQ needs PG19; pg-raggraph runs on **PG16+** today, on every managed provider.
+
+They stack rather than compete. Our `entities`/`relationships` schema maps 1:1 onto `CREATE PROPERTY GRAPH`, so an optional property-graph view (and SQL/PGQ-backed fixed-depth paths gated behind a PG19 capability check) is on the roadmap. Full take: [the blog](docs/blogs/05-postgres-19-graph-queries-and-pg-raggraph.md).
 
 ## Comparison
 
@@ -364,4 +408,4 @@ MIT. See [`LICENSE`](LICENSE).
 
 ---
 
-*Built with honest benchmarks and real corpora. Real numbers throughout this README come from `benchmarks/` runs that ship with the repo — re-runnable from clone. The unvarnished evaluation is in [`ASSESSMENT.md`](ASSESSMENT.md).*
+*Real numbers throughout this README come from results files in [`benchmarks/`](benchmarks/) — wins and losses both. The python-versioned-docs, medical-hrt, and AGE bake-off suites ship download scripts/fixtures and are re-runnable from clone; the pg-agents corpus is private and is not. The project's self-evaluation is in [`ASSESSMENT.md`](ASSESSMENT.md).*

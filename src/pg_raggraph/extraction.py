@@ -155,7 +155,12 @@ Relationship fields: source, target, rel_type, description, weight
 Rules:
 - Use proper nouns and specific names for entities
 - entity_type: lowercase (person, organization, technology, concept)
-- rel_type: UPPER_SNAKE_CASE (DEVELOPED_BY, USES, PART_OF, RELATED_TO)
+- rel_type: UPPER_SNAKE_CASE, short and generic — at most 3 words
+  (DEVELOPED_BY, USES, PART_OF, RELATED_TO)
+- REUSE the same rel_type for the same kind of relation across the whole
+  text; put specifics in description. E.g. MAINTAINS_RELATIONSHIP_WITH
+  with description "commercial banking relationship" — never
+  MAINTAINS_COMMERCIAL_BANKING_RELATIONSHIP_WITH
 - Only extract explicit facts from the text
 - Keep descriptions concise (1 sentence)
 - Normalize entity names (consistent casing)"""
@@ -202,14 +207,170 @@ Rules:
 - Prefer specific identifiers (file paths, commit SHAs, ticket IDs)
 - Entity names should be stable across documents (normalize "auth" vs "Auth Service")
 - Relationships should carry intent, not just co-occurrence
+- Use the preferred relationship types when they fit; a new rel_type must be
+  short and generic (at most 3 words) and reused consistently — put
+  specifics in the description, never in the rel_type
 - Keep descriptions concise (1 sentence)"""
+
+
+CODE_EXTRACTION_PROMPT = """\
+You are an expert at extracting a CONCEPTUAL knowledge graph from source code.
+A separate deterministic pass already captures call/inherit/implement structure,
+so DO NOT restate call edges. Extract the intent and architecture the code implies.
+
+Return JSON with this structure:
+{"entities": [...], "relationships": [...]}
+
+Entity fields: name, entity_type, description
+Relationship fields: source, target, rel_type, description, weight
+
+Preferred entity types:
+- module      (a file or package and its responsibility)
+- component   (a cohesive unit: a service, client, store, parser)
+- concept     (a domain idea the code implements: authentication, caching, retry)
+- library     (external dependency imported/used)
+- config      (settings, env vars, feature flags)
+
+Preferred relationship types:
+- IMPLEMENTS   (module/component -> concept)
+- DEPENDS_ON   (module/component -> library/component)
+- CONFIGURES   (module -> config)
+- PART_OF      (module -> component; component -> system)
+- RELATED_TO   (fallback for weaker links)
+
+Rules:
+- Extract meaning, not mechanics — concepts/responsibilities, not who-calls-whom.
+- Entity names stable across files (normalize "auth" vs "Auth").
+- Only what the code makes explicit (names, docstrings, imports, comments).
+- Use the preferred relationship types when they fit; a new rel_type must be
+  short and generic (at most 3 words), reused consistently — specifics go in
+  the description, never in the rel_type.
+- Keep descriptions to one sentence."""
+
+
+PROSE_EXTRACTION_PROMPT = """\
+You are an expert at extracting knowledge graphs from everyday prose:
+chat logs, reviews, bios, journals, emails, and social posts.
+
+Return JSON with this structure:
+{"entities": [...], "relationships": [...]}
+
+Entity fields: name, entity_type, description
+Relationship fields: source, target, rel_type, description, weight
+
+Preferred entity types:
+- person      (named people; use the fullest name seen)
+- place       (cities, neighborhoods, venues)
+- business    (restaurants, shops, brands)
+- food        (dishes, cuisines, drinks)
+- product     (things bought, used, recommended)
+- activity    (hobbies, sports, events)
+
+Preferred relationship types:
+- LIVES_IN               (person -> place)
+- LOCATED_IN             (business/venue -> place)
+- LIKES / DISLIKES / PREFERS  (person -> food/product/activity/place)
+- SERVES                 (business -> food/cuisine)
+- VISITED                (person -> place/business)
+- WORKS_AT               (person -> business)
+- MARRIED_TO / FRIEND_OF / KNOWS  (person -> person)
+- RECOMMENDS             (person -> business/product)
+- RELATED_TO             (fallback for weaker links)
+
+Rules:
+- Common-noun objects are valid entities: "gumbo", "hot yoga", "oat-milk
+  lattes". Do NOT require proper nouns.
+- Name foods and dishes by their BASE form: "wood-fired margherita pizza"
+  -> entity "pizza"; put the variant/preparation in the description. If a
+  specific dish and its base differ meaningfully, emit both plus
+  (dish) VARIANT_OF (base).
+- Name places by their common full name ("New York City", not "NYC").
+- Stated preferences and desires are facts. Map preference verbs onto the
+  closed set: crave, love, enjoy, want, fancy -> LIKES; hate, can't stand,
+  avoid -> DISLIKES; favor, would rather -> PREFERS. So "I've been craving
+  pizza" -> (speaker) LIKES (pizza).
+- In chat logs, resolve "I"/"me" to the named speaker; if the speaker
+  cannot be identified, skip that relationship rather than guessing.
+- In reviews, link the reviewed business to its location and to what it
+  serves whenever the text states them.
+- Use ONLY the relationship types listed above. If none fits exactly, use
+  the closest listed type — never invent a new one.
+- Only extract facts the text states or clearly implies.
+- Normalize entity names (consistent casing); keep descriptions to one
+  sentence."""
 
 
 def get_prompt(name: str) -> str:
     """Get an extraction prompt by name."""
     if name == "dev":
         return DEV_EXTRACTION_PROMPT
+    if name == "code":
+        return CODE_EXTRACTION_PROMPT
+    if name == "prose":
+        return PROSE_EXTRACTION_PROMPT
     return EXTRACTION_SYSTEM_PROMPT
+
+
+KNOWN_EXTRACTION_PROMPTS = ("default", "dev", "code", "prose")
+
+
+def resolve_extraction_prompt(
+    config,
+    *,
+    namespace: str | None = None,
+    override: str | None = None,
+    stamped: str | None = None,
+) -> str:
+    """Resolve the effective extraction prompt name for one document (#94).
+
+    Precedence (first non-empty wins):
+      1. ``override`` — the per-call ``extraction_prompt=`` kwarg on
+         ``ingest()`` / ``ingest_records()``.
+      2. ``stamped`` — ``documents.metadata['extraction_prompt']``, written
+         at ingest time so deferred docs drain with the prompt they were
+         ingested under, regardless of the drain worker's config.
+      3. ``config.extraction_prompt_by_namespace[namespace]`` — the per-KB map.
+      4. ``config.extraction_prompt`` — the process-global default.
+
+    Unlike ``get_prompt`` (which silently falls back to the default prompt),
+    an unknown name here raises ValueError: a typo in a per-call kwarg,
+    stamped metadata, or the namespace map should fail loud, not silently
+    extract with the wrong prompt.
+    """
+    ns_map = getattr(config, "extraction_prompt_by_namespace", None) or {}
+    candidates = (
+        ("extraction_prompt argument", override),
+        ("document metadata 'extraction_prompt'", stamped),
+        (
+            f"extraction_prompt_by_namespace[{namespace!r}]",
+            ns_map.get(namespace) if namespace is not None else None,
+        ),
+        ("config.extraction_prompt", getattr(config, "extraction_prompt", "default")),
+    )
+    for source, name in candidates:
+        if not name:
+            continue
+        if name not in KNOWN_EXTRACTION_PROMPTS:
+            raise ValueError(
+                f"Unknown extraction prompt {name!r} (from {source}); "
+                f"known prompts: {', '.join(KNOWN_EXTRACTION_PROMPTS)}"
+            )
+        return name
+    return "default"
+
+
+def config_with_prompt(config, prompt_name: str):
+    """Return ``config`` with ``extraction_prompt`` set to ``prompt_name``.
+
+    Every extractor reads the prompt from ``config.extraction_prompt``
+    (they all share the ``(chunks, llm, db, config)`` seam — including the
+    lede/union extractors, so a kwarg can't be threaded uniformly). A copied
+    config is how a per-document prompt reaches ``extract_from_chunks``
+    without mutating the shared process config.
+    """
+    if prompt_name == getattr(config, "extraction_prompt", "default"):
+        return config
+    return config.model_copy(update={"extraction_prompt": prompt_name})
 
 
 @runtime_checkable
@@ -229,9 +390,15 @@ class HttpxLLMProvider:
     done (GraphRAG.close() handles this automatically).
     """
 
-    def __init__(self, base_url: str, model: str, api_key: str = ""):
+    def __init__(self, base_url: str, model: str, api_key: str = "", max_tokens: int = 0):
         self._base_url = base_url.rstrip("/")
         self._model = model
+        # max_tokens is sent on JSON-mode extraction calls when > 0. Local
+        # OpenAI-compatible servers (e.g. mlx-lm) default to tiny completion
+        # budgets (512) that silently truncate extraction JSON — the parse
+        # then fails and the chunk yields an empty graph. See config
+        # `llm_max_tokens`.
+        self._max_tokens = max_tokens
         self._headers: dict[str, str] = {"Content-Type": "application/json"}
         if api_key:
             self._headers["Authorization"] = f"Bearer {api_key}"
@@ -247,15 +414,18 @@ class HttpxLLMProvider:
         await self._client.aclose()
 
     async def complete(self, messages: list[dict]) -> str:
+        payload: dict = {
+            "model": self._model,
+            "messages": messages,
+            "response_format": {"type": "json_object"},
+            "temperature": 0.0,
+        }
+        if self._max_tokens > 0:
+            payload["max_tokens"] = self._max_tokens
         resp = await self._client.post(
             f"{self._base_url}/chat/completions",
             headers=self._headers,
-            json={
-                "model": self._model,
-                "messages": messages,
-                "response_format": {"type": "json_object"},
-                "temperature": 0.0,
-            },
+            json=payload,
         )
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"]
@@ -281,6 +451,7 @@ def get_llm_provider(config: PGRGConfig) -> LLMProvider:
         base_url=config.llm_base_url,
         model=config.llm_model,
         api_key=config.llm_api_key,
+        max_tokens=getattr(config, "llm_max_tokens", 0),
     )
 
 
@@ -338,7 +509,10 @@ async def _extract_single(
             parsed = json.loads(response_text)
         except Exception as e:
             logger.warning(f"Extraction failed for chunk: {e}")
-            return ExtractionResult()
+            # Failure marker (issue #93): an errored chunk must be
+            # distinguishable from a chunk that genuinely has no entities,
+            # or the document silently flips to 'ready' with a hollow graph.
+            return ExtractionResult(failed=True, error=f"{type(e).__name__}: {e}")
         # Parse item-by-item so one malformed entity/relationship does not
         # discard the whole chunk's extraction (issue #69).
         result = _parse_extraction(parsed)

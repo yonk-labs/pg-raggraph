@@ -20,7 +20,7 @@ try:
     __version__ = _pkg_version("pg-raggraph")
 except PackageNotFoundError:
     # Editable install without installed metadata (rare). Mirror pyproject.
-    __version__ = "0.5.0a15"
+    __version__ = "0.9.8"
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.models import QueryResult
@@ -226,6 +226,16 @@ def _validate_namespace(ns: str) -> None:
         )
 
 
+def _is_graph_ready(summary: dict[str, int]) -> bool:
+    """Readiness derivation shared by status()/graph_ready()/wait_for_graph_ready().
+
+    Ready = nothing mid-extraction. 'failed' is a terminal state and does
+    not block readiness (issue #92). 'degraded' (issue #93) is an overlay
+    on 'ready' — degraded docs are counted in 'ready' and never block.
+    """
+    return summary.get("pending", 0) + summary.get("processing", 0) == 0
+
+
 async def _abatched(records, n: int):
     """Yield lists of up to ``n`` items from ``records``, pulled lazily.
 
@@ -323,8 +333,12 @@ class GraphRAG:
             # generic connectivity error.
             raise
         except Exception as e:
+            from pg_raggraph.config import redact_dsn
+
+            # PR-218: never let the DSN password reach an error message —
+            # the CLI prints this verbatim and servers ship it to logs.
             raise ConnectionError(
-                f"Cannot connect to PostgreSQL at {self.config.dsn}. "
+                f"Cannot connect to PostgreSQL at {redact_dsn(self.config.dsn)}. "
                 f"Is the database running? Error: {e}"
             ) from e
 
@@ -423,6 +437,7 @@ class GraphRAG:
         on_progress=None,
         *,
         metadata: dict | None = None,
+        extraction_prompt: str | None = None,
     ):
         """Ingest documents from file paths with parallel processing.
 
@@ -443,14 +458,25 @@ class GraphRAG:
                 ``version_label``, ``supersedes_document_id``, or
                 ``retraction_reason`` is present, a ``document_versions`` row
                 is also created mirroring the document's evolution metadata.
+            extraction_prompt: Per-call extraction prompt override (#94) —
+                wins over ``config.extraction_prompt_by_namespace`` and
+                ``config.extraction_prompt`` for every file in this call.
+                One of ``"default"``/``"dev"``/``"code"``/``"prose"``;
+                unknown names raise ValueError before any write.
         """
         import asyncio
 
         from pg_raggraph.chunking import chunk_document, content_hash
-        from pg_raggraph.extraction import extract_from_chunks, get_llm_provider
+        from pg_raggraph.extraction import (
+            extract_from_chunks,
+            get_llm_provider,
+            resolve_extraction_prompt,
+        )
 
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        # Fail loud on a bad prompt name BEFORE any document is written (#94).
+        resolve_extraction_prompt(self.config, namespace=ns, override=extraction_prompt)
         started = time.perf_counter()
         # PR-215: apply nice_level here (was previously in config init,
         # which surprised callers by mutating process priority on import).
@@ -529,8 +555,17 @@ class GraphRAG:
 
             ensure_lede_available()
             extract_from_chunks = lede_fn
-            _progress("Extraction via lede_spacy (deterministic, no LLM).")
-        elif not self.config.skip_extraction and self.config.llm_base_url:
+            _progress(
+                f"Extraction via {self.config.fact_extractor}"
+                + (
+                    " (deterministic, no LLM)."
+                    if not _needs_llm
+                    else " (LLM + deterministic union)."
+                )
+            )
+        # llm+lede sets both lede_fn AND _needs_llm — it still wants the
+        # provider; without one it degrades to its deterministic leg.
+        if _needs_llm and not self.config.skip_extraction and self.config.llm_base_url:
             if self._llm is None:
                 try:
                     self._llm = get_llm_provider(self.config)
@@ -573,6 +608,7 @@ class GraphRAG:
                             chunk_document,
                             extract_from_chunks,
                             metadata=metadata,
+                            extraction_prompt=extraction_prompt,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -581,7 +617,9 @@ class GraphRAG:
                             if r.get("degraded"):
                                 stats["degraded"] += 1
                             deg_note = (
-                                " (extraction failed, vector-only)" if r.get("degraded") else ""
+                                f" (extraction failed on {r.get('chunks_failed', 0)} chunk(s))"
+                                if r.get("degraded")
+                                else ""
                             )
                             _progress(
                                 f"[{idx}/{len(file_paths)}] "
@@ -625,7 +663,9 @@ class GraphRAG:
         if stats["failed"]:
             notes.append(f"{stats['failed']} failed")
         if stats["degraded"]:
-            notes.append(f"{stats['degraded']} degraded (vector-only, extraction error)")
+            notes.append(
+                f"{stats['degraded']} degraded (extraction errors; see documents.graph_error)"
+            )
         suffix = f", {', '.join(notes)}" if notes else ""
         _progress(
             f"Done: {stats['ingested']} ingested, {stats['skipped']} skipped"
@@ -655,8 +695,10 @@ class GraphRAG:
         living_cadence: str | None = None,
         living_audit_diffs: bool | None = None,
         defer_extraction: bool = False,
+        defer_lexical_stats: bool = False,
         batch_size: int = 64,
         cross_file_code_graph: bool | None = None,
+        extraction_prompt: str | None = None,
     ):
         """Ingest documents from in-memory records — no disk roundtrip.
 
@@ -744,6 +786,16 @@ class GraphRAG:
                 extraction; chunks + embeddings still land so ``naive`` works.
                 Drain with ``pgrg extract``. Individual records can override
                 via the ``defer_extraction`` record key.
+            defer_lexical_stats: Bulk-load escape hatch (#97). When True, the
+                per-document ingest transactions skip the migration-016
+                ``lexeme_stats`` / ``lexical_corpus_stats`` maintenance triggers,
+                which otherwise serialize concurrent same-namespace ingest by
+                row-locking hot lexemes. ``search_vector`` is still populated, so
+                call ``rag.rebuild_lexical_stats(namespace)`` once after the batch
+                to reconstruct exact stats. Only matters for
+                ``lexical_backend="bm25"``; those scores are stale for the
+                namespace until the rebuild runs. Overridable per record via the
+                ``defer_lexical_stats`` record key.
             batch_size: Records are pulled and processed in batches of this
                 size, so peak memory is O(batch_size) rather than O(corpus).
                 ``records`` may therefore be a generator, a DB cursor, or an
@@ -759,6 +811,16 @@ class GraphRAG:
                 one chunkshop resolver accumulates every doc's symbols/calls
                 (O(symbols), not content) and a final pass writes the resolved
                 edges; each carries ``resolved_intra_file`` in its properties.
+            extraction_prompt: Per-call extraction prompt override (#94).
+                One of ``"default"``/``"dev"``/``"code"``/``"prose"``; unknown
+                names raise ValueError before any write. On deferred ingests
+                the resolved prompt is stamped into
+                ``documents.metadata['extraction_prompt']`` so the drain
+                (``pgrg extract``) extracts with the prompt the doc was
+                ingested under. Precedence: this kwarg > a record's
+                ``metadata['extraction_prompt']`` >
+                ``config.extraction_prompt_by_namespace[namespace]`` >
+                ``config.extraction_prompt``.
 
         Returns: same stats shape as ``ingest()``.
 
@@ -785,12 +847,18 @@ class GraphRAG:
         import asyncio
 
         from pg_raggraph.chunking import chunk_document, content_hash
-        from pg_raggraph.extraction import extract_from_chunks, get_llm_provider
+        from pg_raggraph.extraction import (
+            extract_from_chunks,
+            get_llm_provider,
+            resolve_extraction_prompt,
+        )
 
         if batch_size < 1:
             raise ValueError("batch_size must be >= 1")
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        # Fail loud on a bad prompt name BEFORE any document is written (#94).
+        resolve_extraction_prompt(self.config, namespace=ns, override=extraction_prompt)
         living_enabled = (
             self.config.living_knowledge if living_knowledge is None else living_knowledge
         )
@@ -881,8 +949,17 @@ class GraphRAG:
 
             ensure_lede_available()
             extract_from_chunks = lede_fn
-            _progress("Extraction via lede_spacy (deterministic, no LLM).")
-        elif not self.config.skip_extraction and self.config.llm_base_url:
+            _progress(
+                f"Extraction via {self.config.fact_extractor}"
+                + (
+                    " (deterministic, no LLM)."
+                    if not _needs_llm
+                    else " (LLM + deterministic union)."
+                )
+            )
+        # llm+lede sets both lede_fn AND _needs_llm — it still wants the
+        # provider; without one it degrades to its deterministic leg.
+        if _needs_llm and not self.config.skip_extraction and self.config.llm_base_url:
             if self._llm is None:
                 try:
                     self._llm = get_llm_provider(self.config)
@@ -915,7 +992,11 @@ class GraphRAG:
                         rec_rels = rec.get("relationships")
                         rec_skip_llm = bool(rec.get("skip_llm", False))
                         rec_defer_extraction = bool(rec.get("defer_extraction", defer_extraction))
+                        rec_defer_lexical_stats = bool(
+                            rec.get("defer_lexical_stats", defer_lexical_stats)
+                        )
                         rec_pre_chunked = rec.get("pre_chunked")
+                        rec_code_source_content = rec.get("code_source_content")
                         living_context = None
                         source_id = rec["source_id"]
                         if living_enabled:
@@ -975,8 +1056,11 @@ class GraphRAG:
                             pre_chunked=rec_pre_chunked,
                             living_context=living_context,
                             defer_extraction=rec_defer_extraction,
+                            defer_lexical_stats=rec_defer_lexical_stats,
+                            code_source_content=rec_code_source_content,
                             corpus_code_graph=corpus_code_graph,
                             corpus_run_id=corpus_run_id,
+                            extraction_prompt=extraction_prompt,
                         )
                         if r:
                             stats["ingested"] += 1
@@ -985,7 +1069,9 @@ class GraphRAG:
                             if r.get("degraded"):
                                 stats["degraded"] += 1
                             deg_note = (
-                                " (extraction failed, vector-only)" if r.get("degraded") else ""
+                                f" (extraction failed on {r.get('chunks_failed', 0)} chunk(s))"
+                                if r.get("degraded")
+                                else ""
                             )
                             _progress(
                                 f"[{idx}/{total if total is not None else '?'}] "
@@ -1073,6 +1159,7 @@ class GraphRAG:
         extract_from_chunks_fn,
         *,
         metadata: dict | None = None,
+        extraction_prompt: str | None = None,
     ):
         """Read a file from disk and ingest it.
 
@@ -1097,6 +1184,7 @@ class GraphRAG:
             chunk_document_fn=chunk_document_fn,
             extract_from_chunks_fn=extract_from_chunks_fn,
             metadata=metadata,
+            extraction_prompt=extraction_prompt,
         )
 
     async def _ingest_one_content(
@@ -1117,8 +1205,11 @@ class GraphRAG:
         pre_chunked: list[dict] | None = None,
         living_context: _LivingContext | None = None,
         defer_extraction: bool = False,
+        defer_lexical_stats: bool = False,
+        code_source_content: str | None = None,
         corpus_code_graph=None,
         corpus_run_id=None,
+        extraction_prompt: str | None = None,
     ):
         """Ingest a single document from in-memory content with all DB
         writes in a single transaction.
@@ -1275,7 +1366,22 @@ class GraphRAG:
         # embeddings still land (so naive retrieval works), but extraction is
         # deferred to a `pgrg extract` worker that drains graph_status='pending'.
         extraction_degraded = False
-        _lede_path = getattr(self.config, "fact_extractor", "none") == "lede_spacy"
+        chunks_failed = 0
+        extraction_error = None
+        from pg_raggraph.extraction import config_with_prompt, resolve_extraction_prompt
+        from pg_raggraph.lede_extraction import LEDE_CAPABLE_EXTRACTORS
+
+        # #94: resolve the effective prompt for THIS document. Precedence:
+        # per-call kwarg > caller metadata stamp > namespace map > global
+        # config. The resolved name is also stamped into documents.metadata
+        # below so deferred docs drain with the same prompt.
+        prompt_name = resolve_extraction_prompt(
+            self.config,
+            namespace=ns,
+            override=extraction_prompt,
+            stamped=(metadata or {}).get("extraction_prompt"),
+        )
+        _lede_path = getattr(self.config, "fact_extractor", "none") in LEDE_CAPABLE_EXTRACTORS
         if defer_extraction or (llm is None and not _lede_path) or skip_llm_for_this_doc:
             from pg_raggraph.models import ExtractionResult
 
@@ -1283,7 +1389,7 @@ class GraphRAG:
         else:
             try:
                 extraction_results = await extract_from_chunks_fn(
-                    chunks, llm, self.db, self.config
+                    chunks, llm, self.db, config_with_prompt(self.config, prompt_name)
                 )
             except Exception as e:
                 logger.warning(f"Extraction failed for {file_path}, ingesting as pure vector: {e}")
@@ -1291,11 +1397,34 @@ class GraphRAG:
 
                 extraction_results = [ExtractionResult() for _ in chunks]
                 extraction_degraded = True
+                chunks_failed = len(chunks)
+                extraction_error = (
+                    f"extraction failed on {len(chunks)}/{len(chunks)} chunks: "
+                    f"{type(e).__name__}: {e}"
+                )
+            else:
+                # Per-chunk failure accounting (issue #93): errored chunks
+                # come back failure-marked, not just empty. Any failure makes
+                # this doc degraded and the summary lands in graph_error so
+                # it stays queryable after the ingest call returns.
+                chunks_failed = sum(1 for r in extraction_results if getattr(r, "failed", False))
+                if chunks_failed:
+                    extraction_degraded = True
+                    first_error = next(
+                        (r.error for r in extraction_results if r.failed and r.error),
+                        "unknown error",
+                    )
+                    extraction_error = (
+                        f"extraction failed on {chunks_failed}/{len(chunks)} chunks: {first_error}"
+                    )
 
         # Dedupe entities by name, build per-chunk entity/rel lists
+        from pg_raggraph.resolution import merge_description
+
         unique_entities = {}
         chunk_to_entities = []
         chunk_to_rels = []
+        desc_cap = self.config.entity_description_max_chars
 
         for i, extraction in enumerate(extraction_results):
             entity_names = []
@@ -1309,9 +1438,11 @@ class GraphRAG:
                     }
                 else:
                     unique_entities[ent.name]["chunks"].append(i)
-                    existing_desc = unique_entities[ent.name]["description"]
-                    if ent.description and ent.description not in existing_desc:
-                        unique_entities[ent.name]["description"] += " " + ent.description
+                    # PR-222: keep-first append with cap — a hot entity in
+                    # hundreds of chunks must not build an unbounded blob.
+                    unique_entities[ent.name]["description"] = merge_description(
+                        unique_entities[ent.name]["description"], ent.description, desc_cap
+                    )
                 entity_names.append(ent.name)
             chunk_to_entities.append(entity_names)
             # 9-tuple shape: (src, dst, rel_type, description, weight,
@@ -1415,21 +1546,56 @@ class GraphRAG:
         from pg_raggraph.resolution import resolve_entity
 
         async with self.db.transaction() as tx:
+            if defer_lexical_stats:
+                # Transaction-local: the migration-018 lexstats triggers honor
+                # this and skip their lock-contended upserts for this doc's
+                # writes (issue #97). Caller must run rebuild_lexical_stats()
+                # after the batch to reconstruct exact stats.
+                await tx.execute("SELECT set_config('pgrg.defer_lexical_stats', 'on', true)")
             # Incremental update: if source_path exists with a DIFFERENT hash,
-            # the file has changed. Delete the stale document inside the same
-            # transaction as the new insert so any failure mid-ingest rolls
-            # back both the delete and the insert — the old version stays
-            # visible until the new one commits. FK cascades take care of
-            # chunks and the entity/relationship provenance joins. Call
-            # prune_orphans() afterwards to clean up unreferenced entities.
+            # the file has changed. Pick the prior *current* version (the one
+            # still open: effective_to IS NULL) and supersede it inside the same
+            # transaction as the new insert, so any failure mid-ingest rolls back
+            # both halves and the old version stays visible until the new one
+            # commits. Two modes:
+            #   * evolution_tier == "off" (default) — DELETE the stale doc
+            #     (destructive replace, no history, zero storage growth). FK
+            #     cascades take care of chunks + provenance joins; call
+            #     prune_orphans() afterwards to clean unreferenced entities.
+            #   * evolution_tier != "off" — APPEND-ONLY supersede so time-travel
+            #     works (#90): close the prior version (set effective_to) and
+            #     point the new version at it via document_versions below,
+            #     instead of physically deleting it. The retrieval as_of window +
+            #     supersession penalty then serve the right version per query.
+            # Living-knowledge ingests run their own append-only path further
+            # down, so this only switches modes for plain re-ingests.
+            keep_history = self.config.evolution_tier != "off" and living_context is None
+            supersede_ts = datetime.now(timezone.utc)
+            # #111: an incoming version carrying an explicit event-time
+            # effective_from closes its predecessor at that value, not at
+            # ingest wall-clock — otherwise every superseded window in an
+            # event-dated chain spans [event_date, now] and any historical
+            # as_of matches the whole prefix. Chains without event stamps
+            # keep the wall-clock close (ingest time IS their event time).
+            close_at = (metadata or {}).get("effective_from") or supersede_ts
             stale = await tx.fetch_one(
                 "SELECT id, content_hash, metadata FROM documents "
-                "WHERE namespace = %s AND source_path = %s AND content_hash != %s",
+                "WHERE namespace = %s AND source_path = %s AND content_hash != %s "
+                "  AND effective_to IS NULL "
+                "ORDER BY effective_from DESC NULLS LAST, id DESC LIMIT 1",
                 (ns, file_path, c_hash),
             )
             if stale:
-                await tx.execute("DELETE FROM documents WHERE id = %s", (stale["id"],))
-                logger.info(f"Replaced stale version of {file_path}")
+                if keep_history:
+                    await tx.execute(
+                        "UPDATE documents SET effective_to = COALESCE(effective_to, %s) "
+                        "WHERE id = %s",
+                        (close_at, stale["id"]),
+                    )
+                    logger.info(f"Superseded prior version of {file_path} (history retained)")
+                else:
+                    await tx.execute("DELETE FROM documents WHERE id = %s", (stale["id"],))
+                    logger.info(f"Replaced stale version of {file_path}")
 
             # Insert document with any caller-supplied evolution metadata.
             # ON CONFLICT uses COALESCE so a re-ingest without metadata doesn't
@@ -1439,7 +1605,17 @@ class GraphRAG:
             # un-retracting). COALESCE can't express this for booleans, so we
             # pass a separate `retracted_explicit` flag and gate the SET on it
             # via CASE WHEN.
-            meta = metadata or {}
+            meta = dict(metadata or {})
+            # #94: stamp the resolved extraction prompt on DEFERRED docs so
+            # the drain (`pgrg extract`) extracts them with the prompt they
+            # were ingested under, whatever the drain worker's config. Sync
+            # docs are not stamped — extraction already ran with the resolved
+            # prompt, and documents.metadata surfaces on query results, so an
+            # unconditional stamp would pollute the caller-metadata
+            # round-trip (PRG-1). A sync doc manually re-queued to 'pending'
+            # therefore resolves via namespace map > global at drain time.
+            if defer_extraction:
+                meta["extraction_prompt"] = prompt_name
             eff_from = meta.get("effective_from")
             eff_to = meta.get("effective_to")
             retracted_explicit = "retracted" in meta and meta["retracted"] is not None
@@ -1450,6 +1626,17 @@ class GraphRAG:
             version_label = meta.get("version_label")
             supersedes_doc = meta.get("supersedes_document_id")
 
+            # Append-only supersede (#90): when we kept the prior version above,
+            # stamp the new version's effective_from at the supersede boundary
+            # (so an as_of *before* the update excludes it) and point it at the
+            # closed prior version. Both only default — a caller who supplied
+            # effective_from / supersedes_document_id explicitly wins.
+            if stale and keep_history:
+                if eff_from is None:
+                    eff_from = supersede_ts
+                if supersedes_doc is None:
+                    supersedes_doc = stale["id"]
+
             # Persist arbitrary caller metadata to documents.metadata JSONB.
             # The dedicated evolution columns (effective_from etc.) ALSO get
             # the same fields, so callers can query either way.
@@ -1459,19 +1646,29 @@ class GraphRAG:
             # Use _json_default so datetime values in metadata (e.g.
             # effective_from / effective_to from evolution-tracking ingests)
             # serialize to ISO strings instead of crashing the ingest.
+            # NOTE (#93 composition): documents.metadata is the CALLER's bag and
+            # must round-trip exactly (PRG-1 contract, test_consumer_surface).
+            # Per-chunk failure accounting therefore does NOT stamp metadata on
+            # the sync path — the failure summary travels via graph_error and
+            # the returned stats instead. The backfill drain stamps yield meta
+            # on docs it owns (deferred path), mirroring #94's deferred-only
+            # prompt stamping for the same reason.
             doc_metadata_json = json.dumps(meta, default=_json_default) if meta else "{}"
 
             # graph_status: 'pending' when extraction is deferred to a
             # background worker, else 'ready' (matches the migration default
-            # and the pre-feature synchronous behavior).
+            # and the pre-feature synchronous behavior). graph_error carries
+            # the per-chunk failure summary for degraded sync ingests (#93);
+            # NULL when extraction was clean. A re-ingest re-extracts, so
+            # the new outcome wins on conflict.
             graph_status_value = "pending" if defer_extraction else "ready"
 
             doc_id = await tx.insert_returning_id(
                 "INSERT INTO documents "
                 "(namespace, content_hash, source_path, metadata, "
                 " effective_from, effective_to, retracted, version_label, "
-                " graph_status) "
-                "VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s) "
+                " graph_status, graph_error) "
+                "VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s) "
                 "ON CONFLICT (namespace, content_hash) DO UPDATE "
                 "SET source_path = EXCLUDED.source_path, "
                 "    metadata = documents.metadata || EXCLUDED.metadata, "
@@ -1482,7 +1679,8 @@ class GraphRAG:
                 "    retracted = CASE WHEN %s "
                 "THEN EXCLUDED.retracted ELSE documents.retracted END, "
                 "    version_label = COALESCE("
-                "EXCLUDED.version_label, documents.version_label) "
+                "EXCLUDED.version_label, documents.version_label), "
+                "    graph_error = EXCLUDED.graph_error "
                 "RETURNING id",
                 (
                     ns,
@@ -1494,6 +1692,7 @@ class GraphRAG:
                     retracted_value,
                     version_label,
                     graph_status_value,
+                    extraction_error[:2000] if extraction_error else None,
                     retracted_explicit,
                 ),
             )
@@ -1501,11 +1700,24 @@ class GraphRAG:
             # #81: persist raw file content for deferred CODE docs so the code
             # graph (CALLS/INHERITS/IMPLEMENTS) can be rebuilt out-of-band by
             # `pgrg backfill-code-graph`. Gate: deferred + a symbol_aware code
-            # doc (those chunks carry `language`) + not pre_chunked (Pattern C's
-            # `content` is joined-chunk text, not a faithful file — out of scope).
-            # Atomic with the doc — staged content lands iff the doc does. The
-            # table is LOGGED so it survives until a later backfill run.
-            if defer_extraction and _code_lang and pre_chunked is None:
+            # doc (those chunks carry `language`). Atomic with the doc — staged
+            # content lands iff the doc does. The table is LOGGED so it survives
+            # until a later backfill run.
+            #
+            # The backfill re-parses this content with tree-sitter, so it must be
+            # the FAITHFUL original file. On the self-chunked path `content` is
+            # exactly that. On the `pre_chunked` reuse path `content` is joined-
+            # chunk text (not faithful), so the caller must supply the real source
+            # via `code_source_content`; refuse loudly rather than stage garbage
+            # the backfill would mis-parse (silent code-graph loss).
+            if defer_extraction and _code_lang:
+                stage_content = content if pre_chunked is None else code_source_content
+                if pre_chunked is not None and not stage_content:
+                    raise ValueError(
+                        "code doc ingested with pre_chunked must also pass "
+                        "code_source_content (the faithful original file) so the "
+                        "deferred code graph can be rebuilt"
+                    )
                 await tx.execute(
                     "INSERT INTO code_backfill_stage "
                     "(document_id, namespace, content, language, source_path) "
@@ -1514,7 +1726,7 @@ class GraphRAG:
                     "  content = EXCLUDED.content, "
                     "  language = EXCLUDED.language, "
                     "  source_path = EXCLUDED.source_path",
-                    (doc_id, ns, content, _code_lang, file_path),
+                    (doc_id, ns, stage_content, _code_lang, file_path),
                 )
 
             # If caller supplied version info or a supersession edge, create a
@@ -1673,6 +1885,7 @@ class GraphRAG:
                     db=tx,
                     config=self.config,
                     properties=info.get("properties") or {},
+                    source_document_id=doc_id,
                 )
                 entity_name_to_id[name] = eid
 
@@ -1749,6 +1962,7 @@ class GraphRAG:
             "entities": len(unique_entities),
             "rels": rel_count,
             "degraded": extraction_degraded,
+            "chunks_failed": chunks_failed,
         }
 
     async def _spill_code_calls(self, ns, run_id, calls) -> None:
@@ -1981,6 +2195,7 @@ class GraphRAG:
         retrieval_strategy: str | None = None,
         summary_base_mode: str | None = None,
         profile: str | int | float | None = None,
+        top_k: int | None = None,
         rerank: bool = False,
         metadata_filters: dict | None = None,
         trace_emit: Callable[[dict], None] | None = None,
@@ -2037,6 +2252,13 @@ class GraphRAG:
                 (``"cheap"``, ``"balanced"``, ``"accurate"``), integer rung
                 indexes, a 0..1 slider float, or ``"raw"`` for legacy classic
                 chunk context. ``None`` uses ``config.retrieval_profile``.
+            top_k: caller override for retrieval breadth (how many chunks are
+                fetched and returned). ``None`` (default) uses the resolved
+                profile's ``top_k`` — preserving prior behavior. When set, it
+                overrides the profile breadth; the profile still owns
+                ``context_strategy``. Must be >= 1. With ``rerank=True`` this is
+                the post-rerank target (``top_k * rerank_factor`` candidates are
+                fetched first, then trimmed to ``top_k``).
             rerank: when True, fetch top_k * rerank_factor candidates and
                 re-rank with a cross-encoder before trimming to top_k.
                 Adds ~30-80 ms p50 latency, zero per-query LLM cost.
@@ -2053,6 +2275,8 @@ class GraphRAG:
 
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
+        if top_k is not None and top_k < 1:
+            raise ValueError(f"top_k must be >= 1 when provided, got {top_k}")
         namespace_profile = None
         if profile is None:
             namespace_profile = await self._namespace_profile_value(ns)
@@ -2063,7 +2287,10 @@ class GraphRAG:
         started = time.perf_counter()
         with self.db.tenant(ns):
             embedder = self._get_embedder()
-            retrieval_top_k = profile_spec.top_k
+            # Caller-supplied top_k (issue #84) overrides the profile's breadth;
+            # the profile still owns context_strategy. None preserves the
+            # profile default, keeping prior behavior unchanged.
+            retrieval_top_k = top_k if top_k is not None else profile_spec.top_k
             top_k_override = (
                 retrieval_top_k * self.config.rerank_factor if rerank else retrieval_top_k
             )
@@ -2136,6 +2363,7 @@ class GraphRAG:
         retrieval_strategy: str | None = None,
         summary_base_mode: str | None = None,
         profile: str | int | float | None = None,
+        top_k: int | None = None,
         short_answer: bool = False,
         rerank: bool = False,
         metadata_filters: dict | None = None,
@@ -2158,7 +2386,9 @@ class GraphRAG:
 
         ``retracted_behavior``, ``supersession_behavior``, and ``memory_tier``
         override the matching ``config.*`` fields for this call only — see
-        ``GraphRAG.query()`` for details.
+        ``GraphRAG.query()`` for details. ``top_k`` overrides the resolved
+        profile's retrieval breadth for this call; ``None`` keeps the profile
+        default.
         """
         from pg_raggraph.answer import generate_answer
 
@@ -2175,6 +2405,7 @@ class GraphRAG:
             retrieval_strategy=retrieval_strategy,
             summary_base_mode=summary_base_mode,
             profile=profile,
+            top_k=top_k,
             rerank=rerank,
             metadata_filters=metadata_filters,
             trace_emit=trace_emit,
@@ -2377,6 +2608,7 @@ class GraphRAG:
         ns = namespace or self.config.namespace
         _validate_namespace(ns)
         with self.db.tenant(ns):
+            graph_status = await self._graph_status_summary(ns)
             return {
                 "schema_version": int(await self.db.get_meta("schema_version") or 0),
                 "embedding_dim": int(await self.db.get_meta("embedding_dim") or 0),
@@ -2393,28 +2625,100 @@ class GraphRAG:
                 )["cnt"],
                 "entities": await self.db.count("entities", ns),
                 "relationships": await self.db.count("relationships", ns),
-                "graph_status": await self._graph_status_summary(ns),
+                "graph_status": graph_status,
+                # Derived readiness flag (issue #92): True when no doc is
+                # mid-extraction. 'failed' docs are terminal and don't block.
+                "graph_ready": _is_graph_ready(graph_status),
             }
+
+    async def graph_ready(self, namespace: str | None = None) -> bool:
+        """Cheap probe: is background extraction done for this namespace?
+
+        Returns True when no document is ``'pending'`` or ``'processing'``
+        (issue #92). ``'failed'`` docs are terminal and do NOT block
+        readiness — inspect ``status()['graph_status']['failed']`` and retry
+        via ``pgrg extract --include-failed`` if you care about them.
+
+        Caveat: an empty namespace is trivially ready. During a batched
+        ingest, docs not yet written are invisible — check
+        ``status()['documents']`` against your expected corpus size if you
+        need "did everything land?" rather than "has the queue drained?".
+        """
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        with self.db.tenant(ns):
+            return _is_graph_ready(await self._graph_status_summary(ns))
+
+    async def wait_for_graph_ready(
+        self,
+        namespace: str | None = None,
+        *,
+        timeout: float = 600.0,
+        poll_interval: float = 2.0,
+    ) -> dict[str, int]:
+        """Block until background extraction has drained for the namespace.
+
+        Polls the per-status doc counts every ``poll_interval`` seconds until
+        no document is ``'pending'`` or ``'processing'``, then returns the
+        final summary, e.g. ``{'pending': 0, 'processing': 0, 'ready': 660,
+        'failed': 0}``. Raises ``TimeoutError`` (message includes the
+        last-seen summary) if the queue hasn't drained within ``timeout``
+        seconds.
+
+        This is the first-class "is ingest done?" primitive (issue #92) —
+        replaces hand-rolled SQL polling of ``documents.graph_status``::
+
+            await rag.ingest_records(records, namespace="crm", defer_extraction=True)
+            summary = await rag.wait_for_graph_ready(namespace="crm")
+            if summary["failed"]:
+                ...  # pgrg extract --include-failed
+
+        Same caveats as :meth:`graph_ready`: 'failed' is terminal (doesn't
+        block), and an empty namespace returns immediately.
+        """
+        import asyncio
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        deadline = time.monotonic() + timeout
+        while True:
+            with self.db.tenant(ns):
+                summary = await self._graph_status_summary(ns)
+            if _is_graph_ready(summary):
+                return summary
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(
+                    f"graph not ready in namespace {ns!r} after {timeout}s: {summary}"
+                )
+            await asyncio.sleep(min(poll_interval, remaining))
 
     async def _graph_status_summary(self, namespace: str) -> dict[str, int]:
         """Per-status doc count for the namespace.
 
-        Returns all four lifecycle keys (pending/processing/ready/failed) so
-        callers can rely on the shape without defaulting. The partial index
-        on (namespace, created_at) WHERE graph_status='pending' keeps the
-        common 'pending > 0' check cheap; the full GROUP BY scans the
-        documents table but is sub-ms at typical sizes.
+        Returns all four lifecycle keys (pending/processing/ready/failed)
+        plus ``degraded`` — docs counted in ``ready`` whose extraction had
+        per-chunk failures (``graph_error`` is set; issue #93). Degraded is
+        an overlay on ready, not a fifth lifecycle state: those docs have a
+        usable partial graph. Callers can rely on the shape without
+        defaulting. The partial index on (namespace, created_at) WHERE
+        graph_status='pending' keeps the common 'pending > 0' check cheap;
+        the full GROUP BY scans the documents table but is sub-ms at
+        typical sizes.
         """
         rows = await self.db.fetch_all(
-            "SELECT graph_status, COUNT(*) AS n FROM documents "
-            "WHERE namespace = %s GROUP BY graph_status",
+            "SELECT graph_status, COUNT(*) AS n, "
+            "COUNT(*) FILTER (WHERE graph_error IS NOT NULL) AS n_err "
+            "FROM documents WHERE namespace = %s GROUP BY graph_status",
             (namespace,),
         )
-        summary = {"pending": 0, "processing": 0, "ready": 0, "failed": 0}
+        summary = {"pending": 0, "processing": 0, "ready": 0, "failed": 0, "degraded": 0}
         for row in rows:
             key = row["graph_status"]
             if key in summary:
                 summary[key] = int(row["n"])
+            if key == "ready":
+                summary["degraded"] = int(row["n_err"])
         return summary
 
     async def code_impact(
@@ -2518,6 +2822,25 @@ class GraphRAG:
                 (ns, source_path),
             )
         return 1 if result else 0
+
+    async def rebuild_lexical_stats(self, namespace: str | None = None) -> dict:
+        """Recompute the BM25 lexical statistics for a namespace (issue #96).
+
+        The migration-016 triggers maintain ``lexeme_stats`` /
+        ``lexical_corpus_stats`` incrementally for every write made after the
+        migration; chunks ingested BEFORE it are not counted. Run this once
+        per pre-existing namespace before enabling
+        ``lexical_backend="bm25"``. CLI equivalent:
+        ``pgrg rebuild-lexical-stats``.
+
+        Returns ``{"namespace", "lexemes", "chunks", "total_len"}``.
+        """
+        from pg_raggraph.lexical import rebuild_lexical_stats
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        with self.db.tenant(ns):
+            return await rebuild_lexical_stats(self.db, ns)
 
     async def retract(
         self,
@@ -2721,9 +3044,12 @@ class GraphRAG:
     async def merge_entities(self, keep_id: int, merge_ids: list[int]) -> dict:
         """Merge one or more entities into a canonical one.
 
-        Rewrites relationships and entity_chunks to point at `keep_id`,
-        deduplicates any resulting duplicate edges, drops self-loops that
-        the merge creates, then deletes the merged entities. All atomic.
+        Unions descriptions and properties into `keep_id` (AAT-004 I-14 —
+        this method used to silently drop them), rewrites relationships and
+        entity_chunks to point at `keep_id`, deduplicates any resulting
+        duplicate edges, drops self-loops that the merge creates, records
+        each absorbed entity in ``entity_merge_log`` (source='manual'), then
+        deletes the merged entities. All atomic.
 
         Raises ValueError if keep_id appears in merge_ids (would delete the
         canonical entity) or if merge_ids is empty.
@@ -2736,12 +3062,15 @@ class GraphRAG:
                 "that would delete the canonical entity"
             )
 
+        from pg_raggraph.resolution import merge_description
+
         with self.db.tenant(self.config.namespace):
             async with self.db.transaction() as tx:
                 # Verify all entities exist and share a namespace. Cross-namespace
                 # merges are almost always a bug.
                 rows = await tx.fetch_all(
-                    "SELECT id, namespace FROM entities WHERE id = ANY(%s)",
+                    "SELECT id, namespace, name, entity_type, description, properties "
+                    "FROM entities WHERE id = ANY(%s)",
                     ([keep_id, *merge_ids],),
                 )
                 found_ids = {r["id"] for r in rows}
@@ -2751,6 +3080,48 @@ class GraphRAG:
                 namespaces = {r["namespace"] for r in rows}
                 if len(namespaces) > 1:
                     raise ValueError(f"cross-namespace merge refused: {sorted(namespaces)}")
+
+                # Union descriptions/properties into the keep row BEFORE the
+                # deletes (I-14: the old code silently lost them). Same
+                # keep-first dedup + cap as the fuzzy auto-merge path; on
+                # property key conflicts the canonical (keep) entity wins.
+                by_id = {r["id"]: r for r in rows}
+                keep_row = by_id[keep_id]
+                merged_desc = keep_row["description"] or ""
+                merged_props: dict = {}
+                for mid in merge_ids:
+                    merged_desc = merge_description(
+                        merged_desc,
+                        by_id[mid]["description"] or "",
+                        self.config.entity_description_max_chars,
+                    )
+                    merged_props.update(by_id[mid]["properties"] or {})
+                merged_props.update(keep_row["properties"] or {})
+                await tx.execute(
+                    "UPDATE entities SET description = %s, properties = %s::jsonb WHERE id = %s",
+                    (merged_desc, json.dumps(merged_props, default=_json_default), keep_id),
+                )
+
+                # Audit trail (AAT-004): one log row per absorbed entity, same
+                # shape as the fuzzy auto-merge path but with the absorbed
+                # row's real id and no scores (source='manual').
+                for mid in merge_ids:
+                    m = by_id[mid]
+                    await tx.execute(
+                        "INSERT INTO entity_merge_log "
+                        "(namespace, kept_id, merged_entity_id, merged_name, merged_type, "
+                        " merged_description, merged_properties, source) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, 'manual')",
+                        (
+                            m["namespace"],
+                            keep_id,
+                            mid,
+                            m["name"],
+                            m["entity_type"],
+                            m["description"],
+                            json.dumps(m["properties"] or {}, default=_json_default),
+                        ),
+                    )
 
                 # Repoint relationships. Migration 013 made
                 # (namespace, src_id, dst_id, rel_type) uniquely indexed, so a
@@ -2820,6 +3191,94 @@ class GraphRAG:
 
         return {"kept": keep_id, "merged_count": len(merge_ids)}
 
+    async def entity_merges(
+        self,
+        namespace: str | None = None,
+        since=None,
+        min_score: float | None = None,
+        limit: int = 100,
+    ) -> list[dict]:
+        """Read the entity-merge audit log (AAT-004), newest first.
+
+        Args:
+            namespace: defaults to the configured namespace.
+            since: only merges at/after this timestamp (datetime or ISO string).
+            min_score: only auto-merges with combined_score >= this value.
+                Manual merges carry no scores and are excluded by this filter.
+            limit: max rows returned.
+        """
+        ns = namespace or self.config.namespace
+        sql = "SELECT * FROM entity_merge_log WHERE namespace = %s"
+        params: list = [ns]
+        if since is not None:
+            sql += " AND merged_at >= %s"
+            params.append(since)
+        if min_score is not None:
+            sql += " AND combined_score >= %s"
+            params.append(min_score)
+        sql += " ORDER BY merged_at DESC, id DESC LIMIT %s"
+        params.append(limit)
+        return await self.db.fetch_all(sql, tuple(params))
+
+    async def split_entity(self, log_id: int) -> int:
+        """Recreate an entity absorbed by a fuzzy or manual merge (AAT-004).
+
+        Manual repair aid for false merges: re-inserts the absorbed entity
+        from its ``entity_merge_log`` row (name, type, description,
+        properties, fresh embedding) and returns the new entity id. It does
+        NOT repoint relationships or entity_chunks — those were rewritten at
+        merge time and unpicking them automatically would guess; re-link (or
+        re-ingest the affected documents) by hand.
+
+        Raises ValueError if the log row doesn't exist or an entity with the
+        absorbed name already exists in the namespace.
+        """
+        row = await self.db.fetch_one("SELECT * FROM entity_merge_log WHERE id = %s", (log_id,))
+        if not row:
+            raise ValueError(f"entity_merge_log row {log_id} not found")
+
+        text = f"{row['merged_name']} {row['merged_description'] or ''}".strip()
+        emb = (await self._embed_texts_with_cache([text], self._get_embedder()))[0]
+        new_id = await self.db.fetch_one(
+            "INSERT INTO entities (namespace, name, entity_type, description, "
+            "embedding, properties) VALUES (%s, %s, %s, %s, %s, %s::jsonb) "
+            "ON CONFLICT (namespace, name) DO NOTHING RETURNING id",
+            (
+                row["namespace"],
+                row["merged_name"],
+                row["merged_type"] or "unknown",
+                row["merged_description"] or "",
+                emb,
+                json.dumps(row["merged_properties"] or {}, default=_json_default),
+            ),
+        )
+        if not new_id:
+            raise ValueError(
+                f"entity named {row['merged_name']!r} already exists in "
+                f"namespace {row['namespace']!r} — nothing to split"
+            )
+        return new_id["id"]
+
+    async def trim_entity_descriptions(self, namespace: str | None = None) -> int:
+        """One-time trim of pre-existing over-cap descriptions (PR-222).
+
+        The cap applies on every new merge; corpora ingested before the cap
+        existed may already carry multi-KB blobs. Truncates them to
+        ``config.entity_description_max_chars`` and returns the number of
+        rows trimmed. Does not re-embed — the next merge of each entity
+        refreshes its embedding anyway.
+        """
+        cap = self.config.entity_description_max_chars
+        if cap <= 0:
+            return 0
+        ns = namespace or self.config.namespace
+        rows = await self.db.fetch_all(
+            "UPDATE entities SET description = left(description, %s) "
+            "WHERE namespace = %s AND length(description) > %s RETURNING id",
+            (cap, ns, cap),
+        )
+        return len(rows)
+
     async def prune_orphans(self, namespace: str | None = None) -> dict:
         """Delete entities and relationships with no chunk links."""
         ns = namespace or self.config.namespace
@@ -2860,3 +3319,171 @@ class GraphRAG:
         from pg_raggraph.evolution import tune_scoring_weights as _tune
 
         return await _tune(self, **kwargs)
+
+    # --- Typed graph traversal / dependent joins (issue #95) ---------------
+    # Thin wrappers over pg_raggraph.graph_join — see that module and
+    # docs/cookbook/typed-graph-join.md for the full API and examples.
+
+    async def find_entities(
+        self,
+        name: str,
+        *,
+        fuzzy: bool = True,
+        entity_type: str | None = None,
+        namespace: str | None = None,
+        limit: int = 5,
+        min_score: float | None = None,
+    ):
+        """Bind a name to graph entities (exact + pg_trgm fuzzy match).
+
+        Returns a list of ``pg_raggraph.graph_join.EntityMatch`` ordered by
+        score (exact matches score 1.0). Use this to anchor ``traverse()``
+        or ``graph_join()`` on a named entity instead of an embedding.
+        """
+        from pg_raggraph import graph_join as _gj
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        with self.db.tenant(ns), self.db.readonly():
+            return await _gj.find_entities(
+                self.db,
+                self.config,
+                name,
+                fuzzy=fuzzy,
+                entity_type=entity_type,
+                namespace=ns,
+                limit=limit,
+                min_score=min_score,
+            )
+
+    async def traverse(
+        self,
+        entity_ids: list[int],
+        *,
+        rel_types: str | list[str] | None = None,
+        direction: str = "out",
+        max_hops: int = 1,
+        namespace: str | None = None,
+        limit: int = 200,
+    ):
+        """Typed, directed edge walk from ``entity_ids`` (one SQL round-trip).
+
+        ``rel_types`` accepts a single type or a synonym list (matched
+        case-insensitively); ``None`` walks all edge types. ``direction``
+        is ``"out"`` / ``"in"`` / ``"any"`` relative to the walked-from
+        entity. Returns ``pg_raggraph.graph_join.TraversalHop`` rows, each
+        carrying the reached entity, the traversed edge, and the edge's
+        provenance chunk ids.
+        """
+        from pg_raggraph import graph_join as _gj
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        with self.db.tenant(ns), self.db.readonly():
+            return await _gj.traverse(
+                self.db,
+                entity_ids,
+                rel_types=rel_types,
+                direction=direction,
+                max_hops=max_hops,
+                namespace=ns,
+                limit=limit,
+            )
+
+    async def graph_join(
+        self,
+        anchor: str | int,
+        bind: list[tuple],
+        intersect: list[tuple],
+        *,
+        namespace: str | None = None,
+        anchor_type: str | None = None,
+        fuzzy: bool = True,
+        match_limit: int = 50,
+    ):
+        """Dependent conjunctive join over the graph (one SQL round-trip).
+
+        Binds variables from an anchor entity via typed edges, then
+        intersects typed neighbor sets of those variables::
+
+            result = await rag.graph_join(
+                "Maria Ashby",
+                bind=[("LIVES_IN", "city"), (["CRAVES", "LIKES"], "food")],
+                intersect=[("LOCATED_IN", "$city"), ("SERVES", "$food")],
+            )
+
+        Returns ``pg_raggraph.graph_join.GraphJoinResult`` carrying the
+        bound anchor, the intermediate bindings, and every match with its
+        supporting edges and provenance chunk ids.
+        """
+        from pg_raggraph import graph_join as _gj
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        with self.db.tenant(ns), self.db.readonly():
+            return await _gj.graph_join(
+                self.db,
+                self.config,
+                anchor,
+                bind,
+                intersect,
+                namespace=ns,
+                anchor_type=anchor_type,
+                fuzzy=fuzzy,
+                match_limit=match_limit,
+            )
+
+    async def graph_analyze(
+        self,
+        seed,
+        expand,
+        *,
+        score=None,
+        filter=None,  # noqa: A002 - mirrors the design-doc API
+        fuse=None,
+        top_k: int = 10,
+        namespace: str | None = None,
+    ):
+        """Set-seeded, authority-scored graph retrieval in one SQL statement
+        (issue #100) — the "expand then rank by connectedness" plan::
+
+            from pg_raggraph.graph_analyze import (
+                SemanticSeed, Expand, Authority, MetadataFilter, RRF,
+            )
+            rows = await rag.graph_analyze(
+                seed=SemanticSeed(question, top_k=60, entity_type="case"),
+                expand=Expand(rel_types="CITES", direction="out", max_hops=2),
+                score=Authority(metric="in_degree"),
+                filter=MetadataFilter({"decision_year": ("gte", 1990)}),
+                fuse=RRF(legs=("semantic", "authority")),
+                top_k=10,
+            )
+
+        ``seed`` is a ``SemanticSeed``, a list of entity ids, or a
+        ``NameSeed`` (exact + pg_trgm binding). Returns
+        ``pg_raggraph.graph_analyze.AnalyzedChunk`` rows — provenance plus
+        per-leg scores next to the fused score. See
+        ``docs/cookbook/graph-analyze.md``.
+        """
+        from pg_raggraph import graph_analyze as _ga
+
+        ns = namespace or self.config.namespace
+        _validate_namespace(ns)
+        embedder = self._get_embedder()
+
+        async def _embed_one(text: str) -> list[float]:
+            return (await embedder.embed([text]))[0]
+
+        with self.db.tenant(ns), self.db.readonly():
+            return await _ga.graph_analyze(
+                self.db,
+                self.config,
+                _embed_one,
+                seed,
+                expand,
+                score=score,
+                filter=filter,
+                fuse=fuse,
+                top_k=top_k,
+                namespace=ns,
+            )

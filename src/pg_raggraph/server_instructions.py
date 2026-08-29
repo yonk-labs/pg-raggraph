@@ -44,7 +44,11 @@ the graph already did. A direct pg-raggraph answer is typically
 - **"Add documents to the graph"** → `pgrg_ingest`
 - **"Remove a document from the graph"** → `pgrg_delete_document`
   (requires `confirm=True`)
-- **"Is the graph ready / how big is it?"** → `pgrg_status`
+- **"Is the graph ready / how big is it?"** → `pgrg_status` — returns
+  counts plus a `graph_ready` boolean (false while background extraction
+  is still draining). Also a `degraded` count: docs that are ready but
+  had per-chunk extraction failures (partial graph; doesn't block
+  readiness — retry via `pgrg extract --include-failed`).
 - **"What retrieval profiles are available / which is configured?"** →
   `pgrg_profiles` / `pgrg_get_namespace_profile`
 - **"Set this namespace's default retrieval profile"** →
@@ -83,8 +87,9 @@ the graph already did. A direct pg-raggraph answer is typically
 
 - Background extraction (`defer_extraction=True`) means new ingests are
   retrievable as chunks immediately but enter the entity graph
-  asynchronously. Use `pgrg_status` to check `graph_status_summary` —
-  `pending > 0` means a `pgrg extract` worker is still backfilling.
+  asynchronously. Use `pgrg_status` to check `graph_ready` /
+  `graph_status_summary` — `graph_ready: false` (pending or processing
+  docs remain) means a `pgrg extract` worker is still backfilling.
 - Cross-document entity resolution uses pg_trgm fuzzy + vector cosine;
   ambiguous entities may have multiple aliases.
 - The graph is per-namespace. Cross-namespace queries are not supported

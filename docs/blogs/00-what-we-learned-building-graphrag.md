@@ -4,8 +4,8 @@
 
 > **Note:** This is the original retrospective from the project's early benchmarking, dated 2026-04. The headline lessons here all still hold, but the project has evolved since:
 >
-> - **+18.9% accuracy lift** measured on a real 909-doc developer codebase ([`benchmarks/pg-agents-results.md`](../../benchmarks/pg-agents-results.md)).
-> - **Apache AGE bake-off completed**, with the [methodology / fairness disclosure](../../research/apache-age-evaluation.md) documenting exactly what AGE was and wasn't tuned with. AGE retrieval ran 42–111× slower in fair-defaults mode.
+> - **+19.3% retrieval top-score lift** measured on a real 486-doc developer codebase ([`benchmarks/pg-agents-results.md`](../../benchmarks/pg-agents-results.md)) — a retrieval-quality proxy, not graded answer accuracy; on gold-labeled QA the mode-level lift was within noise ([`SESSION-HANDOFF.md`](../../benchmarks/age-bakeoff/SESSION-HANDOFF.md)).
+> - **Apache AGE bake-off completed**, with the [methodology / fairness disclosure](../../research/apache-age-evaluation.md) documenting exactly what AGE was and wasn't tuned with. AGE's graph-assisted retrieval ran 42–101× slower p50 in fair-defaults mode on our harness (naive-mode differential excluded pending an adapter audit).
 > - **Tier 1 evolving-knowledge** features shipped (`retracted`, `as_of`, `version_filter`) — see [`01-intro-classic-vs-evolving.md`](01-intro-classic-vs-evolving.md), [`02-path-a-versioned-python-docs.md`](02-path-a-versioned-python-docs.md), and [`03-path-b-medical-retractions.md`](03-path-b-medical-retractions.md) for worked examples.
 >
 > The numbers below are from the early 2026-04 benchmarks (PG docs, NTSB, SEC 10-Q, SCOTUS). They reflect what graph mode does and doesn't do on classic technical-doc corpora, which is the lens this post is written through. For current-state measurements on the larger pg-agents corpus and the new evolving-knowledge workloads, follow the links above.
@@ -77,7 +77,7 @@ We rejected it. Four reasons:
 
 **1. Cloud compatibility kills it.** AGE requires `shared_preload_libraries`, which needs a PostgreSQL restart. Only Azure Database for PostgreSQL supports it among managed providers. No AWS RDS. No Supabase. No Neon. No GCP Cloud SQL. For a library targeting "the PostgreSQL you already run," this is a dealbreaker.
 
-**2. Can't combine with pgvector in a single query.** The killer GraphRAG operation — "seed entities from vector similarity, then expand via graph, then rank chunks" — requires two separate query steps with AGE. With recursive CTEs, it's one query, one round-trip, one transaction:
+**2. pgvector composition is awkward and Azure-shaped.** AGE's `cypher()` calls *can* be composed with pgvector in a single SQL statement — [Microsoft's HorizonDB GraphRAG doc](https://learn.microsoft.com/en-us/azure/horizondb/ai/graph-rag) shows the CTE pattern — but it's undocumented outside Azure's fork, requires agtype casting at every boundary, and AGE implements only a subset of openCypher (no `MERGE ... ON CREATE SET`, `EXISTS`, or `datetime()`, per the same doc). With recursive CTEs, the killer GraphRAG operation — "seed entities from vector similarity, then expand via graph, then rank chunks" — is plain SQL, one query, one round-trip, one transaction:
 
 ```sql
 WITH RECURSIVE seeds AS (

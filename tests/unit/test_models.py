@@ -45,6 +45,37 @@ def test_extraction_result():
     assert result.relationships[0].weight == 1.0
 
 
+def test_extracted_relationship_normalizes_rel_type():
+    """Format variants of the same rel_type canonicalize identically (#106)."""
+    from pg_raggraph.models import ExtractedRelationship
+
+    variants = [
+        "maintains relationship with",
+        "Maintains-Relationship-With",
+        "MAINTAINS_RELATIONSHIP_WITH",
+        "  maintains  relationship  with  ",
+        "maintains_relationship_with.",
+    ]
+    normalized = {
+        ExtractedRelationship(source="a", target="b", rel_type=v).rel_type for v in variants
+    }
+    assert normalized == {"MAINTAINS_RELATIONSHIP_WITH"}
+
+
+def test_extracted_relationship_rel_type_canonical_passthrough_and_fallback():
+    from pg_raggraph.models import ExtractedRelationship
+
+    # Already-canonical types are untouched.
+    r = ExtractedRelationship(source="a", target="b", rel_type="DEPENDS_ON")
+    assert r.rel_type == "DEPENDS_ON"
+    # Degenerate input (nothing alphanumeric) falls back to the default.
+    r = ExtractedRelationship(source="a", target="b", rel_type="---")
+    assert r.rel_type == "RELATED_TO"
+    # Default stays the default.
+    r = ExtractedRelationship(source="a", target="b")
+    assert r.rel_type == "RELATED_TO"
+
+
 def test_query_result():
     r = QueryResult(query_mode="hybrid", latency_ms=42.5)
     assert r.chunks == []

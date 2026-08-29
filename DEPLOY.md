@@ -8,14 +8,17 @@ with pgvector + pg_trgm, one container running `pgrg serve`.
 
 ```bash
 cp .env.example .env
-# Edit .env and set PGRG_PASSWORD and (optional) PGRG_LLM_*
+# Edit .env and set PGRG_PASSWORD, PGRG_SERVER_API_KEY, and (optional) PGRG_LLM_*
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 The `pgrg` service builds from the local `Dockerfile` (source install —
 `pg-raggraph` is not yet on PyPI). Rebuild with `--build` after upgrading.
 
-`pgrg` will be available at `http://localhost:8080`. Postgres is only reachable
+`pgrg` will be available at `http://localhost:8080`. Requests (except
+`/health` and `/ready`) need `Authorization: Bearer $PGRG_SERVER_API_KEY` —
+the container binds `0.0.0.0` and pgrg refuses that bind without auth
+(PR-217), so the key is mandatory. Postgres is only reachable
 from inside the compose network by default — uncomment the `ports:` block in
 `docker-compose.prod.yml` to expose it.
 
@@ -25,6 +28,11 @@ from inside the compose network by default — uncomment the `ports:` block in
 PGRG_DB=pg_raggraph
 PGRG_USER=postgres
 PGRG_PASSWORD=change-me
+PGRG_SERVER_API_KEY=generate-a-long-random-string
+# Optional: browser Origins allowed on write requests (empty = loopback origins only)
+PGRG_SERVER_ALLOWED_ORIGINS=
+# Optional: per-file upload cap for /ingest in MB (empty = default 100)
+PGRG_SERVER_MAX_UPLOAD_MB=
 PGRG_LLM_BASE_URL=https://api.openai.com/v1
 PGRG_LLM_API_KEY=YOUR_API_KEY_HERE
 PGRG_LLM_MODEL=gpt-4o-mini

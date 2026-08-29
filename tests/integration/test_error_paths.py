@@ -29,15 +29,19 @@ pytestmark = pytest.mark.asyncio
 async def test_bad_dsn_raises_connection_error_with_helpful_message():
     """rag.connect() against an unreachable DB wraps in ConnectionError
     naming the DSN — the user shouldn't have to read a stack trace to
-    find the URL they got wrong."""
-    rag = GraphRAG(dsn="postgresql://postgres:postgres@127.0.0.1:1/nope")
+    find the URL they got wrong. PR-218: the password is REDACTED; the
+    CLI prints this message verbatim and servers ship it to logs."""
+    rag = GraphRAG(dsn="postgresql://pgrguser:sup3rsecret@127.0.0.1:1/nope")
     with pytest.raises(ConnectionError) as exc_info:
         await rag.connect()
     msg = str(exc_info.value)
     assert "Cannot connect to PostgreSQL" in msg
-    # The DSN we supplied should appear in the message so users see what
-    # got tried (not the env default).
+    # Host:port still appear so users see what got tried (not the env
+    # default) — the error stays actionable.
     assert "127.0.0.1:1" in msg
+    # PR-218: the password must never reach the message; user survives.
+    assert "sup3rsecret" not in msg
+    assert "pgrguser:***@" in msg
 
 
 async def test_pgrg_env_production_with_default_dsn_raises_runtime_error(monkeypatch):
@@ -45,7 +49,10 @@ async def test_pgrg_env_production_with_default_dsn_raises_runtime_error(monkeyp
     production, that's a deploy-time bug — refuse to start."""
     monkeypatch.setenv("PGRG_ENV", "production")
     # PGRGConfig must be invoked WITHOUT inheriting the test DSN — so we
-    # explicitly omit dsn to land on the default.
+    # explicitly omit dsn to land on the default. That requires clearing
+    # PGRG_DSN too: pydantic-settings reads it from the environment, so an
+    # exported test DSN would silently defuse the guard under test.
+    monkeypatch.delenv("PGRG_DSN", raising=False)
     with pytest.raises(RuntimeError) as exc_info:
         PGRGConfig()
     msg = str(exc_info.value)
@@ -238,6 +245,25 @@ async def test_ingest_endpoint_rejects_oversize_upload(db, monkeypatch):
         )
     assert resp.status_code == 413
     assert "1 MB" in resp.json()["detail"]
+
+
+async def test_ingest_endpoint_empty_upload_cap_env_uses_default(db, monkeypatch):
+    """PR-220: docker-compose.prod.yml passes PGRG_SERVER_MAX_UPLOAD_MB=""
+    when unset in .env — empty must mean 'use the default', not int("")
+    (which 500'd every upload)."""
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setenv("PGRG_SERVER_MAX_UPLOAD_MB", "")
+    from pg_raggraph.server import create_app
+
+    app = create_app(dsn=db.config.dsn, namespace="error_path_test")
+    with TestClient(app) as client:
+        resp = client.post(
+            "/ingest",
+            files={"files": ("small.md", BytesIO(b"# tiny doc\n"), "text/markdown")},
+            data={"namespace": "error_path_test"},
+        )
+    assert resp.status_code == 200, resp.text
 
 
 async def test_graph_endpoint_rejects_invalid_limit(db):
@@ -438,7 +464,14 @@ def _assert_security_headers(resp):
     missing = [h for h in _REQUIRED_SECURITY_HEADERS if h not in lowered]
     assert not missing, f"missing security headers: {missing}"
     # Check the actual values mean what we want.
-    assert "default-src 'self'" in resp.headers["content-security-policy"]
+    csp = resp.headers["content-security-policy"]
+    assert "default-src 'self'" in csp
+    # PR-219: JS is vendored locally — script-src must be exactly 'self',
+    # with no CDN hosts and no 'unsafe-inline'.
+    assert "script-src 'self';" in csp
+    assert "unpkg.com" not in csp
+    script_src = csp.split("script-src", 1)[1].split(";", 1)[0]
+    assert "unsafe-inline" not in script_src
     assert resp.headers["x-content-type-options"].lower() == "nosniff"
     assert resp.headers["x-frame-options"].upper() == "DENY"
 
@@ -470,6 +503,38 @@ async def test_security_headers_on_index_html(db):
         resp = client.get("/")
     assert resp.status_code == 200
     _assert_security_headers(resp)
+
+
+async def test_vendored_assets_served_and_no_cdn_in_ui(db):
+    """PR-219: the UI must work with script-src 'self' — vendored JS is
+    served from /static/vendor/ and index.html references no CDN and no
+    inline scripts."""
+    from fastapi.testclient import TestClient
+
+    from pg_raggraph.server import create_app
+
+    app = create_app(dsn=db.config.dsn, namespace="error_path_test")
+    with TestClient(app) as client:
+        index = client.get("/")
+        assert index.status_code == 200
+        assert "unpkg.com" not in index.text
+        # No inline <script> bodies and no inline event handlers — both
+        # would be blocked by script-src 'self'.
+        import re as _re
+
+        assert not _re.search(r"<script(?![^>]*\bsrc=)", index.text)
+        assert "onclick=" not in index.text
+
+        # htmx was dropped as unused (zero hx- attributes; UI is plain fetch).
+        assert "htmx" not in index.text
+        for path in (
+            "/static/vendor/vis-network.min.js",
+            "/static/app.js",
+        ):
+            resp = client.get(path)
+            assert resp.status_code == 200, f"{path} not served"
+            assert "javascript" in resp.headers["content-type"]
+            _assert_security_headers(resp)
 
 
 async def test_security_headers_on_auth_failure(db, monkeypatch):

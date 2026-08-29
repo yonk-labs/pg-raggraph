@@ -8,16 +8,18 @@ pg-raggraph has 6 retrieval modes. This guide explains what each one does, when 
 
 ## The 6 Modes at a Glance
 
-| Mode | Strategy | Best For | Latency | Accuracy on 909-doc corpus |
+| Mode | Strategy | Best For | Latency | Top-score lift (pg-agents dev corpus)¹ |
 |------|----------|----------|:-------:|:-------------------------:|
-| **`smart`** ⭐ | Confidence routing between naive/boost/local | Default everywhere | 85-220ms | +18.9% vs naive |
+| **`smart`** ⭐ | Confidence routing between naive/boost/local | Default everywhere | 85-220ms | +19.3% vs naive |
 | `naive` | Vector + BM25 only | Speed, simple questions | 85ms | baseline |
-| `naive_boost` | Naive + 1-hop graph re-rank | Fixed-mode accuracy win | 82ms | **+18.9%** |
-| `local` | Seed from vector → expand via recursive CTE | "Pull in new chunks via graph" | 220ms | +1.9% |
+| `naive_boost` | Naive + 1-hop graph re-rank | Fixed-mode retrieval win | 82ms | **+19.3%** |
+| `local` | Seed from vector → expand via recursive CTE | "Pull in new chunks via graph" | 220ms | +2.4% |
 | `global` | Search by relationships → find linked chunks | Relationship-centric questions | 150ms | varies |
-| `hybrid` | local + global merged | Most exhaustive | 450ms | +1.9% |
+| `hybrid` | local + global merged | Most exhaustive | 450ms | +2.4% |
 
-**The honest story:** `naive_boost` is the best single-mode choice (+18.9% accuracy at same-or-less latency than naive). `smart` wraps it with confidence routing so fast queries stay fast.
+¹ "Top-score lift" = improvement in the average score of the best retrieved chunk — a retrieval-quality proxy, **not** graded answer accuracy. Canonical source: [`benchmarks/pg-agents-results.md`](../benchmarks/pg-agents-results.md). On gold-labeled QA (SCOTUS, LLM-judged) mode switches moved judged accuracy by at most +3.3pp ([`SESSION-HANDOFF.md`](../benchmarks/age-bakeoff/SESSION-HANDOFF.md)); on multi-hop MuSiQue with a real extracted KG, `local` beats `naive` by +4–5pp end-to-end ([`ab-gate/RESULTS.md`](../benchmarks/ab-gate/RESULTS.md)).
+
+**The honest story:** `naive_boost` is the best single-mode choice on retrieval quality (+19.3% top score at same-or-less latency than naive). `smart` wraps it with confidence routing so fast queries stay fast.
 
 ---
 
@@ -123,8 +125,8 @@ GROUP BY c.id
 
 Plain vector search finds semantically similar chunks, but can miss chunks that mention **related entities** with different vocabulary. The graph tells us "these chunks talk about things connected to your seed entities, even if they don't match your query words."
 
-On a 909-doc corpus with 60K relationships, this gave:
-- **+18.9% top score improvement**
+On the pg-agents dev corpus (486 docs, 38K relationships), this gave:
+- **+19.3% top score improvement** (retrieval proxy — [`benchmarks/pg-agents-results.md`](../benchmarks/pg-agents-results.md))
 - 6 of 8 queries escalated from medium to high confidence
 - Latency essentially unchanged (cache-friendly SQL)
 
@@ -160,7 +162,7 @@ flowchart TD
 Reads `top_score` from the naive result and routes:
 
 - **High confidence** (`top_score ≥ PGRG_BOOST_CONFIDENCE_THRESHOLD`, default 0.7) → Return naive. Fast path.
-- **Medium confidence** (between thresholds) → Apply `naive_boost` re-rank. Get the +18.9%.
+- **Medium confidence** (between thresholds) → Apply `naive_boost` re-rank. Get the top-score lift.
 - **Low confidence** (`top_score < PGRG_EXPAND_CONFIDENCE_THRESHOLD`, default 0.4) → Escalate to `local` mode, pulling in new chunks via graph traversal.
 
 ### Why the thresholds?
@@ -327,7 +329,7 @@ flowchart TD
 - **In production** — naive_boost is faster AND more accurate on real data
 - **Large corpora** — hybrid gets slow (450ms+)
 
-Honest note: **hybrid is not the "most accurate" mode**. On our 909-doc benchmark, hybrid was +1.9% vs naive while naive_boost was +18.9%. Hybrid's reputation as "the safe default" is misleading. Use `smart` or `naive_boost` instead.
+Honest note: **hybrid is not the "most accurate" mode**. On the pg-agents benchmark, hybrid was +2.4% top score vs naive while naive_boost was +19.3%. Hybrid's reputation as "the safe default" is misleading. Use `smart` or `naive_boost` instead.
 
 ```bash
 pgrg query "question" -m hybrid  # only when you want to explore
@@ -337,27 +339,21 @@ pgrg query "question" -m hybrid  # only when you want to explore
 
 ## Benchmark Summary
 
-Measured on **pg_agents** real-world codebase (909 docs, 23,908 entities, 59,996 relationships) with 20 dev questions:
+Measured on the **pg_agents** real-world codebase (486 docs, 17,437 entities, 38,195 relationships) with 15 dev questions. Metric: average score of the best retrieved chunk (retrieval-quality proxy — no answers graded). Canonical source: [`benchmarks/pg-agents-results.md`](../benchmarks/pg-agents-results.md).
 
-| Mode | Avg Top Score | p50 Latency | p95 Latency | High confidence count |
-|------|:-------------:|:-----------:|:-----------:|:---------------------:|
-| `naive` | 0.602 | 109ms | 137ms | 0/20 |
-| `naive_boost` | **0.716** | **107ms** | 200ms | **13/20** |
-| `smart` | **0.716** | 127ms | 164ms | **13/20** |
-| `local` | 0.614 | 423ms | 1079ms | 0/20 |
-| `hybrid` | 0.614 | 482ms | 1167ms | 0/20 |
+| Mode | Avg Top Score | Avg Latency | vs naive |
+|------|:-------------:|:-----------:|:--------:|
+| `naive` | 0.593 | 85ms | baseline |
+| `naive_boost` | **0.708** | **82ms** | **+19.3%** |
+| `smart` | **0.708** | 91ms | **+19.3%** |
+| `local` | 0.607 | 220ms | +2.4% |
+| `hybrid` | 0.607 | 282ms | +2.4% |
 
-```
-vs naive:
-  naive_boost    score +18.9%   latency  -1.7% (faster!)
-  smart          score +18.9%   latency +16.9%
-  local          score  +1.9%   latency +278.1%
-  hybrid         score  +1.9%   latency +355.1%
-```
+On the 8-query accuracy probe from the same corpus, 6 of 8 queries escalated from medium to high confidence after graph boost.
 
-### Why smart is +17% latency vs naive_boost being -1.7%
+### Why smart costs a few ms more than naive_boost
 
-`smart` has some overhead: it has to check confidence, route, and re-record the final mode/latency. On queries that land in "high confidence" it's virtually free, but over 20 queries the median latency is a bit higher because it's serializing more steps. `naive_boost` is simpler — always run naive, always boost, done.
+`smart` has some overhead: it has to check confidence, route, and re-record the final mode/latency. On queries that land in "high confidence" it's virtually free, but the median latency is a bit higher because it's serializing more steps. `naive_boost` is simpler — always run naive, always boost, done.
 
 **If you're optimizing for latency and don't need adaptive routing, use `naive_boost`.**
 **If you want the best default behavior, use `smart`.**

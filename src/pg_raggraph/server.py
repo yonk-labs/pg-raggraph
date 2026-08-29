@@ -16,6 +16,7 @@ from pg_raggraph.config import PGRGConfig
 try:
     from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
     from fastapi.responses import HTMLResponse, JSONResponse
+    from fastapi.staticfiles import StaticFiles
 except ImportError as e:
     raise ImportError("Install server extras: pip install pg-raggraph[server]") from e
 
@@ -139,16 +140,18 @@ def create_app(**kwargs) -> FastAPI:
 
     # PR-303: defense-in-depth security headers on every response, including
     # auth-middleware short-circuits. Added after the auth middleware so it's
-    # the outermost wrapper (Starlette middleware is LIFO). The CSP allows
-    # https://unpkg.com because the bundled HTMX UI loads vis-network from
-    # there; tighten to 'self' once the JS is bundled locally.
+    # the outermost wrapper (Starlette middleware is LIFO).
+    # PR-219: script-src is 'self' only — vis-network is vendored under
+    # static/vendor/ and the UI logic lives in static/app.js, so no CDN host
+    # and no 'unsafe-inline' is needed for scripts. style-src keeps
+    # 'unsafe-inline' for the <style> block and style= attributes in the UI.
     @app.middleware("http")
     async def _security_headers(request: Request, call_next):
         response = await call_next(request)
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; "
-            "script-src 'self' https://unpkg.com 'unsafe-inline'; "
+            "script-src 'self'; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; "
             "connect-src 'self'",
@@ -157,6 +160,10 @@ def create_app(**kwargs) -> FastAPI:
         response.headers.setdefault("Referrer-Policy", "no-referrer")
         response.headers.setdefault("X-Frame-Options", "DENY")
         return response
+
+    # PR-219: serve vendored JS (static/vendor/*) and app.js. Sits behind the
+    # same auth + security-header middleware as every other route.
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     @app.get("/", response_class=HTMLResponse)
     async def index():
@@ -233,8 +240,11 @@ def create_app(**kwargs) -> FastAPI:
         mode: str = Form("smart"),
         namespace: str = Form(None),
         profile: str = Form(None),
+        top_k: int | None = Form(None),
     ):
-        result = await rag.query(question, mode=mode, namespace=namespace, profile=profile)
+        result = await rag.query(
+            question, mode=mode, namespace=namespace, profile=profile, top_k=top_k
+        )
         return result.model_dump()
 
     @app.post("/ask")
@@ -243,6 +253,7 @@ def create_app(**kwargs) -> FastAPI:
         mode: str = Form("smart"),
         namespace: str = Form(None),
         profile: str = Form(None),
+        top_k: int | None = Form(None),
     ):
         """Query + grounded LLM answer. Falls back to top-chunk summary without LLM.
 
@@ -252,7 +263,9 @@ def create_app(**kwargs) -> FastAPI:
         `0` to disable truncation, or any positive integer to widen the window.
         """
         preview_chars = int(os.environ.get("PGRG_SERVER_ASK_CHUNK_PREVIEW_CHARS", "500"))
-        result = await rag.ask(question, mode=mode, namespace=namespace, profile=profile)
+        result = await rag.ask(
+            question, mode=mode, namespace=namespace, profile=profile, top_k=top_k
+        )
         return {
             "answer": result.answer,
             "confidence": result.confidence,
@@ -267,6 +280,10 @@ def create_app(**kwargs) -> FastAPI:
                 for c in result.chunks[:5]
             ],
             "entities": [e.name for e in result.entities[:10]],
+            # Issue #92: background-extraction readiness hint. pending or
+            # processing > 0 means the answer was computed over a partial
+            # graph. /query carries the same dict under metadata.
+            "graph_status_summary": result.metadata.get("graph_status_summary"),
         }
 
     @app.get("/profiles")
@@ -387,7 +404,9 @@ def create_app(**kwargs) -> FastAPI:
         """
         import tempfile
 
-        max_upload_mb = int(os.environ.get("PGRG_SERVER_MAX_UPLOAD_MB", _DEFAULT_MAX_UPLOAD_MB))
+        # `or` (not a default arg): compose passes "" when the var is unset
+        # in .env — empty means "use the default", never int("").
+        max_upload_mb = int(os.environ.get("PGRG_SERVER_MAX_UPLOAD_MB") or _DEFAULT_MAX_UPLOAD_MB)
         max_bytes = max_upload_mb * 1024 * 1024
         ns = namespace or config.namespace
 

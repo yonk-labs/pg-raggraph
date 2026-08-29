@@ -100,7 +100,7 @@ Per user direction: **integrate chunkshop first** (T-07, T-08), then attack thes
 |---|---|---|---|
 | T-16 | Reconcile `docs/FINDINGS.md` with current state | 1 hour | Claims naive "80% on PostgreSQL docs" but that was a pre-bakeoff benchmark. Either update with bakeoff numbers or clearly label as historical. |
 | T-17 | `docs/smart-mode-plan.md` — is this still the plan, or outdated by the bakeoff smart-mode finding? | 30 min | Review + either delete or mark as shipped. |
-| T-18 | `README.md` benchmark table — currently quotes pre-bakeoff 909-doc dev-KB numbers | 30 min | Decide whether the README headline stays "naive_boost +18.9%" or gets reshaped around the SCOTUS +8 hierarchy result. These measure different things (retrieval quality proxy vs end-to-end accuracy). |
+| T-18 | `README.md` benchmark table — currently quotes pre-bakeoff 909-doc dev-KB numbers | 30 min | **RESOLVED 2026-07-07** (branch `hardening/aat-claims`, AAT-001): README table now quotes `benchmarks/pg-agents-results.md` verbatim (+19.3% top score, 486 docs), captioned as a retrieval-quality proxy with the gold-QA non-transfer caveat linked. Triggered by the AAT external audit (`skill-output/aat/AAT-Teardown.md` F-1/F-2) and its Rebuttal. Original note: decide whether the README headline stays dev-KB or gets reshaped around the SCOTUS hierarchy result — these measure different things (retrieval quality proxy vs end-to-end accuracy). |
 
 ## P3 — competitive intelligence follow-ups (2026-04-23 turbopuffer read)
 

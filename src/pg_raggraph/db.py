@@ -371,16 +371,34 @@ class Database:
             return False
 
     async def _prepare_connection(self, conn) -> None:
-        await register_vector_async(conn)
+        # register_vector_async runs 4 TypeInfo catalog queries and installs
+        # client-side adapters on the connection object — do it once per
+        # pooled connection, not on every checkout. Measured ~3 ms per
+        # fetch_all at localhost (benchmarks/regressions/
+        # query_latency_profile.py); ~20 ms/query saved on the default
+        # query path. The set_config calls below stay per-checkout: they
+        # are transactional, so a pool rollback can undo them.
+        if not getattr(conn, "_pgrg_vector_registered", False):
+            await register_vector_async(conn)
+            conn._pgrg_vector_registered = True
         if self.config.statement_timeout_ms > 0:
             await conn.execute(
                 "SELECT set_config('statement_timeout', %s, false)",
                 (str(self.config.statement_timeout_ms),),
             )
-        if self.config.hnsw_ef_search > 0:
+        # Self-scale ef_search to the candidate set the re-scorer asks for
+        # (issue #99): two-stage retrieval fetches `retrieval_candidate_k`
+        # nearest chunks, but if HNSW's ef_search sits below that, the index
+        # returns fewer/worse candidates than requested — self-defeating on
+        # larger corpora. ef_search >= candidate_k is the pgvector rule of
+        # thumb; take it automatically rather than ship a magic default.
+        ef_search = self.config.hnsw_ef_search
+        if self.config.two_stage_retrieval:
+            ef_search = max(ef_search, self.config.retrieval_candidate_k)
+        if ef_search > 0:
             await conn.execute(
                 "SELECT set_config('hnsw.ef_search', %s, false)",
-                (str(self.config.hnsw_ef_search),),
+                (str(ef_search),),
             )
         if self.config.rls_enabled:
             tenant = self._tenant.get() or self.config.namespace
@@ -1000,9 +1018,26 @@ class Database:
             await conn.commit()
             return result
 
-    async def fetch_all(self, query_str: str, params: tuple | dict | None = None) -> list[dict]:
+    async def fetch_all(
+        self,
+        query_str: str,
+        params: tuple | dict | None = None,
+        *,
+        set_local: dict[str, str] | None = None,
+    ) -> list[dict]:
+        """Run a query; ``set_local`` GUCs apply transaction-locally first.
+
+        ``set_local`` entries run as ``set_config(name, value, true)`` on the
+        SAME connection right before the query (the pool connection is not
+        autocommit, so both share one implicit transaction). The pool's
+        rollback-on-return reverts them — nothing leaks to the next checkout.
+        Used to set ``pg_trgm.similarity_threshold`` so the ``%`` operator
+        can drive the trgm GIN index with the caller's threshold.
+        """
         async with self._pool_for_read().connection() as conn:
             await self._prepare_connection(conn)
+            for guc, value in (set_local or {}).items():
+                await conn.execute("SELECT set_config(%s, %s, true)", (guc, value))
             cur = await conn.execute(query_str, params, prepare=False)
             if cur.description is None:
                 return []
@@ -1010,8 +1045,14 @@ class Database:
             rows = await cur.fetchall()
             return [dict(zip(columns, row)) for row in rows]
 
-    async def fetch_one(self, query_str: str, params: tuple | dict | None = None) -> dict | None:
-        rows = await self.fetch_all(query_str, params)
+    async def fetch_one(
+        self,
+        query_str: str,
+        params: tuple | dict | None = None,
+        *,
+        set_local: dict[str, str] | None = None,
+    ) -> dict | None:
+        rows = await self.fetch_all(query_str, params, set_local=set_local)
         return rows[0] if rows else None
 
     async def insert_returning_id(self, query_str: str, params: tuple | dict | None = None) -> int:
@@ -1137,17 +1178,28 @@ class Transaction:
     async def execute(self, query_str: str, params: tuple | dict | None = None) -> Any:
         return await self._conn.execute(query_str, params)
 
-    async def fetch_one(self, query_str: str, params: tuple | dict | None = None) -> dict | None:
-        cur = await self._conn.execute(query_str, params, prepare=False)
-        if cur.description is None:
-            return None
-        row = await cur.fetchone()
-        if row is None:
-            return None
-        columns = [desc.name for desc in cur.description]
-        return dict(zip(columns, row))
+    async def fetch_one(
+        self,
+        query_str: str,
+        params: tuple | dict | None = None,
+        *,
+        set_local: dict[str, str] | None = None,
+    ) -> dict | None:
+        rows = await self.fetch_all(query_str, params, set_local=set_local)
+        return rows[0] if rows else None
 
-    async def fetch_all(self, query_str: str, params: tuple | dict | None = None) -> list[dict]:
+    async def fetch_all(
+        self,
+        query_str: str,
+        params: tuple | dict | None = None,
+        *,
+        set_local: dict[str, str] | None = None,
+    ) -> list[dict]:
+        """Same ``set_local`` semantics as ``Database.fetch_all``, but on the
+        transaction's single connection — GUCs revert at commit/rollback, so
+        they never outlive the caller's transaction scope."""
+        for guc, value in (set_local or {}).items():
+            await self._conn.execute("SELECT set_config(%s, %s, true)", (guc, value))
         cur = await self._conn.execute(query_str, params, prepare=False)
         if cur.description is None:
             return []

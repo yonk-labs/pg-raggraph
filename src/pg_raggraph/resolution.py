@@ -3,9 +3,12 @@
 This module exposes two functions:
 
 - ``resolve_entity`` (insert-on-miss, original): used by the ingestion pipeline.
-  This function is byte-for-byte unchanged from v0.5.0a2 and earlier; the A/B-gate
-  work in #47 deliberately added a sibling rather than refactoring this one
-  (Path A per the mission brief).
+  Was byte-for-byte unchanged from v0.5.0a2 until the PR-222 / AAT-004
+  hardening pass: descriptions are now capped at
+  ``config.entity_description_max_chars`` on every write path, fuzzy merges
+  are refused when names differ only by a version-like token
+  (``config.entity_version_guard_pattern``), and every fuzzy merge writes an
+  audit row to ``entity_merge_log`` (migration 017).
 - ``resolve_entity_lookup`` (pure read, new in v0.5.0a3): returns a
   ``ResolvedEntity`` or ``None`` for the chunkshop ↔ pg-raggraph A/B gate. Does
   NOT mutate any table. Callers handle their own embedding cache.
@@ -14,11 +17,42 @@ This module exposes two functions:
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
 from pg_raggraph.config import PGRGConfig
 from pg_raggraph.db import Database
+
+
+def merge_description(existing: str, new: str, cap: int) -> str:
+    """Keep-first merge of entity descriptions with a hard char cap (PR-222).
+
+    Appends ``new`` unless it's already a substring of ``existing`` (matches
+    the SQL ``position()`` dedup used by the exact-match path), then truncates
+    to ``cap`` chars — the oldest, usually most canonical, text survives.
+
+    ponytail: per-source descriptions in properties JSONB is the richer
+    upgrade path if keep-first truncation ever hurts quality.
+    """
+    existing = existing or ""
+    if new and new not in existing:
+        existing = f"{existing} {new}".strip()
+    return existing[:cap] if cap > 0 else existing
+
+
+def differs_only_by_version(a: str, b: str, pattern: str) -> bool:
+    """True when two names differ only by a version-like token (AAT-004).
+
+    "PostgreSQL 14" vs "PostgreSQL 15" or "Python 3.11" vs "3.12"-suffixed
+    names must never fuzzy-merge — the versioned-docs workload depends on
+    them staying distinct. ``pattern`` (config.entity_version_guard_pattern)
+    matches the version tokens; empty string disables the guard.
+    """
+    if not pattern or a == b:
+        return False
+    rx = re.compile(pattern)
+    return rx.sub("\x00", a) == rx.sub("\x00", b)
 
 
 @dataclass(frozen=True)
@@ -62,28 +96,38 @@ async def resolve_entity(
     db: Database,
     config: PGRGConfig,
     properties: dict[str, Any] | None = None,
+    source_document_id: int | None = None,
 ) -> int:
     """Resolve an entity: find existing match or insert new.
 
     Returns the entity ID (existing or newly created).
+
+    ``source_document_id`` is optional ingest provenance recorded in
+    ``entity_merge_log`` when the fuzzy path merges (AAT-004).
     """
     # First check for exact match
     props = properties or {}
     props_json = json.dumps(props)
+    cap = config.entity_description_max_chars
+    if cap > 0:
+        # PR-222: nothing longer than the cap ever reaches the table — a
+        # single oversized extraction is truncated before insert/append.
+        description = description[:cap]
 
     existing = await db.fetch_one(
         "SELECT id FROM entities WHERE namespace = %s AND name = %s",
         (namespace, name),
     )
     if existing:
-        # Update description/properties if we have new info.
+        # Update description/properties if we have new info. left() caps the
+        # concatenation (PR-222): keep-first — the existing prefix survives.
         if description or props:
             await db.execute(
-                "UPDATE entities SET description = CASE "
+                "UPDATE entities SET description = left(CASE "
                 "WHEN %s = '' THEN description "
                 "WHEN description = '' THEN %s "
                 "WHEN position(%s in description) > 0 THEN description "
-                "ELSE description || ' ' || %s END, "
+                "ELSE description || ' ' || %s END, %s), "
                 "embedding = %s, "
                 "properties = properties || %s::jsonb "
                 "WHERE id = %s",
@@ -92,6 +136,7 @@ async def resolve_entity(
                     description,
                     description,
                     description,
+                    cap if cap > 0 else 2147483647,  # left(x, NULL) would NULL the column
                     embedding,
                     props_json,
                     existing["id"],
@@ -99,7 +144,16 @@ async def resolve_entity(
             )
         return existing["id"]
 
-    # Check for fuzzy match using pg_trgm + vector similarity
+    # Check for fuzzy match using pg_trgm + vector similarity.
+    # name %% x (literal %) is the index-eligible gate — it can drive the trgm
+    # GIN index (idx_entity_name_trgm), which a bare similarity() WHERE gate
+    # cannot (seq scan per entity per doc at ingest). %% compares against
+    # pg_trgm.similarity_threshold, which set_local pins to min_trgm on the
+    # query's own connection: resolve_entity usually runs inside a caller
+    # Transaction (ingest), where the GUC reverts at commit; with a plain
+    # Database it applies inside fetch_one's implicit transaction. The
+    # explicit similarity() > min_trgm gate stays because %% is >= threshold
+    # while the original semantics were strictly >.
     match = await db.fetch_one(
         """SELECT id, name, description,
                   similarity(name, %(name)s) AS trgm_score,
@@ -109,6 +163,7 @@ async def resolve_entity(
            FROM entities
            WHERE namespace = %(namespace)s
              AND name != %(name)s
+             AND name %% %(name)s
              AND similarity(name, %(name)s) > %(min_trgm)s
            ORDER BY combined DESC
            LIMIT 1""",
@@ -120,21 +175,50 @@ async def resolve_entity(
             "vec_w": config.vec_weight,
             "min_trgm": config.min_trgm_score,
         },
+        set_local={"pg_trgm.similarity_threshold": str(config.min_trgm_score)},
     )
 
-    if match and match["combined"] >= config.resolution_threshold and entity_type != "CODE_SYMBOL":
+    if (
+        match
+        and match["combined"] >= config.resolution_threshold
+        and entity_type != "CODE_SYMBOL"
+        and entity_type not in config.no_fuzzy_merge_types
+        and not differs_only_by_version(name, match["name"], config.entity_version_guard_pattern)
+    ):
         # Merge: update existing entity with new info.
         # CODE_SYMBOL entities are identity-keyed by FQN and must never fuzzy-
         # merge: a class and its methods share an FQN prefix (e.g. ``pkg.Foo`` vs
         # ``pkg.Foo.bar``) and would otherwise collapse, corrupting the call
-        # graph. They fall through to the exact-name insert below.
-        merged_desc = match["description"]
-        if description and description not in merged_desc:
-            merged_desc = f"{merged_desc} {description}".strip()
+        # graph. They fall through to the exact-name insert below. The version
+        # guard generalizes the same protection: "PostgreSQL 14" must never
+        # absorb "PostgreSQL 15" (AAT-004).
+        merged_desc = merge_description(match["description"], description, cap)
         await db.execute(
             "UPDATE entities SET description = %s, embedding = %s, "
             "properties = properties || %s::jsonb WHERE id = %s",
             (merged_desc, embedding, props_json, match["id"]),
+        )
+        # AAT-004: fuzzy merges are the lossy, false-positive-prone path —
+        # record what was absorbed so false merges are detectable and
+        # repairable (rag.entity_merges() / rag.split_entity()). Exact-name
+        # matches above are not merges and are not logged.
+        await db.execute(
+            "INSERT INTO entity_merge_log "
+            "(namespace, kept_id, merged_name, merged_type, merged_description, "
+            " merged_properties, trgm_score, vec_score, combined_score, source, document_id) "
+            "VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, 'auto', %s)",
+            (
+                namespace,
+                match["id"],
+                name,
+                entity_type,
+                description,
+                props_json,
+                float(match["trgm_score"]),
+                float(match["vec_score"]),
+                float(match["combined"]),
+                source_document_id,
+            ),
         )
         return match["id"]
 
@@ -213,6 +297,9 @@ async def resolve_entity_lookup(
     embedded = await embedder.embed([surface])
     surface_embedding = embedded[0]
 
+    # Same index-eligible %% gate + strict similarity() gate as resolve_entity
+    # (see comment there). Pure read outside any caller transaction — the
+    # threshold GUC rides transaction-locally on fetch_one's own connection.
     match = await db.fetch_one(
         """SELECT id, name,
                   similarity(name, %(surface)s) AS trgm_score,
@@ -221,6 +308,7 @@ async def resolve_entity_lookup(
                    %(vec_w)s * (1 - (embedding <=> %(embedding)s::vector))) AS combined
            FROM entities
            WHERE namespace = %(namespace)s
+             AND name %% %(surface)s
              AND similarity(name, %(surface)s) > %(min_trgm)s
            ORDER BY combined DESC
            LIMIT 1""",
@@ -232,6 +320,7 @@ async def resolve_entity_lookup(
             "vec_w": config.vec_weight,
             "min_trgm": config.min_trgm_score,
         },
+        set_local={"pg_trgm.similarity_threshold": str(config.min_trgm_score)},
     )
 
     if match is None or match["combined"] < config.resolution_threshold:

@@ -169,25 +169,29 @@ async def test_step7_query_lisa_wang_systems(rag):
     print(f"\n  ✓ Found auth service ({result.latency_ms:.0f}ms)")
 
 
-async def test_step8_hybrid_beats_naive(rag):
-    """Hybrid mode finds more context than naive for graph-dependent questions."""
+async def test_step8_hybrid_engages_graph(rag):
+    """Hybrid mode engages the graph: entities surface alongside chunks.
+
+    Deliberately NOT a naive-vs-hybrid entity-count comparison: per-mode
+    entity attachment varies with which chunks each ranking returns, so a
+    cross-mode `>=` under real-LLM extraction variance is flaky in one
+    direction and vacuous (0 >= 0) in the other. The graph-vs-naive quality
+    guard lives in test_graph_wins.py on a deterministic fixture; this
+    journey step asserts what a real user should observe: hybrid answers
+    AND the graph participated.
+    """
     await rag.ingest([DEMO_CORPUS], namespace="user_journey")
 
-    r_naive = await rag.query(
-        "escalation path for P1 incidents",
-        mode="naive",
-        namespace="user_journey",
-    )
     r_hybrid = await rag.query(
         "escalation path for P1 incidents",
         mode="hybrid",
         namespace="user_journey",
     )
-    # Hybrid uses graph → should find more entities
-    assert len(r_hybrid.entities) >= len(r_naive.entities)
-    print(
-        f"\n  Naive: {len(r_naive.entities)} entities | Hybrid: {len(r_hybrid.entities)} entities"
-    )
+    # step1 already asserts extraction produced >10 entities, so an empty
+    # entity list here would mean hybrid never touched the graph.
+    assert r_hybrid.chunks, "hybrid returned no chunks"
+    assert len(r_hybrid.entities) >= 1, "hybrid did not surface any graph entities"
+    print(f"\n  Hybrid: {len(r_hybrid.chunks)} chunks | {len(r_hybrid.entities)} entities")
 
 
 async def test_step9_dedup_works(rag):

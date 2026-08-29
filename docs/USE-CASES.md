@@ -25,11 +25,14 @@ result = await rag.query("Who owns the auth service?", mode="naive_boost")
 
 **Validated on:**
 
-- `pg-agents` real dev codebase (909 docs) — `naive_boost` lifts top
-  score by **+18.9%** vs plain `naive` at essentially the same latency
-  (107 ms vs 109 ms p50). See `benchmarks/pg-agents-results.md`.
+- `pg-agents` real dev codebase (486 docs) — `naive_boost` lifts top
+  retrieved-chunk score by **+19.3%** vs plain `naive` at essentially the
+  same latency (82 ms vs 85 ms avg). Retrieval-quality proxy, not graded
+  answer accuracy. See `benchmarks/pg-agents-results.md`.
 - SCOTUS, NTSB, SEC 10-Q, PostgreSQL docs in the AGE bake-off — pgrg
-  matched or beat AGE on accuracy, **42–111× faster** on retrieval.
+  tied AGE on judged accuracy, **42–101× faster** p50 on graph-assisted
+  retrieval modes (harness-scoped; naive-mode differential excluded
+  pending an adapter audit).
   See `benchmarks/age-bakeoff/results/REPORT-VERDICT.md`.
 
 ## Use case 2 — Evolving knowledge
@@ -78,9 +81,9 @@ result_312 = await rag.query(
   `TypeAlias` terminology has stronger surface overlap). See
   `benchmarks/python-versioned-docs/results.md`.
 - `benchmarks/medical-hrt/` — 48 PubMed HRT/CV abstracts (1998–2025),
-  7 epistemically-retracted, 15 gold Qs. `retracted_behavior="hide"`:
-  **5/5** with zero retracted in top-5. `as_of="2001-12-31"`: **5/5**
-  surface pre-WHI consensus. **15/15 perfect.** See
+  7 epistemically-retracted, 15 gold Qs (10 graded + 5 background smoke
+  checks). `retracted_behavior="hide"`: **5/5** with zero retracted in
+  top-5. `as_of="2001-12-31"`: **5/5** surface pre-WHI consensus. See
   `benchmarks/medical-hrt/results.md`.
 
 ## Decision matrix — which use case fits your corpus?

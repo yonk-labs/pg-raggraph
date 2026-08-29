@@ -10,16 +10,44 @@ Two shapes (see ``docs/cookbook/chunkshop-integration.md``):
   ``CodeRelationshipsExtractor`` over the produced chunks to attach per-chunk
   ``callees`` and resolve ``CALLS``/``INHERITS``/``IMPLEMENTS`` edges, which then
   flow through the same ``code_edges_to_known_graph`` seam.
+
+Code-symbol descriptions (Pattern C)
+------------------------------------
+When chunkshop's ``symbol_aware`` chunker + ``code_summary`` extractor run
+together, each chunk's metadata carries ``fqn`` (the symbol's fully-qualified
+name) and ``summary`` (a 1-3 sentence natural-language description). The
+PG sink persists both into the chunk row's ``metadata`` JSONB, so
+:summaries_by_fqn:`fetch_records_from_table` → :func:`summaries_by_fqn` builds a
+``fqn → summary`` map automatically. :func:`attach_code_edges` derives that
+map from records when not passed, and :func:`code_edges_to_known_graph` sets
+the ``CODE_SYMBOL`` entity's ``description`` to the summary instead of the
+generic ``"Code symbol {fqn}"`` fallback.
+
+The ``code_summary`` extractor is opt-in on the chunkshop side — enable it in
+their YAML config under ``extractor.type: code_summary``. With it disabled
+you get the generic fallback; the bridge does not enforce this.
 """
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+logger = logging.getLogger("pg_raggraph.chunkshop_bridge")
+
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _chunkshop_version() -> str:
+    try:
+        from importlib.metadata import version
+
+        return version("chunkshop")
+    except Exception:  # pragma: no cover - metadata missing in odd envs
+        return "unknown"
 
 
 def _validate_ident(value: str, *, kind: str) -> None:
@@ -219,12 +247,24 @@ class CorpusCodeGraph:
         ):
             self._ext = None
         # Spill needs to read/swap the extractor's pending-call/class-edge lists.
-        # Feature-guard the private attrs: if a chunkshop build lacks them we
-        # degrade to in-memory accumulation (correct, just not OOM-bounded).
+        # Probe the private attrs at init: if a chunkshop build lacks them we
+        # degrade to in-memory accumulation (correct, just not OOM-bounded) —
+        # and say so LOUDLY, because silent degradation is exactly how the #79
+        # OOM would come back with zero log evidence (AAT-005).
         self._spillable = self._ext is not None and all(
             isinstance(getattr(self._ext, attr, None), list)
             for attr in ("_pending_calls", "_pending_class_edges")
         )
+        if self._ext is not None and not self._spillable:
+            logger.warning(
+                "chunkshop %s moved internals pg-raggraph depends on "
+                "(_pending_calls/_pending_class_edges): the OOM spill guard "
+                "(pg-raggraph#79) is DISABLED and call sites will accumulate "
+                "in memory for this ingest. Pin chunkshop to pg-raggraph's "
+                "tested range (see pyproject.toml [chunkshop] extra) or "
+                "upgrade pg-raggraph.",
+                _chunkshop_version(),
+            )
 
     @property
     def available(self) -> bool:

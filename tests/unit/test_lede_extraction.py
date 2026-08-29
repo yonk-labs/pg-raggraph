@@ -97,3 +97,149 @@ def test_select_extractor_llm_path_unchanged():
 
     fn, needs_llm = select_extractor(_Cfg("none"))
     assert needs_llm is True and fn is None
+
+
+def test_select_extractor_prose_and_union():
+    fn, needs_llm = select_extractor(_Cfg("lede_prose"))
+    assert needs_llm is False
+    assert fn is lede_extraction.extract_from_chunks_prose
+
+    fn, needs_llm = select_extractor(_Cfg("llm+lede"))
+    assert needs_llm is True  # union still wants the provider
+    assert fn is lede_extraction.extract_from_chunks_union
+
+
+# --- lede_prose ---------------------------------------------------------------
+
+_PROSE_TEXT = (
+    "Greta Reyes said she has been craving gumbo lately. "
+    "The seafood gumbo at Bayou Belle in New Orleans is incredible. "
+    "Marcus lives in Portland and loves wood-fired margherita pizza."
+)
+
+
+def test_prose_extract_captures_common_nouns_and_ner():
+    result = lede_extraction._prose_extract_one(_PROSE_TEXT)
+    by_name = {e.name: e for e in result.entities}
+    # NER entities keep their surface form and lowercased label
+    assert by_name["Greta Reyes"].entity_type == "person"
+    assert "New Orleans" in by_name
+    assert "Bayou Belle" in by_name  # FAC label kept (venues/businesses)
+    # noun-chunk heads canonicalize variants onto one common-noun node
+    assert by_name["gumbo"].entity_type == "concept"
+    assert "pizza" in by_name
+    assert "seafood gumbo" not in by_name  # variant collapsed into "gumbo"
+    # the variant phrase survives as the description
+    assert "seafood gumbo" in by_name["gumbo"].description.lower()
+
+
+def test_prose_cooccurrence_builds_join_links():
+    result = lede_extraction._prose_extract_one(_PROSE_TEXT)
+    pairs = {frozenset((r.source, r.target)) for r in result.relationships}
+    # person—craving (chat sentence) and dish—venue—city (review sentence)
+    assert frozenset(("Greta Reyes", "gumbo")) in pairs
+    assert frozenset(("gumbo", "Bayou Belle")) in pairs
+    assert frozenset(("Bayou Belle", "New Orleans")) in pairs
+    assert all(r.rel_type == "RELATED_TO" for r in result.relationships)
+
+
+def test_prose_skips_pronouns_and_stoplist_heads():
+    result = lede_extraction._prose_extract_one("She loves it. That was a great thing.")
+    assert result.entities == []
+    assert result.relationships == []
+
+
+def test_extract_from_chunks_prose_one_result_per_chunk():
+    chunks = [
+        {"content": _PROSE_TEXT, "embedded_content": _PROSE_TEXT},
+        {"content": "", "embedded_content": ""},
+    ]
+    results = asyncio.run(lede_extraction.extract_from_chunks_prose(chunks, None, None, None))
+    assert len(results) == 2
+    assert any(e.name == "gumbo" for e in results[0].entities)
+    assert results[1].entities == [] and results[1].relationships == []
+
+
+# --- llm+lede union -----------------------------------------------------------
+
+
+def _mk_result(entities, relationships=()):
+    from pg_raggraph.models import (
+        ExtractedEntity,
+        ExtractedRelationship,
+        ExtractionResult,
+    )
+
+    return ExtractionResult(
+        entities=[ExtractedEntity(name=n, entity_type=t, description=d) for n, t, d in entities],
+        relationships=[
+            ExtractedRelationship(source=s, target=o, rel_type=rt, description="", weight=1.0)
+            for s, o, rt in relationships
+        ],
+    )
+
+
+def test_merge_results_canonicalizes_endpoints():
+    llm = _mk_result(
+        [("Gumbo", "food", "a stew"), ("Greta Reyes", "person", "")],
+        [("Greta Reyes", "Gumbo", "LIKES")],
+    )
+    det = _mk_result(
+        [("gumbo", "concept", "The seafood gumbo"), ("Bayou Belle", "fac", "")],
+        [("gumbo", "Bayou Belle", "RELATED_TO"), ("Greta Reyes", "gumbo", "LIKES")],
+    )
+    merged = lede_extraction._merge_results(llm, det)
+    names = [e.name for e in merged.entities]
+    # casefold dedupe: LLM's "Gumbo" wins, det's "gumbo" dropped
+    assert "Gumbo" in names and "gumbo" not in names
+    assert "Bayou Belle" in names
+    # det rel endpoints remapped to the surviving name so ingest resolves them
+    rel = next(r for r in merged.relationships if r.rel_type == "RELATED_TO")
+    assert rel.source == "Gumbo"
+    # duplicate LIKES (casefold-equal endpoints) not doubled
+    likes = [r for r in merged.relationships if r.rel_type == "LIKES"]
+    assert len(likes) == 1
+
+
+def test_union_degrades_to_prose_without_llm():
+    chunks = [{"content": _PROSE_TEXT, "embedded_content": _PROSE_TEXT}]
+    results = asyncio.run(lede_extraction.extract_from_chunks_union(chunks, None, None, None))
+    assert len(results) == 1
+    assert any(e.name == "gumbo" for e in results[0].entities)
+
+
+def test_union_merges_llm_and_deterministic_legs(monkeypatch):
+    import pg_raggraph.extraction as extraction_mod
+
+    async def fake_llm_extract(chunks, llm, db, config):
+        return [
+            _mk_result(
+                [("Greta Reyes", "person", ""), ("Gumbo", "food", "")],
+                [("Greta Reyes", "Gumbo", "LIKES")],
+            )
+            for _ in chunks
+        ]
+
+    monkeypatch.setattr(extraction_mod, "extract_from_chunks", fake_llm_extract)
+    chunks = [{"content": _PROSE_TEXT, "embedded_content": _PROSE_TEXT}]
+    results = asyncio.run(lede_extraction.extract_from_chunks_union(chunks, object(), None, None))
+    assert len(results) == 1
+    rel_types = {r.rel_type for r in results[0].relationships}
+    # typed LLM edge AND deterministic co-occurrence net both present
+    assert "LIKES" in rel_types
+    assert "RELATED_TO" in rel_types
+    names = [e.name for e in results[0].entities]
+    assert "Gumbo" in names and "gumbo" not in names  # casefold union
+    assert "Bayou Belle" in names  # deterministic leg contributed
+
+
+def test_clean_entity_name_trims_markdown_span_bleed():
+    """en_core_web_sm 3.8.0 extends NER spans across line breaks into the
+    next markdown bullet; names must come out clean (anchor regression for
+    the extraction-yield gate)."""
+    clean = lede_extraction._clean_entity_name
+    assert clean("Lisa Wang\n- *") == "Lisa Wang"
+    assert clean("  Kong  ") == "Kong"
+    assert clean("**Payment Service**") == "Payment Service"
+    assert clean("Lisa Wang") == "Lisa Wang"  # clean names pass through
+    assert clean("") == ""

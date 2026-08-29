@@ -91,6 +91,10 @@ def test_extract_drains_pending_once(runner):
     asyncio.run(_seed())
 
     try:
+        # Explicitly configure NO extractor: without this the CLI inherits the
+        # default llm_base_url (localhost:11434) — reachable Ollama makes the
+        # test pass for the wrong reason; unreachable (CI) makes docs 'failed'
+        # under #93's failure accounting. The no-extractor path is the intent.
         result = runner.invoke(
             main,
             [
@@ -103,6 +107,7 @@ def test_extract_drains_pending_once(runner):
                 "8",
                 "--once",
             ],
+            env={"PGRG_LLM_BASE_URL": ""},
         )
         assert result.exit_code == 0, f"stderr: {result.output}"
         # 2 docs claimed in one iter (batch=8 >= 2), then --once exits.
@@ -160,6 +165,10 @@ def test_extract_daemon_graceful_shutdown(runner):
 
     asyncio.run(_seed())
 
+    # No-extractor env for the same reason as test_extract_drains_pending_once:
+    # the daemon must drain via the terminal no-extractor path regardless of
+    # whether something is listening on the default llm_base_url.
+    daemon_env = {**os.environ, "PGRG_LLM_BASE_URL": ""}
     proc = subprocess.Popen(
         [
             "uv",
@@ -179,6 +188,7 @@ def test_extract_daemon_graceful_shutdown(runner):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        env=daemon_env,
     )
 
     try:

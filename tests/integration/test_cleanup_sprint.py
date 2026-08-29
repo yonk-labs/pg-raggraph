@@ -465,8 +465,12 @@ def test_mcp_sandbox_parses_env_var(monkeypatch):
 def test_mcp_sandbox_allows_path_inside_root():
     from pg_raggraph.mcp_server import _check_path_allowed
 
+    # The contract returns the CANONICAL path — on macOS /tmp is a symlink
+    # to /private/tmp, so compare against realpath, not the raw literal.
+    # (The root is likewise canonicalized inside _check_path_allowed, which
+    # is the fix that made this pass on macOS at all.)
     result = _check_path_allowed("/tmp/kb/doc.md", ["/tmp/kb"])
-    assert result == "/tmp/kb/doc.md"
+    assert result == os.path.realpath("/tmp/kb/doc.md")
 
 
 def test_mcp_sandbox_refuses_path_outside_root():

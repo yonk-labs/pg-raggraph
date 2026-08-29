@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from datetime import datetime
 from typing import Callable, Literal
@@ -17,6 +18,7 @@ from pg_raggraph.evolution import (
     evolution_where_clauses,
     memory_tier_clause,
 )
+from pg_raggraph.lexical import idf_coverage_sql, lexical_score_sql
 from pg_raggraph.models import ChunkResult, EntityResult, QueryResult, RelationshipResult
 
 logger = logging.getLogger("pg_raggraph.retrieval")
@@ -129,6 +131,22 @@ def _rrf_fused_base_expr() -> str:
     return "%(w_sem)s / (%(rrf_k)s + vec_rank) + %(w_bm25)s / (%(rrf_k)s + bm25_rank)"
 
 
+def _rare_bonus_sql(cfg: PGRGConfig, alias: str) -> str:
+    """Additive IDF-coverage bonus for naive-family score expressions (#114).
+
+    Score-additive (NOT a fourth RRF rank leg) on purpose: rank fusion
+    flattens a decisive df=1 exact-ID match into a one-step rank delta,
+    which is exactly the failure being fixed. ``w_rare == 0`` emits nothing,
+    keeping the SQL byte-identical to the pre-#114 builders. Applies to the
+    naive family AND the graph builders (local/global linear bases + the
+    shared RRF tail) — the graph-gated candidate pool has the same
+    near-duplicate ordering blindness inside it.
+    """
+    if cfg.w_rare <= 0:
+        return ""
+    return f" + %(w_rare)s * {idf_coverage_sql(alias)}"
+
+
 def _rrf_merge(local_rows: list, global_rows: list, k: int, top_k: int) -> list:
     """Reciprocal Rank Fusion across two already-ranked result lists
     (issue #57). Each list is assumed ordered best-first, so list position
@@ -164,6 +182,27 @@ def _merge_params(base: dict, extra: dict) -> dict:
     return {**base, **extra}
 
 
+def _query_tokens(text: str) -> list[str]:
+    """Tokenize query text, keeping hyphen compounds AND their parts (#102/#103).
+
+    The bare ``\\w+`` split dropped hyphens, which desyncs from PostgreSQL's
+    parser: it stores ``INC-0001`` as the lexemes ``inc`` + ``-0001`` (the
+    hyphen-digit run is a signed-integer token), so a query term ``0001`` never
+    matches the indexed ``-0001`` and the identifier is unretrievable through
+    the lexical leg. We emit the compound (``inc-0001`` → ``to_tsquery`` parses
+    it to the phrase ``'inc' <-> '-0001'``, matching the index) *plus* the split
+    parts, so natural hyphenated phrases like ``multi-hop`` keep the old
+    part-matching recall instead of collapsing to a strict compound phrase.
+    Byte-identical to the historical ``\\w+`` behavior for non-hyphenated text.
+    """
+    tokens: list[str] = []
+    for tok in re.findall(r"\w+(?:-\w+)+|\w+", text.lower()):
+        tokens.append(tok)
+        if "-" in tok:
+            tokens.extend(tok.split("-"))
+    return tokens
+
+
 def _to_or_tsquery(text: str, extra_terms: list[str] | None = None) -> str:
     """Convert text (plus optional expansion terms) to an OR-based tsquery.
 
@@ -171,15 +210,13 @@ def _to_or_tsquery(text: str, extra_terms: list[str] | None = None) -> str:
     single-arg behavior. With expansion terms, the union is deduped (order
     preserved) before the 20-term cap.
     """
-    import re
-
-    words = re.findall(r"\w+", text.lower())
+    words = _query_tokens(text)
     if not words and not extra_terms:
         return "empty"
     words = [w for w in words if len(w) > 2]
     if extra_terms:
         for t in extra_terms:
-            words.extend(w for w in re.findall(r"\w+", t.lower()) if len(w) > 2)
+            words.extend(w for w in _query_tokens(t) if len(w) > 2)
         seen: set[str] = set()
         deduped: list[str] = []
         for w in words:
@@ -223,11 +260,16 @@ def _build_naive_query(
             mf_soft_sql,
             mf_hard_sql,
         )
+    lex = lexical_score_sql(cfg, "c")
     base = (
-        "%(w_sem)s * (1 - (c.embedding <=> %(embedding)s::vector)) + "
-        "%(w_bm25)s * ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) + "
-        "%(w_graph)s * 0"  # naive has no graph leg
-    ) + mf_soft_sql
+        (
+            "%(w_sem)s * (1 - (c.embedding <=> %(embedding)s::vector)) + "
+            f"%(w_bm25)s * {lex} + "
+            "%(w_graph)s * 0"  # naive has no graph leg
+        )
+        + _rare_bonus_sql(cfg, "c")
+        + mf_soft_sql
+    )
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -257,7 +299,7 @@ SELECT c.id, COALESCE(c.embedded_content, c.content) AS content, c.metadata,
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
        1 - (c.embedding <=> %(embedding)s::vector) AS vec_score,
-       ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score,
+       {lex} AS bm25_score,
        {evolution_score_expr(base, cfg, evolution_aware, retracted_behavior)} AS score
 FROM chunks c
 JOIN documents d ON d.id = c.document_id
@@ -287,7 +329,8 @@ def _build_naive_query_rrf(
     bias term is intentionally dropped under RRF — soft metadata bias is a
     score-scale nudge that has no meaning once we fuse by rank.
     """
-    rrf_base = _rrf_fused_base_expr()
+    lex = lexical_score_sql(cfg, "c")
+    rrf_base = _rrf_fused_base_expr() + _rare_bonus_sql(cfg, "r")
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -309,7 +352,7 @@ WITH scored AS (
     SELECT c.id, COALESCE(c.embedded_content, c.content) AS content, c.metadata,
            c.document_id,
            1 - (c.embedding <=> %(embedding)s::vector) AS vec_score,
-           ts_rank(c.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score
+           {lex} AS bm25_score
     FROM chunks c
     JOIN documents d ON d.id = c.document_id
     WHERE d.namespace = %(namespace)s{extra_where}
@@ -382,11 +425,16 @@ def _build_naive_query_twostage(
             mf_soft_sql,
             mf_hard_sql,
         )
+    lex = lexical_score_sql(cfg, "cand")
     base = (
-        "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
-        "%(w_bm25)s * ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) + "
-        "%(w_graph)s * 0"  # naive has no graph leg
-    ) + mf_soft_sql
+        (
+            "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
+            f"%(w_bm25)s * {lex} + "
+            "%(w_graph)s * 0"  # naive has no graph leg
+        )
+        + _rare_bonus_sql(cfg, "cand")
+        + mf_soft_sql
+    )
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -424,7 +472,7 @@ SELECT cand.id, cand.content, cand.metadata,
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
        1 - (cand.embedding <=> %(embedding)s::vector) AS vec_score,
-       ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score,
+       {lex} AS bm25_score,
        {evolution_score_expr(base, cfg, evolution_aware, retracted_behavior)} AS score
 FROM candidates cand
 JOIN documents d ON d.id = cand.document_id
@@ -449,7 +497,8 @@ def _build_naive_query_twostage_rrf(
     unchanged (bare-distance ORDER BY → HNSW). Stage-2 re-scores via RRF rank
     fusion over the candidate pool, re-joining documents for evolution columns.
     """
-    rrf_base = _rrf_fused_base_expr()
+    lex = lexical_score_sql(cfg, "cand")
+    rrf_base = _rrf_fused_base_expr() + _rare_bonus_sql(cfg, "r")
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -480,7 +529,7 @@ WITH candidates AS (
 scored AS (
     SELECT cand.id, cand.content, cand.metadata, cand.document_id,
            1 - (cand.embedding <=> %(embedding)s::vector) AS vec_score,
-           ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score
+           {lex} AS bm25_score
     FROM candidates cand
 ),
 ranked AS (
@@ -544,11 +593,16 @@ def _build_naive_prefilter(
             mf_soft_sql,
             mf_hard_sql,
         )
+    lex = lexical_score_sql(cfg, "cand")
     base = (
-        "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
-        "%(w_bm25)s * ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) + "
-        "%(w_graph)s * 0"
-    ) + mf_soft_sql
+        (
+            "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
+            f"%(w_bm25)s * {lex} + "
+            "%(w_graph)s * 0"
+        )
+        + _rare_bonus_sql(cfg, "cand")
+        + mf_soft_sql
+    )
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -582,7 +636,7 @@ SELECT cand.id, cand.content, cand.metadata,
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
        1 - (cand.embedding <=> %(embedding)s::vector) AS vec_score,
-       ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score,
+       {lex} AS bm25_score,
        {evolution_score_expr(base, cfg, evolution_aware, retracted_behavior)} AS score
 FROM filtered cand
 JOIN documents d ON d.id = cand.document_id
@@ -606,7 +660,8 @@ def _build_naive_prefilter_rrf(
     """RRF variant of the pre_filter naive builder. The ``filtered`` CTE
     materializes the predicate subset (no vector ORDER BY), then RRF ranks
     over that subset."""
-    rrf_base = _rrf_fused_base_expr()
+    lex = lexical_score_sql(cfg, "cand")
+    rrf_base = _rrf_fused_base_expr() + _rare_bonus_sql(cfg, "r")
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -635,7 +690,7 @@ WITH filtered AS (
 scored AS (
     SELECT cand.id, cand.content, cand.metadata, cand.document_id,
            1 - (cand.embedding <=> %(embedding)s::vector) AS vec_score,
-           ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score
+           {lex} AS bm25_score
     FROM filtered cand
 ),
 ranked AS (
@@ -705,11 +760,16 @@ def _build_naive_vector_first(
             mf_soft_sql,
             mf_hard_sql,
         )
+    lex = lexical_score_sql(cfg, "cand")
     base = (
-        "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
-        "%(w_bm25)s * ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) + "
-        "%(w_graph)s * 0"
-    ) + mf_soft_sql
+        (
+            "%(w_sem)s * (1 - (cand.embedding <=> %(embedding)s::vector)) + "
+            f"%(w_bm25)s * {lex} + "
+            "%(w_graph)s * 0"
+        )
+        + _rare_bonus_sql(cfg, "cand")
+        + mf_soft_sql
+    )
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -745,7 +805,7 @@ SELECT cand.id, cand.content, cand.metadata,
         WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
            AS superseded_by_id,
        1 - (cand.embedding <=> %(embedding)s::vector) AS vec_score,
-       ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score,
+       {lex} AS bm25_score,
        {evolution_score_expr(base, cfg, evolution_aware, retracted_behavior)} AS score
 FROM candidates cand
 JOIN documents d ON d.id = cand.document_id
@@ -770,7 +830,8 @@ def _build_naive_vector_first_rrf(
     """RRF variant of the vector_first naive builder. The bare HNSW seed CTE
     is unchanged; the namespace/evolution post-filter moves into the scored
     CTE so RRF ranks only post-filtered rows."""
-    rrf_base = _rrf_fused_base_expr()
+    lex = lexical_score_sql(cfg, "cand")
+    rrf_base = _rrf_fused_base_expr() + _rare_bonus_sql(cfg, "r")
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -799,7 +860,7 @@ WITH candidates AS (
 scored AS (
     SELECT cand.id, cand.content, cand.metadata, cand.document_id,
            1 - (cand.embedding <=> %(embedding)s::vector) AS vec_score,
-           ts_rank(cand.search_vector, to_tsquery('english', %(tsquery)s)) AS bm25_score
+           {lex} AS bm25_score
     FROM candidates cand
     JOIN documents d ON d.id = cand.document_id
     WHERE d.namespace = %(namespace)s{extra_where}
@@ -827,6 +888,99 @@ LIMIT %(top_k)s
     return sql, extra_params
 
 
+def _graph_rrf_tail(
+    cfg: PGRGConfig,
+    evolution_aware: bool | None,
+    retracted_behavior: str | None,
+    extra_where: str,
+) -> str:
+    """RRF tail shared by the local/global builders (issue #96 addendum: the
+    fusion knob was silently inert in graph modes). Appends scored/ranked
+    CTEs over the ``relevant_chunks`` set and fuses with the same expression
+    the naive RRF builders use. The graph leg is a constant (binary presence)
+    across the candidate set in both modes, so it carries no ordering
+    information under rank fusion and is dropped — the same way the naive
+    builders drop their zero graph leg.
+    """
+    lex = lexical_score_sql(cfg, "rc")
+    rrf_base = _rrf_fused_base_expr() + _rare_bonus_sql(cfg, "r")
+    return f""",
+scored AS (
+    SELECT rc.id, rc.content, rc.metadata, rc.document_id,
+           1 - (rc.embedding <=> %(embedding)s::vector) AS vec_score,
+           {lex} AS bm25_score
+    FROM relevant_chunks rc
+    JOIN documents d ON d.id = rc.document_id
+    WHERE d.namespace = %(namespace)s{extra_where}
+),
+ranked AS (
+    SELECT scored.*,
+           rank() OVER (ORDER BY vec_score DESC) AS vec_rank,
+           rank() OVER (ORDER BY bm25_score DESC) AS bm25_rank
+    FROM scored
+)
+SELECT r.id, r.content, r.metadata,
+       d.source_path,
+       d.metadata AS doc_metadata,
+       d.retracted, d.version_label, d.effective_from, d.effective_to,
+       (SELECT dv.document_id FROM document_versions dv
+        WHERE dv.supersedes_document_id = d.id ORDER BY dv.id LIMIT 1)
+           AS superseded_by_id,
+       r.vec_score, r.bm25_score,
+       {evolution_score_expr(rrf_base, cfg, evolution_aware, retracted_behavior)} AS score
+FROM ranked r
+JOIN documents d ON d.id = r.document_id
+ORDER BY score DESC
+LIMIT %(top_k)s
+"""
+
+
+# Gate threshold for the trgm match-ANY operator in the lexical seed leg.
+# Deliberately permissive: it only has to admit every row the exact
+# word_similarity() gate would keep (a long entity name vs its shortest
+# identifying query token can score ~0.2), while still driving the index.
+# The exact gate (config.seed_min_wsim) does the real filtering.
+SEED_GATE_TRGM_THRESHOLD = "0.15"
+# Transaction-local GUCs for every local/global/hybrid execution: pins the
+# trgm operator gate so a session-level pg_trgm.similarity_threshold can't
+# silently narrow the lexical seed leg below what the exact gate keeps.
+_SEED_SET_LOCAL = {"pg_trgm.similarity_threshold": SEED_GATE_TRGM_THRESHOLD}
+
+
+def _lexical_seed_cte() -> str:
+    """Lexical entity-anchor leg for graph-mode seeding (issue #105).
+
+    Vector-only seeding never anchors opaque identifiers or near-duplicate
+    names: kNN picks the wrong entity, the gold chunk never enters the
+    graph-gated pool, and no downstream scoring can recover. This leg adds
+    entities whose *name* appears (near-)verbatim in the query.
+
+    The trgm match-ANY operator (``%%``, psycopg-escaped) over the query
+    tokens is the index-eligible gate — Bitmap Index Scan on
+    idx_entity_name_trgm, with pg_trgm.similarity_threshold pinned low via
+    set_local (SEED_GATE_TRGM_THRESHOLD). ``word_similarity(name, query)``
+    is the exact gate: ~1.0 when the name is lifted verbatim into the query,
+    which puts the exact hit above near-miss siblings (all CASE-2021-* names
+    pass the gate; only the queried one scores 1.0). Measured on 20K
+    entities: 1.7 ms indexed vs 65 ms as a bare word_similarity scan.
+
+    Scores are ``1.0 + word_similarity`` so lexical anchors outrank every
+    vector seed (cosine sim <= 1.0). An empty token list matches nothing —
+    seed set byte-identical to the historical vector-only behavior.
+    NOTE: psycopg parses placeholders even in SQL comments, so no bare
+    percent signs in the SQL text.
+    """
+    return """lex_seeds AS (
+    SELECT id, 1.0 + word_similarity(name, %(query)s) AS sim
+    FROM entities
+    WHERE namespace = %(namespace)s
+      AND name %% ANY(%(query_tokens)s)
+      AND word_similarity(name, %(query)s) > %(seed_min_wsim)s
+    ORDER BY sim DESC
+    LIMIT %(seed_k)s
+)"""
+
+
 def _build_local_query(
     cfg: PGRGConfig,
     as_of: datetime | None = None,
@@ -835,12 +989,14 @@ def _build_local_query(
     retracted_behavior: str | None = None,
     supersession_behavior: str | None = None,
     memory_tier: str | None = None,
+    fusion: str = "linear",
 ) -> tuple[str, dict]:
+    lex = lexical_score_sql(cfg, "rc")
     base = (
         "%(w_sem)s * (1 - (rc.embedding <=> %(embedding)s::vector)) + "
-        "%(w_bm25)s * ts_rank(rc.search_vector, to_tsquery('english', %(tsquery)s)) + "
+        f"%(w_bm25)s * {lex} + "
         "%(w_graph)s * 1.0"  # graph leg: binary presence in neighborhood
-    )
+    ) + _rare_bonus_sql(cfg, "rc")
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -857,12 +1013,22 @@ def _build_local_query(
         clauses.append(mt_clause)
         extra_params = _merge_params(extra_params, mt_params)
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
-    sql = f"""
-WITH RECURSIVE seeds AS (
+    cte = f"""
+WITH RECURSIVE vec_seeds AS (
     SELECT id, 1 - (embedding <=> %(embedding)s::vector) AS sim
     FROM entities
     WHERE namespace = %(namespace)s
     ORDER BY embedding <=> %(embedding)s::vector
+    LIMIT %(seed_k)s
+),
+{_lexical_seed_cte()},
+seeds AS (
+    -- Union of the vector and lexical legs, capped at seed_k. Lexical sims
+    -- sit in (1.0, 2.0], so exact/near-verbatim name anchors rank first.
+    SELECT id, max(sim) AS sim
+    FROM (SELECT id, sim FROM lex_seeds UNION ALL SELECT id, sim FROM vec_seeds) u
+    GROUP BY id
+    ORDER BY sim DESC
     LIMIT %(seed_k)s
 ),
 neighborhood AS (
@@ -883,7 +1049,14 @@ relevant_chunks AS (
     FROM chunks c
     JOIN entity_chunks ec ON ec.chunk_id = c.id
     WHERE ec.entity_id IN (SELECT DISTINCT id FROM neighborhood)
-)
+)"""
+    if fusion == "rrf":
+        return cte + _graph_rrf_tail(cfg, evolution_aware, retracted_behavior, extra_where), (
+            extra_params
+        )
+    sql = (
+        cte
+        + f"""
 SELECT rc.id, rc.content, rc.metadata,
        d.source_path,
        d.metadata AS doc_metadata,
@@ -898,6 +1071,7 @@ WHERE d.namespace = %(namespace)s{extra_where}
 ORDER BY score DESC
 LIMIT %(top_k)s
 """
+    )
     return sql, extra_params
 
 
@@ -909,12 +1083,14 @@ def _build_global_query(
     retracted_behavior: str | None = None,
     supersession_behavior: str | None = None,
     memory_tier: str | None = None,
+    fusion: str = "linear",
 ) -> tuple[str, dict]:
+    lex = lexical_score_sql(cfg, "rc")
     base = (
         "%(w_sem)s * (1 - (rc.embedding <=> %(embedding)s::vector)) + "
-        "%(w_bm25)s * ts_rank(rc.search_vector, to_tsquery('english', %(tsquery)s)) + "
+        f"%(w_bm25)s * {lex} + "
         "%(w_graph)s * 1.0"  # graph leg: binary presence via relationship seed
-    )
+    ) + _rare_bonus_sql(cfg, "rc")
     clauses, extra_params = evolution_where_clauses(
         cfg,
         doc_alias="d",
@@ -930,8 +1106,9 @@ def _build_global_query(
         clauses.append(mt_clause)
         extra_params = _merge_params(extra_params, mt_params)
     extra_where = (" AND " + " AND ".join(clauses)) if clauses else ""
-    sql = f"""
-WITH rel_matches AS (
+    cte = f"""
+WITH {_lexical_seed_cte()},
+rel_matches AS (
     SELECT r.id, r.src_id, r.dst_id, r.rel_type, r.description,
            1 - (e_src.embedding <=> %(embedding)s::vector) AS src_sim,
            1 - (e_dst.embedding <=> %(embedding)s::vector) AS dst_sim
@@ -949,6 +1126,10 @@ rel_entity_ids AS (
     SELECT src_id AS id FROM rel_matches
     UNION
     SELECT dst_id AS id FROM rel_matches
+    UNION
+    -- Lexical anchors join the entity set directly (#105): their chunks
+    -- must enter the pool even when no top-seed_k relationship touches them.
+    SELECT id FROM lex_seeds
 ),
 relevant_chunks AS (
     SELECT DISTINCT c.id,
@@ -957,7 +1138,14 @@ relevant_chunks AS (
     FROM chunks c
     JOIN entity_chunks ec ON ec.chunk_id = c.id
     WHERE ec.entity_id IN (SELECT id FROM rel_entity_ids)
-)
+)"""
+    if fusion == "rrf":
+        return cte + _graph_rrf_tail(cfg, evolution_aware, retracted_behavior, extra_where), (
+            extra_params
+        )
+    sql = (
+        cte
+        + f"""
 SELECT rc.id, rc.content, rc.metadata,
        d.source_path,
        d.metadata AS doc_metadata,
@@ -972,6 +1160,7 @@ WHERE d.namespace = %(namespace)s{extra_where}
 ORDER BY score DESC
 LIMIT %(top_k)s
 """
+    )
     return sql, extra_params
 
 
@@ -988,7 +1177,12 @@ WITH seed_entities AS MATERIALIZED (
     FROM entity_chunks
     WHERE chunk_id = ANY(%(chunk_ids)s)
 ),
-rel_ids AS MATERIALIZED (
+seed_docs AS MATERIALIZED (
+    SELECT DISTINCT document_id
+    FROM chunks
+    WHERE id = ANY(%(chunk_ids)s)
+),
+candidate_rels AS MATERIALIZED (
     (
         SELECT r.id
         FROM relationships r
@@ -999,6 +1193,30 @@ rel_ids AS MATERIALIZED (
         SELECT r.id
         FROM relationships r
         JOIN seed_entities s ON s.entity_id = r.dst_id
+    )
+),
+-- Provenance scope (#113): a 1-hop edge enters the answer context only if it
+-- was extracted from one of the *retrieved* documents (relationship_chunks ->
+-- chunks -> documents), or carries no provenance rows at all (manually seeded
+-- known_relationships). Without this, a generic entity shared across documents
+-- ("reversal", "dispute") bridges every document in the namespace and injects
+-- other documents' actor/date facts into the synthesis prompt -- cross-document
+-- answer bleed. Filter BEFORE the LIMIT so out-of-scope edges can't eat the
+-- 20 slots.
+rel_ids AS MATERIALIZED (
+    SELECT cr.id
+    FROM candidate_rels cr
+    WHERE EXISTS (
+        SELECT 1
+        FROM relationship_chunks rc
+        JOIN chunks c ON c.id = rc.chunk_id
+        JOIN seed_docs sd ON sd.document_id = c.document_id
+        WHERE rc.relationship_id = cr.id
+    )
+    OR NOT EXISTS (
+        SELECT 1
+        FROM relationship_chunks rc
+        WHERE rc.relationship_id = cr.id
     )
     LIMIT 20
 )
@@ -1105,10 +1323,17 @@ async def query(
     q_embedding = (await embedder.embed([question]))[0]
 
     # #1: expand the BM25 term set when enabled (default off → byte-identical).
+    # rare_query feeds the #114 IDF-coverage bonus and must carry the SAME
+    # term set the tsquery searches — a raw-question-only bonus would fight
+    # alias/synonym expansion on lexically-decided rankings.
+    rare_query = question
     if config.retrieval_expansion != "off" or config.retrieval_alias_map:
         from pg_raggraph.summary import expand_query_terms
 
-        tsquery = _to_or_tsquery(question, expand_query_terms(question, config))
+        expansion_terms = expand_query_terms(question, config)
+        tsquery = _to_or_tsquery(question, expansion_terms)
+        if expansion_terms:
+            rare_query = question + " " + " ".join(expansion_terms)
     else:
         tsquery = _to_or_tsquery(question)
 
@@ -1120,11 +1345,23 @@ async def query(
         "top_k": effective_top_k,
         "candidate_k": candidate_k,
         "seed_k": min(effective_top_k, 5),
+        # Lexical seed leg (#105) — same tokenization as the tsquery
+        # (hyphen compounds + parts, len > 2, 20-term cap).
+        "query_tokens": [t for t in _query_tokens(question) if len(t) > 2][:20],
+        "seed_min_wsim": config.seed_min_wsim,
         "max_hops": config.max_hops,
         "w_sem": config.w_sem,
         "w_bm25": config.w_bm25,
         "w_graph": config.w_graph,
+        # Bound unconditionally — only referenced when w_rare > 0 injects
+        # the IDF-coverage bonus into the naive builders (issue #114).
+        "w_rare": config.w_rare,
+        "rare_query": rare_query,
         "rrf_k": config.rrf_k,
+        # Bound unconditionally (like rrf_k) — only referenced when
+        # lexical_backend == "bm25" swaps the leg expression (issue #96).
+        "bm25_k1": config.bm25_k1,
+        "bm25_b": config.bm25_b,
         **evolution_bind_params(config),
     }
 
@@ -1228,8 +1465,9 @@ async def query(
             retracted_behavior,
             supersession_behavior,
             memory_tier,
+            fusion=effective_fusion,
         )
-        rows = await db.fetch_all(sql, _merge_params(params, extra))
+        rows = await db.fetch_all(sql, _merge_params(params, extra), set_local=_SEED_SET_LOCAL)
     elif mode == "global":
         sql, extra = _build_global_query(
             config,
@@ -1239,10 +1477,14 @@ async def query(
             retracted_behavior,
             supersession_behavior,
             memory_tier,
+            fusion=effective_fusion,
         )
-        rows = await db.fetch_all(sql, _merge_params(params, extra))
+        rows = await db.fetch_all(sql, _merge_params(params, extra), set_local=_SEED_SET_LOCAL)
     elif mode == "hybrid":
-        # Run local and global, merge results
+        # Run local and global, merge results. The legs stay linear-scored
+        # even under fusion="rrf": RRF fuses the two already-ranked lists in
+        # Python (_rrf_merge, issue #57) — fusing rank-fused legs again would
+        # double-apply the damping.
         local_sql, local_extra = _build_local_query(
             config,
             as_of,
@@ -1261,8 +1503,12 @@ async def query(
             supersession_behavior,
             memory_tier,
         )
-        local_rows = await db.fetch_all(local_sql, _merge_params(params, local_extra))
-        global_rows = await db.fetch_all(global_sql, _merge_params(params, global_extra))
+        local_rows = await db.fetch_all(
+            local_sql, _merge_params(params, local_extra), set_local=_SEED_SET_LOCAL
+        )
+        global_rows = await db.fetch_all(
+            global_sql, _merge_params(params, global_extra), set_local=_SEED_SET_LOCAL
+        )
         if effective_fusion == "rrf":
             rows = _rrf_merge(local_rows, global_rows, config.rrf_k, effective_top_k)
         else:
@@ -1736,7 +1982,10 @@ async def _smart_query(
         return syn
 
     # Layer 2: confidence-based routing for lookup-shaped questions.
-    # Always start with naive (cheap)
+    # Always start with naive (cheap). The probe is PINNED to linear fusion:
+    # boost/expand thresholds (0.7 / 0.4) are calibrated on raw linear
+    # composite scores, while RRF fused scores live at ~0.01 and would route
+    # every question to the low-confidence escalation (issue #96).
     result = await query(
         question=question,
         db=db,
@@ -1749,6 +1998,7 @@ async def _smart_query(
         evolution_aware=evolution_aware,
         retracted_behavior=retracted_behavior,
         top_k_override=top_k_override,
+        fusion="linear",
     )
 
     # High confidence — ship it. Optional tier-0: ship a deterministic lede

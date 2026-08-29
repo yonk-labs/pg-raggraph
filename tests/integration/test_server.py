@@ -34,6 +34,9 @@ async def test_status(client):
     data = resp.json()
     assert "documents" in data
     assert "entities" in data
+    # Issue #92: derived ingest-completion flag.
+    assert isinstance(data["graph_ready"], bool)
+    assert "graph_status" in data
 
 
 async def test_index_html(client):
@@ -60,6 +63,10 @@ async def test_query_endpoint(client):
     assert "chunks" in data
     assert "query_mode" in data
     assert data["query_mode"] == "naive"
+    # Issue #92: /query carries the readiness hint under metadata.
+    summary = data["metadata"]["graph_status_summary"]
+    # 'degraded' overlay key added by issue #93.
+    assert set(summary) == {"pending", "processing", "ready", "failed", "degraded"}
 
 
 async def test_ask_endpoint(client):
@@ -75,3 +82,7 @@ async def test_ask_endpoint(client):
     assert "latency_ms" in data
     assert isinstance(data["chunks"], list)
     assert isinstance(data["entities"], list)
+    # Issue #92: /ask carries the readiness hint top-level.
+    summary = data["graph_status_summary"]
+    # 'degraded' overlay key added by issue #93.
+    assert set(summary) == {"pending", "processing", "ready", "failed", "degraded"}

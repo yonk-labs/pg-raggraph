@@ -58,6 +58,8 @@ Retrieval-only latency (ms). Answer generation latency is LLM-bound and near-ide
 
 **AGE is 42–111× slower on retrieval.** The handoff's "100× slower" claim holds — if anything it's generous to AGE in the hybrid case only. Every other mode is 90×+ worse. Retrieval p95 for AGE tops 4.8 seconds; pgrg tops 136 ms.
 
+> **Naive-mode caveat (added 2026-07-07):** in `naive` mode both engines execute the same pgvector query over the same chunk table, so the 111× differential in that row can only live in the harness adapter, not the engine. Quote the graph-assisted rows (42–101×) and treat the naive row as pending an adapter audit — the pgrg adapter previously had a 17× per-row-round-trip artifact of exactly this class, and the AGE adapter has not been audited with equal rigor.
+
 Even pgrg's slowest mode (hybrid p95 = 90 ms) is **42× faster than AGE's fastest mode** (hybrid p50 = 3088 ms). The two engines are not in the same latency class.
 
 ## 4. Operational — where each engine can actually run

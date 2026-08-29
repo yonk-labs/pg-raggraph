@@ -1,6 +1,6 @@
 # pg-raggraph User Guide
 
-> The fastest, simplest way to add knowledge-graph-powered RAG to any app — backed by the PostgreSQL you already run.
+> Knowledge-graph-powered RAG for any app — backed by the PostgreSQL you already run.
 
 > **Picking a workload:** see [`USE-CASES.md`](USE-CASES.md) for the
 > classic-vs-evolving decision matrix and benchmark numbers.
@@ -311,7 +311,21 @@ A startup guard refuses to connect if `embedding_dim` no longer matches the live
 
 ## Query Modes Explained
 
-pg-raggraph offers **four query modes** that trade off speed, context breadth, and graph understanding:
+pg-raggraph offers **four query modes** that trade off speed, context breadth, and graph understanding.
+
+All modes combine a vector leg with a lexical leg. Two knobs shape that
+combination (issue #96):
+
+- **`fusion`** (default `"rrf"`, was `"linear"`) — Reciprocal Rank Fusion
+  combines the legs by rank instead of raw score, so the lexical leg votes
+  regardless of score scale. Set `PGRG_FUSION=linear` (or
+  `rag.query(..., fusion="linear")`) to reproduce pre-0.5.0a20 rankings
+  byte-for-byte.
+- **`lexical_backend`** (default `"ts_rank"`) — set `"bm25"` for real Okapi
+  BM25 with corpus IDF and identifier-safe tokenization (an exact-identifier
+  query like `validate_billing_archive` ranks its defining chunk first).
+  Pre-existing corpora need a one-time `pgrg rebuild-lexical-stats`.
+  See [`docs/cookbook/bm25-lexical.md`](cookbook/bm25-lexical.md).
 
 ### Naive Mode (Vector + BM25)
 ```bash
@@ -593,6 +607,10 @@ export PGRG_TOP_K=10                  # Results per query
 export PGRG_SIMILARITY_THRESHOLD=0.3  # Minimum similarity score
 export PGRG_RETRIEVAL_STRATEGY=weighted        # weighted | pre_filter | vector_first
 export PGRG_RETRIEVAL_OVERSAMPLE_FACTOR=10     # vector_first candidate sizing
+export PGRG_FUSION=rrf                # rrf (default) | linear — leg fusion (#96)
+export PGRG_LEXICAL_BACKEND=ts_rank   # ts_rank (default) | bm25 — lexical leg scoring (#96)
+export PGRG_BM25_K1=1.2               # BM25 tf saturation (bm25 backend)
+export PGRG_BM25_B=0.75               # BM25 length normalization (bm25 backend)
 ```
 
 `retrieval_strategy` controls the SQL shape of vector + metadata queries. The default `weighted` works everywhere; `pre_filter` is fastest when you have selective indexed predicates; `vector_first` is fastest for broad/no-predicate queries on single-namespace HNSW-eligible corpora. See [`docs/cookbook/retrieval-strategy.md`](cookbook/retrieval-strategy.md). Also available as a per-call kwarg.
@@ -731,11 +749,45 @@ pgrg --db $PGRG_DSN extract --namespace crm --once
 pgrg --db $PGRG_DSN extract --namespace crm --daemon --poll-interval 1.0
 ```
 
+**Waiting for the graph.** The completion signal is first-class — no SQL
+polling of `documents.graph_status` required:
+
+```python
+# Cheap non-blocking probe: True when no doc is pending/processing.
+if not await rag.graph_ready(namespace="crm"):
+    ...
+
+# Blocking: polls until the queue drains, returns the final summary.
+# Raises TimeoutError (message includes the last-seen summary) on timeout.
+summary = await rag.wait_for_graph_ready(
+    namespace="crm", timeout=600.0, poll_interval=2.0
+)
+# {'pending': 0, 'processing': 0, 'ready': 488, 'failed': 0}
+if summary["failed"]:
+    ...  # terminal failures don't block readiness; retry with
+         # `pgrg extract --include-failed`
+```
+
+`rag.status()` carries the same signal as a derived `graph_ready` boolean
+alongside the existing counts. Caveat: readiness only covers documents
+already written — during a batched ingest, compare `status()['documents']`
+against your expected corpus size before trusting `graph_ready`.
+
 Headline numbers (MHR, lede_spacy, 40 docs): **59.8× faster
 time-to-queryable** (0.44s vs 26.27s); the deferred path's total
 wall-time (B+C = 15.56s) is *also* faster than synchronous (26.27s)
 because the synchronous path holds per-doc transactions open across
 extraction.
+
+**Extraction failures are counted, not swallowed** (#93). A doc whose
+every chunk-extraction call errors with zero yield lands in
+`graph_status='failed'` (`graph_error` says `extraction failed on N/M
+chunks: …`); a doc with partial yield stays `'ready'` but keeps the
+failure summary in `graph_error` and counts under the `degraded` key in
+`graph_status_summary` / `rag.status()`. Per-doc yield
+(`chunks / chunks_failed / entities / relationships`) is persisted to
+`documents.metadata['extraction']`. `pgrg extract --include-failed`
+re-queues both failed and degraded docs.
 
 The full guide — three architectural patterns (sync / cron / always-on
 daemon), worked FastAPI end-to-end example, multi-worker safety
@@ -749,6 +801,32 @@ For docs ingested with `chunk_strategy="chunkshop:symbol_aware"` +
 (or `backfill_code_graph(rag, ns)`) to rebuild the call graph out-of-band — one
 worker per namespace, crash-resumable, never touches `graph_status`. So fast
 code-KB ingest keeps the call graph (#81); see the cookbook's *Code KBs* section.
+
+### Per-KB extraction prompts
+
+Extraction prompts (`default` / `dev` / `code` / `prose`) can be chosen
+per call and per namespace, not just process-wide (#94) — one deployment
+can serve a code KB and a chat KB with correct extraction simultaneously:
+
+```python
+# Per-call override (wins over everything else for this call):
+await rag.ingest_records(chat_records, namespace="kb-chats",
+                         extraction_prompt="prose")
+
+# Or per-namespace, via config / env:
+rag = GraphRAG(extraction_prompt_by_namespace={"kb-chats": "prose",
+                                               "kb-src": "code"})
+# PGRG_EXTRACTION_PROMPT_BY_NAMESPACE='{"kb-chats": "prose", "kb-src": "code"}'
+```
+
+Precedence: **per-call kwarg > per-doc stamp > namespace map > global
+`extraction_prompt`**. On deferred ingests the resolved prompt is stamped
+into `documents.metadata['extraction_prompt']`, so those docs are drained
+by `pgrg extract` with the prompt they were ingested under — the drain
+worker needs no extra flags, even when it serves many KBs. Unknown
+prompt names raise `ValueError` at call time instead of silently
+extracting with the wrong prompt. Full knob details:
+[Config-Reference.md](Config-Reference.md#extraction_prompt_by_namespace-dictstr-str-default-).
 
 ### Ingesting a large corpus (bounded memory)
 
@@ -846,11 +924,15 @@ result.latency_ms      # float: how long the query took
 
 ## REST API
 
-> **The bundled server is for local development and demos.** It ships without authentication, rate limiting, upload size limits, or CORS configuration. Do not expose `pgrg serve` directly to the public internet. For production, run it behind a reverse proxy (nginx, Caddy, Cloudflare, Traefik) that adds auth, TLS, and rate limits — or embed `create_app()` in your own FastAPI application that supplies those middlewares. See [Production deployment](#production-deployment) below.
+> **The bundled server is for local development and demos.** It binds `127.0.0.1` by default — reachable only from the local machine. A non-loopback bind (`--host 0.0.0.0`) is refused at startup unless `PGRG_SERVER_API_KEY` is set (Bearer-token auth); `--insecure-no-auth` overrides at your own risk. It still ships without rate limiting or TLS. Do not expose `pgrg serve` directly to the public internet. For production, run it behind a reverse proxy (nginx, Caddy, Cloudflare, Traefik) that adds TLS and rate limits — or embed `create_app()` in your own FastAPI application that supplies those middlewares. See [Production deployment](#production-deployment) below.
 
 ### Launch Server
 ```bash
-pgrg serve --port 8080
+pgrg serve --port 8080                       # binds 127.0.0.1 (local only)
+
+# Expose to the network — requires auth (refused otherwise):
+PGRG_SERVER_API_KEY=your-key pgrg serve --host 0.0.0.0 --port 8080
+
 # Or from code:
 # from pg_raggraph.server import create_app
 # app = create_app(dsn=...)
@@ -866,6 +948,11 @@ curl -X POST http://localhost:8080/query \
   -F "namespace=default"
 ```
 
+Both read endpoints surface `graph_status_summary` (per-status doc counts
+for the namespace) — under `metadata` on `/query`, top-level on `/ask` —
+so callers can detect answers computed over a still-backfilling graph
+(`pending` or `processing` > 0).
+
 **POST /ingest** — Upload files
 ```bash
 curl -X POST http://localhost:8080/ingest \
@@ -874,7 +961,9 @@ curl -X POST http://localhost:8080/ingest \
   -F "namespace=default"
 ```
 
-**GET /status** — Graph stats
+**GET /status** — Graph stats. Includes `graph_ready` (false while
+background extraction is draining) and per-status doc counts under
+`graph_status`.
 ```bash
 curl http://localhost:8080/status
 ```
@@ -960,7 +1049,7 @@ playbook teaches tool selection and warns about common anti-patterns.
 | `pgrg_query` | "Get me the raw retrieved chunks" — same retrieval, no LLM grounding. |
 | `pgrg_ingest` | "Add documents to the graph." Paths must be in an allow-listed root via `PGRG_MCP_INGEST_ROOTS`. |
 | `pgrg_delete_document` | "Remove a document." Requires `confirm=True`. |
-| `pgrg_status` | "Is the graph ready / how big is it?" — counts + `graph_status_summary`. |
+| `pgrg_status` | "Is the graph ready / how big is it?" — counts + `graph_ready` boolean + `graph_status_summary`. `graph_ready: false` means background extraction is still draining. The summary's `degraded` count is ready docs with per-chunk extraction failures (partial graph; doesn't block readiness — retry via `pgrg extract --include-failed`). |
 | `pgrg_profiles` | "What retrieval profiles are available?" — calibration ladder. |
 | `pgrg_get_namespace_profile` / `pgrg_set_namespace_profile` | Per-namespace default retrieval profile. |
 

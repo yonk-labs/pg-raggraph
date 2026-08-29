@@ -4,13 +4,42 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import Any, Literal
+from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
 _logger = logging.getLogger("pg_raggraph.config")
 _DEFAULT_DSN = "postgresql://postgres:postgres@localhost:5434/pg_raggraph"
+
+
+def redact_dsn(dsn: str) -> str:
+    """Return *dsn* with any password replaced by ``***`` (PR-218).
+
+    Keeps user/host/port/dbname so error messages stay actionable.
+    Handles URL DSNs, keyword conninfo strings (``host=x password=y``),
+    and malformed input — never raises. Use this anywhere a DSN could
+    reach an exception message or a log line.
+    """
+    if not isinstance(dsn, str):
+        return "<invalid dsn>"
+    # Keyword conninfo form: password=secret / password='se cret'
+    redacted = re.sub(r"(password\s*=\s*)('[^']*'|\S+)", r"\1***", dsn, flags=re.IGNORECASE)
+    try:
+        parts = urlsplit(redacted)
+        if parts.password:
+            # Mirror urllib's own netloc split (userinfo = up to last '@',
+            # password = after first ':') so reconstruction is faithful.
+            userinfo, _, hostport = parts.netloc.rpartition("@")
+            user = userinfo.partition(":")[0]
+            return urlunsplit(parts._replace(netloc=f"{user}:***@{hostport}"))
+    except ValueError:
+        pass  # unparseable as a URL — keyword-form redaction above still applied
+    return redacted
+
+
 _default_dsn_warned = False
 _pool_max_warned = False
 _pool_fleet_warned = False
@@ -96,11 +125,34 @@ class PGRGConfig(BaseSettings):
     llm_base_url: str = "http://localhost:11434/v1"  # Ollama default
     llm_model: str = "llama3.2"
     llm_api_key: str = ""  # set for OpenAI, leave empty for Ollama
+    # max_tokens sent on JSON-mode extraction calls. 0 = omit the field
+    # (server default; byte-identical to prior behavior). Set this when the
+    # LLM server has a small completion default — mlx-lm's 512 silently
+    # truncates extraction JSON, which parses as empty and yields no graph.
+    # 4096 is a safe value for extraction outputs.
+    llm_max_tokens: int = 0
     # `default` is the generic prompt; `dev` is the developer-KB-tuned prompt
-    # (entity types: person/service/library/file/commit/incident/ADR/etc.).
+    # (entity types: person/service/library/file/commit/incident/ADR/etc.);
+    # `code` is the source-code concept prompt (module/component/concept/dep) that
+    # layers a conceptual graph over the deterministic call/inherit/implement graph;
+    # `prose` targets everyday text (chats, reviews, bios) — common-noun
+    # entities allowed (foods, activities), base-form dish naming, and a
+    # closed relationship set (LIVES_IN/LIKES/SERVES/LOCATED_IN/...;
+    # preference-verb synonyms map onto LIKES/DISLIKES/PREFERS). Use it
+    # when the generic prompt's proper-noun bias drops preference/location
+    # relations from conversational corpora.
     # Typed Literal so a typo in PGRG_EXTRACTION_PROMPT raises ValidationError
     # at config init instead of silently falling back to "default".
-    extraction_prompt: Literal["default", "dev"] = "default"
+    extraction_prompt: Literal["default", "dev", "code", "prose"] = "default"
+    # Per-namespace (per-KB) prompt map (#94): namespace → prompt name. Lets
+    # one deployment serve code KBs and prose KBs simultaneously. Consulted
+    # at extraction time on both the sync ingest path and the `pgrg extract`
+    # drain. Precedence: per-call `extraction_prompt=` kwarg > per-doc
+    # stamped `documents.metadata['extraction_prompt']` > this map >
+    # `extraction_prompt`. Env: PGRG_EXTRACTION_PROMPT_BY_NAMESPACE as JSON,
+    # e.g. '{"kb-chats": "prose", "kb-src": "code"}'. Values are validated
+    # at extraction time (ValueError on unknown names — fail loud).
+    extraction_prompt_by_namespace: dict[str, str] = {}
     # Skip entity/relationship extraction during ingestion.
     # Set true for pure vector RAG mode — no LLM needed for ingest.
     skip_extraction: bool = False
@@ -258,6 +310,10 @@ class PGRGConfig(BaseSettings):
     retrieval_candidate_k: int = 200
     hnsw_m: int = 16
     hnsw_ef_construction: int = 64
+    # HNSW query-time candidate depth (per-session GUC). Floor only: when
+    # two_stage_retrieval is on, db.py raises the effective value to at least
+    # retrieval_candidate_k so the index never returns fewer candidates than
+    # the re-scorer asks for (issue #99). Small default suits small corpora.
     hnsw_ef_search: int = 40
 
     # Retrieval pipeline strategy (applies to naive / naive_boost modes).
@@ -474,6 +530,22 @@ class PGRGConfig(BaseSettings):
     trgm_weight: float = 0.4
     vec_weight: float = 0.6
     min_trgm_score: float = 0.3
+    # PR-222: hard cap on entities.description length. Every merge path
+    # (exact-match append, fuzzy merge, per-doc dedupe) enforces keep-first
+    # append-until-cap, so hot entities can't grow multi-KB blobs that get
+    # re-embedded on every merge. 0 or negative disables the cap.
+    entity_description_max_chars: int = 2000
+    # AAT-004: refuse fuzzy merges when two names differ only by a
+    # version-like token ("PostgreSQL 14" vs "PostgreSQL 15"). Generalizes
+    # the CODE_SYMBOL exemption to versioned-docs corpora. Empty string
+    # disables the guard.
+    entity_version_guard_pattern: str = r"\d+(?:\.\d+)*"
+    # Caller-declared entity types that must never fuzzy-merge (issue #98).
+    # Generalizes the built-in CODE_SYMBOL exemption: e.g. legal case captions
+    # ("no_fuzzy_merge_types=['CASE']") where similar party names cross the
+    # combined-score threshold and collapse distinct entities. These types fall
+    # through to exact-name insert; exact (namespace, name) matches still merge.
+    no_fuzzy_merge_types: list[str] = Field(default_factory=list)
 
     # --- Evolving-knowledge RAG (Tier 1+) ---
     # Zero cost when 'off'; ramp up per use case.
@@ -488,12 +560,57 @@ class PGRGConfig(BaseSettings):
     w_bm25: float = 0.20
     w_graph: float = 0.20
 
-    # Fusion strategy for hybrid retrieval (issue #57). "linear" (default)
-    # preserves the weighted-sum behavior byte-for-byte; "rrf" fuses by
-    # per-leg rank (Σ wᵢ / (rrf_k + rankᵢ)), which is scale-free across the
-    # cosine / ts_rank legs. Applies to naive + hybrid modes only.
-    fusion: Literal["linear", "rrf"] = "linear"
+    # IDF-coverage rare-token bonus for naive-family scoring (issue #114):
+    # additive w_rare * (matched query IDF mass / total query IDF mass),
+    # computed from the migration-016 lexeme_stats regardless of
+    # lexical_backend. Rescues exact-ID / rare-name queries on
+    # template-near-duplicate corpora where ts_rank (no IDF) and
+    # rank-flattened RRF both mute the discriminating token. Score-additive
+    # by design — a decisive df=1 match must not be re-flattened to a rank.
+    # 0 disables and restores byte-identical pre-#114 SQL. Calibrated
+    # empirically (2026-07-17, MuSiQue/MHR 100q retrieval A/B): the bonus
+    # must beat the arbitrary vector-rank noise among near-duplicate
+    # templates (the #114 class) WITHOUT overriding real semantic
+    # separation on multi-hop corpora — at 0.01 hop-1 anchor docs crowded
+    # lexically-disjoint hop-2 answer docs out of top-k (MuSiQue
+    # span_recall −9pp); at 0.002 MuSiQue is neutral (span_recall
+    # unchanged, hit@1 +1pp) and the #114 recovery holds. Raise toward
+    # 0.01+ only for exact-ID lookup corpora. Pre-016 corpora without
+    # lexical stats score 0 (no-op).
+    w_rare: float = 0.002
+
+    # Fusion strategy for hybrid retrieval (issue #57; default flipped to
+    # "rrf" in #96). "rrf" fuses by per-leg rank (Σ wᵢ / (rrf_k + rankᵢ)),
+    # which is scale-free across the cosine / lexical legs — under "linear"
+    # the ts_rank leg's raw scale (~0.01–0.1) made it a near-no-op at 0.20
+    # weight. "linear" preserves the weighted-sum behavior byte-for-byte for
+    # A/B reproducibility of existing deployments. Applies to naive, local,
+    # global, and hybrid modes; smart mode's internal confidence probe stays
+    # linear (its routing thresholds are calibrated on raw linear scores).
+    fusion: Literal["linear", "rrf"] = "rrf"
     rrf_k: int = 60  # RRF damping constant (standard default)
+
+    # Lexical scoring backend (issue #96). "ts_rank" (default) keeps
+    # PostgreSQL ts_rank: TF/proximity only, no corpus IDF. "bm25" scores
+    # Okapi BM25 in SQL from per-namespace stats maintained by the
+    # migration-016 triggers — IDF-aware, length-normalized, and
+    # identifier-safe (underscored identifiers survive tokenization on both
+    # the index and query side). Corpora ingested before migration 016 need
+    # a one-time rag.rebuild_lexical_stats() / `pgrg rebuild-lexical-stats`.
+    # BM25 raw scores are unbounded — designed for fusion="rrf" (default);
+    # under fusion="linear", retune w_bm25. See docs/cookbook/bm25-lexical.md.
+    lexical_backend: Literal["ts_rank", "bm25"] = "ts_rank"
+    bm25_k1: float = 1.2  # Okapi k1 — term-frequency saturation
+    bm25_b: float = 0.75  # Okapi b — document-length normalization strength
+
+    # Lexical entity-seed gate for local/global graph modes (issue #105):
+    # minimum pg_trgm word_similarity(entity.name, query) for an entity to
+    # join the traversal seed set alongside the vector-kNN seeds. 0.6
+    # mirrors pg_trgm's default word_similarity_threshold — admits verbatim
+    # and near-verbatim name/identifier mentions, ranks the exact hit first.
+    # Raise toward 1.0 for exact-only anchoring; lower to catch sloppier
+    # mentions at the cost of incidental matches.
+    seed_min_wsim: float = 0.6
 
     w_recent: float = 0.10
     w_supersession: float = 0.10
@@ -525,9 +642,18 @@ class PGRGConfig(BaseSettings):
     # sentence-level co-occurrence (RELATED_TO). No LLM, no network.
     # Requires the [lede_spacy] extra + `python -m spacy download
     # en_core_web_sm`. Selecting it builds a graph WITHOUT llm_base_url.
-    # NOTE: it does NOT emit SPO triples and does NOT populate the Tier 2
-    # `facts` table — that is a tracked follow-up. `llm` = full LLM
-    # extraction; `none` = disabled.
-    fact_extractor: Literal["llm", "lede_spacy", "none"] = "none"
+    # `lede_prose` widens that deterministic net for everyday prose: full
+    # spaCy NER (keeps FAC/ORG — venues, businesses) PLUS noun-chunk head
+    # lemmas as entities ("the seafood gumbo" -> "gumbo", variant phrase in
+    # the description), same sentence co-occurrence edges. Head-lemma
+    # canonicalization makes dish variants land on one node deterministically.
+    # `llm+lede` runs the LLM extractor AND lede_prose per chunk and unions
+    # the results — typed LLM edges plus a deterministic co-occurrence net
+    # that guarantees in-sentence links exist even when the LLM drops them.
+    # Degrades to the deterministic leg (with a warning) if no LLM configured.
+    # NOTE: none of these emit SPO triples or populate the Tier 2 `facts`
+    # table — that is a tracked follow-up. `llm` = full LLM extraction;
+    # `none` = disabled.
+    fact_extractor: Literal["llm", "lede_spacy", "lede_prose", "llm+lede", "none"] = "none"
     fact_similarity_threshold: float = 0.92
     fact_edge_candidate_k: int = 8

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sys
 
 import click
@@ -87,6 +88,33 @@ def migrate(ctx):
         _handle_error(e)
 
 
+@main.command("rebuild-lexical-stats")
+@click.option("-n", "--namespace", default=None, help="Namespace (default: configured)")
+@click.pass_context
+def rebuild_lexical_stats(ctx, namespace):
+    """Recompute BM25 lexical statistics for a namespace (issue #96).
+
+    Needed once per namespace whose chunks predate migration 016, before
+    enabling lexical_backend="bm25". Later writes are maintained
+    incrementally by triggers.
+    """
+
+    async def _rebuild():
+        rag = GraphRAG(**ctx.obj["kwargs"])
+        await rag.connect()
+        stats = await rag.rebuild_lexical_stats(namespace)
+        await rag.close()
+        click.echo(f"Namespace:  {stats['namespace']}")
+        click.echo(f"Chunks:     {stats['chunks']}")
+        click.echo(f"Lexemes:    {stats['lexemes']}")
+        click.echo(f"Total len:  {stats['total_len']}")
+
+    try:
+        run_async(_rebuild())
+    except (ConnectionError, Exception) as e:
+        _handle_error(e)
+
+
 @main.command()
 @click.pass_context
 def status(ctx):
@@ -105,6 +133,55 @@ def status(ctx):
 
     try:
         run_async(_status())
+    except (ConnectionError, Exception) as e:
+        _handle_error(e)
+
+
+@main.command()
+@click.option("-n", "--namespace", default=None, help="Namespace (default: configured)")
+@click.option("--since", default=None, help="Only merges at/after this ISO timestamp")
+@click.option(
+    "--min-score",
+    type=float,
+    default=None,
+    help="Only auto-merges with combined score >= this (excludes manual merges)",
+)
+@click.option("--limit", type=int, default=50, show_default=True, help="Max rows")
+@click.pass_context
+def merges(ctx, namespace, since, min_score, limit):
+    """Audit entity merges (AAT-004).
+
+    Lists entity_merge_log rows: every fuzzy auto-merge (with the trgm /
+    vector / combined scores that triggered it) and every manual
+    merge_entities() call. A suspicious row can be undone with
+    rag.split_entity(log_id).
+    """
+
+    async def _merges():
+        rag = GraphRAG(**ctx.obj["kwargs"])
+        await rag.connect()
+        rows = await rag.entity_merges(
+            namespace=namespace, since=since, min_score=min_score, limit=limit
+        )
+        await rag.close()
+        if not rows:
+            click.echo("No merges recorded.")
+            return
+        for r in rows:
+            score = (
+                f"score={r['combined_score']:.3f} "
+                f"(trgm={r['trgm_score']:.2f} vec={r['vec_score']:.2f})"
+                if r["combined_score"] is not None
+                else "manual"
+            )
+            doc = f" doc={r['document_id']}" if r["document_id"] else ""
+            click.echo(
+                f"[{r['id']}] {r['merged_at']:%Y-%m-%d %H:%M} "
+                f"{r['merged_name']!r} -> entity {r['kept_id']} {score}{doc}"
+            )
+
+    try:
+        run_async(_merges())
     except (ConnectionError, Exception) as e:
         _handle_error(e)
 
@@ -265,7 +342,11 @@ def ingest_chunkshop_table(
 @click.option(
     "--include-failed",
     is_flag=True,
-    help="Reset 'failed' docs to 'pending' at startup so they're retried",
+    help=(
+        "Reset 'failed' docs — and degraded 'ready' docs (per-chunk "
+        "extraction failures, graph_error set) — to 'pending' at startup "
+        "so they're retried"
+    ),
 )
 @click.option(
     "--daemon",
@@ -349,19 +430,27 @@ def extract(
             await release_processing(rag.db, namespace=namespace)
 
             if include_failed:
+                # Degraded docs (ready + graph_error: some chunks errored,
+                # issue #93) are retried too — re-extraction on a ready doc
+                # is idempotent (ON CONFLICT upserts), so re-queueing only
+                # fills the missing yield.
+                retry_where = (
+                    "(graph_status = 'failed' "
+                    "OR (graph_status = 'ready' AND graph_error IS NOT NULL))"
+                )
                 if namespace:
                     await rag.db.execute(
                         "UPDATE documents SET graph_status = 'pending', graph_error = NULL "
-                        "WHERE namespace = %s AND graph_status = 'failed'",
+                        f"WHERE namespace = %s AND {retry_where}",
                         (namespace,),
                     )
                 else:
                     await rag.db.execute(
                         "UPDATE documents SET graph_status = 'pending', graph_error = NULL "
-                        "WHERE graph_status = 'failed'"
+                        f"WHERE {retry_where}"
                     )
 
-            totals = {"claimed": 0, "ready": 0, "failed": 0, "ents": 0, "rels": 0}
+            totals = {"claimed": 0, "ready": 0, "failed": 0, "degraded": 0, "ents": 0, "rels": 0}
             iteration = 0
             import time as _time
 
@@ -402,11 +491,13 @@ def extract(
                 totals["claimed"] += stats.claimed
                 totals["ready"] += stats.ready
                 totals["failed"] += stats.failed
+                totals["degraded"] += stats.degraded
                 totals["ents"] += stats.entities
                 totals["rels"] += stats.relationships
                 click.echo(
                     f"[iter {iteration}] claimed={stats.claimed} ready={stats.ready} "
-                    f"failed={stats.failed} ents={stats.entities} rels={stats.relationships}",
+                    f"failed={stats.failed} degraded={stats.degraded} "
+                    f"ents={stats.entities} rels={stats.relationships}",
                     err=True,
                 )
 
@@ -442,10 +533,15 @@ def extract(
                         except asyncio.TimeoutError:
                             pass
 
+            degraded_note = (
+                f" ({totals['degraded']} ready-but-degraded — see documents.graph_error)"
+                if totals["degraded"]
+                else ""
+            )
             click.echo(
                 f"Done: {totals['ready']} ready / {totals['failed']} failed "
-                f"of {totals['claimed']} claimed. {totals['ents']} entities, "
-                f"{totals['rels']} relationships."
+                f"of {totals['claimed']} claimed{degraded_note}. "
+                f"{totals['ents']} entities, {totals['rels']} relationships."
             )
         finally:
             await rag.close()
@@ -688,11 +784,47 @@ def mcp_serve(ctx):
         _handle_error(e)
 
 
+def _refuse_insecure_bind(host: str, insecure_no_auth: bool) -> None:
+    """PR-217: refuse a non-loopback bind without authentication.
+
+    Mirrors the PGRG_ENV=production default-DSN refusal in config.py —
+    a misconfiguration that exposes an unauthenticated ingest/query/delete
+    API to the network should fail loudly at startup, not warn and proceed.
+    """
+    if host in ("127.0.0.1", "::1", "localhost"):
+        return
+    if os.environ.get("PGRG_SERVER_API_KEY", "").strip():
+        return
+    if insecure_no_auth:
+        click.echo(
+            f"WARNING: serving UNAUTHENTICATED on {host} (--insecure-no-auth). "
+            "Anyone on the network can ingest, query, and delete data.",
+            err=True,
+        )
+        return
+    click.echo(
+        f"Error: refusing to bind {host} without authentication.\n"
+        "The API allows unauthenticated ingest, query, and delete. Either:\n"
+        "  - set PGRG_SERVER_API_KEY to enable Bearer-token auth, or\n"
+        "  - bind loopback (the default, --host 127.0.0.1), or\n"
+        "  - pass --insecure-no-auth to accept the risk.",
+        err=True,
+    )
+    raise SystemExit(1)
+
+
+_HOST_HELP = "Bind address. Non-loopback requires PGRG_SERVER_API_KEY (or --insecure-no-auth)."
+_INSECURE_HELP = "Allow a non-loopback bind without PGRG_SERVER_API_KEY. Dangerous."
+
+
 @main.command()
+@click.option("--host", default="127.0.0.1", show_default=True, help=_HOST_HELP)
 @click.option("-p", "--port", default=8080, help="Port")
+@click.option("--insecure-no-auth", is_flag=True, help=_INSECURE_HELP)
 @click.pass_context
-def serve(ctx, port):
-    """Launch the API server."""
+def serve(ctx, host, port, insecure_no_auth):
+    """Launch the API server (binds 127.0.0.1 by default)."""
+    _refuse_insecure_bind(host, insecure_no_auth)
     try:
         import uvicorn
 
@@ -701,14 +833,17 @@ def serve(ctx, port):
         click.echo("Install server extras: pip install pg-raggraph[server]")
         raise SystemExit(1)
     app = create_app(**ctx.obj["kwargs"])
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host=host, port=port)
 
 
 @main.command()
+@click.option("--host", default="127.0.0.1", show_default=True, help=_HOST_HELP)
 @click.option("-p", "--port", default=8080, help="Port for web UI")
+@click.option("--insecure-no-auth", is_flag=True, help=_INSECURE_HELP)
 @click.pass_context
-def demo(ctx, port):
+def demo(ctx, host, port, insecure_no_auth):
     """Run the demo — ingest sample docs and launch web UI."""
+    _refuse_insecure_bind(host, insecure_no_auth)
     import webbrowser
 
     try:
@@ -759,7 +894,7 @@ def demo(ctx, port):
     webbrowser.open(f"http://localhost:{port}")
 
     app = create_app(**ctx.obj["kwargs"])
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
+    uvicorn.run(app, host=host, port=port, log_level="warning")
 
 
 # --- Migrate-embeddings subcommand group: online embedding-model migration ---

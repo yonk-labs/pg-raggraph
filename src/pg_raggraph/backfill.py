@@ -14,6 +14,7 @@ Both share ``claim_pending`` + ``extract_documents`` as the only primitives.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -36,14 +37,35 @@ _CONTENT_READ_BATCH = 64
 
 @dataclass
 class ExtractStats:
-    """Per-call extraction outcome — what was claimed vs what succeeded."""
+    """Per-call extraction outcome — what was claimed vs what succeeded.
+
+    ``degraded`` counts docs that flipped to 'ready' with partial yield —
+    some chunks errored but others produced entities (issue #93). Their
+    failure summary is preserved in ``documents.graph_error``.
+    ``chunks_failed`` is the total errored chunks across the whole call.
+    """
 
     claimed: int = 0
     ready: int = 0
     failed: int = 0
+    degraded: int = 0
+    chunks_failed: int = 0
     entities: int = 0
     relationships: int = 0
     errors: list[tuple[int, str]] = field(default_factory=list)
+
+
+class ExtractionFailedError(RuntimeError):
+    """Every entity-bearing path for a doc errored — zero yield, N chunks failed.
+
+    Raised by ``_extract_one`` so ``extract_documents`` marks the doc
+    'failed' (retryable via ``pgrg extract --include-failed``) instead of
+    silently flipping it to 'ready' with a hollow graph (issue #93).
+    """
+
+    def __init__(self, message: str, chunks_failed: int = 0):
+        super().__init__(message)
+        self.chunks_failed = chunks_failed
 
 
 @dataclass
@@ -168,6 +190,10 @@ async def extract_documents(
     separate small UPDATE marks the doc as 'failed' with the error captured
     in ``graph_error``.
 
+    Docs run in parallel, bounded by ``rag.config.doc_concurrency`` (same
+    knob the synchronous ingest fan-out honors). One doc failing never
+    affects its siblings.
+
     Idempotent on relationships after PR-002 (migration 013 + ON CONFLICT).
     Re-running on a 'ready' doc is also safe — the relationships INSERT
     falls through to the existing row's id via ON CONFLICT DO UPDATE.
@@ -185,16 +211,38 @@ async def extract_documents(
         return stats
 
     t0 = time.perf_counter()
-    for doc_id in doc_ids:
+
+    # Docs fan out in parallel, bounded by doc_concurrency (GAP-007) — each
+    # doc is already an independent transaction and claims came through SKIP
+    # LOCKED, so parallel docs are safe by construction. return_exceptions
+    # isolates failures: one doc's exception never cancels its siblings.
+    sem = asyncio.Semaphore(max(1, rag.config.doc_concurrency))
+
+    async def _one(doc_id: int):
+        async with sem:
+            return await _extract_one(rag, doc_id)
+
+    results = await asyncio.gather(*(_one(d) for d in doc_ids), return_exceptions=True)
+
+    # Aggregate post-gather in doc_ids order — counters and stats.errors stay
+    # deterministic regardless of task completion order.
+    for doc_id, res in zip(doc_ids, results):
         stats.claimed += 1
-        try:
-            per_doc = await _extract_one(rag, doc_id)
+        if not isinstance(res, BaseException):
+            per_doc = res
             stats.ready += 1
             stats.entities += per_doc["entities"]
             stats.relationships += per_doc["rels"]
-        except Exception as e:
+            stats.chunks_failed += per_doc.get("chunks_failed", 0)
+            if per_doc.get("chunks_failed"):
+                stats.degraded += 1
+        else:
+            e = res
             stats.failed += 1
-            err = f"{type(e).__name__}: {e}"
+            stats.chunks_failed += getattr(e, "chunks_failed", 0)
+            # ExtractionFailedError already reads "extraction failed on
+            # N/M chunks: …" — don't prefix the class name.
+            err = str(e) if isinstance(e, ExtractionFailedError) else f"{type(e).__name__}: {e}"
             stats.errors.append((doc_id, err))
             logger.warning("Extraction failed for doc %s: %s", doc_id, err)
             try:
@@ -216,6 +264,8 @@ async def extract_documents(
             claimed=stats.claimed,
             ready=stats.ready,
             failed=stats.failed,
+            degraded=stats.degraded,
+            chunks_failed=stats.chunks_failed,
             entities=stats.entities,
             relationships=stats.relationships,
             latency_ms=(time.perf_counter() - t0) * 1000,
@@ -349,14 +399,32 @@ async def _extract_one(rag: GraphRAG, doc_id: int) -> dict:
     path is post-hoc and operates on persisted chunks.
     """
     from pg_raggraph import _json_default
-    from pg_raggraph.extraction import extract_from_chunks, get_llm_provider
+    from pg_raggraph.extraction import (
+        config_with_prompt,
+        extract_from_chunks,
+        get_llm_provider,
+        resolve_extraction_prompt,
+    )
     from pg_raggraph.lede_extraction import ensure_lede_available, select_extractor
-    from pg_raggraph.resolution import resolve_entity
+    from pg_raggraph.resolution import merge_description, resolve_entity
 
-    doc = await rag.db.fetch_one("SELECT namespace FROM documents WHERE id = %s", (doc_id,))
+    doc = await rag.db.fetch_one(
+        "SELECT namespace, metadata FROM documents WHERE id = %s", (doc_id,)
+    )
     if not doc:
         raise ValueError(f"document {doc_id} not found")
     ns = doc["namespace"]
+    # #94: extract with the prompt this doc was ingested under (stamped into
+    # documents.metadata at ingest), falling back to the namespace map, then
+    # the worker's global config — the drain must not need the caller to
+    # re-specify. An unknown stamped name raises → doc lands in 'failed'
+    # with the error recorded, not silently extracted with the wrong prompt.
+    prompt_name = resolve_extraction_prompt(
+        rag.config,
+        namespace=ns,
+        stamped=(doc["metadata"] or {}).get("extraction_prompt"),
+    )
+    extract_config = config_with_prompt(rag.config, prompt_name)
 
     chunk_rows = await rag.db.fetch_all(
         "SELECT id, content, embedded_content, token_count, metadata "
@@ -380,22 +448,39 @@ async def _extract_one(rag: GraphRAG, doc_id: int) -> dict:
         return {"entities": 0, "rels": 0}
 
     lede_fn, _needs_llm = select_extractor(rag.config)
+    llm = None
     if lede_fn is not None:
         ensure_lede_available()
         extract_fn = lede_fn
-        llm = None
-    elif not rag.config.skip_extraction and rag.config.llm_base_url:
+    else:
+        extract_fn = extract_from_chunks
+    # llm+lede sets both lede_fn AND _needs_llm — it still wants the
+    # provider; without one it degrades to its deterministic leg.
+    if _needs_llm and not rag.config.skip_extraction and rag.config.llm_base_url:
         if rag._llm is None:
             rag._llm = get_llm_provider(rag.config)
         llm = rag._llm
-        extract_fn = extract_from_chunks
-    else:
+    if lede_fn is None and llm is None:
         # No extractor configured — pure-vector mode. Flip to ready since
         # there's nothing meaningful to backfill.
         await _mark_ready(rag, doc_id)
         return {"entities": 0, "rels": 0}
 
-    extraction_results = await extract_fn(chunks, llm, rag.db, rag.config)
+    extraction_results = await extract_fn(chunks, llm, rag.db, extract_config)
+
+    # Yield accounting (issue #93): errored chunks return failure-marked
+    # results indistinguishable from empty ones by shape alone. Count them
+    # so error-driven emptiness never masquerades as a clean 'ready'.
+    chunks_failed = sum(1 for r in extraction_results if r.failed)
+    failure_summary = None
+    if chunks_failed:
+        first_error = next(
+            (r.error for r in extraction_results if r.failed and r.error),
+            "unknown error",
+        )
+        failure_summary = (
+            f"extraction failed on {chunks_failed}/{len(chunks)} chunks: {first_error}"
+        )
 
     unique_entities: dict[str, dict] = {}
     chunk_to_entities: list[list[str]] = []
@@ -410,9 +495,12 @@ async def _extract_one(rag: GraphRAG, doc_id: int) -> dict:
                     "properties": {},
                 }
             else:
-                existing_desc = unique_entities[ent.name]["description"]
-                if ent.description and ent.description not in existing_desc:
-                    unique_entities[ent.name]["description"] += " " + ent.description
+                # PR-222: keep-first append with cap — no unbounded blobs.
+                unique_entities[ent.name]["description"] = merge_description(
+                    unique_entities[ent.name]["description"],
+                    ent.description,
+                    rag.config.entity_description_max_chars,
+                )
             names.append(ent.name)
         chunk_to_entities.append(names)
         chunk_to_rels.append(
@@ -429,11 +517,23 @@ async def _extract_one(rag: GraphRAG, doc_id: int) -> dict:
         )
 
     if not unique_entities:
-        await _mark_ready(rag, doc_id)
-        return {"entities": 0, "rels": 0}
+        if chunks_failed:
+            # Zero yield AND errored chunks → 'failed', not 'ready'. A doc
+            # that legitimately contains no entities (no chunk errored)
+            # stays plain ready below — zero yield alone is not an error.
+            raise ExtractionFailedError(failure_summary, chunks_failed=chunks_failed)
+        await _mark_ready(
+            rag,
+            doc_id,
+            extraction_meta=_yield_meta(len(chunks), 0, 0, 0),
+        )
+        return {"entities": 0, "rels": 0, "chunks_failed": 0}
 
     embedder = rag._get_embedder()
-    names_list = list(unique_entities.keys())
+    # Sorted, not insertion order: concurrent doc transactions (GAP-007
+    # parallel fan-out) resolving shared entities take row locks in
+    # resolve_entity — a deterministic order prevents ABBA deadlocks.
+    names_list = sorted(unique_entities.keys())
     entity_texts = [f"{name} {unique_entities[name]['description']}" for name in names_list]
     entity_embeddings = await rag._embed_texts_with_cache(entity_texts, embedder)
 
@@ -451,6 +551,7 @@ async def _extract_one(rag: GraphRAG, doc_id: int) -> dict:
                 db=tx,
                 config=rag.config,
                 properties=info.get("properties") or {},
+                source_document_id=doc_id,
             )
             entity_name_to_id[name] = eid
 
@@ -510,20 +611,56 @@ async def _extract_one(rag: GraphRAG, doc_id: int) -> dict:
                 )
                 rel_count += 1
 
+        # Partial yield with errored chunks → still 'ready' (the graph that
+        # DID extract is usable) but graph_error preserves the failure
+        # summary so status surfaces can show the degradation (issue #93).
+        # Clean extraction keeps the pre-existing graph_error = NULL.
         await tx.execute(
+            "UPDATE documents SET graph_status = 'ready', "
+            "graph_extracted_at = now(), graph_error = %s, "
+            "metadata = metadata || %s::jsonb "
+            "WHERE id = %s",
+            (
+                failure_summary[:2000] if failure_summary else None,
+                json.dumps(
+                    _yield_meta(len(chunks), chunks_failed, len(unique_entities), rel_count)
+                ),
+                doc_id,
+            ),
+        )
+
+    return {
+        "entities": len(unique_entities),
+        "rels": rel_count,
+        "chunks_failed": chunks_failed,
+    }
+
+
+def _yield_meta(chunks: int, chunks_failed: int, entities: int, relationships: int) -> dict:
+    """Per-doc extraction yield persisted to documents.metadata JSONB (#93)."""
+    return {
+        "extraction": {
+            "chunks": chunks,
+            "chunks_failed": chunks_failed,
+            "entities": entities,
+            "relationships": relationships,
+        }
+    }
+
+
+async def _mark_ready(rag: GraphRAG, doc_id: int, extraction_meta: dict | None = None) -> None:
+    if extraction_meta is None:
+        await rag.db.execute(
             "UPDATE documents SET graph_status = 'ready', "
             "graph_extracted_at = now(), graph_error = NULL "
             "WHERE id = %s",
             (doc_id,),
         )
-
-    return {"entities": len(unique_entities), "rels": rel_count}
-
-
-async def _mark_ready(rag: GraphRAG, doc_id: int) -> None:
+        return
     await rag.db.execute(
         "UPDATE documents SET graph_status = 'ready', "
-        "graph_extracted_at = now(), graph_error = NULL "
+        "graph_extracted_at = now(), graph_error = NULL, "
+        "metadata = metadata || %s::jsonb "
         "WHERE id = %s",
-        (doc_id,),
+        (json.dumps(extraction_meta), doc_id),
     )

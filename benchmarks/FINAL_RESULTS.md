@@ -85,7 +85,7 @@ Local vLLM Qwen3-Coder generates answers for both engines; same answers graded b
 #### Reading both corpora together
 
 - **Accuracy parity holds.** On SCOTUS (n=30) and NTSB (n=10), both engines land in the same accuracy band — neither dominates. AGE's hybrid retrieval scores 90.0% Qwen / 80.0% OpenAI on NTSB, sitting alongside pgrg's best modes. This is what you'd expect when both engines consume identical extractions: the storage-and-traversal layer doesn't change which chunks contain the answer, only the speed of finding them.
-- **The latency gap scales with corpus size.** AGE was 42–111× slower on SCOTUS (779 chunks); on NTSB (82 chunks) it's 5–9× slower. AGE's catastrophic plan estimates and full-table-scan tendencies hurt more as the graph grows. The architectural blocker (Cypher + pgvector can't combine in one query) is corpus-shape-independent; the size of the speedup is shape-dependent.
+- **The latency gap scales with corpus size.** AGE was 42–111× slower on SCOTUS (779 chunks; the naive-mode top end likely reflects adapter overhead — audit pending); on NTSB (82 chunks) it's 5–9× slower. AGE's catastrophic plan estimates and full-table-scan tendencies hurt more as the graph grows. The composition friction (Cypher-in-SQL + pgvector requires agtype casting and is documented only for Azure's build) is corpus-shape-independent; the size of the speedup is shape-dependent.
 - **Same fair-defaults caveat.** Both engines got the standard retrieval-relevant indexes (HNSW for vectors, GIN for FTS, typed labels for AGE). Tuning AGE more aggressively would close some of the gap; tuning specifics in [`research/apache-age-evaluation.md`](../research/apache-age-evaluation.md).
 
 #### Important read on NTSB specifically — graph mode doesn't help here
@@ -94,7 +94,7 @@ Look at the NTSB table: pgrg/naive scores 93.3% (Qwen) / 80.0% (OpenAI). pgrg/na
 
 This isn't a fluke or a measurement artifact (well, partly — see the n=10 caveat below — but the directional reading holds). It's a corpus-shape finding: **NTSB reports are self-contained narratives.** Each report has the pilot, weather, aircraft, accident sequence, and probable cause in one doc. Cross-incident questions in our set ("what role did pilot fatigue play across accidents?", "what patterns emerge across engine failure incidents?") are still answered by retrieving multiple self-contained reports via vector similarity; there's no entity chain to traverse that vector can't already follow.
 
-This is the **opposite** of pg-agents (909-doc dev codebase, +18.9% from graph boost) — there, answers chain across docs via shared entities (services → owners → commits → files). That's where graph earns its keep.
+This is the **opposite** of pg-agents (486-doc dev codebase, +19.3% top-score lift from graph boost — retrieval proxy; see `pg-agents-results.md`) — there, answers chain across docs via shared entities (services → owners → commits → files). That's where graph earns its keep.
 
 The honest takeaway: NTSB is a *negative example* for graph mode. The earlier 2026-04-12 blog 00 claim that "graph wins by 4 points on NTSB" was probably noise on a single run; an apples-to-apples re-run shows the gap collapses. **Use this corpus to argue that graph isn't always worth it, not the other way around.**
 
@@ -190,7 +190,7 @@ Honest reading:
 | Corpus | Doc shape | Best mode | Lift over `naive` |
 |---|---|---|---|
 | NTSB (10 self-contained reports) | Self-contained narratives | tied | ~0 pp — graph adds no value |
-| pg-agents (909 dev codebase docs) | Dense entity chains across files | hybrid | +18.9 pp — graph wins big |
+| pg-agents (486 dev codebase docs) | Dense entity chains across files | naive_boost | +19.3% top-score lift (retrieval proxy; hybrid was only +2.4% — see `pg-agents-results.md`) |
 | MuSiQue (1,700 multi-hop paragraphs) | Constructed for cross-doc chains | smart on 2-hop / naive_boost on 4-hop | +9-11 pp on 2-hop, mixed on 3-4 hop |
 
 Pattern: **graph mode's value scales with cross-document entity density and inversely with question depth.** Easy multi-doc questions (2-hop, dev codebase) → graph helps. Hard multi-hop questions (4-hop chains) → graph helps if it's a *little* graph (1-hop boost) but hurts if it's a *lot* (full hybrid traversal). Self-contained docs → graph adds nothing.

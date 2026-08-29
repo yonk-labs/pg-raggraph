@@ -1,0 +1,28 @@
+# Question set for the HorizonDB h2h run.
+#
+# gold_question: the ONLY question Microsoft's accelerator ships gold labels
+#   for (their demo query, verbatim). Recall@k is measured on this question
+#   alone — N=1. That is a hard limitation of their published eval assets,
+#   recorded honestly rather than padded with self-invented gold labels.
+#
+# latency_questions: additional legal-research queries in the same style,
+#   used ONLY for latency measurement (no gold labels exist for them, so no
+#   recall is computed). Same set for both arms.
+gold_question: "Water leaking into the apartment from the floor above."
+
+latency_questions:
+  - "Water leaking into the apartment from the floor above."
+  - "Landlord liability for injuries caused by defective plumbing fixtures."
+  - "Implied warranty of habitability in residential leases."
+  - "Tenant remedies when a landlord fails to repair known defects."
+  - "Municipal liability for surface water discharged onto private land."
+  - "Negligence claims arising from broken porcelain faucet handles."
+  - "Constructive eviction due to persistent water intrusion."
+  - "Damages for property loss caused by burst pipes in commercial buildings."
+  - "Duty of a building owner to maintain common areas in safe condition."
+  - "Liability of contractors for defective storm drainage construction."
+  - "Recovery for water damage caused by an upstairs neighbor's negligence."
+  - "Breach of the covenant of quiet enjoyment from recurring leaks."
+  - "Landlord's duty to disclose latent defects at the start of a tenancy."
+  - "Apportionment of fault between landlord and tenant for flooding damage."
+  - "Strict liability for abnormally dangerous water storage on premises."

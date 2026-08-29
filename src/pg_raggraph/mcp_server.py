@@ -50,6 +50,11 @@ def _check_path_allowed(path: str, allowed_roots: list[str]) -> str:
     """
     canonical = os.path.realpath(path)
     for root in allowed_roots:
+        # Canonicalize the root too — _resolve_allowed_roots already does,
+        # but this function must be total for any caller: on macOS /tmp is a
+        # symlink to /private/tmp, so an un-canonicalized root would reject
+        # every legitimate path under it.
+        root = os.path.realpath(root)
         # Require a proper path-component match so '/foo/bar' does not match
         # allowed root '/foo/ba'. Adding os.sep guards that.
         if canonical == root or canonical.startswith(root + os.sep):
@@ -101,15 +106,20 @@ def build_server(rag: GraphRAG):
         mode: str = "smart",
         namespace: str | None = None,
         profile: str | None = None,
+        top_k: int | None = None,
     ) -> dict:
         """Query the knowledge base — returns chunks with sources and scores.
 
         mode: smart (default) | naive | naive_boost | local | global | hybrid
+        top_k: cap how many chunks come back. Omit to use the profile default;
+            set a small value to keep the candidate list (and token budget) tight.
         """
 
         async def _body():
             try:
-                result = await rag.query(question, mode=mode, namespace=namespace, profile=profile)
+                result = await rag.query(
+                    question, mode=mode, namespace=namespace, profile=profile, top_k=top_k
+                )
                 return {
                     "query_mode": result.query_mode,
                     "confidence": result.confidence,
@@ -136,15 +146,20 @@ def build_server(rag: GraphRAG):
         mode: str = "smart",
         namespace: str | None = None,
         profile: str | None = None,
+        top_k: int | None = None,
     ) -> dict:
         """Query + grounded LLM answer with citations.
 
         Falls back to a top-chunk summary if no LLM is configured.
+        top_k: cap retrieval breadth for this answer. Omit to use the profile
+            default; lower it to trim the grounding context and token budget.
         """
 
         async def _body():
             try:
-                result = await rag.ask(question, mode=mode, namespace=namespace, profile=profile)
+                result = await rag.ask(
+                    question, mode=mode, namespace=namespace, profile=profile, top_k=top_k
+                )
                 return {
                     "answer": result.answer,
                     "confidence": result.confidence,

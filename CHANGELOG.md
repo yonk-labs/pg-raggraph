@@ -1,5 +1,675 @@
 # Changelog
 
+## Unreleased
+
+## 0.9.8 — 2026-07-17 (rare-token IDF-coverage bonus + lede entity-name hygiene)
+
+On template-near-duplicate corpora, retrieval scoring had no rarity
+signal anywhere in the stack: the query's discriminating tokens (exact
+ids, names, unique amounts) carried no extra weight, so the gold record
+deterministically missed top-k while slots filled with template siblings.
+Separately, spaCy NER span bleed was polluting lede-extracted entity
+names with markdown fragments.
+
+### Fixed
+
+- **Naive top-k deterministic miss on template-near-duplicate corpora
+  (#114).** On corpora where many documents share a near-identical template
+  (dispute records, tickets, SKUs), a query carrying rare discriminating
+  tokens (an exact id, a customer name, a unique amount) deterministically
+  excluded the gold record from top-k: ts_rank has no IDF, so siblings
+  matching many common template words outranked the docs matching the
+  query's rare tokens (bench forensics: the only docs containing the
+  query's unique ticket id sat at lexical rank 51/54), and RRF rank
+  fusion flattened what little signal survived while vector similarity
+  among near-duplicates is uniform noise. Fix: an IDF-coverage bonus
+  (`w_rare`, default 0.002 — calibrated on a MuSiQue/MHR 100-query
+  retrieval A/B: neutral on multi-hop semantic QA, still decisive on the
+  near-duplicate class; at 0.01 hop-1 anchor docs crowded lexically-
+  disjoint hop-2 answer docs out of top-k, MuSiQue span_recall −9pp)
+  added to every naive-family score expression —
+  `w_rare × (matched query IDF mass / total query IDF mass)`, computed
+  from the migration-016 `lexeme_stats` under any `lexical_backend`. The
+  bonus scores the same term set the tsquery searches (including
+  `retrieval_expansion` / alias terms), is score-additive by design
+  (rank-flattening a decisive df=1 match is the failure being fixed),
+  degrades to a no-op on pre-016 corpora without stats, and `w_rare=0`
+  restores the prior SQL byte-for-byte. Applies to the naive family AND
+  the `local`/`global`/`hybrid` graph builders — the graph-gated pool
+  has the same near-duplicate ordering blindness inside it; `naive_boost`
+  and `smart` inherit through the naive builders. Regression tests cover
+  the fleet geometry (gold recovered from a 16-doc name cohort under
+  naive / naive_boost / linear fusion), the exact-ID query class from
+  #103, graph-mode execution, and SQL-shape guards. Closes the #103
+  IDF-aware-scoring item; the tokenizer fix and #105 graph seeding cover
+  the rest, so #103 is closed with this release too.
+- **lede entity names polluted by NER span bleed.** en_core_web_sm 3.8.0
+  extends NER spans across line breaks into the next markdown bullet
+  (`"Lisa Wang\n- *"`), dirtying entity names in both deterministic lede
+  paths (resolution, seeding, display). `_clean_entity_name` cuts at the
+  first newline and strips bullet/emphasis punctuation; clean names pass
+  through byte-identical.
+
+### Changed
+
+- Two flaky-by-design tests made deterministic (ef_search assertion
+  isolated from #99 self-scaling; two-stage HNSW EXPLAIN turned into a
+  pure eligibility check) — the full suite now passes 1112/0.
+
+## 0.9.7 — 2026-07-17 (graph_analyze vocabulary guard + untyped expansion)
+
+A `graph_analyze` plan whose typed expansion named edge types that don't
+exist in the store expanded over nothing and silently returned seed-linked
+chunks only. Downstream this read as a traversal that systematically stops
+one hop short — every multi-hop answer naming the intermediate entity
+instead of the target (reported from bench forensics as #112).
+
+### Fixed
+
+- **`graph_analyze` silent zero-match expansion (#112).** A typed plan
+  whose `expand.rel_types` matched no stored edge types (e.g. requesting
+  `"related"` against a store whose extraction produced `OWNED_BY` /
+  `REPORTS_TO` / …) expanded to nothing and silently returned seed-linked
+  chunks only — downstream this read as "one hop short" (bench forensics:
+  0/64 hop2 answers, all naming the intermediate entity, 0 gold docs
+  retrieved). Two changes: `Expand(rel_types=None)` (now the default)
+  expands over ALL live edge types, parity with `traverse`; and a
+  vocabulary guard raises `ValueError` naming the namespace's real edge
+  vocabulary when requested `rel_types` (expand or score) match zero live
+  edges in a namespace that has live edges. Fused output also gains a
+  deterministic `chunk_id` tie-break. Regression tests cover the mismatch
+  guard, untyped 2-hop reach, and cross-namespace isolation of plan
+  results (the #112 symptom-2 falsification: retrieval cannot leak
+  another namespace's content).
+
+## 0.9.6 — 2026-07-17 (provenance-scoped relationship answer-context)
+
+`query()` attaches related entities and 1-hop relationships to every
+result — in every mode, including `naive` — and `answer.generate_answer`
+injects them into the synthesis prompt. The relationship fetch was
+namespace-wide: any edge touching a seed entity qualified, so a generic
+entity shared across documents ("reversal", "dispute") bridged every
+document in the namespace and other documents' actor/date facts reached
+the prompt. On corpora of near-identical cases the model answered with a
+different case's facts entirely (cross-document answer bleed, reported
+downstream as EnterpriseDB/bento#970).
+
+### Fixed
+
+- **Cross-document relationship bleed in the answer context (#113).**
+  Candidate 1-hop edges are now scoped to the retrieved chunks'
+  documents via `relationship_chunks` provenance, filtered before the
+  LIMIT so out-of-scope edges can't consume the 20 slots. Edges with no
+  provenance rows (manually seeded `known_relationships`) stay visible.
+  Regression tests cover bleed-exclusion, unprovenanced retention, and
+  multi-document retrieval scope.
+
+## 0.9.5 — 2026-07-14 (event-time supersession fix for evolving-knowledge chains)
+
+The same-id supersede path closed a predecessor's `effective_to` at ingest
+wall-clock time regardless of the document's actual event date. For an
+event-dated chain ingested in a single session, every superseded window
+became `[event_date, now]`, so any historical `as_of` query matched the
+entire chain prefix and version selection degenerated to vector similarity
+among near-identical versions instead of picking the version that was
+actually in effect at that point in time.
+
+### Fixed
+
+- **`as_of` version selection on event-time chains (#111).** An incoming
+  version carrying an explicit `effective_from` in metadata now closes its
+  predecessor at that value instead of ingest wall-clock time. Chains
+  without event stamps are unaffected — they keep the wall-clock close,
+  since ingest time IS their event time. Regression test covers a
+  3-version event-dated chain and asserts each superseded window closes
+  exactly where its successor opens.
+
+## 0.9.4 — 2026-07-13 (code_summary round-trip docs + e2e test)
+
+The chunkshop `code_summary` extractor → pg-raggraph `CODE_SYMBOL.description`
+path was already wired and tested in isolation, but only surfaced in two
+test names and a single deep-link in `docs/chunkshop-user-guide.md`. Users
+enabling the extractor (opt-in on the chunkshop side — stock YAML configs
+leave it off) had no cookbook entry explaining the swap from
+`"Code symbol {fqn}"` fallback to the real summary, and no test locked the
+end-to-end round-trip against the real chunkshop package.
+
+### Added
+
+- **`docs/cookbook/chunkshop-integration.md`** — new "Rich `CODE_SYMBOL`
+  descriptions (Pattern C + `code_summary`)" section with the chunkshop
+  YAML to enable the extractor.
+- **`src/pg_raggraph/chunkshop_bridge.py` module docstring** — surfaces
+  the `fqn` + `summary` → `CODE_SYMBOL.description` flow so a future
+  reader doesn't have to grep four modules to find it.
+- **`tests/unit/test_chunkshop_bridge.py::test_code_summary_extractor_round_trips_through_bridge`**
+  — runs the real `chunkshop.extractors.code_summary` on a tiny code
+  snippet, then threads the stamped metadata through `summaries_by_fqn`
+  → `attach_code_edges` → `code_edges_to_known_graph` and asserts the
+  symbol description equals the real summary, not the fallback.
+
+### No behavior change
+
+The code path existed already; this release just makes it discoverable and
+locks the contract so a future chunkshop refactor that breaks the
+round-trip fails CI instead of silently degrading symbol descriptions.
+
+## 0.9.3 — 2026-07-13 (dep bumps: click 8.3.2→8.4.2, pillow 12.2.0→12.3.0 — pip-audit clean)
+
+Re-release of 0.9.2 with the lockfile cleaned up: the original 0.9.2 wheel
+published before the weekly `pip-audit` job ran, and the lockfile change
+that clears six advisories (PYSEC-2026-2132 on click, PYSEC-2026-2253/
+2254/2255/2256/2257 on pillow) only protects CI/local resolution. Bumping
+the version so the wheel on PyPI also resolves to the fixed deps.
+
+### Fixed
+
+- **Six transitive-dep advisories cleared.** Both are transitive: `click`
+  via typer/fastembed/uvicorn/chunkshop, `pillow` via fastembed/chunkshop.
+  Resolved with `uv lock --upgrade-package click --upgrade-package pillow`.
+  Audit job is back to `No known vulnerabilities found`.
+
+## 0.9.2 — 2026-07-13 (graph_analyze API, lexical entity-seed leg, rel_type canonicalization)
+
+### Added
+
+- **`GraphRAG.graph_analyze()` — set-seeded, authority-scored graph
+  retrieval (#100).** The cap-gold-v1 Tier 3 shape (semantic top-K seed →
+  typed multi-hop expansion → in-degree authority over the expanded set →
+  structured metadata filter → RRF-fused top-N with provenance) promoted
+  from proven benchmark SQL to a public five-stage plan API:
+  `graph_analyze(seed=SemanticSeed(...)|ids|NameSeed(...),
+  expand=Expand(...), score=Authority(...), filter=MetadataFilter(...),
+  fuse=RRF(...))`. One SQL round-trip; every leg runs on existing indexes.
+  See `docs/cookbook/graph-analyze.md` and the design note
+  `docs/superpowers/specs/2026-07-11-graph-analyze-api-design.md`.
+
+### Fixed
+
+- **Local/global graph modes anchor on entity names, not just embeddings
+  (#105).** Traversal seeding was vector-kNN only, so opaque identifiers
+  (case ids, account numbers) and near-duplicate names anchored the wrong
+  entity and the gold chunk never entered the graph-gated candidate pool —
+  results were structurally insensitive to the lexical backend. A lexical
+  seed leg (`pg_trgm word_similarity` over entity names, indexed via a
+  trgm match-ANY gate on the query tokens) now unions with the vector
+  seeds, capped at `seed_k`, with verbatim/near-verbatim name mentions
+  ranked first. New knob: `seed_min_wsim` (default 0.6, mirrors pg_trgm's
+  `word_similarity_threshold`). Queries with no entity-name mention keep
+  byte-identical vector-only seeding.
+
+- **`rel_type` format canonicalized to `UPPER_SNAKE_CASE` (#106).** The
+  same underlying relation was landing as
+  `MAINTAINS_COMMERCIAL_BANKING_RELATIONSHIP_WITH` and
+  `MAINTAINS_RELATIONSHIP_WITH` in one corpus, breaking typed filters and
+  text-to-cypher. `ExtractedRelationship.model_post_init` now canonicalizes
+  `rel_type` to `UPPER_SNAKE_CASE` at the single construction seam every
+  extraction path goes through (LLM parse, lede extraction, cache
+  revalidation); empty-after-normalize falls back to `RELATED_TO`. The
+  default/dev/code prompts now require short generic rel_types (≤3 words)
+  with specifics pushed to `description` — the prose prompt's closed-set
+  rule already prevented this drift. Semantic synonym collapse
+  (`MAINTAINS` vs `MAINTAINS_RELATIONSHIP_WITH`) is deliberately out: it
+  needs judgment, not string rules; `traverse` / `graph_join` synonym
+  lists remain the query-side answer. See
+  `docs/cookbook/typed-graph-join.md`.
+
+## 0.9.1 — 2026-07-11 (fix: hyphen-aware lexical query tokenizer, exact-ID retrieval)
+
+### Fixed
+
+- **Hyphenated identifiers are retrievable through the lexical leg again
+  (#102/#103).** The query tokenizer (`_to_or_tsquery`) split on `\w+`, dropping
+  hyphens — desynced from PostgreSQL's parser, which stores `INC-0001` as the
+  lexemes `inc` + `-0001`. The query term `0001` never matched the indexed
+  `-0001`, so hyphen-numeric IDs (tickets, incidents, SKUs, region codes like
+  `us-east-1`) were unretrievable via `ts_rank`. The tokenizer now keeps the
+  hyphen compound (`inc-0001` → `to_tsquery` parses it to the phrase
+  `'inc' <-> '-0001'`, matching the index) **and** the split parts, so natural
+  hyphenated phrases (`multi-hop`) keep their part-matching recall rather than
+  collapsing to a strict compound phrase. Byte-identical for non-hyphenated
+  text. Note: under the default `lexical_backend="ts_rank"` this restores
+  *matching* but not full rank on near-duplicate corpora — IDF-aware scoring
+  (`lexical_backend="bm25"`) is the load-bearing win for exact-ID recall.
+
+## 0.9.0 — 2026-07-11 (retrieval & ingest: ef_search self-scale, no_fuzzy_merge_types, defer_lexical_stats bulk-load)
+
+### Retrieval & ingest (issues #97, #98, #99)
+
+- **`hnsw_ef_search` self-scales to the candidate set (#99).** Two-stage
+  retrieval fetches `retrieval_candidate_k` (default 200) nearest chunks, but
+  the shipped `hnsw_ef_search=40` default capped HNSW candidate depth below
+  that on larger corpora — the index returned fewer/worse candidates than the
+  re-scorer asked for. `db.py` now floors the effective ef_search at
+  `retrieval_candidate_k` when two-stage retrieval is on (the pgvector
+  `ef_search >= k` rule of thumb), rather than shipping a magic default. No
+  behavior change when two-stage retrieval is off.
+- **`no_fuzzy_merge_types` config (#98).** Generalizes the built-in
+  `CODE_SYMBOL` fuzzy-merge exemption to caller-declared entity types. At
+  11.5K-entity scale (cap-gold-v1) default fuzzy resolution merged 137 distinct
+  legal case captions (1.19%), destroying CITES edges; declaring
+  `no_fuzzy_merge_types=["CASE"]` keeps such types exact-match-only. Exact
+  `(namespace, name)` matches still merge.
+- **`ingest_records(defer_lexical_stats=True)` bulk-load path (#97).** The
+  migration-016 lexical-stats triggers row-lock hot lexemes for the rest of
+  each per-doc ingest transaction, serializing concurrent same-namespace ingest
+  (cap-gold-v1: ~9h projected for 11.5K docs vs ~15min deferred). A new
+  transaction-local GUC (migration 018) lets the triggers skip their work
+  during a deferred load; `search_vector` still populates, so the existing
+  `rebuild_lexical_stats()` reconstructs exact stats afterward. Only
+  `lexical_backend="bm25"` stats are stale in the load→rebuild window.
+
+### Performance
+
+- **Fuzzy name binds now use the trgm GIN index** (cap-gold-v1 engine-isolated
+  addendum: 31.8ms p50 fuzzy anchor bind on an 11.5K-entity namespace). The
+  `WHERE similarity(name, x) > threshold` gates in `find_entities`
+  (graph_join), `resolve_entity`, and `resolve_entity_lookup` (resolution)
+  forced sequential scans — that SQL form cannot use `idx_entity_name_trgm`.
+  They now gate on the index-eligible pg_trgm `%` operator, with
+  `pg_trgm.similarity_threshold` pinned to the configured min score via a
+  transaction-local `set_config` on the query's own connection (new optional
+  `set_local` kwarg on `Database`/`Transaction` `fetch_all`/`fetch_one`). The
+  strict `similarity() > threshold` gate is kept alongside, so result sets
+  and scores are byte-equivalent (`%` matches at `>=` threshold; the original
+  gate was strictly `>`). Measured at 11.5K entities (steady state, local
+  Docker PG): 13-15ms p50 -> ~1.7ms p50 (7.8-8.7x) for distinct-name probes;
+  EXPLAIN now shows a Bitmap Index Scan on `idx_entity_name_trgm`
+  (guarded by `tests/integration/test_trgm_index_binds.py`). Ingest-time
+  entity resolution gets the same fix — it ran one such scan per extracted
+  entity per document.
+
+### Test-suite trust (AAT-012: vacuous asserts, tie-passing graph suite, extraction-yield gate, migration parity)
+
+- **Vacuous assertions removed** (I-17). Four sites asserted things that
+  could not fail:
+  - `test_evolution_tier1.py` — `... or len(result.chunks) >= 0` padding
+    dropped; the retraction-hide test now genuinely asserts the
+    non-retracted doc's content is still retrieved.
+  - `test_retrieval.py` — `len(result.relationships) >= 0` is now `> 0`:
+    a local query on the seeded fixture must surface relationships.
+  - `test_metric_events.py` — `latency_ms >= 0` is now `> 0` (measured
+    wall time of real DB work).
+  - `test_ab_gate_compute_verdict_production.py` — the mock-judge test
+    asserted `judge_win_rate.graph >= 0.0` (win rates are non-negative by
+    construction); it now counts `llm_score` invocations and asserts the
+    judge scored every case on both legs.
+- **`test_graph_wins.py` is now honest about what it guards** (I-9). New
+  module docstring states the guard semantics (hybrid never regresses
+  below a working naive; graph superiority is certified by
+  `benchmarks/ab-gate/RESULTS.md`, not this suite). The nine weak
+  `hybrid_score >= naive_score` inequalities — which passed on 0 == 0
+  mutual failure — now also require `hybrid_score >= 1`, so a broken
+  graph leg fails instead of tying. Added
+  `test_00_multi_hop_edge_is_load_bearing`: a deterministic, always-on
+  (no LLM) test that hand-seeds a graph where one chunk is reachable
+  only via a relationship edge, asserts naive cannot retrieve it while
+  local/global/hybrid can, then deletes the edge and asserts the hit
+  disappears — proving the traversal, not entity seeding, produced it.
+- **Extraction-yield gate** (I-18, the issue #93 incident class: 111
+  entities where ~1,004 belonged). New
+  `tests/integration/test_extraction_yield.py` runs the deterministic
+  `lede_prose` extractor over the committed graph_wins fixture corpus in
+  default CI and asserts entity/relationship yield lands in a 0.6x-1.6x
+  band around a measured baseline (172 entities / 437 relationships),
+  plus five anchor entities that must always be lifted. Fails on
+  order-of-magnitude yield collapse; tolerates spaCy/chunker evolution.
+- **Migration-parity test** (F-23). New
+  `tests/integration/test_migration_parity.py` bootstraps one database
+  from the frozen pre-001 base schema
+  (`tests/fixtures/schema_base_v1.sql`) and upgrades it through the
+  production migration runner (001→head), bootstraps a second from
+  current `schema.sql`, and asserts table/column/index parity via
+  information_schema — catching the schema.sql-vs-migrations drift class
+  before it ships as a broken user upgrade. Currently green: the two
+  paths produce identical schemas.
+
+## 0.8.0 — 2026-07-07 (hardening: security P0s, claims corrections, merge audit, parallel drain)
+
+### Data integrity — entity resolution/merge hardening
+
+- **Entity descriptions are capped on every merge path** (PR-222,
+  GAP-022). Hot entities used to accumulate unbounded description blobs
+  (exact-match append, fuzzy merge, per-doc dedupe, backfill dedupe) that
+  degraded retrieval and were re-embedded on every merge. All write paths
+  now enforce keep-first append-until-cap via
+  `entity_description_max_chars` (default 2000, `0` disables); the DB
+  never stores past the cap. For corpora ingested before the cap, run
+  `rag.trim_entity_descriptions()` once per namespace (see
+  `docs/cookbook/entity-merge-audit.md`).
+- **Fuzzy entity merges are now audited and repairable** (AAT-004).
+  Every fuzzy auto-merge (`resolve_entity`, combined score ≥
+  `resolution_threshold`) and every manual `merge_entities()` call
+  writes a row to the new `entity_merge_log` table (migration 017):
+  namespace, surviving id, absorbed name/type/description/properties,
+  trgm/vec/combined scores, document provenance, timestamp. Read with
+  `rag.entity_merges(namespace, since=None, min_score=None)` or
+  `pgrg merges`; undo a false merge with `rag.split_entity(log_id)`
+  (recreates the absorbed entity; repoints nothing — manual repair aid).
+- **Version-suffixed names never fuzzy-merge** (AAT-004 I-1).
+  "PostgreSQL 14" vs "PostgreSQL 15" or "Python 3.11" vs "3.12" were
+  live merge candidates at default thresholds — exactly the versioned-docs
+  workload where a false merge silently corrupts the graph. Names that
+  differ only by a version-like token now refuse to merge, regardless of
+  score (generalizes the CODE_SYMBOL exemption). Configurable via
+  `entity_version_guard_pattern` (empty string disables).
+- **`merge_entities()` no longer drops data** (AAT-004 I-14). The manual
+  merge API used to repoint edges and DELETE the source entities without
+  copying description/properties — silently losing what the automatic
+  path preserved. It now unions descriptions (same keep-first-with-cap
+  dedup as auto-merge) and merges properties (keep entity wins on key
+  conflicts) before the delete, and writes `source='manual'` audit rows.
+
+### ⚠️ Changed — default behavior
+
+- **BREAKING: `pgrg serve` and `pgrg demo` now bind `127.0.0.1` by
+  default, not `0.0.0.0`** (PR-217, GAP-012). The server is no longer
+  reachable from other machines unless you opt in with `--host`. And a
+  non-loopback bind (e.g. `--host 0.0.0.0`) is **refused at startup**
+  unless `PGRG_SERVER_API_KEY` is set — the API allows unauthenticated
+  ingest, query, and delete, and exposing that to a network was a
+  footgun. To restore the old behavior knowingly, pass
+  `--host 0.0.0.0 --insecure-no-auth`. Containers are unaffected in
+  practice: the `Dockerfile` CMD now passes `--host 0.0.0.0` explicitly
+  and `docker-compose.prod.yml` requires `PGRG_SERVER_API_KEY` in
+  `.env`. If you scripted `pgrg serve` for LAN access, this WILL break
+  you — that's the point; set the key.
+
+### Security
+
+- **DSN passwords are redacted in `ConnectionError` messages** (PR-218,
+  GAP-013). `GraphRAG.connect()` failures used to embed the full DSN —
+  password included — in the exception the CLI prints and servers log.
+  The DSN now renders as `postgresql://user:***@host:port/db` via a new
+  `redact_dsn()` helper (`pg_raggraph.config`), keeping host/port/dbname
+  actionable. Handles URL and keyword-conninfo forms; never raises on
+  malformed input.
+- **Dependency CVEs cleared** (PR-216, GAP-011): urllib3 2.6.3 → 2.7.0
+  (PYSEC-2026-141/142) and pydantic-settings 2.13.1 → 2.14.2
+  (GHSA-4xgf-cpjx-pc3j) in `uv.lock`; a blocking `pip-audit` job now runs
+  in CI on every push plus a weekly cron, so lockfile CVEs fail loudly.
+- **Web UI no longer loads JavaScript from unpkg** (PR-219, GAP-014):
+  vis-network is vendored into `pg_raggraph/static/vendor/`
+  (shipped in the wheel), inline scripts moved to `static/app.js`, and the
+  Content-Security-Policy tightened from
+  `script-src 'self' https://unpkg.com 'unsafe-inline'` to
+  `script-src 'self'`. htmx was vendored in the first pass of this change
+  and then dropped entirely — the UI has zero `hx-` attributes; it is
+  plain `fetch` + vis-network.
+
+### Hardening (AAT audit)
+
+- **Sibling deps version-capped** (AAT-005): `chunkshop>=0.9.1,<0.10` and
+  `lede`/`lede-spacy` `>=0.4.5,<0.5` in `pyproject.toml`. The floors-only
+  pins let PyPI users resolve sibling versions CI never tested, and a
+  chunkshop release already broke production once (#79 OOM). Raising a
+  cap is now a deliberate per-release act. `chunkshop` was also added to
+  the `dev` extra so `pip install -e .[dev]` exercises the bridge tests
+  instead of skipping them.
+- **chunkshop private-seam coupling fails loud, with a CI canary**
+  (AAT-005): `CorpusCodeGraph` reads chunkshop's private
+  `_pending_calls`/`_pending_class_edges` lists for the #79 OOM spill
+  guard, and used to degrade *silently* to unbounded in-memory
+  accumulation when a chunkshop build lacked them. Init now probes the
+  seams and logs a warning naming the installed chunkshop version. New
+  `tests/unit/test_chunkshop_canary.py` asserts the seams exist on the
+  real extractor, so a lockfile bump of chunkshop fails the suite
+  instead of production.
+
+### Fixed
+
+- **Background extraction now honors `doc_concurrency`** (PR-221,
+  GAP-007). `extract_documents` drained its claimed batch strictly
+  sequentially — a deferred-ingest backlog moved at single-doc speed no
+  matter what profile the operator set (a real bake ran ~5 docs/min for
+  2+ hours). Docs now fan out via a semaphore-gated `asyncio.gather`
+  bounded by `rag.config.doc_concurrency`, with per-doc failure
+  isolation (one doc's error never cancels siblings) and deterministic
+  stats aggregation. Entity resolution locks rows in sorted-name order
+  so concurrent docs sharing entities can't ABBA-deadlock.
+  `--rate-limit-rps` still caps total docs/sec (the floor covers the
+  whole batch). The cookbook documents both scaling knobs:
+  in-process `doc_concurrency` and N daemons via SKIP LOCKED.
+- **`PGRG_SERVER_MAX_UPLOAD_MB=""` no longer breaks `/ingest`**
+  (PR-220). An empty value — exactly what `docker-compose.prod.yml`
+  passes when the var is unset in `.env` — hit `int("")` and 500'd
+  every upload; empty now means "use the default (100 MB)".
+
+### Added
+
+- **Prod compose plumbs the remaining server hardening env vars**
+  (PR-220, GAP-015): `docker-compose.prod.yml` passes through
+  `PGRG_SERVER_ALLOWED_ORIGINS` and `PGRG_SERVER_MAX_UPLOAD_MB`
+  (optional, defaulting to empty), and `.env.example` + DEPLOY.md
+  document all three `PGRG_SERVER_*` keys with placeholders.
+
+### Performance
+
+- **pgvector type registration is cached per pooled connection** instead of
+  re-running on every `fetch_all`/`execute` checkout. `register_vector_async`
+  issues 4 TypeInfo catalog queries; on the query path (~7 `fetch_all` calls
+  per `rag.query()`) that was ~20-25 ms of pure round-trip overhead per query
+  at localhost — h2h-shape wall p50 dropped 155.7 → 135.9 ms with rankings
+  byte-identical. The per-checkout `set_config` calls (statement_timeout,
+  hnsw.ef_search, RLS tenant) are unchanged — they're transactional, so a
+  pool rollback can undo them. Profiled and fixed via the new
+  `benchmarks/regressions/query_latency_profile.py`; the remaining
+  wall-vs-internal gap on the h2h benchmark (~105 ms) is context packing for
+  the default `"balanced"` retrieval profile (lede doc summarization) — a
+  design cost, removable per-call with `profile="raw"`.
+
+### Docs — claims corrections (AAT audit)
+
+- Public benchmark claims re-captioned to what their in-repo sources
+  support: the "+18.9% accuracy lift" headline is now "+19.3% top-score
+  improvement (retrieval-quality proxy, not graded answer accuracy)" with
+  the gold-QA non-transfer caveat linked; "15/15 perfect" split into
+  10/10 graded + 5 smoke checks; omitted negative results (SEC, NTSB,
+  MuSiQue) now listed; stale badges replaced with live ones.
+- The "AGE Cypher and pgvector cannot combine in a single query" claim is
+  retracted everywhere (README, CLAUDE.md, research docs) — the composed
+  CTE pattern runs on stock Apache AGE 1.5.0 (verified). Positioning now
+  rests on what survives per Microsoft's own docs: `shared_preload_libraries`
+  lockout on non-Azure managed Postgres, openCypher subset, manual graph
+  maintenance, and exponential path expansion beyond 3-4 hops. The
+  42-111× figure is re-scoped to 42-101× graph-assisted modes,
+  harness-scoped. ASSESSMENT.md refreshed with a dated claims-audit
+  section.
+
+## 0.7.0 — 2026-07-07 (out of alpha: ready signal, failure accounting, per-KB prompts, typed graph joins, BM25 + RRF default)
+
+### ⚠️ Changed — default behavior
+
+- **`fusion` default flipped `"linear"` → `"rrf"`** (issue #96, rung 1).
+  Rankings from `naive`/`local`/`global`/`hybrid` queries WILL change: legs
+  are now combined by Reciprocal Rank Fusion (scale-free) instead of a raw
+  weighted sum where the lexical leg's ~0.01–0.1 ts_rank scale made it a
+  near-no-op against cosine at 0.20 weight. Fused scores are small (~0.01)
+  and NOT comparable to linear scores — do not threshold on them. To
+  reproduce the old rankings byte-for-byte: `PGRG_FUSION=linear`,
+  `PGRGConfig(fusion="linear")`, or per-call `rag.query(..., fusion="linear")`.
+  `smart` mode is unaffected in its routing: its internal confidence probe is
+  pinned to linear (the 0.7/0.4 thresholds are calibrated on raw linear
+  scores).
+- **`fusion` now applies to `local` and `global` modes** (issue #96
+  addendum). Previously `fusion="rrf"` was silently inert outside the
+  naive family — a registered A/B on a global-mode cell replicated the
+  linear config without warning. Both graph modes now rank-fuse their
+  vector/lexical legs over the graph-selected chunk set; the constant
+  graph-presence leg drops out under rank fusion (it carries no ordering
+  information within the candidate set).
+
+### Fixed
+- **Silent extraction failure: per-chunk LLM errors no longer masquerade as
+  "no entities in this chunk" (#93).** `ExtractionResult` gained a
+  `failed`/`error` marker set by every extraction leg (LLM, deterministic
+  lede, and the `llm+lede` union). The backfill path (`pgrg extract`) now
+  applies yield accounting per doc: all chunks errored + zero yield →
+  `graph_status='failed'` with `graph_error = "extraction failed on N/M
+  chunks: <first error>"` (retryable); partial yield → `'ready'` but
+  degraded — `graph_error` keeps the failure summary instead of being
+  nulled. Genuinely-empty docs (no chunk errors) stay plain `'ready'`.
+  The synchronous ingest path counts a doc `degraded` on any chunk
+  failure (previously only when the whole extraction call raised) and
+  persists the same `graph_error` summary. The 2026-07-06 incident class
+  (mlx-lm truncation: 111 entities where 1,004 belonged, every status
+  green) is now visible from the status surface alone.
+
+### Added
+- **Per-doc extraction yield in `documents.metadata['extraction']`** —
+  `{"chunks", "chunks_failed", "entities", "relationships"}` persisted by
+  the backfill path (and `chunks/chunks_failed` by degraded sync ingests),
+  so corpus-wide yield audits are one JSONB query.
+- **`degraded` count in `graph_status_summary`** (thus `rag.status()`,
+  `/status`, `pgrg_status`, and `QueryResult.metadata`): ready docs whose
+  extraction had per-chunk failures (`graph_error` set). An overlay on
+  `ready`, not a fifth lifecycle state. Also on `ExtractStats`
+  (`degraded`, `chunks_failed`) and the `pgrg.backfill.extract` /
+  `pgrg.backfill.queue_depth` metrics.
+- **`pgrg extract --include-failed` re-queues degraded docs** too —
+  re-extraction is idempotent, so retrying a partial-yield doc only fills
+  in the missing graph.
+- **First-class ingest-completion signal** (#92). New public API:
+  `await rag.graph_ready(namespace)` (cheap bool — no doc is
+  `pending`/`processing`) and
+  `await rag.wait_for_graph_ready(namespace, timeout=600.0, poll_interval=2.0)`
+  (blocks until background extraction drains; returns the final per-status
+  summary; raises `TimeoutError` with the last-seen summary on timeout).
+  `'failed'` docs are terminal and don't block readiness. Replaces raw-SQL
+  polling of `documents.graph_status`.
+- `rag.status()` (and therefore `GET /status` and the MCP `pgrg_status`
+  tool) gains a derived `graph_ready: bool` alongside the existing counts.
+- FastAPI `/ask` response now includes `graph_status_summary` (top-level),
+  matching what `/query` already carried under `metadata` — partial-graph
+  answers are no longer indistinguishable from fully-baked ones.
+- **Per-KB (per-namespace) extraction prompt selection** (#94). The
+  extraction prompt is no longer forced to be process-global:
+  - `ingest()` / `ingest_records()` accept `extraction_prompt="prose"`
+    (etc.) as a per-call override.
+  - New config knob `extraction_prompt_by_namespace: dict[str, str]`
+    (env: `PGRG_EXTRACTION_PROMPT_BY_NAMESPACE` as JSON) maps namespace →
+    prompt, consulted on both the sync ingest path and the `pgrg extract`
+    drain.
+  - On deferred ingests the resolved prompt is stamped into
+    `documents.metadata['extraction_prompt']` (JSONB — no migration), so
+    those docs drain with the prompt they were ingested under regardless
+    of the drain worker's config. Sync docs are not stamped (extraction
+    already ran; `documents.metadata` surfaces on query results).
+  - Precedence: per-call kwarg > per-doc stamp > namespace map > global
+    `extraction_prompt`. Unknown prompt names raise `ValueError` at call
+    time (per-call kwarg fails before any write; a bad stamp/map entry
+    marks the doc `failed` at drain) instead of `get_prompt`'s silent
+    default fallback. The extraction LLM cache was already prompt-aware
+    (keyed on prompt name), so mixed prompts never collide.
+- **`lexical_backend="bm25"`** (issue #96, rung 2) — real Okapi BM25 for the
+  lexical leg, scored in SQL (k1/b tunable via `bm25_k1`/`bm25_b`): corpus
+  IDF from per-namespace stats tables (`lexeme_stats`,
+  `lexical_corpus_stats`, migration 016) maintained incrementally by
+  triggers — exact on insert/update/delete including the document-cascade
+  path, no drift. Default stays `"ts_rank"` (byte-identical SQL).
+  Pre-migration corpora need a one-time `rag.rebuild_lexical_stats()` /
+  `pgrg rebuild-lexical-stats`. See `docs/cookbook/bm25-lexical.md`.
+- **Identifier-preserving tokenization** (issue #96, rung 3) — the tsvector
+  parser splits `validate_billing_archive` into stemmed fragments regardless
+  of dictionary config; migration 016 injects underscored identifiers as
+  whole lexemes into `search_vector` (index side) and the BM25 query-term
+  set (query side, symmetric). Invisible to the ts_rank backend
+  (positionless lexemes rank 0 there); with `lexical_backend="bm25"` an
+  exact-identifier query ranks its defining chunk above tf-heavy prose.
+- **Typed graph traversal / dependent conjunctive joins (#95)** — new
+  `pg_raggraph.graph_join` module with thin `GraphRAG` wrappers:
+  - `rag.find_entities(name, fuzzy=…, entity_type=…)` — anchor binding via
+    exact + `pg_trgm` fuzzy match (seed on a *named* entity instead of the
+    whole-question embedding).
+  - `rag.traverse(entity_ids, rel_types=…, direction="out"|"in"|"any",
+    max_hops=…)` — typed, directed edge walk (recursive CTE, one round-trip)
+    returning each reached entity with the traversed edge and its provenance
+    chunk ids.
+  - `rag.graph_join(anchor, bind=[("LIVES_IN", "city"), …],
+    intersect=[("LOCATED_IN", "$city"), …])` — the dependent conjunctive join
+    ("restaurant in Maria's city that serves what she craves") executed as
+    indexed SQL joins in a single statement. Results carry the bound
+    intermediates, every supporting edge, and provenance chunk ids.
+    Rel-type matching is case-insensitive and accepts synonym lists
+    (`["LIKES", "CRAVES"]`); retracted edges never match. No schema changes —
+    uses the existing `idx_rel_src_type` / `idx_rel_dst_type` indexes
+    (EXPLAIN-verified no seq-scan at 2×10⁴ edges).
+    See `docs/cookbook/typed-graph-join.md`. Existing retrieval modes are
+    unchanged (additive).
+
+## 0.5.0a19 — 2026-07-06 (prose extraction: prompt, lede_prose, llm+lede union)
+
+### Added
+- **`extraction_prompt="prose"`** — extraction prompt for everyday text
+  (chats, reviews, bios, journals). Allows common-noun entities (foods,
+  activities), names dishes by base form ("wood-fired margherita pizza" →
+  `pizza`, `VARIANT_OF` for meaningful variants), resolves first-person
+  chat speakers, and constrains rel_types to a closed set
+  (`LIVES_IN`/`LIKES`/`SERVES`/`LOCATED_IN`/…; preference-verb synonyms —
+  crave, love, hate, favor — map onto `LIKES`/`DISLIKES`/`PREFERS` rather
+  than minting bespoke edge types). Motivated by a join-world
+  bake where the `default` prompt's proper-noun bias dropped person—craving
+  edges 19/24 times; an A/B over the same corpus/model showed the prose
+  variant recovering most join-critical links.
+- **`fact_extractor="lede_prose"`** — deterministic prose extraction: full
+  spaCy NER (now keeping `FAC`/`ORG` — venues, businesses) plus noun-chunk
+  head lemmas as entities ("the seafood gumbo" → `gumbo`, variant phrase
+  kept in the description), with the existing sentence co-occurrence edges.
+  Head-lemma canonicalization lands dish/thing variants on one node without
+  any resolution-threshold tuning. Presence is span-accurate from the parse
+  (no regex re-matching).
+- **`fact_extractor="llm+lede"`** — per-chunk union of LLM extraction and
+  `lede_prose`: typed, intent-carrying LLM edges plus a deterministic
+  co-occurrence net that guarantees in-sentence links survive when the LLM
+  drops them. Entities dedupe casefold (LLM's form wins; deterministic
+  relationship endpoints are remapped to the surviving name). Degrades to
+  the deterministic leg with a single warning when no LLM is configured.
+- **`llm_max_tokens` (PGRG_LLM_MAX_TOKENS, default 0 = omit)** — optional
+  `max_tokens` on JSON-mode extraction calls. Local OpenAI-compatible
+  servers with small completion defaults (mlx-lm's 512) silently truncate
+  extraction JSON, which parses as empty and yields no graph; set 4096 to
+  fix. Default omits the field — byte-identical requests for existing
+  deployments.
+
+## 0.5.0a18 — 2026-06-29 (append-only re-ingest preserves time-travel, #90)
+
+### Fixed
+- **Changed-content re-ingest no longer destroys version history when
+  evolution is on (#90).** Previously, re-ingesting a `source_path` with
+  changed content always `DELETE`d the prior document+chunks and inserted the
+  new one, so the evolution `as_of` time-travel filter could never return a
+  prior version — `document_versions` stayed empty and the old chunk was
+  physically gone. Now, when `evolution_tier != "off"`, re-ingest is
+  **append-only**: the prior current version is closed (`effective_to` set to
+  the supersede instant), the new version's `effective_from` is stamped at the
+  same instant, and a `document_versions` row records the `new → old`
+  supersession edge. An `as_of` *before* the update returns the prior version;
+  default retrieval still serves the current one (ranked above the superseded
+  one via the existing supersession penalty). The default `evolution_tier="off"`
+  keeps the destructive-replace behavior, so users who don't opt into
+  time-travel see no storage growth. Living-knowledge ingests keep their own
+  append-only path unchanged.
+
+## 0.5.0a16 — 2026-06-16 (caller top_k across SDK / HTTP / MCP, #84)
+
+### Fixed
+- **Caller-supplied `top_k` now bounds retrieval breadth across every surface
+  (#84).** Breadth was sourced solely from `profile_spec.top_k` (hardcoded to 25
+  on every profile rung), so `config.top_k` was vestigial and there was no
+  caller-facing lever to bound how many chunks came back — every query returned
+  ~25 regardless of intent. Now:
+  - `GraphRAG.query()` / `ask()` accept an explicit keyword-only
+    `top_k: int | None` that overrides the profile's breadth when provided (the
+    profile still owns `context_strategy`); `None` (default) keeps the profile
+    default, so existing behavior is unchanged. Values `< 1` raise `ValueError`.
+    With `rerank=True`, `top_k` is the post-rerank target (candidates are still
+    fetched at `top_k * rerank_factor`).
+  - HTTP `POST /query` and `POST /ask` (`server.py`) accept an optional `top_k`
+    form field, threaded through to retrieval.
+  - MCP `pgrg_query` and `pgrg_ask` (`mcp_server.py`) accept an optional `top_k`
+    argument, making the existing "query at a wider top_k" playbook hint in
+    `SERVER_INSTRUCTIONS` actually actionable.
+
 ## 0.5.0a15 — 2026-06-15 (out-of-band code-graph backfill for defer_extraction, #81)
 
 ### Added

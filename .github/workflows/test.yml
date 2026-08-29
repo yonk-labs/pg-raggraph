@@ -5,8 +5,27 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # Weekly dependency audit — catches new CVEs landing in uv.lock
+    # between pushes (PR-216 / GAP-021).
+    - cron: "0 6 * * 1"
 
 jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.12"
+      - name: Dependency audit
+        # --no-emit-project: the editable project has no hashable artifact,
+        # and pip-audit requires hashes for everything in the file.
+        run: |
+          uv export --format requirements-txt --no-emit-project -o requirements-audit.txt
+          uvx pip-audit -r requirements-audit.txt --no-deps
+
+
   lint:
     runs-on: ubuntu-latest
     strategy:
