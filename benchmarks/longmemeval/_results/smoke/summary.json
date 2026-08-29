@@ -1,0 +1,46 @@
+{
+  "pgrg:naive|gpt-4o-mini-2024-07-18": {
+    "overall": 0.5,
+    "n": 2,
+    "per_type": {
+      "knowledge-update": {
+        "acc": 0.5,
+        "n": 2
+      }
+    },
+    "avg_context_tokens": 3676
+  },
+  "pgrg:local|gpt-4o-mini-2024-07-18": {
+    "overall": 1.0,
+    "n": 2,
+    "per_type": {
+      "knowledge-update": {
+        "acc": 1.0,
+        "n": 2
+      }
+    },
+    "avg_context_tokens": 3693
+  },
+  "pgrg:smart|gpt-4o-mini-2024-07-18": {
+    "overall": 1.0,
+    "n": 2,
+    "per_type": {
+      "knowledge-update": {
+        "acc": 1.0,
+        "n": 2
+      }
+    },
+    "avg_context_tokens": 3699
+  },
+  "full_context|gpt-4o-mini-2024-07-18": {
+    "overall": 0.0,
+    "n": 2,
+    "per_type": {
+      "knowledge-update": {
+        "acc": 0.0,
+        "n": 2
+      }
+    },
+    "avg_context_tokens": 104730
+  }
+}

@@ -1,0 +1,250 @@
+{
+  "pgrg:naive|gpt-4o-mini-2024-07-18": {
+    "overall": 0.7916666666666666,
+    "n": 48,
+    "per_type": {
+      "knowledge-update": {
+        "acc": 1.0,
+        "n": 9
+      },
+      "single-session-user": {
+        "acc": 1.0,
+        "n": 8
+      },
+      "single-session-assistant": {
+        "acc": 1.0,
+        "n": 8
+      },
+      "multi-session": {
+        "acc": 0.5,
+        "n": 8
+      },
+      "single-session-preference": {
+        "acc": 0.5,
+        "n": 8
+      },
+      "temporal-reasoning": {
+        "acc": 0.7142857142857143,
+        "n": 7
+      }
+    },
+    "avg_context_tokens": 3735
+  },
+  "pgrg:naive|gpt-4o-2024-11-20": {
+    "overall": 0.8125,
+    "n": 48,
+    "per_type": {
+      "knowledge-update": {
+        "acc": 1.0,
+        "n": 9
+      },
+      "single-session-user": {
+        "acc": 0.875,
+        "n": 8
+      },
+      "single-session-assistant": {
+        "acc": 1.0,
+        "n": 8
+      },
+      "multi-session": {
+        "acc": 0.5,
+        "n": 8
+      },
+      "single-session-preference": {
+        "acc": 0.75,
+        "n": 8
+      },
+      "temporal-reasoning": {
+        "acc": 0.7142857142857143,
+        "n": 7
+      }
+    },
+    "avg_context_tokens": 3735
+  },
+  "pgrg:local|gpt-4o-mini-2024-07-18": {
+    "overall": 0.7291666666666666,
+    "n": 48,
+    "per_type": {
+      "knowledge-update": {
+        "acc": 0.8888888888888888,
+        "n": 9
+      },
+      "single-session-user": {
+        "acc": 0.875,
+        "n": 8
+      },
+      "single-session-assistant": {
+        "acc": 1.0,
+        "n": 8
+      },
+      "multi-session": {
+        "acc": 0.25,
+        "n": 8
+      },
+      "single-session-preference": {
+        "acc": 0.625,
+        "n": 8
+      },
+      "temporal-reasoning": {
+        "acc": 0.7142857142857143,
+        "n": 7
+      }
+    },
+    "avg_context_tokens": 3156
+  },
+  "pgrg:local|gpt-4o-2024-11-20": {
+    "overall": 0.7083333333333334,
+    "n": 48,
+    "per_type": {
+      "knowledge-update": {
+        "acc": 0.7777777777777778,
+        "n": 9
+      },
+      "single-session-user": {
+        "acc": 0.875,
+        "n": 8
+      },
+      "single-session-assistant": {
+        "acc": 1.0,
+        "n": 8
+      },
+      "multi-session": {
+        "acc": 0.25,
+        "n": 8
+      },
+      "single-session-preference": {
+        "acc": 0.625,
+        "n": 8
+      },
+      "temporal-reasoning": {
+        "acc": 0.7142857142857143,
+        "n": 7
+      }
+    },
+    "avg_context_tokens": 3156
+  },
+  "pgrg:smart|gpt-4o-mini-2024-07-18": {
+    "overall": 0.7291666666666666,
+    "n": 48,
+    "per_type": {
+      "knowledge-update": {
+        "acc": 1.0,
+        "n": 9
+      },
+      "single-session-user": {
+        "acc": 1.0,
+        "n": 8
+      },
+      "single-session-assistant": {
+        "acc": 0.875,
+        "n": 8
+      },
+      "multi-session": {
+        "acc": 0.125,
+        "n": 8
+      },
+      "single-session-preference": {
+        "acc": 0.625,
+        "n": 8
+      },
+      "temporal-reasoning": {
+        "acc": 0.7142857142857143,
+        "n": 7
+      }
+    },
+    "avg_context_tokens": 3523
+  },
+  "pgrg:smart|gpt-4o-2024-11-20": {
+    "overall": 0.7291666666666666,
+    "n": 48,
+    "per_type": {
+      "knowledge-update": {
+        "acc": 1.0,
+        "n": 9
+      },
+      "single-session-user": {
+        "acc": 0.875,
+        "n": 8
+      },
+      "single-session-assistant": {
+        "acc": 1.0,
+        "n": 8
+      },
+      "multi-session": {
+        "acc": 0.125,
+        "n": 8
+      },
+      "single-session-preference": {
+        "acc": 0.625,
+        "n": 8
+      },
+      "temporal-reasoning": {
+        "acc": 0.7142857142857143,
+        "n": 7
+      }
+    },
+    "avg_context_tokens": 3523
+  },
+  "full_context|gpt-4o-mini-2024-07-18": {
+    "overall": 0.625,
+    "n": 48,
+    "per_type": {
+      "knowledge-update": {
+        "acc": 0.8888888888888888,
+        "n": 9
+      },
+      "single-session-user": {
+        "acc": 0.75,
+        "n": 8
+      },
+      "single-session-assistant": {
+        "acc": 0.875,
+        "n": 8
+      },
+      "multi-session": {
+        "acc": 0.5,
+        "n": 8
+      },
+      "single-session-preference": {
+        "acc": 0.25,
+        "n": 8
+      },
+      "temporal-reasoning": {
+        "acc": 0.42857142857142855,
+        "n": 7
+      }
+    },
+    "avg_context_tokens": 105529
+  },
+  "full_context|gpt-4o-2024-11-20": {
+    "overall": 0.5208333333333334,
+    "n": 48,
+    "per_type": {
+      "knowledge-update": {
+        "acc": 0.6666666666666666,
+        "n": 9
+      },
+      "single-session-user": {
+        "acc": 0.625,
+        "n": 8
+      },
+      "single-session-assistant": {
+        "acc": 1.0,
+        "n": 8
+      },
+      "multi-session": {
+        "acc": 0.25,
+        "n": 8
+      },
+      "single-session-preference": {
+        "acc": 0.25,
+        "n": 8
+      },
+      "temporal-reasoning": {
+        "acc": 0.2857142857142857,
+        "n": 7
+      }
+    },
+    "avg_context_tokens": 105529
+  }
+}

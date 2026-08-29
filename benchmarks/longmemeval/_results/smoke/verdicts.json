@@ -1,0 +1,90 @@
+[
+  {
+    "question_id": "0977f2af",
+    "question_type": "knowledge-update",
+    "is_abstention": false,
+    "arm": "pgrg:naive",
+    "answer_model": "gpt-4o-mini-2024-07-18",
+    "hypothesis": "I don't have that information.",
+    "correct": false,
+    "context_tokens": 3798,
+    "retrieval_latency_ms": 347.5430076941848
+  },
+  {
+    "question_id": "0977f2af",
+    "question_type": "knowledge-update",
+    "is_abstention": false,
+    "arm": "pgrg:local",
+    "answer_model": "gpt-4o-mini-2024-07-18",
+    "hypothesis": "You invested in an Instant Pot before getting the Air Fryer.",
+    "correct": true,
+    "context_tokens": 3861,
+    "retrieval_latency_ms": 255.32144028693438
+  },
+  {
+    "question_id": "0977f2af",
+    "question_type": "knowledge-update",
+    "is_abstention": false,
+    "arm": "pgrg:smart",
+    "answer_model": "gpt-4o-mini-2024-07-18",
+    "hypothesis": "You invested in an Instant Pot before getting the Air Fryer.",
+    "correct": true,
+    "context_tokens": 3861,
+    "retrieval_latency_ms": 422.71480336785316
+  },
+  {
+    "question_id": "0977f2af",
+    "question_type": "knowledge-update",
+    "is_abstention": false,
+    "arm": "full_context",
+    "answer_model": "gpt-4o-mini-2024-07-18",
+    "hypothesis": "I don't have that information.",
+    "correct": false,
+    "context_tokens": 105403,
+    "retrieval_latency_ms": 0.0
+  },
+  {
+    "question_id": "0ddfec37",
+    "question_type": "knowledge-update",
+    "is_abstention": false,
+    "arm": "pgrg:naive",
+    "answer_model": "gpt-4o-mini-2024-07-18",
+    "hypothesis": "You added 15 autographed baseballs to your collection in the first three months.",
+    "correct": true,
+    "context_tokens": 3553,
+    "retrieval_latency_ms": 336.31522208452225
+  },
+  {
+    "question_id": "0ddfec37",
+    "question_type": "knowledge-update",
+    "is_abstention": false,
+    "arm": "pgrg:local",
+    "answer_model": "gpt-4o-mini-2024-07-18",
+    "hypothesis": "You have added 15 autographed baseballs to your collection in the first three months.",
+    "correct": true,
+    "context_tokens": 3525,
+    "retrieval_latency_ms": 275.3415321931243
+  },
+  {
+    "question_id": "0ddfec37",
+    "question_type": "knowledge-update",
+    "is_abstention": false,
+    "arm": "pgrg:smart",
+    "answer_model": "gpt-4o-mini-2024-07-18",
+    "hypothesis": "You have added 15 autographed baseballs to your collection in the first three months.",
+    "correct": true,
+    "context_tokens": 3537,
+    "retrieval_latency_ms": 295.09773571044207
+  },
+  {
+    "question_id": "0ddfec37",
+    "question_type": "knowledge-update",
+    "is_abstention": false,
+    "arm": "full_context",
+    "answer_model": "gpt-4o-mini-2024-07-18",
+    "hypothesis": "You mentioned that you added 20 autographed baseballs to your collection in the past few months. If you started collecting three months ago, that means you have added 20 autographed baseballs to your collection during that time.",
+    "correct": false,
+    "context_tokens": 104057,
+    "retrieval_latency_ms": 0.0
+  }
+]

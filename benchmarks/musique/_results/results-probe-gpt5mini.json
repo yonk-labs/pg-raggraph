@@ -1,0 +1,148 @@
+{
+  "summary": {
+    "by_mode": {
+      "naive": {
+        "n": 2,
+        "em_pct": 0.0,
+        "f1_pct": 1.9,
+        "support_recall_pct": 54.1,
+        "avg_latency_ms": 63261.0,
+        "openai_pct": 50.0
+      },
+      "local": {
+        "n": 2,
+        "em_pct": 0.0,
+        "f1_pct": 1.9,
+        "support_recall_pct": 54.1,
+        "avg_latency_ms": 17084.0,
+        "openai_pct": 50.0
+      }
+    },
+    "by_mode_hop": {
+      "naive": {
+        "2hop": {
+          "n": 0
+        },
+        "3hop": {
+          "n": 1,
+          "em_pct": 0.0,
+          "f1_pct": 0.2,
+          "support_recall_pct": 33.3,
+          "avg_latency_ms": 120577.0,
+          "openai_pct": 0.0
+        },
+        "4hop": {
+          "n": 1,
+          "em_pct": 0.0,
+          "f1_pct": 3.5,
+          "support_recall_pct": 75.0,
+          "avg_latency_ms": 5945.0,
+          "openai_pct": 100.0
+        }
+      },
+      "local": {
+        "2hop": {
+          "n": 0
+        },
+        "3hop": {
+          "n": 1,
+          "em_pct": 0.0,
+          "f1_pct": 0.7,
+          "support_recall_pct": 33.3,
+          "avg_latency_ms": 27779.0,
+          "openai_pct": 0.0
+        },
+        "4hop": {
+          "n": 1,
+          "em_pct": 0.0,
+          "f1_pct": 3.2,
+          "support_recall_pct": 75.0,
+          "avg_latency_ms": 6390.0,
+          "openai_pct": 100.0
+        }
+      }
+    }
+  },
+  "rows": [
+    {
+      "qid": "3hop1__632623_160713_77246",
+      "hop_class": "3hop",
+      "mode": "naive",
+      "question": "In the arabic dictionary what is the meaning of the word that also refers to the majority religion in India during the creation of the country where Rabwah is located?",
+      "gold": "the country of India",
+      "gold_aliases": [
+        "IND",
+        "IN",
+        "India",
+        "in",
+        "Republic of India"
+      ],
+      "answer": "# Muslim world\n\nThe term Muslim world, also known as Islamic world and the Ummah (Arabic: \u0623\u0645\u0629\u200e, meaning \"nation\" or \"community\") has different meanings. In a religious sense, the Islamic Ummah refers to those who adhere to the teachings of Islam, referred to as Muslims. In a cultural sense, the Muslim Ummah refers to Islamic civilization, exclusive of non-Muslims living in that civilization. In a modern geopolitical sense, the term \"Islamic Nation\" usually refers collectively to Muslim-majority ",
+      "em": 0,
+      "f1": 0.002,
+      "support_recall": 0.333,
+      "latency_ms": 120577.0,
+      "openai_score": 0,
+      "openai_rationale": "System answer discusses Islam, Muslim world, and Hindus but does not state that the Arabic dictionary meaning of the word is 'the country of India.' It fails to match the gold answer."
+    },
+    {
+      "qid": "3hop1__632623_160713_77246",
+      "hop_class": "3hop",
+      "mode": "local",
+      "question": "In the arabic dictionary what is the meaning of the word that also refers to the majority religion in India during the creation of the country where Rabwah is located?",
+      "gold": "the country of India",
+      "gold_aliases": [
+        "IND",
+        "IN",
+        "India",
+        "in",
+        "Republic of India"
+      ],
+      "answer": "The question asks for the Arabic dictionary meaning of the word that also refers to the **majority religion in India during the creation of the country where Rabwah is located**.\n\nFirst, identify the country where Rabwah is located:  \n- Rabwah (now Chenab Nagar) is in Pakistan, established as a settlement for Muslim refugees after the **Partition of India in 1947**.\n\nThe majority religion in India at the time of Partition (1947) was **Hinduism** \u2014 as confirmed by the 2011 Census data cited: *\u201cHi",
+      "em": 0,
+      "f1": 0.007,
+      "support_recall": 0.333,
+      "latency_ms": 27779.0,
+      "openai_score": 0,
+      "openai_rationale": "Gold answer is 'the country of India'. System answer is long and confused, alternates between 'India', 'al-Hind', and 'Hinduism' and does not clearly state the concise meaning as in the gold answer. Although it mentions 'al-Hind' means 'India', the response's contradictions and extra claims make it "
+    },
+    {
+      "qid": "4hop1__93601_46196_497223_15840",
+      "hop_class": "4hop",
+      "mode": "naive",
+      "question": "What is the abbreviated name of the exclusive platform of the video game named for the league with a halftime event just before the publishers clearing house sweepstakes drawing.",
+      "gold": "NES",
+      "gold_aliases": [
+        "Family Computer",
+        "Famicom",
+        "Nintendo Entertainment System"
+      ],
+      "answer": "The question asks for the abbreviated name of the exclusive platform of the video game named for the league with a halftime event just before the publishers clearing house sweepstakes drawing.\n\nLet\u2019s break this down:\n\n1. **Publishers Clearing House (PCH)**: The context states: *\"In 1995, PCH began the tradition of announcing winners of its $10 million prize just after the Super Bowl.\"* So the sweepstakes drawing is tied to the **Super Bowl**, and specifically, the announcement happens *just afte",
+      "em": 0,
+      "f1": 0.035,
+      "support_recall": 0.75,
+      "latency_ms": 5945.0,
+      "openai_score": 3,
+      "openai_rationale": "Answer is NES, which matches the gold answer and is supported by the retrieved chunk stating the game was exclusive to the Nintendo Entertainment System (NES)."
+    },
+    {
+      "qid": "4hop1__93601_46196_497223_15840",
+      "hop_class": "4hop",
+      "mode": "local",
+      "question": "What is the abbreviated name of the exclusive platform of the video game named for the league with a halftime event just before the publishers clearing house sweepstakes drawing.",
+      "gold": "NES",
+      "gold_aliases": [
+        "Family Computer",
+        "Famicom",
+        "Nintendo Entertainment System"
+      ],
+      "answer": "The question asks for the abbreviated name of the exclusive platform of the video game named for the league with a halftime event just before the publishers clearing house sweepstakes drawing.\n\nLet\u2019s break this down:\n\n1. **Publishers Clearing House (PCH) sweepstakes drawing**: The context states: *\"In 1995, PCH began the tradition of announcing winners of its $10 million prize just after the Super Bowl.\"* So the sweepstakes drawing is tied to the **Super Bowl**.\n\n2. **Halftime event just before ",
+      "em": 0,
+      "f1": 0.032,
+      "support_recall": 0.75,
+      "latency_ms": 6390.0,
+      "openai_score": 3,
+      "openai_rationale": "The system answer correctly identifies the league (NFL), the video game (NFL), its exclusive platform (Nintendo Entertainment System), and the platform's abbreviation (NES). The answer is supported by the provided chunks."
+    }
+  ]
+}

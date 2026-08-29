@@ -14,6 +14,16 @@
   `extract_v1` → `extract_v2` — the key carries the prompt name, not its
   text, so without the bump already-cached chunks would keep their
   old-direction extractions.
+- **graph_analyze SemanticSeed degenerate seeding (#115).** The seed stage
+  ranked chunks purely by cosine distance, so on template-near-duplicate
+  corpora a semantically-central hub chunk occupied the seed slots for
+  every query and traversal started from a noise anchor. SemanticSeed now
+  unions the #105 lexical entity-anchor leg into the seed set: entities
+  whose name appears (near-)verbatim in the query (trgm-gated
+  `word_similarity`, threshold pinned via `set_local`) seed directly, with
+  the `entity_type` restriction applied to both legs. Empty query tokens
+  make the leg match nothing — behavior identical to the prior
+  vector-only seeding.
 
 ## 0.9.8 — 2026-07-17 (rare-token IDF-coverage bonus + lede entity-name hygiene)
 
