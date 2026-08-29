@@ -12,6 +12,38 @@
   with synonym noise. All tiers remain opt-in; `aggressive` still degrades
   to `moderate` without a vector model. Matches stele's cross-domain
   finding. Details: `benchmarks/query-expansion-sweep-2026-08.md`.
+### Added
+
+- **`documents.source_type` origin label (#38).** Migration 019 adds a
+  nullable `source_type VARCHAR(64)` on documents (partial index on
+  `(namespace, source_type)`). Stamp it at ingest with
+  `ingest_records(..., source_type="crm_note")` — a per-record
+  `"source_type"` key overrides the call-level value — and it surfaces on
+  `ChunkResult.source_type` from every retrieval strategy, so multi-source
+  responses are identifiable (citation chips). Re-ingest without a stamp
+  keeps the stored value (COALESCE, same semantics as `version_label`).
+### Fixed
+
+- **Relationship direction inconsistent with its own description (#110).**
+  No extraction prompt ever defined what direction means — the LLM
+  oriented `(src, dst)` arbitrarily, agreeing with the edge's own
+  free-text description only ~half the time (passive-voice text is the
+  measured inversion trigger). All four prompts now carry the orientation
+  contract: `"source REL_TYPE target" must read as a true sentence`, with
+  the passive inversion called out. Extraction cache version bumped
+  `extract_v1` → `extract_v2` — the key carries the prompt name, not its
+  text, so without the bump already-cached chunks would keep their
+  old-direction extractions.
+- **graph_analyze SemanticSeed degenerate seeding (#115).** The seed stage
+  ranked chunks purely by cosine distance, so on template-near-duplicate
+  corpora a semantically-central hub chunk occupied the seed slots for
+  every query and traversal started from a noise anchor. SemanticSeed now
+  unions the #105 lexical entity-anchor leg into the seed set: entities
+  whose name appears (near-)verbatim in the query (trgm-gated
+  `word_similarity`, threshold pinned via `set_local`) seed directly, with
+  the `entity_type` restriction applied to both legs. Empty query tokens
+  make the leg match nothing — behavior identical to the prior
+  vector-only seeding.
 
 ## 0.9.8 — 2026-07-17 (rare-token IDF-coverage bonus + lede entity-name hygiene)
 

@@ -1,0 +1,57 @@
+{
+  "arm": "base",
+  "model": "gpt-5-mini",
+  "docs": 60,
+  "seed": 42,
+  "elapsed_s": 131.4,
+  "totals": {
+    "gold_pairs": 191,
+    "matched_pairs": 191,
+    "scored": 191,
+    "correct": 189,
+    "excluded": 0,
+    "errors": 0
+  },
+  "by_voice": {
+    "active": {
+      "correct": 75,
+      "scored": 75
+    },
+    "passive": {
+      "correct": 114,
+      "scored": 116
+    }
+  },
+  "misses": [
+    {
+      "doc": "reg-2",
+      "gold": {
+        "agent": "Sundrell Marine",
+        "patient": "Dunmere Systems",
+        "family": "OWNS",
+        "voice": "passive"
+      },
+      "rel": {
+        "source": "Dunmere Systems",
+        "target": "Sundrell Marine",
+        "rel_type": "HAS_CONTROL",
+        "description": "Sundrell Marine holds a controlling interest in Dunmere Systems."
+      }
+    },
+    {
+      "doc": "reg-9",
+      "gold": {
+        "agent": "Priya Okonkwo",
+        "patient": "Zephyrine Textiles",
+        "family": "FOUNDED",
+        "voice": "passive"
+      },
+      "rel": {
+        "source": "Priya Okonkwo",
+        "target": "Zephyrine Textiles",
+        "rel_type": "FOUNDED_BY",
+        "description": "Zephyrine Textiles was established by Priya Okonkwo as an independent venture."
+      }
+    }
+  ]
+}

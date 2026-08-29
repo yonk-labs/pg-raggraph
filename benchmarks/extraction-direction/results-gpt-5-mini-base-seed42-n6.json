@@ -1,0 +1,26 @@
+{
+  "arm": "base",
+  "model": "gpt-5-mini",
+  "docs": 6,
+  "seed": 42,
+  "elapsed_s": 17.8,
+  "totals": {
+    "gold_pairs": 16,
+    "matched_pairs": 16,
+    "scored": 16,
+    "correct": 16,
+    "excluded": 0,
+    "errors": 0
+  },
+  "by_voice": {
+    "active": {
+      "correct": 6,
+      "scored": 6
+    },
+    "passive": {
+      "correct": 10,
+      "scored": 10
+    }
+  },
+  "misses": []
+}

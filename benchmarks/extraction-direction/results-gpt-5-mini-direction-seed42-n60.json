@@ -1,0 +1,57 @@
+{
+  "arm": "direction",
+  "model": "gpt-5-mini",
+  "docs": 60,
+  "seed": 42,
+  "elapsed_s": 130.3,
+  "totals": {
+    "gold_pairs": 191,
+    "matched_pairs": 191,
+    "scored": 191,
+    "correct": 189,
+    "excluded": 0,
+    "errors": 0
+  },
+  "by_voice": {
+    "active": {
+      "correct": 75,
+      "scored": 75
+    },
+    "passive": {
+      "correct": 114,
+      "scored": 116
+    }
+  },
+  "misses": [
+    {
+      "doc": "reg-37",
+      "gold": {
+        "agent": "Halloway Energy",
+        "patient": "Zephyrine Robotics",
+        "family": "PARENT_OF",
+        "voice": "passive"
+      },
+      "rel": {
+        "source": "Zephyrine Robotics",
+        "target": "Halloway Energy",
+        "rel_type": "IS_DIVISION_OF",
+        "description": "Zephyrine Robotics operates as a division of Halloway Energy."
+      }
+    },
+    {
+      "doc": "reg-37",
+      "gold": {
+        "agent": "Ravelin Materials",
+        "patient": "Quillon Pharma",
+        "family": "PARENT_OF",
+        "voice": "passive"
+      },
+      "rel": {
+        "source": "Quillon Pharma",
+        "target": "Ravelin Materials",
+        "rel_type": "IS_DIVISION_OF",
+        "description": "Quillon Pharma operates as a division of Ravelin Materials."
+      }
+    }
+  ]
+}

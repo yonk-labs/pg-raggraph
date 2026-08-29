@@ -204,3 +204,39 @@ def test_untyped_expand_with_typed_authority():
 def test_fused_order_is_deterministic_on_ties():
     sql = build_analyze_sql([1], Expand(rel_types="CITES"), "", ("authority",))
     assert "ORDER BY score DESC, chunk_id" in sql
+
+
+# --- lexical seed leg (#115) -------------------------------------------------
+
+
+def test_semantic_seed_includes_lexical_entity_leg():
+    """SemanticSeed seeding was vector-only: on template-near-duplicate
+    corpora cosine collapses onto a hub chunk and the same noise seed
+    anchors every query (issue #115). The #105 lexical entity-anchor leg
+    unions name-matched entities into the seed set."""
+    sql = build_analyze_sql(
+        SemanticSeed("q"),
+        Expand(rel_types="CITES"),
+        "",
+        ("semantic", "authority"),
+    )
+    assert "lex_seed_entities AS" in sql
+    assert "word_similarity(e.name, %(seed_query)s)" in sql
+    assert "%(query_tokens)s" in sql
+    assert "%(seed_min_wsim)s" in sql
+
+
+def test_semantic_seed_entity_type_applies_to_both_legs():
+    sql = build_analyze_sql(
+        SemanticSeed("q", entity_type="case"),
+        Expand(rel_types="CITES"),
+        "",
+        ("semantic", "authority"),
+    )
+    assert sql.count("lower(e.entity_type) = lower(%(seed_entity_type)s)") == 2
+
+
+def test_id_seed_sql_has_no_lexical_leg():
+    sql = build_analyze_sql([1], Expand(rel_types="CITES"), "", ("authority",))
+    assert "lex_seed_entities" not in sql
+    assert "%(query_tokens)s" not in sql

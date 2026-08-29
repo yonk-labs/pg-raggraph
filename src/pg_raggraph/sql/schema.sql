@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS documents (
     effective_to   TIMESTAMPTZ,
     retracted      BOOLEAN DEFAULT FALSE,
     version_label  TEXT,
+    source_type    VARCHAR(64),
     created_at TIMESTAMPTZ DEFAULT now(),
     UNIQUE(namespace, content_hash)
 );
@@ -432,6 +433,8 @@ CREATE INDEX IF NOT EXISTS idx_doc_effective_from ON documents(effective_from);
 CREATE INDEX IF NOT EXISTS idx_doc_retracted ON documents(retracted) WHERE retracted;
 CREATE INDEX IF NOT EXISTS idx_doc_version_label ON documents(version_label)
     WHERE version_label IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_doc_ns_source_type ON documents(namespace, source_type)
+    WHERE source_type IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS document_versions (
     id                       BIGSERIAL PRIMARY KEY,
