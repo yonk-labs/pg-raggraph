@@ -67,6 +67,31 @@ def test_prompts_are_distinct():
     assert len(set(prompts)) == len(prompts)
 
 
+def test_all_prompts_state_direction_contract():
+    """#110: structured (src, dst) agreed with the edge's own description
+    only ~50% of the time — no prompt ever said what direction MEANS.
+    Every prompt must carry the orientation contract ('source REL_TYPE
+    target' reads as a true sentence) with the passive-voice inversion
+    called out, since passive text is the measured failure mode."""
+    for prompt in (
+        EXTRACTION_SYSTEM_PROMPT,
+        DEV_EXTRACTION_PROMPT,
+        CODE_EXTRACTION_PROMPT,
+        PROSE_EXTRACTION_PROMPT,
+    ):
+        assert "must read as a true sentence" in prompt
+        assert "owned by" in prompt  # the passive-inversion example
+
+
+def test_cache_key_versioned_past_direction_fix():
+    """The cache key carries the prompt NAME, not its text — the #110
+    prompt hardening must bump the version prefix, or already-cached
+    chunks keep their old-direction extractions forever."""
+    import hashlib
+
+    assert _cache_key("x") != hashlib.sha256(b"extract_v1:default:x").hexdigest()
+
+
 class _FakeResp:
     def raise_for_status(self):
         pass
