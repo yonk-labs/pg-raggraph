@@ -1,0 +1,346 @@
+{
+  "summary": {
+    "by_mode": {
+      "naive": {
+        "n": 8,
+        "em_pct": 0.0,
+        "f1_pct": 0.6,
+        "support_recall_pct": 55.2,
+        "avg_latency_ms": 2020.0,
+        "qwen_pct": 8.3
+      },
+      "local": {
+        "n": 8,
+        "em_pct": 0.0,
+        "f1_pct": 0.0,
+        "support_recall_pct": 49.0,
+        "avg_latency_ms": 1686.0,
+        "qwen_pct": 8.3
+      }
+    },
+    "by_mode_hop": {
+      "naive": {
+        "2hop": {
+          "n": 2,
+          "em_pct": 0.0,
+          "f1_pct": 2.4,
+          "support_recall_pct": 50.0,
+          "avg_latency_ms": 2812.0,
+          "qwen_pct": 0.0
+        },
+        "3hop": {
+          "n": 5,
+          "em_pct": 0.0,
+          "f1_pct": 0.0,
+          "support_recall_pct": 53.3,
+          "avg_latency_ms": 1757.0,
+          "qwen_pct": 6.7
+        },
+        "4hop": {
+          "n": 1,
+          "em_pct": 0.0,
+          "f1_pct": 0.0,
+          "support_recall_pct": 75.0,
+          "avg_latency_ms": 1745.0,
+          "qwen_pct": 33.3
+        }
+      },
+      "local": {
+        "2hop": {
+          "n": 2,
+          "em_pct": 0.0,
+          "f1_pct": 0.0,
+          "support_recall_pct": 25.0,
+          "avg_latency_ms": 1794.0,
+          "qwen_pct": 0.0
+        },
+        "3hop": {
+          "n": 5,
+          "em_pct": 0.0,
+          "f1_pct": 0.0,
+          "support_recall_pct": 53.3,
+          "avg_latency_ms": 1630.0,
+          "qwen_pct": 6.7
+        },
+        "4hop": {
+          "n": 1,
+          "em_pct": 0.0,
+          "f1_pct": 0.0,
+          "support_recall_pct": 75.0,
+          "avg_latency_ms": 1750.0,
+          "qwen_pct": 33.3
+        }
+      }
+    }
+  },
+  "rows": [
+    {
+      "qid": "3hop1__632623_160713_77246",
+      "hop_class": "3hop",
+      "mode": "naive",
+      "question": "In the arabic dictionary what is the meaning of the word that also refers to the majority religion in India during the creation of the country where Rabwah is located?",
+      "gold": "the country of India",
+      "gold_aliases": [
+        "IND",
+        "IN",
+        "India",
+        "in",
+        "Republic of India"
+      ],
+      "answer": "Islam",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 0.333,
+      "latency_ms": 2243.0,
+      "qwen_score": 0,
+      "qwen_rationale": "The question asks for the meaning of a specific word in an Arabic dictionary. The word described is 'Hind' (which refers to India and is the root for the majority religion 'Hinduism' in the context of the riddle's logic, though the gold answer is slightly ambiguous, it points to the country). The sy"
+    },
+    {
+      "qid": "3hop1__632623_160713_77246",
+      "hop_class": "3hop",
+      "mode": "local",
+      "question": "In the arabic dictionary what is the meaning of the word that also refers to the majority religion in India during the creation of the country where Rabwah is located?",
+      "gold": "the country of India",
+      "gold_aliases": [
+        "IND",
+        "IN",
+        "India",
+        "in",
+        "Republic of India"
+      ],
+      "answer": "Islam",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 0.333,
+      "latency_ms": 1442.0,
+      "qwen_score": 0,
+      "qwen_rationale": "The question asks for the meaning of a specific word in an Arabic dictionary. The word described is 'Hind' (which refers to India and is the root for the majority religion 'Hinduism' in the context of the riddle's logic, or more simply, the question is a riddle where the answer is the word itself). "
+    },
+    {
+      "qid": "4hop1__93601_46196_497223_15840",
+      "hop_class": "4hop",
+      "mode": "naive",
+      "question": "What is the abbreviated name of the exclusive platform of the video game named for the league with a halftime event just before the publishers clearing house sweepstakes drawing.",
+      "gold": "NES",
+      "gold_aliases": [
+        "Family Computer",
+        "Famicom",
+        "Nintendo Entertainment System"
+      ],
+      "answer": "NFL",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 0.75,
+      "latency_ms": 1745.0,
+      "qwen_score": 1,
+      "qwen_rationale": "The system identifies the name of the league (NFL) rather than the abbreviated name of the exclusive platform (NES) requested by the question. While it correctly identifies the subject matter, it fails to answer the specific question asked."
+    },
+    {
+      "qid": "4hop1__93601_46196_497223_15840",
+      "hop_class": "4hop",
+      "mode": "local",
+      "question": "What is the abbreviated name of the exclusive platform of the video game named for the league with a halftime event just before the publishers clearing house sweepstakes drawing.",
+      "gold": "NES",
+      "gold_aliases": [
+        "Family Computer",
+        "Famicom",
+        "Nintendo Entertainment System"
+      ],
+      "answer": "NFL",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 0.75,
+      "latency_ms": 1750.0,
+      "qwen_score": 1,
+      "qwen_rationale": "The system identifies the name of the league (NFL) rather than the abbreviated name of the exclusive platform (NES) requested by the question. While the system correctly identifies the subject matter, it fails to answer the specific question asked."
+    },
+    {
+      "qid": "2hop__58939_189318",
+      "hop_class": "2hop",
+      "mode": "naive",
+      "question": "Where was Obama's opponent in his first election educated?",
+      "gold": "National War College",
+      "gold_aliases": [],
+      "answer": "Harvard Law School",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 0.5,
+      "latency_ms": 2163.0,
+      "qwen_score": 0,
+      "qwen_rationale": "The system answer identifies Obama's own education (Harvard Law School) instead of his opponent's. Furthermore, the retrieved chunks do not contain information regarding where his opponent (John McCain) was educated, making the answer both factually incorrect relative to the gold answer and unsuppor"
+    },
+    {
+      "qid": "2hop__58939_189318",
+      "hop_class": "2hop",
+      "mode": "local",
+      "question": "Where was Obama's opponent in his first election educated?",
+      "gold": "National War College",
+      "gold_aliases": [],
+      "answer": "Harvard Law School",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 0.5,
+      "latency_ms": 2092.0,
+      "qwen_score": 0,
+      "qwen_rationale": "The system answer identifies Obama's own education (Harvard Law School) instead of his opponent's education. Furthermore, the retrieved chunks do not contain the information necessary to answer the question (the gold answer 'National War College' is not present in the provided context)."
+    },
+    {
+      "qid": "3hop1__30240_740597_41132",
+      "hop_class": "3hop",
+      "mode": "naive",
+      "question": "How many times did plague occur in the birthplace of the person who used the spice route that the Ottoman Empire controlled?",
+      "gold": "22",
+      "gold_aliases": [],
+      "answer": "INSUFFICIENT",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 0.667,
+      "latency_ms": 1773.0,
+      "qwen_score": 0,
+      "qwen_rationale": "The system answer 'INSUFFICIENT' is not a factual answer to the question. It fails to provide the numerical value required by the gold answer and does not attempt to derive the answer from the provided context."
+    },
+    {
+      "qid": "3hop1__30240_740597_41132",
+      "hop_class": "3hop",
+      "mode": "local",
+      "question": "How many times did plague occur in the birthplace of the person who used the spice route that the Ottoman Empire controlled?",
+      "gold": "22",
+      "gold_aliases": [],
+      "answer": "INSUFFICIENT",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 0.667,
+      "latency_ms": 1733.0,
+      "qwen_score": 0,
+      "qwen_rationale": "The system answer 'INSUFFICIENT' is not a correct answer to the question. It fails to provide the numerical value requested and does not attempt to derive the answer from the provided context."
+    },
+    {
+      "qid": "3hop1__254856_400692_51423",
+      "hop_class": "3hop",
+      "mode": "naive",
+      "question": "What is the name of the castle found in the birthplace of the performer of Falling Out?",
+      "gold": "Casa Loma",
+      "gold_aliases": [],
+      "answer": "INSUFFICIENT",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 0.333,
+      "latency_ms": 1450.0,
+      "qwen_score": 0,
+      "qwen_rationale": "The system answer 'INSUFFICIENT' is not a correct answer to the question. While the retrieved chunks provide information about the performer (Serena Ryder) and her birthplace (Millbrook, Ontario), they do not contain the name of the castle (Casa Loma) required to answer the question."
+    },
+    {
+      "qid": "3hop1__254856_400692_51423",
+      "hop_class": "3hop",
+      "mode": "local",
+      "question": "What is the name of the castle found in the birthplace of the performer of Falling Out?",
+      "gold": "Casa Loma",
+      "gold_aliases": [],
+      "answer": "Bellver Castle",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 0.667,
+      "latency_ms": 1485.0,
+      "qwen_score": 0,
+      "qwen_rationale": "The system answer is incorrect. The performer of 'Falling Out' is Serena Ryder, who was born in Millbrook, Ontario. The gold answer (Casa Loma) is likely the intended answer for a different context or a specific trivia fact, but the system's answer 'Bellver Castle' is not supported by the connection"
+    },
+    {
+      "qid": "3hop1__145290_443779_52195",
+      "hop_class": "3hop",
+      "mode": "naive",
+      "question": "Who is the president of the new country who has jointly established a Commission on Truth and Friendship with the birth country of Satyo Husodo?",
+      "gold": "Francisco Guterres",
+      "gold_aliases": [],
+      "answer": "INSUFFICIENT",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 1.0,
+      "latency_ms": 1902.0,
+      "qwen_score": 0,
+      "qwen_rationale": "The system answer is 'INSUFFICIENT', which means it failed to provide any information or answer the question, even though the retrieved chunks contained enough information to identify the birth country (Indonesia) and the commission (Indonesia-Timor Leste Commission of Truth and Friendship)."
+    },
+    {
+      "qid": "3hop1__145290_443779_52195",
+      "hop_class": "3hop",
+      "mode": "local",
+      "question": "Who is the president of the new country who has jointly established a Commission on Truth and Friendship with the birth country of Satyo Husodo?",
+      "gold": "Francisco Guterres",
+      "gold_aliases": [],
+      "answer": "Susilo Bambang Yudhoyono",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 0.667,
+      "latency_ms": 2009.0,
+      "qwen_score": 0,
+      "qwen_rationale": "The system answer is incorrect. The gold answer is Francisco Guterres. The system answer (Susilo Bambang Yudhoyono) was the president of Indonesia (the birth country of Satyo Husodo), not the president of the 'new country' (East Timor) who jointly established the commission."
+    },
+    {
+      "qid": "3hop1__160324_131905_41948",
+      "hop_class": "3hop",
+      "mode": "naive",
+      "question": "What body of water was dry land during the last ice age, besides the Irish Channel and the sea near the former Atlantic Hotel?",
+      "gold": "English Channel",
+      "gold_aliases": [
+        "The Channel"
+      ],
+      "answer": "North Sea",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 0.333,
+      "latency_ms": 1418.0,
+      "qwen_score": 1,
+      "qwen_rationale": "The system answer (North Sea) is mentioned in the retrieved chunks as being dry land during the last ice age, but it fails to provide the specific answer required by the gold answer (English Channel). While the North Sea was indeed dry land according to the text, the question asks for the body of wa"
+    },
+    {
+      "qid": "3hop1__160324_131905_41948",
+      "hop_class": "3hop",
+      "mode": "local",
+      "question": "What body of water was dry land during the last ice age, besides the Irish Channel and the sea near the former Atlantic Hotel?",
+      "gold": "English Channel",
+      "gold_aliases": [
+        "The Channel"
+      ],
+      "answer": "North Sea",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 0.333,
+      "latency_ms": 1481.0,
+      "qwen_score": 1,
+      "qwen_rationale": "The system answer (North Sea) is mentioned in the retrieved chunks as being dry land during the last ice age, but it fails to provide the specific answer required by the gold answer (English Channel). While the North Sea was indeed dry land according to the text, the question asks for the body of wa"
+    },
+    {
+      "qid": "2hop__283_574195",
+      "hop_class": "2hop",
+      "mode": "naive",
+      "question": "Where was the person who said she is the reigning national voice educated?",
+      "gold": "National Institute of Dramatic Art",
+      "gold_aliases": [
+        "NIDA"
+      ],
+      "answer": "The person who said she is the reigning national voice is Beyonc\u00e9. According to the context, Baz Luhrmann wrote in 2013: \"Right now, she is the heir-apparent diva of the USA \u2014 the reigning national voice.\"\n\nBeyonc\u00e9 was educated at the High School for the Performing and Visual Arts in Houston, Texas, and later attended the University of Houston for a brief period before dropping out to pursue her music career.\n\nHowever, the question asks where she was educated, and the most notable formal educati",
+      "em": 0,
+      "f1": 0.047,
+      "support_recall": 0.5,
+      "latency_ms": 3462.0,
+      "qwen_score": 0,
+      "qwen_rationale": "The system answer hallucinates a connection to Beyonc\u00e9 and provides information not found in the retrieved chunks. The retrieved chunks do not contain the answer to the question, and the system's claim about Beyonc\u00e9 is not supported by the provided context."
+    },
+    {
+      "qid": "2hop__283_574195",
+      "hop_class": "2hop",
+      "mode": "local",
+      "question": "Where was the person who said she is the reigning national voice educated?",
+      "gold": "National Institute of Dramatic Art",
+      "gold_aliases": [
+        "NIDA"
+      ],
+      "answer": "Princeton, New Jersey",
+      "em": 0,
+      "f1": 0.0,
+      "support_recall": 0.0,
+      "latency_ms": 1495.0,
+      "qwen_score": 0,
+      "qwen_rationale": "The system answer 'Princeton, New Jersey' is not found in the retrieved chunks, nor does it match the gold answer. The chunks provided do not contain the information necessary to answer the question correctly."
+    }
+  ]
+}

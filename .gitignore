@@ -36,3 +36,5 @@ benchmarks/e2e/snapshots/*.pgcustom
 !benchmarks/e2e/subsets/*.json
 !benchmarks/e2e/snapshots/*.manifest.json
  benchmarks/ab-gate/mhr-corpus.json
+benchmarks/longmemeval/_results/retrieval.json
+benchmarks/longmemeval/_results/retrieval-50.json
