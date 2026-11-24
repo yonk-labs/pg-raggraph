@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS documents (
     id BIGSERIAL PRIMARY KEY,
     namespace TEXT NOT NULL,
     content_hash TEXT NOT NULL,
+    input_fingerprint TEXT,
     source_path TEXT,
     metadata JSONB DEFAULT '{}',
     effective_from TIMESTAMPTZ,
@@ -53,6 +54,9 @@ CREATE TABLE IF NOT EXISTS documents (
     created_at TIMESTAMPTZ DEFAULT now(),
     UNIQUE(namespace, content_hash)
 );
+
+CREATE INDEX IF NOT EXISTS idx_documents_source_latest
+    ON documents (namespace, md5(source_path), id DESC);
 
 -- Chunks: preserve source text + embeddings.
 -- content          = raw chunk body (audit / grep / provenance).
@@ -125,6 +129,8 @@ CREATE TABLE IF NOT EXISTS relationship_chunks (
     provenance TEXT DEFAULT 'extracted',
     PRIMARY KEY (relationship_id, chunk_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_relationship_chunks_chunk ON relationship_chunks (chunk_id);
 
 -- Entity-merge audit log (mirrors migration 017, AAT-004). Records every
 -- fuzzy auto-merge and manual merge_entities() call — what was absorbed,

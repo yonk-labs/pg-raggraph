@@ -201,3 +201,20 @@ def test_code_summary_extractor_round_trips_through_bridge():
     entities, _ = code_edges_to_known_graph(edges, summaries=summaries)
     by_name = {e["name"]: e["description"] for e in entities}
     assert by_name["pkg.math.add"] == stamped_summary
+
+
+def test_bucket_callees_handles_overlaps_ties_endpoints_and_unsorted_calls():
+    from types import SimpleNamespace
+
+    from pg_raggraph.chunkshop_bridge import _bucket_callees
+
+    spans = [(1, 30), (3, 8), (4, 9), (5, 6), (None, None)]
+    chunks = [SimpleNamespace(metadata={"start_line": s, "end_line": e}) for s, e in spans]
+    calls = [{"line": n} for n in [9, 4, 30, None, 6, 3, 5, 31, 4]]
+    assert _bucket_callees(calls, chunks) == [
+        [calls[2]],
+        [calls[1], calls[5], calls[8]],
+        [calls[0]],
+        [calls[4], calls[6]],
+        [],
+    ]

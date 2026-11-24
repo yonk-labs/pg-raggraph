@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import struct
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -69,6 +70,37 @@ def _json_default(obj):
     if isinstance(obj, datetime):
         return obj.isoformat()
     return str(obj)
+
+
+def _pre_chunked_fingerprint(header, chunks):
+    """Hash a supplied materialization one chunk at a time, using pgvector's float32 precision."""
+    digest = sha256()
+
+    def add(value):
+        digest.update(len(value).to_bytes(8, "big"))
+        digest.update(value)
+
+    def add_json(value):
+        add(
+            json.dumps(
+                value, sort_keys=True, default=_json_default, separators=(",", ":")
+            ).encode()
+        )
+
+    add_json(header)
+    for chunk in chunks:
+        if "content" not in chunk or "embedding" not in chunk:
+            raise ValueError("pre_chunked entries must include 'content' and 'embedding'")
+        add_json({key: value for key, value in chunk.items() if key != "embedding"})
+        vector = chunk["embedding"]
+        add(struct.pack(f"<{len(vector)}f", *vector))
+    return digest.hexdigest()
+
+
+_LATEST_IMPORT = (
+    "SELECT id, input_fingerprint FROM documents WHERE namespace = %(ns)s "
+    "AND md5(source_path) = md5(%(path)s) AND source_path = %(path)s ORDER BY id DESC LIMIT 1"
+)
 
 
 class _JSONLogFormatter(logging.Formatter):
@@ -703,6 +735,8 @@ class GraphRAG:
     ):
         """Ingest documents from in-memory records — no disk roundtrip.
 
+        Returns counts for ingested, skipped, failed, degraded, entities, and rels.
+
         Use this when your source data lives in another database, an API,
         a queue, or anywhere that's not the filesystem. The classic
         pattern for same-database CRM/ERP pipelines:
@@ -924,6 +958,15 @@ class GraphRAG:
         # materialized list/tuple is validated eagerly up front to preserve the
         # historical fail-fast contract: a bad row raises before ANY document is
         # written. Streams validate per-record as they are pulled (issue #46).
+        stats = {
+            "ingested": 0,
+            "skipped": 0,
+            "failed": 0,
+            "degraded": 0,
+            "entities": 0,
+            "rels": 0,
+        }
+
         is_stream = hasattr(records, "__aiter__") or not hasattr(records, "__len__")
         total = None
         if not is_stream:
@@ -932,7 +975,7 @@ class GraphRAG:
                 _validate_record(i, rec)
             if not records:
                 _progress("No records to process.")
-                return
+                return stats
             total = len(records)
             _progress(f"Processing {total} records (in-memory ingest).")
         else:
@@ -975,15 +1018,6 @@ class GraphRAG:
             llm = self._llm
         if lede_fn is None and llm is None:
             _progress("Extraction disabled — ingesting as pure vector RAG.")
-
-        stats = {
-            "ingested": 0,
-            "skipped": 0,
-            "failed": 0,
-            "degraded": 0,
-            "entities": 0,
-            "rels": 0,
-        }
 
         async def _process_record(idx: int, rec: dict):
             async with doc_sem:
@@ -1158,6 +1192,7 @@ class GraphRAG:
             skipped=stats["skipped"],
             failed=stats["failed"],
         )
+        return stats
 
     async def _ingest_one_file(
         self,
@@ -1285,11 +1320,31 @@ class GraphRAG:
 
         # Delta check (read-only)
         c_hash = content_hash_fn(content)
-        existing = await self.db.fetch_one(
-            "SELECT id FROM documents WHERE namespace = %s AND content_hash = %s",
-            (ns, c_hash),
-        )
-        if existing:
+        fingerprint = None
+        if pre_chunked is None:
+            unchanged = await self.db.fetch_one(
+                "SELECT id FROM documents WHERE namespace = %s AND content_hash = %s",
+                (ns, c_hash),
+            )
+        else:
+            fingerprint = _pre_chunked_fingerprint(
+                (
+                    file_path,
+                    c_hash,
+                    metadata,
+                    known_entities,
+                    known_relationships,
+                    source_type,
+                    skip_llm_for_this_doc,
+                    defer_extraction,
+                    extraction_prompt,
+                    code_source_content,
+                ),
+                pre_chunked,
+            )
+            latest = await self.db.fetch_one(_LATEST_IMPORT, {"ns": ns, "path": file_path})
+            unchanged = latest and latest["input_fingerprint"] == fingerprint
+        if unchanged:
             logger.debug(f"Skipped (unchanged): {file_path}")
             return None
 
@@ -1558,6 +1613,16 @@ class GraphRAG:
         from pg_raggraph.resolution import resolve_entity
 
         async with self.db.transaction() as tx:
+            if fingerprint is not None:
+                # Two imports can finish extraction together, even on different workers.
+                # Serialize replacement and recheck the latest committed version.
+                await tx.execute(
+                    "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                    (json.dumps([ns, file_path]),),
+                )
+                latest = await tx.fetch_one(_LATEST_IMPORT, {"ns": ns, "path": file_path})
+                if latest and latest["input_fingerprint"] == fingerprint:
+                    return None
             if defer_lexical_stats:
                 # Transaction-local: the migration-018 lexstats triggers honor
                 # this and skip their lock-contended upserts for this doc's
@@ -1592,10 +1657,11 @@ class GraphRAG:
             close_at = (metadata or {}).get("effective_from") or supersede_ts
             stale = await tx.fetch_one(
                 "SELECT id, content_hash, metadata FROM documents "
-                "WHERE namespace = %s AND source_path = %s AND content_hash != %s "
+                "WHERE namespace = %(ns)s AND md5(source_path) = md5(%(path)s) "
+                "AND source_path = %(path)s AND (content_hash != %(hash)s OR %(refresh)s) "
                 "  AND effective_to IS NULL "
                 "ORDER BY effective_from DESC NULLS LAST, id DESC LIMIT 1",
-                (ns, file_path, c_hash),
+                {"ns": ns, "path": file_path, "hash": c_hash, "refresh": fingerprint is not None},
             )
             if stale:
                 if keep_history:
@@ -1606,8 +1672,36 @@ class GraphRAG:
                     )
                     logger.info(f"Superseded prior version of {file_path} (history retained)")
                 else:
+                    if fingerprint is not None:
+                        # Remove imported edges whose only evidence is being replaced.
+                        # Other documents' evidence and independently created edges survive.
+                        await tx.execute(
+                            "DELETE FROM relationships r WHERE r.namespace = %s "
+                            "AND r.properties->>'source' = 'chunkshop_code_edges' "
+                            "AND r.id IN (SELECT rc.relationship_id FROM relationship_chunks rc "
+                            "JOIN chunks c ON c.id = rc.chunk_id WHERE c.document_id = %s) "
+                            "AND NOT EXISTS (SELECT 1 FROM relationship_chunks rc "
+                            "JOIN chunks c ON c.id = rc.chunk_id WHERE rc.relationship_id = r.id "
+                            "AND c.document_id <> %s)",
+                            (ns, stale["id"], stale["id"]),
+                        )
                     await tx.execute("DELETE FROM documents WHERE id = %s", (stale["id"],))
                     logger.info(f"Replaced stale version of {file_path}")
+
+            if fingerprint is not None:
+                # Preserve the public text hash when available. Distinct sources or retained
+                # historical versions can have identical text and different materializations.
+                await tx.execute(
+                    "SELECT pg_advisory_xact_lock(hashtextextended(%s, 1))",
+                    (json.dumps([ns, c_hash]),),
+                )
+                occupied = await tx.fetch_one(
+                    "SELECT id FROM documents WHERE namespace = %s AND content_hash = %s",
+                    (ns, c_hash),
+                )
+                if occupied:
+                    prior_id = latest["id"] if latest else 0
+                    c_hash = content_hash_fn(f"{fingerprint}:{prior_id}")
 
             # Insert document with any caller-supplied evolution metadata.
             # ON CONFLICT uses COALESCE so a re-ingest without metadata doesn't
@@ -1679,8 +1773,8 @@ class GraphRAG:
                 "INSERT INTO documents "
                 "(namespace, content_hash, source_path, metadata, "
                 " effective_from, effective_to, retracted, version_label, "
-                " source_type, graph_status, graph_error) "
-                "VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s) "
+                " source_type, graph_status, graph_error, input_fingerprint) "
+                "VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s, %s) "
                 "ON CONFLICT (namespace, content_hash) DO UPDATE "
                 "SET source_path = EXCLUDED.source_path, "
                 "    metadata = documents.metadata || EXCLUDED.metadata, "
@@ -1708,6 +1802,7 @@ class GraphRAG:
                     source_type,
                     graph_status_value,
                     extraction_error[:2000] if extraction_error else None,
+                    fingerprint,
                     retracted_explicit,
                 ),
             )
@@ -2580,7 +2675,7 @@ class GraphRAG:
         **Production retrofit path.** Use from a separate maintenance
         script, NOT during application startup. The default
         ``connect()`` flow uses non-concurrent CREATE INDEX which
-        takes an ACCESS EXCLUSIVE lock — fine on fresh deployments
+        takes a SHARE lock — fine on fresh deployments
         but blocks all writes on live tables with millions of rows.
 
         Typical flow:
@@ -2592,7 +2687,6 @@ class GraphRAG:
         2. From a maintenance shell or one-off job::
 
                rag = GraphRAG(...)
-               await rag.connect()  # skips empty config slots
                results = await rag.apply_metadata_indexes_concurrently()
                for r in results:
                    print(r)
@@ -2616,7 +2710,10 @@ class GraphRAG:
         See ``docs/cookbook/metadata-indexes.md`` → "Production
         retrofit guide" for the full recipe.
         """
-        return await self.db.apply_metadata_indexes_concurrently()
+        from pg_raggraph.db import Database
+
+        db = self._db or Database(self.config)
+        return await db.apply_metadata_indexes_concurrently()
 
     async def status(self, namespace: str | None = None) -> dict:
         """Get graph statistics, including background-extraction status counts."""

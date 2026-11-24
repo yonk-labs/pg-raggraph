@@ -22,6 +22,7 @@ class FakeGraphRAG:
     async def ingest_records(self, records, namespace=None):
         self.records = records
         self.namespace = namespace
+        return {"ingested": len(records), "skipped": 0, "failed": 0}
 
     async def status(self, namespace=None):
         return {
@@ -108,7 +109,7 @@ def test_ingest_chunkshop_table_imports_code_edges(monkeypatch):
     )
 
     assert result.exit_code == 0, result.output
-    assert "imported code relationships: 1" in result.output
+    assert "Namespace entities: 4, relationships: 5." in result.output
     record = FakeGraphRAG.instances[0].records[0]
     assert record["entities"][0]["name"] == "pkg.alpha"
     assert record["relationships"][0]["rel_type"] == "CALLS"
@@ -122,3 +123,26 @@ def test_ingest_chunkshop_table_requires_dsn_without_db():
 
     assert result.exit_code == 1
     assert "--chunkshop-dsn is required" in result.output
+
+
+def test_cli_reports_failed_documents_and_exits_nonzero(monkeypatch):
+    async def fail_ingest(self, records, namespace=None):
+        return {"ingested": 0, "skipped": 1, "failed": 1}
+
+    monkeypatch.setattr(FakeGraphRAG, "ingest_records", fail_ingest)
+    monkeypatch.setattr(cli, "GraphRAG", FakeGraphRAG)
+    monkeypatch.setattr(chunkshop_bridge, "fetch_records_from_table", lambda *a, **kw: [{}, {}])
+    result = CliRunner().invoke(
+        main,
+        [
+            "--db",
+            "postgresql://pgrg",
+            "ingest-chunkshop-table",
+            "--schema",
+            "kb",
+            "--table",
+            "chunks",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "Imported 0 Chunkshop docs. Skipped: 1, failed: 1." in result.output

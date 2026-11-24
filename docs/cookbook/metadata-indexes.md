@@ -353,7 +353,7 @@ Both coexist: config sets the baseline at deploy time; runtime API tunes per wor
 
 ## Production retrofit guide
 
-The auto-create DDL inside `connect()` is **non-CONCURRENTLY** by design — it runs inside the schema-bootstrap flow with an `ACCESS EXCLUSIVE` lock for the duration of each `CREATE INDEX`. For fresh deployments the chunks/documents tables are empty and the lock is invisible. For retrofitting an existing production database with millions of rows, you have two options.
+The auto-create DDL inside `connect()` is **non-CONCURRENTLY** by design — it runs inside the schema-bootstrap flow with a `SHARE` lock for the duration of each `CREATE INDEX`. For fresh deployments the chunks/documents tables are empty and the lock is invisible. For retrofitting an existing production database with millions of rows, you have two options.
 
 ### Option 1 (recommended) — `rag.apply_metadata_indexes_concurrently()`
 
@@ -371,19 +371,13 @@ rag = GraphRAG(
     metadata_indexes_gin=True,
     document_metadata_indexes_gin=True,
 )
-await rag.connect()   # connect() is a no-op for config keys whose
-                      # indexes don't exist yet — won't fire the
-                      # non-concurrent path because the connect() helpers
-                      # only see the current config; if you've already
-                      # deployed the new config, just call this method
-                      # *before* the app restart.
 results = await rag.apply_metadata_indexes_concurrently()
 for r in results:
     print(r)
 await rag.close()
 ```
 
-Each result is a dict: `{"ok": bool, "table": ..., "kind": ..., "key": ..., "object_name": ..., "error": ...}`. Mirrors the runtime API shape. Writes continue to flow throughout — `CREATE INDEX CONCURRENTLY` does NOT take the `ACCESS EXCLUSIVE` lock; it does two passes and a brief metadata lock at the end.
+Each result is a dict: `{"ok": bool, "table": ..., "kind": ..., "key": ..., "object_name": ..., "error": ...}`. Mirrors the runtime API shape. Writes can continue during both table scans of a concurrent index build.
 
 After the helper returns, restart the app normally. `connect()`'s `IF NOT EXISTS` finds each index already present and the loop is a no-op.
 

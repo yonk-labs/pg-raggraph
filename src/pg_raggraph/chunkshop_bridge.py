@@ -30,6 +30,7 @@ you get the generic fallback; the bridge does not enforce this.
 
 from __future__ import annotations
 
+import heapq
 import logging
 import re
 from collections.abc import Iterable
@@ -345,25 +346,34 @@ def _bucket_callees(callees: list[dict[str, Any]], cs_chunks) -> list[list[dict[
     line, so a call inside a method lands on the method chunk, not its enclosing
     class chunk. Callees with no line, or outside every span, are dropped.
     """
-    spans: list[tuple[int | None, int | None]] = [
-        ((cs.metadata or {}).get("start_line"), (cs.metadata or {}).get("end_line"))
-        for cs in cs_chunks
-    ]
+    spans = []
     buckets: list[list[dict[str, Any]]] = [[] for _ in cs_chunks]
-    for callee in callees:
-        line = callee.get("line")
-        if line is None:
-            continue
-        best_i: int | None = None
-        best_width: int | None = None
-        for i, (start, end) in enumerate(spans):
-            if start is None or end is None or not (start <= line <= end):
-                continue
-            width = end - start
-            if best_width is None or width < best_width:
-                best_i, best_width = i, width
-        if best_i is not None:
-            buckets[best_i].append(callee)
+    for index, chunk in enumerate(cs_chunks):
+        metadata = chunk.metadata or {}
+        start, end = metadata.get("start_line"), metadata.get("end_line")
+        if start is not None and end is not None:
+            spans.append((start, end, index))
+    spans.sort()
+
+    # Sweep the distinct call lines. The heap prefers the narrowest active
+    # span, then the original chunk index (the historical tie breaker).
+    owners = {}
+    active = []
+    next_span = 0
+    for line in sorted({call["line"] for call in callees if call.get("line") is not None}):
+        while next_span < len(spans) and spans[next_span][0] <= line:
+            start, end, index = spans[next_span]
+            heapq.heappush(active, (end - start, index, end))
+            next_span += 1
+        while active and active[0][2] < line:
+            heapq.heappop(active)
+        if active:
+            owners[line] = active[0][1]
+    # Extractors can emit calls out of source order. Preserve their order within each chunk.
+    for call in callees:
+        index = owners.get(call.get("line"))
+        if index is not None:
+            buckets[index].append(call)
     return buckets
 
 

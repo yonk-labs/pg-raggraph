@@ -364,3 +364,103 @@ def test_attach_code_edges_derives_summaries_from_records():
     out = attach_code_edges(records, edges)
     ents = {e["name"]: e["description"] for e in out[0]["entities"]}
     assert ents["pkg.a"] == "Runs the job"
+
+
+async def test_reimport_refreshes_materialization_and_is_idempotent():
+    import asyncio
+
+    ns = "test_chunkshop_refresh"
+    doc = {
+        "doc_id": "a",
+        "seq_num": 0,
+        "original_content": "Same text",
+        "embedding": _embedding(1),
+        "metadata": {},
+    }
+    async with GraphRAG(dsn=_CLI_DSN, namespace=ns) as rag:
+        await rag.delete(ns)
+        try:
+            initial = rows_to_records([doc], skip_llm=True)
+            assert (await rag.ingest_records(initial))["ingested"] == 1
+            # Simulate a record imported before migration 020.
+            await rag.db.execute(
+                "UPDATE documents SET input_fingerprint=NULL WHERE namespace=%s", (ns,)
+            )
+
+            doc.update(
+                embedded_content="Revised heading",
+                embedding=_embedding(2),
+                metadata={"revision": 2},
+            )
+            records = rows_to_records([doc], skip_llm=True)
+            edge = {"src_fqn": "a.call", "dst_fqn": "b.run", "confidence": 0.8}
+            attach_code_edges(records, [edge])
+            results = await asyncio.gather(
+                rag.ingest_records(records), rag.ingest_records(records)
+            )
+            assert sorted((r["ingested"], r["skipped"]) for r in results) == [(0, 1), (1, 0)]
+            chunks = await rag.db.fetch_all(
+                "SELECT c.embedded_content, (c.embedding::real[])[1] AS v, "
+                "c.metadata->>'revision' AS revision FROM chunks c "
+                "JOIN documents d ON d.id=c.document_id WHERE d.namespace=%s",
+                (ns,),
+            )
+            assert chunks == [{"embedded_content": "Revised heading", "v": 2, "revision": "2"}]
+            assert (await rag.status(ns))["relationships"] == 1
+
+            # An edge-only change must replace the old evidence and confidence.
+            changed = rows_to_records([doc], skip_llm=True)
+            attach_code_edges(changed, [dict(edge, confidence=0.3, evidence={"snippet": "run()"})])
+            assert (await rag.ingest_records(changed))["ingested"] == 1
+            rels = await rag.db.fetch_all(
+                "SELECT weight, description FROM relationships WHERE namespace=%s", (ns,)
+            )
+            assert rels == [{"weight": 0.3, "description": "run()"}]
+            assert (await rag.ingest_records(changed))["skipped"] == 1
+
+            invalid = rows_to_records([dict(doc, embedding=[3])], skip_llm=True)
+            assert (await rag.ingest_records(invalid))["failed"] == 1
+            assert (await rag.ingest_records(changed))["skipped"] == 1
+
+            assert (await rag.ingest_records(initial))["ingested"] == 1
+            assert (await rag.status(ns))["relationships"] == 0
+        finally:
+            await rag.delete(ns)
+
+
+async def test_equal_text_sources_and_reverted_import_keep_distinct_versions():
+    import asyncio
+
+    ns = "test_chunkshop_versions"
+    async with GraphRAG(dsn=_CLI_DSN, namespace=ns, evolution_tier="structural") as rag:
+        await rag.delete(ns)
+        try:
+            row = {
+                "doc_id": "a",
+                "seq_num": 0,
+                "original_content": "Same text",
+                "embedding": _embedding(1),
+            }
+            first = rows_to_records([row], skip_llm=True)
+            other = rows_to_records([dict(row, doc_id="b")], skip_llm=True)
+            results = await asyncio.gather(rag.ingest_records(first), rag.ingest_records(other))
+            assert all(r["ingested"] == 1 for r in results)
+
+            second = rows_to_records([dict(row, embedding=_embedding(2))], skip_llm=True)
+            assert (await rag.ingest_records(second))["ingested"] == 1
+            assert (await rag.ingest_records(first))["ingested"] == 1
+            assert (await rag.ingest_records(first))["skipped"] == 1
+            versions = await rag.db.fetch_all(
+                "SELECT source_path, effective_to IS NULL AS live, (c.embedding::real[])[1] AS v "
+                "FROM documents d JOIN chunks c ON c.document_id = d.id "
+                "WHERE d.namespace=%s ORDER BY source_path, d.id",
+                (ns,),
+            )
+            assert [(v["source_path"], v["live"], v["v"]) for v in versions] == [
+                ("chunkshop:a", False, 1),
+                ("chunkshop:a", False, 2),
+                ("chunkshop:a", True, 1),
+                ("chunkshop:b", True, 1),
+            ]
+        finally:
+            await rag.delete(ns)

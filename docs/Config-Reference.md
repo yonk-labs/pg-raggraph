@@ -605,7 +605,7 @@ Env var: `PGRG_METADATA_INDEXES` (comma-separated)
 
 What: per-key btree indexes on `chunks.metadata->>'<key>'`. For each key in the list, `connect()` runs `CREATE INDEX IF NOT EXISTS idx_chunks_metadata_<key>`.
 Pros: makes selective equality predicates on chunk metadata cheap; pairs with `retrieval_strategy="pre_filter"`.
-Cons: non-CONCURRENTLY `CREATE INDEX` takes an `ACCESS EXCLUSIVE` lock during initial build — fine on fresh deploys, brutal on a live multi-million-row table. For retrofits, use the `apply_metadata_indexes_concurrently()` runtime API instead, then add the key here so `connect()` finds the existing index.
+Cons: non-CONCURRENTLY `CREATE INDEX` takes a `SHARE` lock during initial build — fine on fresh deploys, brutal on a live multi-million-row table. For retrofits, use the `apply_metadata_indexes_concurrently()` runtime API instead, then add the key here so `connect()` finds the existing index.
 Key whitelist: `^[a-zA-Z_][a-zA-Z0-9_]*$`, ≤63 chars.
 
 ### `metadata_indexes_gin` (bool, default: `False`)

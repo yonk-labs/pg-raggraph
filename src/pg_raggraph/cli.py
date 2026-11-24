@@ -283,15 +283,11 @@ def ingest_chunkshop_table(
                 min_confidence=min_confidence,
                 summaries=summaries,
             )
-            edge_rows = []
-            # Reuse attach_code_edges' single-record anchoring behavior while
-            # keeping fetch_code_edges_from_table's public tuple return shape.
             if entities or relationships:
                 if not records:
                     raise ValueError("cannot import code_edges without chunk records")
                 records[0].setdefault("entities", []).extend(entities)
                 records[0].setdefault("relationships", []).extend(relationships)
-                edge_rows = relationships
 
         if not records:
             click.echo("No Chunkshop rows found.")
@@ -299,17 +295,19 @@ def ingest_chunkshop_table(
 
         rag = GraphRAG(**kwargs)
         await rag.connect()
-        await rag.ingest_records(records, namespace=namespace)
-        status_ns = namespace or kwargs.get("namespace")
-        s = await rag.status(status_ns)
-        await rag.close()
-        suffix = ""
-        if with_code_edges:
-            suffix = f", imported code relationships: {len(edge_rows)}"
+        try:
+            stats = await rag.ingest_records(records, namespace=namespace)
+            status_ns = namespace or kwargs.get("namespace")
+            s = await rag.status(status_ns)
+        finally:
+            await rag.close()
         click.echo(
-            f"Imported {len(records)} Chunkshop docs. "
-            f"Entities: {s['entities']}, Relationships: {s['relationships']}{suffix}"
+            f"Imported {stats['ingested']} Chunkshop docs. "
+            f"Skipped: {stats['skipped']}, failed: {stats['failed']}. "
+            f"Namespace entities: {s['entities']}, relationships: {s['relationships']}."
         )
+        if stats["failed"]:
+            raise ValueError("Chunkshop import had failed documents. See the ingest log.")
 
     try:
         run_async(_ingest_chunkshop_table())
@@ -946,7 +944,27 @@ def _me_backfill(ctx, batch_size):
         rag = GraphRAG(**ctx.obj["kwargs"])
         await rag.connect()
         try:
-            n = await em.backfill(rag._db, rag._get_embedder(), batch_size=batch_size)
+            from pg_raggraph.embedding import get_embedding_provider
+
+            state = await em.get_state(rag.db)
+            if state is None:
+                raise click.ClickException("No active migration. Run prepare first.")
+            if state["backfill_source"] == "chunkshop_sink":
+                raise click.ClickException(
+                    "Use backfill_from_sink() for a Chunkshop sink migration."
+                )
+            target = rag.config.model_copy(
+                update={
+                    "embedding_model": state["target_model"],
+                    "embedding_dim": state["target_dim"],
+                }
+            )
+            embedder = get_embedding_provider(target)
+            try:
+                n = await em.backfill(rag.db, embedder, batch_size=batch_size)
+            finally:
+                if hasattr(embedder, "aclose"):
+                    await embedder.aclose()
             click.echo(f"backfilled {n} rows")
         finally:
             await rag.close()

@@ -282,3 +282,56 @@ async def test_backfill_from_chunkshop_sink_matches_by_metadata(fresh_db):
         assert row["d"] == 6
     finally:
         await rag.close()
+
+
+async def test_index_build_keeps_single_connection_pool_transactional(fresh_db):
+    async with GraphRAG(dsn=fresh_db, pool_min=1, pool_max=1) as rag:
+        await em.prepare(rag.db, target_model="target", target_dim=6)
+        await em.build_index(rag.db)
+        with pytest.raises(ValueError, match="abort"):
+            async with rag.db.transaction() as tx:
+                await tx.execute("UPDATE embedding_migration SET target_model='leaked'")
+                raise ValueError("abort")
+        assert (await em.get_state(rag.db))["target_model"] == "target"
+
+
+def test_cli_backfill_uses_prepared_model_even_at_same_dimension(fresh_db, monkeypatch):
+    import asyncio
+
+    from click.testing import CliRunner
+
+    from pg_raggraph.cli import main
+
+    async def seed():
+        async with GraphRAG(dsn=fresh_db) as rag:
+            await rag.db.execute(
+                "INSERT INTO entities(namespace, name, entity_type) VALUES ('test','seed','test')"
+            )
+            await em.prepare(rag.db, target_model="requested-model", target_dim=384)
+
+    asyncio.run(seed())
+    calls = []
+
+    def provider(config):
+        calls.append((config.embedding_model, config.embedding_dim))
+        return StubEmbedder(config.embedding_dim)
+
+    monkeypatch.setattr("pg_raggraph.embedding.get_embedding_provider", provider)
+    result = CliRunner().invoke(main, ["--db", fresh_db, "migrate-embeddings", "backfill"])
+    assert result.exit_code == 0, result.exception
+    assert calls == [("requested-model", 384)]
+    assert "backfilled 1 rows" in result.output
+
+
+async def test_concurrent_metadata_indexes_before_connect(fresh_db):
+    async with GraphRAG(dsn=fresh_db):
+        pass  # Bootstrap the existing database, as a deployed application would.
+    rag = GraphRAG(dsn=fresh_db, metadata_indexes=["owner"], document_metadata_indexes_gin=True)
+    results = await rag.apply_metadata_indexes_concurrently()
+    assert len(results) == 2 and all(r["ok"] for r in results)
+    with psycopg.connect(fresh_db) as conn:
+        for result in results:
+            assert conn.execute(
+                "SELECT indisvalid FROM pg_index WHERE indexrelid=to_regclass(%s)",
+                (result["object_name"],),
+            ).fetchone() == (True,)

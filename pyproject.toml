@@ -51,8 +51,8 @@ mcp = ["mcp>=1.0"]
 # _pending_calls/_pending_class_edges spill seams, and an untested chunkshop
 # release already broke production once (#79). Bumping the cap is a deliberate
 # per-release act — run tests/unit/test_chunkshop_canary.py + the integration
-# bridge suite against the new version first. rc4 cleared the canary (Jul 13,
-# commit prior to this bump) but 1.0.0rc5+ is still untested and not on PyPI.
+# bridge suite against the new version first. The 1.0.0rc7 source release
+# passed the delegation, private-seam, and PostgreSQL import tests.
 chunkshop = ["chunkshop>=0.9.1,<1.1"]
 # Deterministic, LLM-free entity + co-occurrence-edge extraction.
 # Requires the spaCy model too: python -m spacy download en_core_web_sm

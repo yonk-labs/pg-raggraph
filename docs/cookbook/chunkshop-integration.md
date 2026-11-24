@@ -304,6 +304,13 @@ pgrg --db "$PGRG_DSN" ingest-chunkshop-table \
   --min-confidence 0.7
 ```
 
+Repeat the import with the same namespace, source prefix, and edge filters when
+the upstream table changes. The CLI reports how many documents it wrote,
+skipped, or failed. An unchanged document keeps its chunks and graph links.
+A changed vector, embedded text, metadata field, or supplied graph edge
+triggers a refresh even when the original text is identical. The first import
+after migration 020 refreshes older records once to establish their fingerprints.
+
 ### Worked example — `ingest_chunkshop_pattern_c.py`
 
 Real Pattern C bridge: [`benchmarks/sales-crm-demo/ingest_chunkshop_pattern_c.py`](../../benchmarks/sales-crm-demo/ingest_chunkshop_pattern_c.py). It:

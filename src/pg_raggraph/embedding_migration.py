@@ -155,8 +155,7 @@ async def build_index(db, *, hnsw_m: int = 16, hnsw_ef_construction: int = 64) -
         raise RuntimeError("no active migration; run prepare first")
     for table in TABLES:
         idx = _TMP_INDEX[table]
-        async with db.pool.connection() as conn:
-            await conn.set_autocommit(True)
+        async with await db.connect_autocommit() as conn:
             await conn.execute(
                 f"CREATE INDEX CONCURRENTLY IF NOT EXISTS {idx} "
                 f"ON {table} USING hnsw (embedding_tmp vector_cosine_ops) "

@@ -540,7 +540,7 @@ class Database:
           lock; CONCURRENTLY would fail in that context (it can't run in a
           transaction).
         - For fresh deployments the table is empty or tiny — the
-          ACCESS EXCLUSIVE lock is invisible.
+          SHARE lock is short-lived.
         - Production retrofitters should create the index manually with
           CONCURRENTLY first (see docs/cookbook/metadata-indexes.md), then
           add the key to the matching config so this loop's
@@ -716,7 +716,7 @@ class Database:
 
         This is the **production retrofit** path. The default ``connect()``
         flow uses ``CREATE INDEX IF NOT EXISTS`` (non-concurrent, takes
-        an ``ACCESS EXCLUSIVE`` lock for the duration of the build).
+        a ``SHARE`` lock for the duration of the build).
         That's fine for fresh deployments where the chunks/documents
         tables are empty or tiny, but on a live table with millions of
         rows the lock blocks all writes — often minutes.
@@ -807,7 +807,7 @@ class Database:
         # CONCURRENTLY can't run in a transaction. Acquire an autocommit
         # connection outside the pool's transactional context.
         try:
-            async with await self._connection_autocommit() as conn:
+            async with await self.connect_autocommit() as conn:
                 stmt = sql.SQL(
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS {idx} ON {tbl} ((metadata->>{key}))"
                 ).format(
@@ -852,7 +852,7 @@ class Database:
             return {"ok": False, "table": table, "kind": "gin", "key": None, "error": str(e)}
         index_name = _metadata_gin_index_name(table)
         try:
-            async with await self._connection_autocommit() as conn:
+            async with await self.connect_autocommit() as conn:
                 stmt = sql.SQL(
                     "CREATE INDEX CONCURRENTLY IF NOT EXISTS {idx} ON {tbl} USING GIN (metadata)"
                 ).format(
@@ -878,7 +878,7 @@ class Database:
                 "error": str(e),
             }
 
-    async def _connection_autocommit(self):
+    async def connect_autocommit(self):
         """Fresh autocommit connection for CONCURRENTLY DDL.
 
         Pool connections may be inside transactions; CONCURRENTLY DDL
@@ -888,7 +888,7 @@ class Database:
         """
         from psycopg import AsyncConnection
 
-        return AsyncConnection.connect(self.config.dsn, autocommit=True)
+        return await AsyncConnection.connect(self.config.dsn, autocommit=True)
 
     async def _apply_migrations(self, conn) -> None:
         """Apply numbered migration files from sql/migrations/.

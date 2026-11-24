@@ -76,8 +76,8 @@ pgrg --db "$PGRG_DSN" migrate-embeddings finalize
 `prepare --backfill-source` selects where the new vectors come from:
 
 - **`reembed`** (default) — re-embed the stored chunk text (`embedded_content`) and
-  entity text (`name` + `description`) with the new model via the configured
-  embedding provider. Fully self-contained; needs no source documents.
+  entity text (`name` + `description`) via the configured embedding provider,
+  using the model and dimension recorded by `prepare`. Fully self-contained; needs no source documents.
 - **`chunkshop_sink`** — for [Pattern C](chunkshop-integration.md) deployments where
   chunkshop re-embeds its sink table upstream. Chunk vectors are re-imported from the
   re-embedded sink (matched on the stored `chunkshop_doc_id` / `chunkshop_seq_num`

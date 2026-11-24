@@ -356,3 +356,33 @@ async def test_per_file_default_misses_cross_file_callers():
     finally:
         await rag.delete(NS)
         await rag.close()
+
+
+async def test_converging_paths_return_one_row_per_symbol_per_layer():
+    rag = GraphRAG(dsn=DSN, namespace=NS)
+    await _fresh(rag)
+    try:
+        edges = []
+        previous = ["seed"]
+        for depth in range(1, 11):
+            layer = [f"{depth}.a", f"{depth}.b"]
+            edges.extend((src, dst, "CALLS", 1.0, "") for src in previous for dst in layer)
+            previous = layer
+        await _seed(rag, edges)
+
+        class CountingDB:
+            fetch_one = rag.db.fetch_one
+            rows = 0
+
+            async def fetch_all(self, *args):
+                result = await rag.db.fetch_all(*args)
+                self.rows += len(result)
+                return result
+
+        db = CountingDB()
+        impact = await cg.code_impact(db, "seed", namespace=NS, depth=10)
+        assert [e.depth for e in impact.callees] == [d for d in range(1, 11) for _ in range(2)]
+        assert db.rows == 20
+    finally:
+        await rag.delete(NS)
+        await rag.close()
